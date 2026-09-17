@@ -16,7 +16,7 @@ app.use((req, res, next) => {
 });
 
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'order.html'));
+    res.sendFile(path.join(__dirname, 'public', 'order.html'));
 });
 
 app.get('/pos', (req, res) => {
