@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Fast POS Billing</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .floor-canvas {
+      position: relative;
+      background-size: 20px 20px;
+      background-image: radial-gradient(circle, #cbd5e1 1px, transparent 1px);
+    }
+    .draggable-table {
+      user-select: none;
+      -webkit-user-drag: none;
+    }
+    .editing-mode {
+      cursor: grab !important;
+      border: 2px dashed #4f46e5 !important;
+      box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.3);
+    }
+    .editing-mode:active {
+      cursor: grabbing !important;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 flex h-screen overflow-hidden font-sans">
+
+  <!-- Left Side: Floor Plan / Menu / Active Orders -->
+  <div class="w-7/12 p-4 flex flex-col h-full">
+    
+    <!-- Top Header Navigation -->
+    <div class="flex justify-between items-center mb-2">
+      <div>
+        <h1 id="topRestaurantName" class="text-xl font-black text-gray-800">Fast POS</h1>
+        <p id="topTagline" class="text-[10px] text-gray-500 font-medium"></p>
+      </div>
+
+      <div class="flex gap-1.5 items-center">
+        <button onclick="openCashDrawer()" class="bg-amber-100 hover:bg-amber-200 border border-amber-300 text-amber-900 px-2 py-1 rounded-lg text-xs font-black transition">
+          💵 Drawer
+        </button>
+        <a href="/customer.html" target="_blank" class="bg-sky-600 hover:bg-sky-700 text-white px-2 py-1 rounded-lg text-xs font-bold transition">
+          🖥 Display
+        </a>
+        <a href="/kiosk.html" target="_blank" class="bg-purple-600 hover:bg-purple-700 text-white px-2 py-1 rounded-lg text-xs font-bold transition">
+          📱 Kiosk
+        </a>
+        <a href="/kitchen.html" class="bg-amber-600 hover:bg-amber-700 text-white px-2 py-1 rounded-lg text-xs font-bold transition">
+          🍳 KOT
+        </a>
+        <button onclick="protectedNav('/customers.html')" class="bg-violet-600 hover:bg-violet-700 text-white px-2 py-1 rounded-lg text-xs font-bold transition">
+          👥 Khata / Directory 🔒
+        </button>
+        <button onclick="protectedNav('/report.html')" class="bg-emerald-700 hover:bg-emerald-800 text-white px-2 py-1 rounded-lg text-xs font-bold transition">
+          📊 Reports 🔒
+        </button>
+        <button onclick="protectedNav('/admin.html')" class="bg-gray-800 hover:bg-black text-white px-2 py-1 rounded-lg text-xs font-bold transition">
+          🍔 Menu 🔒
+        </button>
+      </div>
+    </div>
+
+    <!-- Mode Selector Tabs -->
+    <div class="flex items-center justify-between bg-white p-1.5 rounded-xl border border-gray-200 mb-2 shadow-sm">
+      <div class="flex gap-1">
+        <button onclick="switchView('menu')" id="btnViewMenu" class="px-3 py-1.5 rounded-lg text-xs font-black bg-indigo-600 text-white transition">
+          🍔 Menu Catalogue
+        </button>
+        <button onclick="switchView('floor')" id="btnViewFloor" class="px-3 py-1.5 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-100 transition">
+          🗺 Floor Layout
+        </button>
+        <button onclick="switchView('activeOrders')" id="btnViewActive" class="px-3 py-1.5 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-100 transition flex items-center gap-1">
+          <span>⚡ Active & Due Orders</span>
+          <span id="activeOrdersBadge" class="bg-red-500 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full">0</span>
+        </button>
+      </div>
+
+      <div id="floorControls" class="hidden flex items-center gap-1.5">
+        <button onclick="toggleFloorEdit()" id="btnEditFloor" class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-2.5 py-1 rounded-md border">
+          ✏️ Move Tables
+        </button>
+        <button onclick="addNewTablePrompt()" class="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-2 py-1 rounded-md border border-indigo-200">
+          + Add Table
+        </button>
+      </div>
+    </div>
+
+    <!-- 1. Menu Grid View -->
+    <div id="viewMenu" class="flex-1 overflow-y-auto pr-1">
+      <div id="menu-grid" class="grid grid-cols-3 gap-2.5"></div>
+    </div>
+
+    <!-- 2. Interactive Floor Plan View -->
+    <div id="viewFloor" class="hidden flex-1 flex flex-col bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+      <div class="p-2 border-b bg-gray-50 flex justify-between items-center text-[11px] font-bold text-gray-600">
+        <span id="floorStatusMsg">Click on available table to bill, or busy table to edit/settle</span>
+        <span id="floorEditIndicator" class="text-indigo-600 hidden font-black animate-pulse">Drag tables anywhere & Click "Save Positions"</span>
+      </div>
+      <div id="floorCanvas" class="floor-canvas flex-1 relative overflow-hidden h-full w-full"></div>
+    </div>
+
+    <!-- 3. Active Orders Tracking Board -->
+    <div id="viewActiveOrders" class="hidden flex-1 overflow-y-auto pr-1 space-y-2">
+      <div id="activeOrdersList" class="space-y-2"></div>
+    </div>
+
+  </div>
+
+  <!-- Right Side: Order Type Switch, Cart & Bill -->
+  <div class="w-5/12 bg-white p-5 shadow-2xl flex flex-col justify-between border-l border-gray-200">
+    <div>
+      
+      <!-- Order Type Buttons -->
+      <div class="grid grid-cols-3 gap-1.5 mb-2 bg-gray-100 p-1.5 rounded-2xl">
+        <button id="btnDineIn" onclick="setOrderType('Dine-In')" class="py-2 rounded-xl text-xs font-black transition bg-white text-indigo-700 shadow-sm">
+          🍽 Dine-In
+        </button>
+        <button id="btnTakeaway" onclick="setOrderType('Takeaway')" class="py-2 rounded-xl text-xs font-black transition text-gray-500 hover:text-gray-900">
+          🛍 Takeaway
+        </button>
+        <button id="btnDelivery" onclick="setOrderType('Delivery')" class="py-2 rounded-xl text-xs font-black transition text-gray-500 hover:text-gray-900">
+          🛵 Delivery
+        </button>
+      </div>
+
+      <!-- Editing Banner -->
+      <div id="editingOrderBanner" class="hidden bg-amber-50 border border-amber-300 text-amber-900 p-2 rounded-xl mb-2 flex justify-between items-center text-xs font-bold">
+        <span>✏️ Modifying Order <span id="editingOrderIdTag">#0</span></span>
+        <button onclick="cancelEditingOrder()" class="text-red-600 underline">Cancel Edit</button>
+      </div>
+
+      <div class="grid grid-cols-3 gap-2 mb-2 bg-gray-50 p-2 rounded-xl border border-gray-100 text-xs">
+        <input id="tableNoInput" type="text" placeholder="Table No" class="border rounded-lg p-1.5 font-bold outline-none bg-white">
+        <input id="custPhone" type="text" placeholder="Phone (Required for Due)" onblur="lookupCustomer()" class="border rounded-lg p-1.5 outline-none bg-white font-mono">
+        <input id="custName" type="text" placeholder="Guest Name" class="border rounded-lg p-1.5 outline-none bg-white">
+      </div>
+
+      <!-- Customer Due Alert -->
+      <div id="custDueBadge" class="hidden bg-red-50 border border-red-200 text-red-700 px-3 py-1.5 rounded-xl mb-2 text-xs font-black flex justify-between items-center">
+        <span>⚠️ Previous Due: <span id="custDueAmt">₹0</span></span>
+        <a href="/customers.html" class="underline text-[11px]">View Khata</a>
+      </div>
+
+      <div id="cart-items" class="space-y-1.5 max-h-[28vh] overflow-y-auto pr-1 text-sm">
+        <p class="text-gray-400 text-center py-8 text-xs">Cart is empty</p>
+      </div>
+    </div>
+
+    <!-- Billing Totals & Actions -->
+    <div class="border-t pt-2 space-y-1 bg-gray-50 -mx-5 px-5 pb-2">
+      <div class="flex justify-between text-xs text-gray-600">
+        <span>Subtotal:</span>
+        <span id="calc-subtotal" class="font-bold text-gray-800">₹0</span>
+      </div>
+
+      <div class="flex items-center justify-between text-xs">
+        <span class="text-gray-600">Discount:</span>
+        <div class="flex items-center gap-1">
+          <input type="number" id="discountInput" value="0" min="0" oninput="calculateBill()" class="w-16 border rounded px-1 py-0.5 text-right font-bold text-xs outline-none">
+          <select id="discountType" onchange="calculateBill()" class="border rounded px-1 py-0.5 text-xs outline-none">
+            <option value="RS">₹</option>
+            <option value="PERCENT">%</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between text-xs">
+        <label class="flex items-center gap-1.5 cursor-pointer select-none">
+          <input type="checkbox" id="gstToggle" onchange="calculateBill()" class="rounded text-indigo-600">
+          <span class="text-gray-700 font-semibold">Apply GST (<span id="gstRateLabel">5</span>%)</span>
+        </label>
+        <span id="calc-gst" class="font-bold text-gray-800">₹0</span>
+      </div>
+
+      <div class="flex justify-between text-xl font-black text-gray-900 pt-1 border-t border-gray-200">
+        <span>Total:</span>
+        <span id="grand-total">₹0</span>
+      </div>
+
+      <!-- Action Buttons Grid: Hold, Cash, UPI, DUE -->
+      <div class="grid grid-cols-4 gap-1.5 pt-1">
+        <button id="btnHoldTable" onclick="punchOrUpdateOrder('HOLD')" class="bg-amber-500 hover:bg-amber-600 text-white py-2.5 rounded-xl font-bold text-xs transition">
+          ⏳ Hold
+        </button>
+        <button onclick="punchOrUpdateOrder('CASH')" class="bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl font-bold text-xs transition">
+          💵 Cash
+        </button>
+        <button onclick="punchOrUpdateOrder('UPI')" class="bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl font-bold text-xs transition">
+          📲 UPI
+        </button>
+        <button onclick="punchOrUpdateOrder('DUE')" class="bg-rose-600 hover:bg-rose-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm">
+          📒 Due (Khata)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Customization Modal -->
+  <div id="customizeModal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-5 max-w-md w-full shadow-2xl max-h-[92vh] overflow-y-auto">
+      <div class="flex justify-between items-start border-b pb-2 mb-3">
+        <div class="flex items-center gap-2.5">
+          <div id="modalItemImgContainer"></div>
+          <div>
+            <h3 id="custModalTitle" class="text-sm font-black text-gray-800">Customize Item</h3>
+            <p id="custModalSubtitle" class="text-xs text-gray-500"></p>
+          </div>
+        </div>
+        <button onclick="closeCustModal()" class="text-gray-400 hover:text-black font-bold">✕</button>
+      </div>
+
+      <div id="variationSection" class="hidden mb-3 bg-amber-50/70 p-2.5 rounded-xl border border-amber-200">
+        <label class="block text-[10px] font-bold text-amber-900 uppercase mb-1.5">Select Size / Portion:</label>
+        <div id="variationOptions" class="grid grid-cols-2 gap-1.5"></div>
+      </div>
+
+      <div id="dynamicGroupsList" class="space-y-2 mb-3"></div>
+
+      <div class="mb-3">
+        <label class="block text-xs font-bold text-gray-600 mb-1">Kitchen Note</label>
+        <input type="text" id="custItemNotes" placeholder="e.g. Extra spicy" class="w-full border p-2 rounded-xl text-xs outline-none">
+      </div>
+
+      <div class="flex justify-between items-center pt-2 border-t">
+        <div>
+          <span class="text-[10px] text-gray-500">Total:</span>
+          <div id="modalRunningPrice" class="text-lg font-black text-emerald-600">₹0</div>
+        </div>
+        <div class="flex gap-1.5">
+          <button onclick="confirmItemAdd()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-xl text-xs">Add to Cart</button>
+          <button onclick="closeCustModal()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2 px-3 rounded-xl text-xs">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let cart = [];
+    let currentOrderType = 'Dine-In';
+    let editingOrderId = null;
+    let floorTables = [];
+    let allActiveOrders = [];
+    let allMasterGroups = [];
+    let isFloorEditing = false;
+    let currentView = 'menu';
+    let restaurantInfo = { default_gst: 5 };
+    let billCalculation = { subtotal: 0, discount: 0, gst: 0, finalTotal: 0 };
+    let selectedMenuItem = null;
+    let selectedVariation = null;
+    let selectedGroupAddons = {};
+
+    function switchView(view) {
+      currentView = view;
+      document.getElementById('viewMenu').classList.toggle('hidden', view !== 'menu');
+      document.getElementById('viewFloor').classList.toggle('hidden', view !== 'floor');
+      document.getElementById('viewActiveOrders').classList.toggle('hidden', view !== 'activeOrders');
+
+      document.getElementById('btnViewMenu').className = view === 'menu' ? "px-3 py-1.5 rounded-lg text-xs font-black bg-indigo-600 text-white transition" : "px-3 py-1.5 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-100 transition";
+      document.getElementById('btnViewFloor').className = view === 'floor' ? "px-3 py-1.5 rounded-lg text-xs font-black bg-indigo-600 text-white transition" : "px-3 py-1.5 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-100 transition";
+      document.getElementById('btnViewActive').className = view === 'activeOrders' ? "px-3 py-1.5 rounded-lg text-xs font-black bg-indigo-600 text-white transition flex items-center gap-1" : "px-3 py-1.5 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-100 transition flex items-center gap-1";
+
+      document.getElementById('floorControls').classList.toggle('hidden', view !== 'floor');
+      if (view === 'floor') loadFloorTables();
+      if (view === 'activeOrders') renderActiveOrdersList();
+    }
+
+    function setOrderType(type) {
+      currentOrderType = type;
+      ['DineIn', 'Takeaway', 'Delivery'].forEach(t => {
+        const btn = document.getElementById('btn' + t);
+        if (type.replace('-', '') === t.replace('-', '')) {
+          btn.className = "py-2 rounded-xl text-xs font-black transition bg-white text-indigo-700 shadow-sm";
+        } else {
+          btn.className = "py-2 rounded-xl text-xs font-black transition text-gray-500 hover:text-gray-900";
+        }
+      });
+      document.getElementById('tableNoInput').placeholder = type === 'Dine-In' ? 'Table No (e.g. T-1)' : (type === 'Delivery' ? 'Rider / Address' : 'Takeaway Token');
+      syncCustomerDisplay();
+    }
+
+    // ================= DRAG & DROP FLOOR CANVAS =================
+    function loadFloorTables() {
+      fetch('/api/floor-tables')
+        .then(res => res.json())
+        .then(tables => {
+          floorTables = tables;
+          renderFloorCanvas();
+        });
+    }
+
+    function renderFloorCanvas() {
+      const canvas = document.getElementById('floorCanvas');
+      canvas.innerHTML = floorTables.map(t => {
+        const runningOrder = allActiveOrders.find(o => o.order_type === 'Dine-In' && o.table_no === t.table_no);
+        const isBusy = !!runningOrder;
+
+        return `
+          <div id="table_${t.id}" data-id="${t.id}" style="left: ${t.x}px; top: ${t.y}px;" class="draggable-table absolute w-28 h-20 rounded-2xl p-2 flex flex-col justify-between shadow-md select-none ${isFloorEditing ? 'editing-mode' : ''} ${isBusy ? 'bg-red-50 border-2 border-red-400 text-red-900' : 'bg-emerald-50 border-2 border-emerald-400 text-emerald-900'}">
+            <div class="flex justify-between items-center pointer-events-none">
+              <span class="font-black text-xs">🍽 ${t.table_no}</span>
+              <span class="text-[9px] font-bold px-1 rounded ${isBusy ? 'bg-red-200 text-red-800' : 'bg-emerald-200 text-emerald-800'}">${isBusy ? 'BUSY' : t.seats + 'p'}</span>
+            </div>
+            
+            <div class="text-center pointer-events-none">
+              ${isBusy ? `<span class="text-xs font-black text-red-600 block">₹${runningOrder.total}</span>` : '<span class="text-[10px] text-gray-400 font-semibold">Available</span>'}
+            </div>
+
+            <button type="button" onclick="handleTableClick('${t.table_no}')" class="w-full text-[10px] font-black py-0.5 rounded bg-white/90 border border-gray-300 hover:bg-white shadow-xs ${isFloorEditing ? 'opacity-40 pointer-events-none' : ''}">
+              ${isBusy ? '✏️ Edit / Bill' : '+ Select'}
+            </button>
+          </div>
+        `;
+      }).join('');
+
+      attachDragHandlers();
+    }
+
+    function toggleFloorEdit() {
+      isFloorEditing = !isFloorEditing;
+      const btn = document.getElementById('btnEditFloor');
+      const ind = document.getElementById('floorEditIndicator');
+      const statusMsg = document.getElementById('floorStatusMsg');
+
+      if (isFloorEditing) {
+        btn.innerText = "💾 Save Positions";
+        btn.className = "text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-black px-3 py-1 rounded-md shadow";
+        ind.classList.remove('hidden');
+        statusMsg.classList.add('hidden');
+      } else {
+        btn.innerText = "✏️ Move Tables";
+        btn.className = "text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-2.5 py-1 rounded-md border";
+        ind.classList.add('hidden');
+        statusMsg.classList.remove('hidden');
+        saveFloorPositions();
+      }
+      renderFloorCanvas();
+    }
+
+    function attachDragHandlers() {
+      const canvas = document.getElementById('floorCanvas');
+      const tables = document.querySelectorAll('.draggable-table');
+
+      tables.forEach(tableEl => {
+        tableEl.onmousedown = function(e) {
+          if (!isFloorEditing) return;
+          if (e.target.tagName === 'BUTTON') return;
+
+          e.preventDefault();
+          const tableId = Number(tableEl.getAttribute('data-id'));
+          const canvasRect = canvas.getBoundingClientRect();
+          let startX = e.clientX;
+          let startY = e.clientY;
+          let origLeft = parseInt(tableEl.style.left) || 0;
+          let origTop = parseInt(tableEl.style.top) || 0;
+          let finalLeft = origLeft;
+          let finalTop = origTop;
+
+          function onMouseMove(moveEvent) {
+            let dx = moveEvent.clientX - startX;
+            let dy = moveEvent.clientY - startY;
+
+            finalLeft = origLeft + dx;
+            finalTop = origTop + dy;
+
+            finalLeft = Math.max(5, Math.min(finalLeft, canvasRect.width - tableEl.offsetWidth - 5));
+            finalTop = Math.max(5, Math.min(finalTop, canvasRect.height - tableEl.offsetHeight - 5));
+
+            tableEl.style.left = finalLeft + 'px';
+            tableEl.style.top = finalTop + 'px';
+          }
+
+          function onMouseUp() {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+
+            const matched = floorTables.find(t => t.id === tableId);
+            if (matched) {
+              matched.x = finalLeft;
+              matched.y = finalTop;
+            }
+          }
+
+          document.addEventListener('mousemove', onMouseMove);
+          document.addEventListener('mouseup', onMouseUp);
+        };
+      });
+    }
+
+    function saveFloorPositions() {
+      const positions = floorTables.map(t => {
+        const el = document.getElementById('table_' + t.id);
+        const curX = el ? (parseInt(el.style.left) || t.x) : t.x;
+        const curY = el ? (parseInt(el.style.top) || t.y) : t.y;
+        t.x = curX;
+        t.y = curY;
+        return { id: t.id, x: curX, y: curY };
+      });
+
+      fetch('/api/floor-tables/save-positions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tables: positions })
+      }).then(() => alert('Table positions saved!'));
+    }
+
+    function addNewTablePrompt() {
+      const tno = prompt("Enter Table Name / No (e.g. T-9):");
+      if (!tno) return;
+      fetch('/api/floor-tables', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ table_no: tno.trim(), seats: 4, x: 40, y: 40 })
+      }).then(() => loadFloorTables());
+    }
+
+    function handleTableClick(tableNo) {
+      if (isFloorEditing) return;
+      const activeOrder = allActiveOrders.find(o => o.order_type === 'Dine-In' && o.table_no === tableNo);
+      if (activeOrder) {
+        editExistingOrder(activeOrder);
+      } else {
+        setOrderType('Dine-In');
+        document.getElementById('tableNoInput').value = tableNo;
+        switchView('menu');
+      }
+    }
+
+    // ================= ACTIVE & DUE ORDERS TRACKER =================
+    function loadActiveOrders() {
+      fetch('/api/orders/active')
+        .then(res => res.json())
+        .then(orders => {
+          allActiveOrders = orders;
+          document.getElementById('activeOrdersBadge').innerText = orders.length;
+          if (currentView === 'activeOrders') renderActiveOrdersList();
+          if (currentView === 'floor' && !isFloorEditing) renderFloorCanvas();
+        });
+    }
+
+    function renderActiveOrdersList() {
+      const container = document.getElementById('activeOrdersList');
+      if (!allActiveOrders.length) {
+        container.innerHTML = '<p class="text-center text-gray-400 py-10 font-bold">No active running orders or pending due bills.</p>';
+        return;
+      }
+
+      container.innerHTML = allActiveOrders.map(o => {
+        let typeBadge = '';
+        if (o.status === 'DUE_PENDING' || o.payment_mode === 'DUE') {
+          typeBadge = `<span class="bg-rose-100 text-rose-800 px-2 py-0.5 rounded text-[10px] font-black border border-rose-300">📒 DUE / KHATA</span>`;
+        } else if (o.order_type === 'Dine-In') {
+          typeBadge = `<span class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded text-[10px] font-black">🍽 ${o.table_no || 'Dine-In'}</span>`;
+        } else if (o.order_type === 'Takeaway') {
+          typeBadge = `<span class="bg-purple-100 text-purple-800 px-2 py-0.5 rounded text-[10px] font-black">🛍 Takeaway</span>`;
+        } else {
+          typeBadge = `<span class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-[10px] font-black">🛵 Delivery</span>`;
+        }
+
+        const itemsText = o.items.map(i => `${i.name} x${i.qty}`).join(', ');
+
+        return `
+          <div class="bg-white p-3 rounded-2xl border ${o.status === 'DUE_PENDING' ? 'border-rose-300 bg-rose-50/20' : 'border-gray-200'} shadow-sm flex justify-between items-center hover:border-indigo-400 transition">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="font-black text-sm text-gray-800">Order #${o.id}</span>
+                ${typeBadge}
+                <span class="text-[10px] text-gray-400 font-mono">${o.time}</span>
+              </div>
+              <p class="text-xs text-gray-600 mt-1 line-clamp-1">${itemsText}</p>
+              ${o.customer_name ? `<p class="text-[10px] text-gray-500 font-bold">Guest: ${o.customer_name} ${o.customer_phone ? '(' + o.customer_phone + ')' : ''}</p>` : ''}
+            </div>
+
+            <div class="flex items-center gap-1.5">
+              <span class="text-base font-black text-gray-900 mr-1">₹${o.total}</span>
+              <button onclick='editExistingOrder(${JSON.stringify(o)})' class="bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold px-2.5 py-1.5 rounded-xl text-xs hover:bg-indigo-100">
+                ✏️ Edit
+              </button>
+              <button onclick="settleActiveOrderPrompt(${o.id}, '${o.customer_name || 'Order #' + o.id}', ${o.total}, 'CASH')" class="bg-emerald-600 text-white font-bold px-2.5 py-1.5 rounded-xl text-xs">
+                💵 Settle Cash
+              </button>
+              <button onclick="settleActiveOrderPrompt(${o.id}, '${o.customer_name || 'Order #' + o.id}', ${o.total}, 'UPI')" class="bg-indigo-600 text-white font-bold px-2.5 py-1.5 rounded-xl text-xs">
+                📲 UPI
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function editExistingOrder(order) {
+      editingOrderId = order.id;
+      setOrderType(order.order_type);
+      document.getElementById('tableNoInput').value = order.table_no || '';
+      document.getElementById('custPhone').value = order.customer_phone || '';
+      document.getElementById('custName').value = order.customer_name || '';
+
+      cart = order.items.map(i => ({
+        cartId: Date.now() + Math.random(),
+        name: i.name,
+        qty: i.qty,
+        price: i.price,
+        notes: i.notes || ''
+      }));
+
+      document.getElementById('discountInput').value = order.discount || 0;
+      document.getElementById('editingOrderIdTag').innerText = '#' + order.id;
+      document.getElementById('editingOrderBanner').classList.remove('hidden');
+
+      if (order.customer_phone) lookupCustomer();
+      renderCart();
+      switchView('menu');
+    }
+
+    function cancelEditingOrder() {
+      editingOrderId = null;
+      cart = [];
+      document.getElementById('editingOrderBanner').classList.add('hidden');
+      document.getElementById('tableNoInput').value = '';
+      document.getElementById('custPhone').value = '';
+      document.getElementById('custName').value = '';
+      document.getElementById('custDueBadge').classList.add('hidden');
+      renderCart();
+    }
+
+    function settleActiveOrderPrompt(orderId, label, total, mode) {
+      if (!confirm(`Settle Bill for ${label} with ${mode} (Total: ₹${total})?`)) return;
+      fetch(`/api/tables/${orderId}/settle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payment_mode: mode })
+      })
+      .then(res => res.json())
+      .then(() => {
+        alert(`Order #${orderId} marked paid & completed with ${mode}!`);
+        loadActiveOrders();
+      });
+    }
+
+    function punchOrUpdateOrder(mode) {
+      if (!cart.length) return alert('Cart khali hai!');
+
+      const tableNo = document.getElementById('tableNoInput').value.trim();
+      const custPhone = document.getElementById('custPhone').value.trim();
+      const custName = document.getElementById('custName').value.trim();
+
+      if (currentOrderType === 'Dine-In' && !tableNo) return alert('Table No daalein!');
+
+      if (mode === 'DUE' && custPhone.length < 10) {
+        return alert('Due (Khata) me daalne ke liye valid 10-digit Phone Number zaroori hai!');
+      }
+
+      const payload = {
+        order_type: currentOrderType,
+        table_no: tableNo,
+        customer_name: custName,
+        customer_phone: custPhone,
+        items: [...cart],
+        payment_mode: (mode === 'HOLD') ? 'PENDING' : mode,
+        subtotal: billCalculation.subtotal,
+        discount: billCalculation.discount,
+        gst: billCalculation.gst,
+        total: billCalculation.finalTotal,
+        is_hold: (mode === 'HOLD')
+      };
+
+      if (editingOrderId) {
+        fetch('/api/orders/' + editingOrderId, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+        .then(res => res.json())
+        .then(() => {
+          if (mode === 'CASH' || mode === 'UPI') {
+            printBill(editingOrderId, currentOrderType, tableNo, payload.customer_name, payload.items, mode);
+            fetch(`/api/tables/${editingOrderId}/settle`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ payment_mode: mode })
+            });
+            alert(`Order #${editingOrderId} updated & settled with ${mode}!`);
+          } else if (mode === 'DUE') {
+            alert(`Order #${editingOrderId} updated & kept as PENDING DUE!`);
+          } else {
+            alert(`Order #${editingOrderId} updated successfully!`);
+          }
+          cancelEditingOrder();
+          loadActiveOrders();
+        });
+      } else {
+        fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (mode !== 'HOLD') {
+            printBill(data.orderId, currentOrderType, tableNo, payload.customer_name, payload.items, mode);
+            if (mode === 'DUE') {
+              alert(`Bill #${data.orderId} added as PENDING DUE (Unpaid Khata). Ye daily sale delete hone par bhi safe rahega!`);
+            }
+          } else {
+            alert(`Order sent to Kitchen! Status: RUNNING.`);
+          }
+          cart = [];
+          document.getElementById('tableNoInput').value = '';
+          document.getElementById('custPhone').value = '';
+          document.getElementById('custName').value = '';
+          document.getElementById('custDueBadge').classList.add('hidden');
+          renderCart();
+          loadActiveOrders();
+        });
+      }
+    }
+
+    function syncCustomerDisplay() {
+      fetch('/api/display/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: cart,
+          subtotal: billCalculation.subtotal,
+          discount: billCalculation.discount,
+          gst: billCalculation.gst,
+          total: billCalculation.finalTotal,
+          orderType: currentOrderType,
+          tableNo: document.getElementById('tableNoInput').value.trim()
+        })
+      });
+    }
+
+    fetch('/api/settings').then(res => res.json()).then(info => {
+      restaurantInfo = info;
+      document.getElementById('topRestaurantName').innerText = info.restaurant_name || 'Fast POS';
+      document.getElementById('topTagline').innerText = info.tagline || '';
+      document.getElementById('gstRateLabel').innerText = info.default_gst || 5;
+    });
+
+    fetch('/api/addon-groups').then(res => res.json()).then(groups => { allMasterGroups = groups; });
+
+    function loadMenu() {
+      fetch('/api/menu').then(res => res.json()).then(items => {
+        const grid = document.getElementById('menu-grid');
+        grid.innerHTML = items.map(item => {
+          let parsedVars = [];
+          try { parsedVars = JSON.parse(item.variations || '[]'); } catch(e) {}
+          const priceLabel = parsedVars.length ? `From ₹${parsedVars[0].price}` : `₹${item.price}`;
+
+          return `
+            <div onclick='openCustomization(${JSON.stringify(item)})' class="bg-white rounded-xl shadow-sm border border-gray-200 hover:border-indigo-500 hover:shadow-md cursor-pointer transition flex flex-col justify-between overflow-hidden">
+              ${item.image ? `<img src="${item.image}" class="w-full h-20 object-cover border-b">` : `<div class="w-full h-14 bg-gray-50 flex items-center justify-center text-gray-300 text-xs">No Photo</div>`}
+              <div class="p-2">
+                <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">${item.category}</span>
+                <h3 class="font-bold text-gray-800 mt-1 text-xs leading-tight line-clamp-1">${item.name}</h3>
+                <div class="flex justify-between items-center mt-1.5">
+                  <p class="text-emerald-600 font-black text-xs">${priceLabel}</p>
+                  <span class="text-[10px] text-indigo-600 font-bold bg-indigo-50 px-1.5 py-0.5 rounded">+ Add</span>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      });
+    }
+
+    function openCustomization(item) {
+      selectedMenuItem = item;
+      selectedGroupAddons = {};
+      document.getElementById('custModalTitle').innerText = item.name;
+      document.getElementById('custModalSubtitle').innerText = item.category;
+      document.getElementById('custItemNotes').value = '';
+
+      let variations = [];
+      try { variations = JSON.parse(item.variations || '[]'); } catch(e) {}
+      const varSection = document.getElementById('variationSection');
+      const varOptions = document.getElementById('variationOptions');
+
+      if (variations.length > 0) {
+        selectedVariation = variations[0];
+        varSection.classList.remove('hidden');
+        varOptions.innerHTML = variations.map((v, idx) => `
+          <label class="flex items-center justify-between p-2 rounded-xl border border-amber-200 cursor-pointer bg-white">
+            <input type="radio" name="itemVar" ${idx === 0 ? 'checked' : ''} onchange='selectVariation(${JSON.stringify(v)})' class="text-amber-600">
+            <span class="text-xs font-bold text-gray-800">${v.name}</span>
+            <span class="text-xs font-black text-emerald-600">₹${v.price}</span>
+          </label>
+        `).join('');
+      } else {
+        selectedVariation = null;
+        varSection.classList.add('hidden');
+      }
+
+      renderGroupsForCurrentSelection();
+      updateModalPrice();
+      document.getElementById('customizeModal').classList.remove('hidden');
+    }
+
+    function selectVariation(v) { selectedVariation = v; renderGroupsForCurrentSelection(); updateModalPrice(); }
+
+    function renderGroupsForCurrentSelection() {
+      selectedGroupAddons = {};
+      let targetGroupIds = (selectedVariation && selectedVariation.addon_groups && selectedVariation.addon_groups.length > 0)
+        ? selectedVariation.addon_groups
+        : JSON.parse(selectedMenuItem.assigned_addon_groups || '[]');
+
+      const targetGroups = allMasterGroups.filter(g => targetGroupIds.includes(g.id));
+      const groupsBox = document.getElementById('dynamicGroupsList');
+
+      if (!targetGroups.length) {
+        groupsBox.innerHTML = '<p class="text-xs text-gray-400 italic py-1 text-center">No add-ons available</p>';
+      } else {
+        groupsBox.innerHTML = targetGroups.map(g => {
+          let items = [];
+          try { items = JSON.parse(g.items || '[]'); } catch(e) {}
+          selectedGroupAddons[g.id] = [];
+
+          return `
+            <div class="bg-gray-50 p-2.5 rounded-xl border border-gray-200">
+              <div class="flex justify-between items-center mb-1">
+                <span class="text-[11px] font-black text-gray-800 uppercase">${g.name}</span>
+                <span class="text-[9px] font-bold ${g.is_mandatory ? 'text-red-600' : 'text-gray-500'}">Max: ${g.max_selection}</span>
+              </div>
+              <div class="space-y-1">
+                ${items.map(addon => `
+                  <label class="flex items-center justify-between p-1.5 rounded-lg bg-white border border-gray-100 cursor-pointer">
+                    <span class="text-xs font-semibold text-gray-700">${addon.name}</span>
+                    <div class="flex items-center gap-1.5">
+                      <span class="text-xs font-bold text-emerald-600">+₹${addon.price}</span>
+                      <input type="checkbox" onchange='toggleGroupAddon(${g.id}, ${g.max_selection}, ${JSON.stringify(addon)}, this)' class="rounded text-indigo-600">
+                    </div>
+                  </label>
+                `).join('')}
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    function toggleGroupAddon(groupId, maxLimit, addon, checkbox) {
+      if (!selectedGroupAddons[groupId]) selectedGroupAddons[groupId] = [];
+      const currentList = selectedGroupAddons[groupId];
+      if (checkbox.checked) {
+        if (currentList.length >= maxLimit) {
+          checkbox.checked = false;
+          return alert(`Maximum ${maxLimit} allowed!`);
+        }
+        currentList.push(addon);
+      } else {
+        selectedGroupAddons[groupId] = currentList.filter(a => a.name !== addon.name);
+      }
+      updateModalPrice();
+    }
+
+    function updateModalPrice() {
+      const base = selectedVariation ? selectedVariation.price : selectedMenuItem.price;
+      let addonSum = 0;
+      Object.values(selectedGroupAddons).forEach(list => {
+        addonSum += list.reduce((s, a) => s + a.price, 0);
+      });
+      document.getElementById('modalRunningPrice').innerText = '₹' + (base + addonSum);
+    }
+
+    function closeCustModal() {
+      document.getElementById('customizeModal').classList.add('hidden');
+      selectedMenuItem = null;
+      selectedVariation = null;
+      selectedGroupAddons = {};
+    }
+
+    function confirmItemAdd() {
+      if (!selectedMenuItem) return;
+      const basePrice = selectedVariation ? selectedVariation.price : selectedMenuItem.price;
+      let addonExtra = 0;
+      let notes = [];
+
+      if (selectedVariation) notes.push(`Size: ${selectedVariation.name}`);
+      Object.values(selectedGroupAddons).forEach(list => {
+        list.forEach(a => {
+          addonExtra += a.price;
+          notes.push(`${a.name} (+₹${a.price})`);
+        });
+      });
+
+      const customNote = document.getElementById('custItemNotes').value.trim();
+      if (customNote) notes.push(customNote);
+
+      const noteText = notes.join(', ');
+      const finalPrice = basePrice + addonExtra;
+      const displayName = selectedVariation ? `${selectedMenuItem.name} (${selectedVariation.name})` : selectedMenuItem.name;
+
+      const existing = cart.find(i => i.name === displayName && i.notes === noteText);
+      if (existing) existing.qty += 1;
+      else {
+        cart.push({
+          cartId: Date.now() + Math.random(),
+          name: displayName,
+          price: finalPrice,
+          notes: noteText,
+          qty: 1
+        });
+      }
+
+      closeCustModal();
+      renderCart();
+    }
+
+    function changeQty(cartId, delta) {
+      const item = cart.find(i => i.cartId === cartId);
+      if (!item) return;
+      item.qty += delta;
+      if (item.qty <= 0) cart = cart.filter(i => i.cartId !== cartId);
+      renderCart();
+    }
+
+    function calculateBill() {
+      const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+      const discVal = Number(document.getElementById('discountInput').value) || 0;
+      const discType = document.getElementById('discountType').value;
+
+      let discountAmt = discType === 'PERCENT' ? (subtotal * discVal) / 100 : discVal;
+      if (discountAmt > subtotal) discountAmt = subtotal;
+
+      const taxable = subtotal - discountAmt;
+      const isGst = document.getElementById('gstToggle').checked;
+      const gstRate = restaurantInfo.default_gst || 5;
+      const gstAmt = isGst ? Math.round((taxable * gstRate) / 100) : 0;
+      const finalTotal = Math.round(taxable + gstAmt);
+
+      billCalculation = { subtotal, discount: Math.round(discountAmt), gst: gstAmt, finalTotal };
+
+      document.getElementById('calc-subtotal').innerText = '₹' + subtotal;
+      document.getElementById('calc-gst').innerText = '₹' + gstAmt;
+      document.getElementById('grand-total').innerText = '₹' + finalTotal;
+
+      syncCustomerDisplay();
+    }
+
+    function renderCart() {
+      const container = document.getElementById('cart-items');
+      if (cart.length === 0) {
+        container.innerHTML = '<p class="text-gray-400 text-center py-8 text-xs">Cart is empty</p>';
+        calculateBill();
+        return;
+      }
+
+      container.innerHTML = cart.map(item => `
+        <div class="flex justify-between items-center py-1 border-b border-gray-100">
+          <div>
+            <div class="font-bold text-gray-800 text-xs">${item.name}</div>
+            ${item.notes ? `<div class="text-[10px] text-amber-700">↳ ${item.notes}</div>` : ''}
+            <div class="text-[10px] text-gray-500">₹${item.price} each</div>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <div class="flex items-center border rounded bg-gray-50">
+              <button onclick="changeQty(${item.cartId}, -1)" class="px-2 py-0.5 font-bold hover:bg-gray-200 text-xs">-</button>
+              <span class="px-2 font-semibold text-xs">${item.qty}</span>
+              <button onclick="changeQty(${item.cartId}, 1)" class="px-2 py-0.5 font-bold hover:bg-gray-200 text-xs">+</button>
+            </div>
+            <span class="font-bold text-gray-900 w-12 text-right text-xs">₹${item.price * item.qty}</span>
+          </div>
+        </div>
+      `).join('');
+
+      calculateBill();
+    }
+
+    function printBill(orderId, orderType, tableNo, custName, items, mode) {
+      fetch('/api/printer/print-bill', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId,
+          orderType,
+          tableNo,
+          customerName: custName,
+          items,
+          subtotal: billCalculation.subtotal,
+          discount: billCalculation.discount,
+          gst: billCalculation.gst,
+          total: billCalculation.finalTotal,
+          mode
+        })
+      })
+      .then(res => res.json())
+      .then(data => console.log("Silent Print Buffer:", data))
+      .catch(() => {});
+
+      fetch('/api/printer/print-kot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId,
+          orderType,
+          tableNo,
+          items
+        })
+      }).catch(() => {});
+    }
+
+    function openCashDrawer() {
+      fetch('/api/drawer/open', { method: 'POST' }).then(() => console.log("Drawer opened"));
+    }
+
+    function protectedNav(targetUrl) {
+      const pin = prompt('Enter Owner/Admin Security PIN:');
+      if (!pin) return;
+      fetch('/api/verify-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.valid) window.location.href = targetUrl;
+        else alert('Galat PIN!');
+      });
+    }
+
+    function lookupCustomer() {
+      const phone = document.getElementById('custPhone').value.trim();
+      if (phone.length >= 10) {
+        fetch('/api/customers/' + phone)
+          .then(res => res.json())
+          .then(c => {
+            if (c) {
+              if (c.name) document.getElementById('custName').value = c.name;
+              if (c.due_balance > 0) {
+                document.getElementById('custDueAmt').innerText = '₹' + c.due_balance;
+                document.getElementById('custDueBadge').classList.remove('hidden');
+              } else {
+                document.getElementById('custDueBadge').classList.add('hidden');
+              }
+            }
+          });
+      }
+    }
+
+    loadMenu();
+    loadActiveOrders();
+    setInterval(loadActiveOrders, 5000);
+// --- LIVE ONLINE ORDER NOTIFIER ---
+let lastOnlineSeenId = null;
+
+let audioCtx = null;
+
+function initAudioOnInteraction() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+}
+window.addEventListener('click', initAudioOnInteraction);
+window.addEventListener('keydown', initAudioOnInteraction);
+
+function playRestaurantTone() {
+  try {
+    initAudioOnInteraction();
+    if (!audioCtx) return;
+
+    const playBeep = (freq, start, dur) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime + start);
+      gain.gain.setValueAtTime(0.8, audioCtx.currentTime + start);
+      gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + start + dur);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(audioCtx.currentTime + start);
+      osc.stop(audioCtx.currentTime + start + dur);
+    };
+
+    playBeep(784.00, 0.0, 0.35);  // High Tone (G5)
+    playBeep(1046.50, 0.25, 0.65); // Ding-Dong Chime (C6)
+  } catch (e) {}
+}
+function showPopupNotice(order) {
+  playRestaurantTone();
+  let box = document.getElementById('livePopupNoticeBox');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'livePopupNoticeBox';
+    box.style = 'position:fixed;top:20px;right:20px;z-index:99999;width:340px;display:flex;flex-direction:column;gap:10px;';
+    document.body.appendChild(box);
+  }
+
+  const toast = document.createElement('div');
+  toast.style = 'background:#ffffff;border:2px solid #4f46e5;border-radius:16px;padding:14px;box-shadow:0 10px 25px rgba(0,0,0,0.25);font-family:sans-serif;';
+  toast.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e5e7eb;padding-bottom:6px;margin-bottom:8px;">
+      <span style="font-weight:900;font-size:12px;color:#4f46e5;">🔔 NEW ONLINE ORDER!</span>
+      <span style="background:#eef2ff;color:#3730a3;padding:2px 6px;border-radius:6px;font-size:11px;font-weight:bold;">#${order.id}</span>
+    </div>
+    <div style="font-size:13px;font-weight:bold;color:#111827;display:flex;justify-content:space-between;margin-bottom:4px;">
+      <span>${order.customer_name || 'Customer'}</span>
+      <span style="color:#059669;font-weight:900;">₹${order.total}</span>
+    </div>
+    <div style="font-size:11px;color:#6b7280;margin-bottom:8px;">
+      📍 ${order.table_no || 'Takeaway'} • 📞 ${order.customer_phone || '-'}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <button onclick="this.closest('#livePopupNoticeBox > div').remove()" style="padding:6px;border:1px solid #d1d5db;border-radius:8px;background:#fff;font-size:11px;font-weight:bold;cursor:pointer;">Dismiss</button>
+      <button onclick="loadActiveOrders(); if(typeof renderActiveOrdersList === 'function') renderActiveOrdersList(); this.closest('#livePopupNoticeBox > div').remove();" style="padding:6px;border:none;border-radius:8px;background:#4f46e5;color:#fff;font-size:11px;font-weight:bold;cursor:pointer;">View / Accept</button>
+    </div>
+  `;
+  box.prepend(toast);
+  setTimeout(() => { if (toast.parentNode) toast.remove(); }, 40000);
+}
+
+setInterval(() => {
+  fetch('/api/orders/active')
+    .then(r => r.json())
+    .then(list => {
+      if (!list || !list.length) return;
+      const top = list[0];
+      if (lastOnlineSeenId === null) {
+        lastOnlineSeenId = top.id;
+        return;
+      }
+      if (top.id > lastOnlineSeenId) {
+        lastOnlineSeenId = top.id;
+        showPopupNotice(top);
+      }
+    })
+    .catch(() => {});
+}, 3000);
+  </script>
+</body>
+</html>

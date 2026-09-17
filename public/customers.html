@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Customer Khata & Directory</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-6 font-sans">
+  <div class="max-w-6xl mx-auto space-y-6">
+    
+    <!-- Top Bar -->
+    <div class="flex justify-between items-center">
+      <div>
+        <h1 class="text-3xl font-black text-gray-800">Customer Directory & Khata (Udhar)</h1>
+        <p class="text-sm text-gray-500">Aapke regular customers aur unka pending khata / due balance</p>
+      </div>
+      <a href="/" class="bg-gray-900 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-black transition">
+        ← Back to POS
+      </a>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="grid grid-cols-3 gap-4">
+      <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
+        <p class="text-xs font-bold text-gray-500 uppercase">Total Customers</p>
+        <h3 id="statTotalCust" class="text-2xl font-black text-gray-800 mt-1">0</h3>
+      </div>
+      <div class="bg-white p-4 rounded-2xl border border-rose-200 bg-rose-50/30 shadow-sm">
+        <p class="text-xs font-bold text-rose-600 uppercase">Total Market Due (Pending Khata)</p>
+        <h3 id="statTotalDue" class="text-2xl font-black text-rose-600 mt-1">₹0</h3>
+      </div>
+      <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
+        <p class="text-xs font-bold text-emerald-600 uppercase">Lifetime Customer Spend</p>
+        <h3 id="statTotalSpent" class="text-2xl font-black text-emerald-600 mt-1">₹0</h3>
+      </div>
+    </div>
+
+    <!-- Customers Table -->
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+      <div class="p-4 border-b bg-gray-50 flex justify-between items-center">
+        <input type="text" id="searchInp" oninput="filterTable()" placeholder="Search by name or phone..." class="border p-2 rounded-xl text-xs w-72 outline-none">
+        <span class="text-xs font-bold text-gray-400">Sabse zyada udhar wale customers upar hain</span>
+      </div>
+
+      <table class="w-full text-left text-xs border-collapse">
+        <thead>
+          <tr class="bg-gray-50 text-gray-500 border-b">
+            <th class="p-3 font-bold">CUSTOMER NAME</th>
+            <th class="p-3 font-bold">PHONE NUMBER</th>
+            <th class="p-3 font-bold">TOTAL ORDERS</th>
+            <th class="p-3 font-bold">LIFETIME SPEND</th>
+            <th class="p-3 font-bold text-rose-600">PENDING DUE (KHATA)</th>
+            <th class="p-3 font-bold text-right">ACTION</th>
+          </tr>
+        </thead>
+        <tbody id="customersTableBody" class="divide-y divide-gray-100"></tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <!-- Settle / Clear Khata Modal -->
+  <div id="clearDueModal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4">
+      <div class="flex justify-between items-center border-b pb-2">
+        <h3 class="text-base font-black text-gray-800">Settle Customer Khata</h3>
+        <button onclick="closeClearModal()" class="text-gray-400 hover:text-black font-bold">✕</button>
+      </div>
+      
+      <div class="bg-gray-50 p-3 rounded-xl">
+        <p class="text-xs text-gray-600">Customer: <b id="dueCustName" class="text-gray-900 font-bold"></b></p>
+        <p class="text-xs text-gray-600 font-mono mt-0.5">Phone: <span id="dueCustPhone"></span></p>
+        <p class="text-xs text-rose-600 font-black mt-1">Current Total Due: <span id="dueCustMax">₹0</span></p>
+      </div>
+      
+      <div>
+        <label class="block text-xs font-bold text-gray-600 mb-1">Amount Receiving (₹)</label>
+        <input type="number" id="payDueAmt" min="1" class="w-full border p-2.5 rounded-xl text-xl font-black outline-none text-emerald-600">
+        <p class="text-[10px] text-gray-400 mt-1">Poora ya partial (jitna jama hua) amount likhein</p>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-gray-600 mb-1">Payment Mode</label>
+        <select id="payDueMode" class="w-full border p-2 rounded-xl text-xs font-bold outline-none bg-gray-50">
+          <option value="CASH">Cash</option>
+          <option value="UPI">UPI / Online</option>
+        </select>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 pt-2">
+        <button onclick="submitDuePayment()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs shadow-md transition">
+          Receive & Settle
+        </button>
+        <button onclick="closeClearModal()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-xs transition">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let customersList = [];
+    let selectedCustPhone = null;
+
+    function loadCustomers() {
+      fetch('/api/customers')
+        .then(res => res.json())
+        .then(data => {
+          customersList = data;
+          renderList(data);
+
+          document.getElementById('statTotalCust').innerText = data.length;
+          const totalDue = data.reduce((s, c) => s + (c.due_balance || 0), 0);
+          const totalSpent = data.reduce((s, c) => s + (c.total_spent || 0), 0);
+          document.getElementById('statTotalDue').innerText = '₹' + totalDue;
+          document.getElementById('statTotalSpent').innerText = '₹' + totalSpent;
+        });
+    }
+
+    function renderList(list) {
+      const tbody = document.getElementById('customersTableBody');
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center p-8 text-gray-400 font-bold">No customers found</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = list.map(c => `
+        <tr class="hover:bg-gray-50">
+          <td class="p-3 font-bold text-gray-800">${c.name || 'Valued Guest'}</td>
+          <td class="p-3 font-mono text-gray-600">${c.phone}</td>
+          <td class="p-3 font-bold">${c.orders_count || 1} Orders</td>
+          <td class="p-3 font-bold text-gray-700">₹${c.total_spent || 0}</td>
+          <td class="p-3 font-black text-sm ${c.due_balance > 0 ? 'text-rose-600' : 'text-gray-400'}">
+            ${c.due_balance > 0 ? '₹' + c.due_balance : '₹0 (Clear)'}
+          </td>
+          <td class="p-3 text-right">
+            ${c.due_balance > 0 ? `
+              <button onclick='openClearModal(${JSON.stringify(c)})' class="bg-rose-600 hover:bg-rose-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs shadow-sm transition">
+                ✓ Settle Due
+              </button>
+            ` : '<span class="text-[11px] text-emerald-600 font-bold bg-emerald-50 px-2 py-1 rounded-lg">No Due</span>'}
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function filterTable() {
+      const q = document.getElementById('searchInp').value.toLowerCase();
+      const filtered = customersList.filter(c => 
+        (c.name || '').toLowerCase().includes(q) || (c.phone || '').includes(q)
+      );
+      renderList(filtered);
+    }
+
+    function openClearModal(cust) {
+      selectedCustPhone = cust.phone;
+      document.getElementById('dueCustName').innerText = cust.name || 'Valued Guest';
+      document.getElementById('dueCustPhone').innerText = cust.phone;
+      document.getElementById('dueCustMax').innerText = '₹' + cust.due_balance;
+      document.getElementById('payDueAmt').value = cust.due_balance;
+      document.getElementById('clearDueModal').classList.remove('hidden');
+    }
+
+    function closeClearModal() {
+      document.getElementById('clearDueModal').classList.add('hidden');
+      selectedCustPhone = null;
+    }
+
+    function submitDuePayment() {
+      if (!selectedCustPhone) return;
+      const amt = Number(document.getElementById('payDueAmt').value);
+      const mode = document.getElementById('payDueMode').value;
+      if (!amt || amt <= 0) return alert('Valid amount bharein!');
+
+      fetch(`/api/customers/${selectedCustPhone}/clear-due`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount_paid: amt, payment_mode: mode })
+      })
+      .then(res => res.json())
+      .then(data => {
+        alert(`Payment of ₹${amt} received via ${mode}! Remaining due: ₹${data.remainingDue}`);
+        closeClearModal();
+        loadCustomers();
+      });
+    }
+
+    loadCustomers();
+  </script>
+</body>
+</html>

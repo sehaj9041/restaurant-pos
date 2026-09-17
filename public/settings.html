@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Settings & System Tools</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen p-8 font-sans">
+  <div class="max-w-2xl mx-auto space-y-6">
+    
+    <div class="flex justify-between items-center">
+      <div>
+        <h1 class="text-3xl font-black text-gray-800">Restaurant Settings</h1>
+        <p class="text-sm text-gray-500">Store Profile, Security PIN & Maintenance</p>
+      </div>
+      <a href="/" class="bg-gray-900 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-black transition">
+        ← Back to POS
+      </a>
+    </div>
+
+    <!-- Store Settings Form -->
+    <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-200">
+      <form id="settingsForm" onsubmit="saveSettings(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Restaurant Name</label>
+          <input id="restaurant_name" type="text" required class="w-full border p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Tagline</label>
+          <input id="tagline" type="text" placeholder="e.g. Fresh & Fast Food" class="w-full border p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Address</label>
+          <input id="address" type="text" required class="w-full border p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Phone</label>
+            <input id="phone" type="text" required class="w-full border p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-600 uppercase mb-1">GSTIN</label>
+            <input id="gstin" type="text" placeholder="Optional" class="w-full border p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Default GST (%)</label>
+            <input id="default_gst" type="number" step="0.1" value="5" class="w-full border p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+        </div>
+
+        <div class="bg-amber-50 p-4 rounded-xl border border-amber-200">
+          <label class="block text-xs font-bold text-amber-900 uppercase mb-1">Owner Security PIN (4-Digits)</label>
+          <input id="admin_pin" type="password" maxlength="6" placeholder="Default: 1234" class="w-48 border p-2.5 rounded-xl text-sm outline-none bg-white font-mono">
+          <p class="text-[11px] text-amber-700 mt-1">PIN Reports, Settings, Directory aur Menu ko secure rakhta hai.</p>
+        </div>
+
+        <button type="submit" class="w-full mt-2 bg-indigo-600 hover:bg-indigo-700 text-white font-black py-3 rounded-xl transition text-base">
+          Save All Settings
+        </button>
+      </form>
+    </div>
+
+    <!-- Backup & Reset Tools -->
+    <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-200">
+      <h2 class="text-lg font-bold text-gray-800 mb-1">Database & Data Tools</h2>
+      <p class="text-xs text-gray-500 mb-4">Daily backup download karein ya fresh session ke liye data reset karein.</p>
+      
+      <div class="grid grid-cols-2 gap-4">
+        <a href="/api/system/backup" class="flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 font-bold py-3 rounded-xl transition text-sm">
+          📥 Download DB Backup
+        </a>
+        <button onclick="resetSalesData()" class="flex items-center justify-center gap-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold py-3 rounded-xl transition text-sm">
+          ⚠️ Reset Sales / Orders
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    fetch('/api/settings')
+      .then(res => res.json())
+      .then(data => {
+        if (!data) return;
+        document.getElementById('restaurant_name').value = data.restaurant_name || '';
+        document.getElementById('tagline').value = data.tagline || '';
+        document.getElementById('address').value = data.address || '';
+        document.getElementById('phone').value = data.phone || '';
+        document.getElementById('gstin').value = data.gstin || '';
+        document.getElementById('default_gst').value = data.default_gst || 5;
+      });
+
+    function saveSettings(e) {
+      e.preventDefault();
+      fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          restaurant_name: document.getElementById('restaurant_name').value,
+          tagline: document.getElementById('tagline').value,
+          address: document.getElementById('address').value,
+          phone: document.getElementById('phone').value,
+          gstin: document.getElementById('gstin').value,
+          default_gst: Number(document.getElementById('default_gst').value),
+          admin_pin: document.getElementById('admin_pin').value || '1234'
+        })
+      })
+      .then(res => res.json())
+      .then(() => alert('Settings saved successfully!'));
+    }
+
+    function resetSalesData() {
+      const ans = prompt("WARNING: Isse sales reports aur expenses clear ho jayenge. Type 'RESET':");
+      if (ans === 'RESET') {
+        fetch('/api/system/reset-orders', { method: 'POST' })
+          .then(res => res.json())
+          .then(() => alert('Data cleared successfully!'));
+      }
+    }
+  </script>
+</body>
+</html>

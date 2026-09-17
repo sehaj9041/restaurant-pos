@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Customer Live Display</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-white min-h-screen flex flex-col justify-between font-sans overflow-hidden">
+
+  <!-- Top Header -->
+  <div class="bg-slate-800/80 p-6 border-b border-slate-700 flex justify-between items-center shadow-lg">
+    <div>
+      <h1 id="brandName" class="text-3xl font-black tracking-wide text-white">VISHAL FOODIEZ</h1>
+      <p id="brandTagline" class="text-xs text-indigo-400 font-semibold uppercase mt-0.5">Welcome To Our Counter</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <span id="displayType" class="bg-indigo-600 text-white font-black px-4 py-1.5 rounded-xl text-sm">Dine-In</span>
+      <span id="displayTable" class="bg-slate-700 text-slate-200 font-bold px-3 py-1.5 rounded-xl text-sm hidden"></span>
+    </div>
+  </div>
+
+  <!-- Center: Live Cart Display -->
+  <div class="flex-1 p-8 grid grid-cols-12 gap-8 items-center max-w-7xl mx-auto w-full">
+    
+    <!-- Items Table List -->
+    <div class="col-span-8 bg-slate-800/50 rounded-3xl p-6 border border-slate-700/60 shadow-2xl h-[65vh] flex flex-col">
+      <h2 class="text-base font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-700 pb-2">Your Order Items</h2>
+      <div id="cartList" class="flex-1 overflow-y-auto space-y-3 pr-2">
+        <div class="flex flex-col items-center justify-center h-full text-slate-500">
+          <span class="text-5xl mb-2">🍽</span>
+          <p class="font-bold text-lg">Next order will appear here</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Pay Summary -->
+    <div class="col-span-4 bg-gradient-to-br from-indigo-900 to-slate-900 rounded-3xl p-6 border border-indigo-500/30 shadow-2xl flex flex-col justify-between h-[65vh]">
+      <div>
+        <p class="text-xs font-bold text-indigo-300 uppercase tracking-wider">Bill Summary</p>
+        <div class="space-y-2 mt-4 text-sm text-slate-300">
+          <div class="flex justify-between"><span>Subtotal:</span><span id="subTotalVal" class="font-bold text-white">₹0</span></div>
+          <div class="flex justify-between text-emerald-400"><span>Discount:</span><span id="discVal" class="font-bold">-₹0</span></div>
+          <div class="flex justify-between"><span>GST:</span><span id="gstVal" class="font-bold text-white">₹0</span></div>
+        </div>
+      </div>
+
+      <div class="bg-black/30 p-5 rounded-2xl border border-white/10 text-center">
+        <p class="text-xs text-indigo-300 font-bold uppercase">Payable Amount</p>
+        <div id="totalVal" class="text-5xl font-black text-emerald-400 mt-2">₹0</div>
+        <p class="text-[11px] text-slate-400 mt-2">UPI & Cash Accepted</p>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Footer Notice -->
+  <div class="bg-slate-950 p-3 text-center text-xs text-slate-500 font-medium border-t border-slate-800">
+    Please verify your items and order quantity on screen • Have a wonderful meal!
+  </div>
+
+  <script>
+    fetch('/api/settings').then(res => res.json()).then(s => {
+      document.getElementById('brandName').innerText = s.restaurant_name || 'VISHAL FOODIEZ';
+      document.getElementById('brandTagline').innerText = s.tagline || 'Welcome To Our Counter';
+    });
+
+    function pollCart() {
+      fetch('/api/display/current')
+        .then(res => res.json())
+        .then(data => {
+          document.getElementById('displayType').innerText = data.orderType || 'Dine-In';
+          const tableBadge = document.getElementById('displayTable');
+          if (data.tableNo) {
+            tableBadge.innerText = 'Table ' + data.tableNo;
+            tableBadge.classList.remove('hidden');
+          } else {
+            tableBadge.classList.add('hidden');
+          }
+
+          document.getElementById('subTotalVal').innerText = '₹' + (data.subtotal || 0);
+          document.getElementById('discVal').innerText = '-₹' + (data.discount || 0);
+          document.getElementById('gstVal').innerText = '₹' + (data.gst || 0);
+          document.getElementById('totalVal').innerText = '₹' + (data.total || 0);
+
+          const list = document.getElementById('cartList');
+          if (!data.items || !data.items.length) {
+            list.innerHTML = `
+              <div class="flex flex-col items-center justify-center h-full text-slate-500">
+                <span class="text-5xl mb-2">🍽</span>
+                <p class="font-bold text-lg">Next order will appear here</p>
+              </div>`;
+            return;
+          }
+
+          list.innerHTML = data.items.map(item => `
+            <div class="flex justify-between items-center bg-slate-800/80 p-3.5 rounded-2xl border border-slate-700">
+              <div>
+                <h3 class="font-bold text-base text-white">${item.name}</h3>
+                ${item.notes ? `<p class="text-xs text-amber-400 mt-0.5">↳ ${item.notes}</p>` : ''}
+              </div>
+              <div class="flex items-center gap-6">
+                <span class="bg-indigo-900/80 text-indigo-300 font-black px-3 py-1 rounded-xl text-sm">x${item.qty}</span>
+                <span class="font-black text-lg text-emerald-400 w-16 text-right">₹${item.price * item.qty}</span>
+              </div>
+            </div>
+          `).join('');
+        });
+    }
+
+    setInterval(pollCart, 1000);
+  </script>
+</body>
+</html>

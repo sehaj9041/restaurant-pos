@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Menu & Master Manager - Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen p-6 font-sans">
+  <div class="max-w-6xl mx-auto space-y-6">
+    
+    <div class="flex justify-between items-center">
+      <div>
+        <h1 class="text-3xl font-black text-gray-800">Menu & Master Management</h1>
+        <p class="text-sm text-gray-500">Items, Variation-wise Addons aur Global Master sets</p>
+      </div>
+      <a href="/" class="bg-gray-900 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-black transition">
+        ← Back to POS Billing
+      </a>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="flex border-b border-gray-200 gap-2">
+      <button onclick="switchTab('items')" id="tabBtnItems" class="py-2.5 px-4 font-black text-sm border-b-2 border-indigo-600 text-indigo-600 transition">
+        🍔 Menu Items
+      </button>
+      <button onclick="switchTab('addons')" id="tabBtnAddons" class="py-2.5 px-4 font-bold text-sm text-gray-500 hover:text-gray-800 border-b-2 border-transparent transition">
+        🧩 Global Add-on Groups Master
+      </button>
+      <button onclick="switchTab('variations')" id="tabBtnVariations" class="py-2.5 px-4 font-bold text-sm text-gray-500 hover:text-gray-800 border-b-2 border-transparent transition">
+        📐 Variation Sets Master
+      </button>
+    </div>
+
+    <!-- TAB 1: MENU ITEMS -->
+    <div id="tabItems" class="space-y-6">
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+        <h2 class="text-base font-bold text-gray-800 mb-3">Add New Menu Item</h2>
+        <form onsubmit="saveNewItem(event)" class="grid grid-cols-1 md:grid-cols-5 gap-3 items-center">
+          <input id="new_name" type="text" placeholder="Item Name (e.g. Burger)" required class="border p-2.5 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500">
+          <input id="new_cat" type="text" placeholder="Category (e.g. Burgers)" required class="border p-2.5 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500">
+          <input id="new_price" type="number" placeholder="Base Price (₹)" required class="border p-2.5 rounded-xl text-xs outline-none font-bold">
+          <div>
+            <input type="file" id="new_img" accept="image/*" class="text-[11px] text-gray-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700">
+          </div>
+          <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-xs transition">
+            + Save Item
+          </button>
+        </form>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="p-4 border-b bg-gray-50 flex justify-between items-center">
+          <h2 class="text-sm font-bold text-gray-700">All Menu Items</h2>
+          <span id="itemCountBadge" class="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">0 Items</span>
+        </div>
+        <table class="w-full text-left text-xs border-collapse">
+          <thead>
+            <tr class="bg-gray-50 text-gray-500 border-b">
+              <th class="p-3 font-bold">PHOTO</th>
+              <th class="p-3 font-bold">ITEM NAME</th>
+              <th class="p-3 font-bold">CATEGORY</th>
+              <th class="p-3 font-bold">BASE PRICE</th>
+              <th class="p-3 font-bold">VARIATIONS</th>
+              <th class="p-3 font-bold">DEFAULT GROUPS</th>
+              <th class="p-3 font-bold text-right">ACTION</th>
+            </tr>
+          </thead>
+          <tbody id="menuTableBody" class="divide-y divide-gray-100"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB 2: GLOBAL ADD-ON GROUPS MASTER -->
+    <div id="tabAddons" class="hidden space-y-6">
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+        <h2 class="text-base font-bold text-gray-800 mb-2">Create Global Add-on Group</h2>
+        <p class="text-xs text-gray-500 mb-4">Groups (jaise Regular Dips, Large Pizza Extras) banayein aur rules set karein.</p>
+        
+        <form onsubmit="saveAddonGroup(event)" class="space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-gray-600 mb-1">Group Name</label>
+              <input id="grp_name" type="text" placeholder="e.g. Regular Toppings" required class="w-full border p-2 rounded-xl text-xs outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-gray-600 mb-1">Min Selection</label>
+              <input id="grp_min" type="number" value="0" min="0" class="w-full border p-2 rounded-xl text-xs outline-none font-bold">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-gray-600 mb-1">Max Selection</label>
+              <input id="grp_max" type="number" value="5" min="1" class="w-full border p-2 rounded-xl text-xs outline-none font-bold">
+            </div>
+            <div class="flex items-center pt-5">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="grp_mandatory" class="rounded text-indigo-600">
+                <span class="text-xs font-bold text-gray-700">Is Mandatory?</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+            <label class="block text-xs font-bold text-indigo-900 uppercase mb-2">Add Items To This Group</label>
+            <div class="flex gap-2 mb-2">
+              <input id="grp_item_name" type="text" placeholder="Item Name (e.g. Cheese Slice)" class="flex-1 border p-1.5 rounded-lg text-xs outline-none bg-white">
+              <input id="grp_item_price" type="number" placeholder="₹ Price" class="w-24 border p-1.5 rounded-lg text-xs font-bold outline-none bg-white">
+              <input type="file" id="grp_item_img" accept="image/*" class="text-[11px] text-gray-500 file:py-1 file:px-2 file:rounded-md file:border-0 file:bg-indigo-100">
+              <button type="button" onclick="pushGroupItemTemp()" class="bg-indigo-600 text-white font-bold px-4 py-1.5 rounded-lg text-xs hover:bg-indigo-700">
+                + Add
+              </button>
+            </div>
+            <div id="tempGroupItemsList" class="flex flex-wrap gap-2"></div>
+          </div>
+
+          <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-6 rounded-xl text-xs transition">
+            Save Group Master
+          </button>
+        </form>
+      </div>
+
+      <div id="globalGroupsGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+    </div>
+
+    <!-- TAB 3: VARIATION SETS MASTER -->
+    <div id="tabVariations" class="hidden space-y-6">
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+        <h2 class="text-base font-bold text-gray-800 mb-2">Create Variation Set</h2>
+        <p class="text-xs text-gray-500 mb-4">Standard size sets banayein jo category par direct assign ho sakein.</p>
+
+        <form onsubmit="saveVariationMaster(event)" class="space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-gray-600 mb-1">Set Name</label>
+              <input id="var_set_name" type="text" placeholder="e.g. Standard Pizza Sizes" required class="w-full border p-2 rounded-xl text-xs outline-none">
+            </div>
+            <div class="flex items-end">
+              <button type="submit" class="bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 px-6 rounded-xl text-xs transition">
+                Save Variation Set
+              </button>
+            </div>
+          </div>
+
+          <div class="bg-amber-50/50 p-4 rounded-xl border border-amber-200">
+            <label class="block text-xs font-bold text-amber-900 uppercase mb-2">Add Size Options</label>
+            <div class="flex gap-2 mb-2">
+              <input id="var_opt_name" type="text" placeholder="Size Name (e.g. Medium)" class="flex-1 border p-1.5 rounded-lg text-xs outline-none bg-white">
+              <input id="var_opt_price" type="number" placeholder="₹ Price" class="w-24 border p-1.5 rounded-lg text-xs font-bold outline-none bg-white">
+              <input type="file" id="var_opt_img" accept="image/*" class="text-[11px] text-gray-500 file:py-1 file:px-2 file:rounded-md file:border-0 file:bg-amber-100">
+              <button type="button" onclick="pushVariationOptionTemp()" class="bg-amber-600 text-white font-bold px-4 py-1.5 rounded-lg text-xs hover:bg-amber-700">
+                + Add Option
+              </button>
+            </div>
+            <div id="tempVarOptionsList" class="flex flex-wrap gap-2"></div>
+          </div>
+        </form>
+      </div>
+
+      <div id="globalVariationsGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+    </div>
+
+  </div>
+
+  <!-- Edit Item Modal with Variation-wise Addons Linking -->
+  <div id="editItemModal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-6 max-w-2xl w-full shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+      <div class="flex justify-between items-center border-b pb-2">
+        <h3 class="text-base font-black text-gray-800">Edit Item & Variation-Wise Addons</h3>
+        <button onclick="closeEditModal()" class="text-gray-400 hover:text-black font-bold text-lg">✕</button>
+      </div>
+
+      <input type="hidden" id="edit_id">
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-gray-600 mb-1">Item Name</label>
+          <input type="text" id="edit_name" required class="w-full border p-2 rounded-xl text-xs outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-600 mb-1">Category</label>
+          <input type="text" id="edit_cat" required class="w-full border p-2 rounded-xl text-xs outline-none">
+        </div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-gray-600 mb-1">Base Price (₹)</label>
+          <input type="number" id="edit_price" required class="w-full border p-2 rounded-xl text-xs font-bold outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-600 mb-1">Stock</label>
+          <input type="number" id="edit_stock" required class="w-full border p-2 rounded-xl text-xs font-bold outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-600 mb-1">Item Image</label>
+          <input type="file" id="edit_file" accept="image/*" class="text-[10px] text-gray-500 file:py-1 file:px-2 file:rounded-md file:border-0 file:bg-gray-100">
+        </div>
+      </div>
+
+      <!-- Variations with Custom Specific Addons -->
+      <div class="border-t pt-3 bg-amber-50/60 p-3 rounded-xl border border-amber-200">
+        <label class="block text-xs font-bold text-amber-900 uppercase mb-1">1. Variations / Sizes</label>
+        
+        <div class="flex gap-2 mb-2">
+          <input id="var_name_inp" type="text" placeholder="Size (e.g. Regular)" class="flex-1 border p-1.5 rounded-lg text-xs outline-none bg-white">
+          <input id="var_price_inp" type="number" placeholder="₹ Price" class="w-20 border p-1.5 rounded-lg text-xs font-bold outline-none bg-white">
+          <input type="file" id="var_img_inp" accept="image/*" class="text-[10px] text-gray-500 file:py-1 file:px-2 file:rounded-md file:border-0 file:bg-amber-100">
+          <button type="button" onclick="addVariationRow()" class="bg-amber-600 hover:bg-amber-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs">
+            + Add Size
+          </button>
+        </div>
+        <div id="editVariationsList" class="space-y-2 max-h-40 overflow-y-auto pr-1"></div>
+      </div>
+
+      <!-- Default Item-level Addons -->
+      <div class="border-t pt-3 bg-indigo-50/60 p-3 rounded-xl border border-indigo-200">
+        <label class="block text-xs font-bold text-indigo-900 uppercase mb-1">2. Default Fallback Add-on Groups</label>
+        <div id="assignGroupsCheckboxes" class="space-y-1.5 max-h-28 overflow-y-auto pr-1"></div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 pt-2 border-t">
+        <button onclick="submitItemEdit()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-xs transition">
+          Save Item Changes
+        </button>
+        <button onclick="closeEditModal()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-xs transition">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sub-Modal: Variation-Specific Addons Selector -->
+  <div id="varAddonSubModal" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-5 max-w-sm w-full shadow-2xl space-y-3">
+      <div class="flex justify-between items-center border-b pb-2">
+        <div>
+          <h4 class="text-xs font-black text-gray-800 uppercase">Select Addons For:</h4>
+          <p id="subModalVarTitle" class="text-sm font-black text-amber-700"></p>
+        </div>
+        <button onclick="closeSubModal()" class="text-gray-400 hover:text-black font-bold">✕</button>
+      </div>
+      <div id="subModalGroupsList" class="space-y-2 max-h-48 overflow-y-auto"></div>
+      <button onclick="saveSubModalGroups()" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 rounded-xl text-xs">
+        Done
+      </button>
+    </div>
+  </div>
+
+  <script>
+    let globalAddonGroups = [];
+    let globalVariationMasters = [];
+    let menuItems = [];
+    let tempGroupItems = [];
+    let tempVariationOptions = [];
+    let currentEditVariations = [];
+    let currentEditImage = '';
+    let currentActiveVarIdx = null;
+
+    function switchTab(tab) {
+      ['items', 'addons', 'variations'].forEach(t => {
+        const view = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
+        const btn = document.getElementById('tabBtn' + t.charAt(0).toUpperCase() + t.slice(1));
+        if (t === tab) {
+          view.classList.remove('hidden');
+          btn.className = "py-2.5 px-4 font-black text-sm border-b-2 border-indigo-600 text-indigo-600 transition";
+        } else {
+          view.classList.add('hidden');
+          btn.className = "py-2.5 px-4 font-bold text-sm text-gray-500 hover:text-gray-800 border-b-2 border-transparent transition";
+        }
+      });
+    }
+
+    async function uploadFileHelper(fileInput) {
+      if (!fileInput.files || !fileInput.files[0]) return '';
+      const fd = new FormData();
+      fd.append('image', fileInput.files[0]);
+      const res = await fetch('/api/upload', { method: 'POST', body: fd });
+      const data = await res.json();
+      return data.imageUrl || '';
+    }
+
+    function loadData() {
+      fetch('/api/addon-groups').then(res => res.json()).then(g => {
+        globalAddonGroups = g;
+        renderGlobalGroups();
+      });
+
+      fetch('/api/variation-masters').then(res => res.json()).then(v => {
+        globalVariationMasters = v;
+        renderGlobalVariations();
+      });
+
+      fetch('/api/menu').then(res => res.json()).then(items => {
+        menuItems = items;
+        document.getElementById('itemCountBadge').innerText = items.length + ' Items';
+        const tbody = document.getElementById('menuTableBody');
+
+        tbody.innerHTML = items.map(i => {
+          let vars = [];
+          let grps = [];
+          try { vars = JSON.parse(i.variations || '[]'); } catch(e) {}
+          try { grps = JSON.parse(i.assigned_addon_groups || '[]'); } catch(e) {}
+
+          return `
+            <tr class="hover:bg-gray-50">
+              <td class="p-3">
+                ${i.image ? `<img src="${i.image}" class="w-10 h-10 object-cover rounded-lg border">` : `<div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs">No Img</div>`}
+              </td>
+              <td class="p-3 font-bold text-gray-800">${i.name}</td>
+              <td class="p-3 text-gray-500">${i.category}</td>
+              <td class="p-3 font-black text-gray-900">₹${i.price}</td>
+              <td class="p-3"><span class="bg-amber-50 text-amber-800 px-2 py-0.5 rounded text-[11px] font-bold">${vars.length} Sizes</span></td>
+              <td class="p-3"><span class="bg-indigo-50 text-indigo-800 px-2 py-0.5 rounded text-[11px] font-bold">${grps.length} Groups Linked</span></td>
+              <td class="p-3 text-right space-x-2">
+                <button onclick='openEditModal(${JSON.stringify(i)})' class="text-indigo-600 hover:text-indigo-800 font-bold">Edit</button>
+                <button onclick="deleteItem(${i.id})" class="text-red-500 hover:text-red-700 font-bold">Delete</button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      });
+    }
+
+    async function saveNewItem(e) {
+      e.preventDefault();
+      const imgUrl = await uploadFileHelper(document.getElementById('new_img'));
+      fetch('/api/menu', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: document.getElementById('new_name').value,
+          category: document.getElementById('new_cat').value,
+          price: Number(document.getElementById('new_price').value),
+          image: imgUrl,
+          stock: 50,
+          variations: [],
+          assigned_addon_groups: []
+        })
+      }).then(() => {
+        document.getElementById('new_name').value = '';
+        document.getElementById('new_cat').value = '';
+        document.getElementById('new_price').value = '';
+        document.getElementById('new_img').value = '';
+        loadData();
+      });
+    }
+
+    async function pushGroupItemTemp() {
+      const name = document.getElementById('grp_item_name').value.trim();
+      const price = Number(document.getElementById('grp_item_price').value);
+      if (!name || isNaN(price)) return alert('Addon name aur price daalein!');
+      const imgUrl = await uploadFileHelper(document.getElementById('grp_item_img'));
+      tempGroupItems.push({ name, price, image: imgUrl });
+      document.getElementById('grp_item_name').value = '';
+      document.getElementById('grp_item_price').value = '';
+      document.getElementById('grp_item_img').value = '';
+      renderTempGroupItems();
+    }
+
+    function renderTempGroupItems() {
+      document.getElementById('tempGroupItemsList').innerHTML = tempGroupItems.map((item, idx) => `
+        <span class="inline-flex items-center gap-1.5 bg-white border border-indigo-200 px-2.5 py-1 rounded-lg text-xs shadow-sm">
+          ${item.image ? `<img src="${item.image}" class="w-4 h-4 rounded object-cover">` : ''}
+          <span class="font-bold text-gray-700">${item.name} (+₹${item.price})</span>
+          <button type="button" onclick="tempGroupItems.splice(${idx}, 1); renderTempGroupItems();" class="text-red-500 font-bold ml-1">✕</button>
+        </span>
+      `).join('');
+    }
+
+    function saveAddonGroup(e) {
+      e.preventDefault();
+      fetch('/api/addon-groups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: document.getElementById('grp_name').value,
+          min_selection: Number(document.getElementById('grp_min').value) || 0,
+          max_selection: Number(document.getElementById('grp_max').value) || 5,
+          is_mandatory: document.getElementById('grp_mandatory').checked,
+          items: tempGroupItems
+        })
+      }).then(() => {
+        tempGroupItems = [];
+        document.getElementById('grp_name').value = '';
+        document.getElementById('grp_mandatory').checked = false;
+        renderTempGroupItems();
+        loadData();
+      });
+    }
+
+    function renderGlobalGroups() {
+      document.getElementById('globalGroupsGrid').innerHTML = globalAddonGroups.map(g => {
+        let items = [];
+        try { items = JSON.parse(g.items || '[]'); } catch(e) {}
+        return `
+          <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
+            <div class="flex justify-between items-start mb-2">
+              <div>
+                <h3 class="font-black text-sm text-gray-800">${g.name}</h3>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded ${g.is_mandatory ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}">
+                  ${g.is_mandatory ? 'Mandatory' : 'Optional'} (Min ${g.min_selection}, Max ${g.max_selection})
+                </span>
+              </div>
+              <button onclick="fetch('/api/addon-groups/${g.id}', {method:'DELETE'}).then(()=>loadData())" class="text-red-500 font-bold hover:underline text-xs">Delete</button>
+            </div>
+            <div class="flex flex-wrap gap-1.5 mt-3">
+              ${items.map(i => `<span class="bg-gray-50 border border-gray-200 px-2 py-1 rounded text-[11px] text-gray-700">${i.name} (+₹${i.price})</span>`).join('')}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function pushVariationOptionTemp() {
+      const name = document.getElementById('var_opt_name').value.trim();
+      const price = Number(document.getElementById('var_opt_price').value);
+      if (!name || isNaN(price)) return alert('Size name aur price daalein!');
+      const imgUrl = await uploadFileHelper(document.getElementById('var_opt_img'));
+      tempVariationOptions.push({ name, price, image: imgUrl });
+      document.getElementById('var_opt_name').value = '';
+      document.getElementById('var_opt_price').value = '';
+      document.getElementById('var_opt_img').value = '';
+      renderTempVariationOptions();
+    }
+
+    function renderTempVariationOptions() {
+      document.getElementById('tempVarOptionsList').innerHTML = tempVariationOptions.map((opt, idx) => `
+        <span class="inline-flex items-center gap-1.5 bg-white border border-amber-200 px-2.5 py-1 rounded-lg text-xs shadow-sm">
+          ${opt.image ? `<img src="${opt.image}" class="w-4 h-4 rounded object-cover">` : ''}
+          <span class="font-bold text-gray-700">${opt.name}: ₹${opt.price}</span>
+          <button type="button" onclick="tempVariationOptions.splice(${idx}, 1); renderTempVariationOptions();" class="text-red-500 font-bold ml-1">✕</button>
+        </span>
+      `).join('');
+    }
+
+    function saveVariationMaster(e) {
+      e.preventDefault();
+      fetch('/api/variation-masters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: document.getElementById('var_set_name').value,
+          options: tempVariationOptions
+        })
+      }).then(() => {
+        tempVariationOptions = [];
+        document.getElementById('var_set_name').value = '';
+        renderTempVariationOptions();
+        loadData();
+      });
+    }
+
+    function renderGlobalVariations() {
+      document.getElementById('globalVariationsGrid').innerHTML = globalVariationMasters.map(v => {
+        let opts = [];
+        try { opts = JSON.parse(v.options || '[]'); } catch(e) {}
+        return `
+          <div class="bg-white p-4 rounded-2xl border border-amber-200 shadow-sm">
+            <div class="flex justify-between items-start mb-2">
+              <h3 class="font-black text-sm text-gray-800">${v.name}</h3>
+              <button onclick="fetch('/api/variation-masters/${v.id}', {method:'DELETE'}).then(()=>loadData())" class="text-red-500 font-bold hover:underline text-xs">Delete</button>
+            </div>
+            <div class="flex flex-wrap gap-1.5 mt-2">
+              ${opts.map(o => `<span class="bg-amber-50 border border-amber-200 px-2 py-0.5 rounded text-[11px] text-amber-900 font-bold">${o.name}: ₹${o.price}</span>`).join('')}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function openEditModal(item) {
+      document.getElementById('edit_id').value = item.id;
+      document.getElementById('edit_name').value = item.name;
+      document.getElementById('edit_cat').value = item.category;
+      document.getElementById('edit_price').value = item.price;
+      document.getElementById('edit_stock').value = item.stock ?? 50;
+      currentEditImage = item.image || '';
+
+      try { currentEditVariations = JSON.parse(item.variations || '[]'); } catch(e) { currentEditVariations = []; }
+      renderEditVariations();
+
+      let assignedIds = [];
+      try { assignedIds = JSON.parse(item.assigned_addon_groups || '[]'); } catch(e) {}
+
+      document.getElementById('assignGroupsCheckboxes').innerHTML = globalAddonGroups.map(g => `
+        <label class="flex items-center justify-between p-2 rounded-lg bg-white border border-indigo-100 cursor-pointer hover:bg-indigo-50/50">
+          <div>
+            <input type="checkbox" value="${g.id}" ${assignedIds.includes(g.id) ? 'checked' : ''} class="addonGroupCheckbox rounded text-indigo-600">
+            <span class="text-xs font-bold text-gray-800 ml-1.5">${g.name}</span>
+          </div>
+          <span class="text-[10px] text-gray-500">${g.is_mandatory ? 'Mandatory' : 'Optional'}</span>
+        </label>
+      `).join('');
+
+      document.getElementById('editItemModal').classList.remove('hidden');
+    }
+
+    function closeEditModal() { document.getElementById('editItemModal').classList.add('hidden'); }
+
+    async function addVariationRow() {
+      const name = document.getElementById('var_name_inp').value.trim();
+      const price = Number(document.getElementById('var_price_inp').value);
+      if (!name || isNaN(price)) return alert('Size name aur price daalein!');
+
+      const imgUrl = await uploadFileHelper(document.getElementById('var_img_inp'));
+      currentEditVariations.push({ name, price, image: imgUrl, addon_groups: [] });
+      document.getElementById('var_name_inp').value = '';
+      document.getElementById('var_price_inp').value = '';
+      document.getElementById('var_img_inp').value = '';
+      renderEditVariations();
+    }
+
+    function renderEditVariations() {
+      document.getElementById('editVariationsList').innerHTML = currentEditVariations.map((v, idx) => {
+        const count = (v.addon_groups || []).length;
+        return `
+          <div class="flex justify-between items-center bg-white border border-amber-200 p-2 rounded-xl text-xs">
+            <div class="flex items-center gap-2">
+              ${v.image ? `<img src="${v.image}" class="w-6 h-6 object-cover rounded">` : ''}
+              <div>
+                <span class="font-bold text-gray-800">${v.name}</span>
+                <span class="font-black text-emerald-600 ml-2">₹${v.price}</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button type="button" onclick="openSubModal(${idx})" class="text-[11px] font-bold px-2 py-1 rounded-lg border ${count > 0 ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'bg-gray-50 border-gray-200 text-gray-600'} hover:bg-indigo-100">
+                🧩 ${count > 0 ? count + ' Groups Assigned' : '+ Custom Addons'}
+              </button>
+              <button type="button" onclick="currentEditVariations.splice(${idx}, 1); renderEditVariations();" class="text-red-500 font-bold ml-1">✕</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function openSubModal(varIdx) {
+      currentActiveVarIdx = varIdx;
+      const v = currentEditVariations[varIdx];
+      document.getElementById('subModalVarTitle').innerText = v.name + ` (₹${v.price})`;
+
+      const assigned = v.addon_groups || [];
+      document.getElementById('subModalGroupsList').innerHTML = globalAddonGroups.map(g => `
+        <label class="flex items-center justify-between p-2 rounded-lg bg-gray-50 border border-gray-200 cursor-pointer">
+          <div class="flex items-center gap-2">
+            <input type="checkbox" value="${g.id}" ${assigned.includes(g.id) ? 'checked' : ''} class="subModalGrpCheck rounded text-amber-600">
+            <span class="text-xs font-bold text-gray-800">${g.name}</span>
+          </div>
+          <span class="text-[10px] text-gray-500">Max: ${g.max_selection}</span>
+        </label>
+      `).join('');
+
+      document.getElementById('varAddonSubModal').classList.remove('hidden');
+    }
+
+    function closeSubModal() {
+      document.getElementById('varAddonSubModal').classList.add('hidden');
+      currentActiveVarIdx = null;
+    }
+
+    function saveSubModalGroups() {
+      if (currentActiveVarIdx === null) return;
+      const selected = [];
+      document.querySelectorAll('.subModalGrpCheck:checked').forEach(cb => selected.push(Number(cb.value)));
+      currentEditVariations[currentActiveVarIdx].addon_groups = selected;
+      closeSubModal();
+      renderEditVariations();
+    }
+
+    async function submitItemEdit() {
+      const id = document.getElementById('edit_id').value;
+      const fileInp = document.getElementById('edit_file');
+      if (fileInp.files && fileInp.files[0]) currentEditImage = await uploadFileHelper(fileInp);
+
+      const assignedGroups = [];
+      document.querySelectorAll('.addonGroupCheckbox:checked').forEach(cb => assignedGroups.push(Number(cb.value)));
+
+      fetch('/api/menu/' + id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: document.getElementById('edit_name').value,
+          category: document.getElementById('edit_cat').value,
+          price: Number(document.getElementById('edit_price').value),
+          stock: Number(document.getElementById('edit_stock').value),
+          image: currentEditImage,
+          variations: currentEditVariations,
+          assigned_addon_groups: assignedGroups
+        })
+      }).then(() => {
+        closeEditModal();
+        loadData();
+      });
+    }
+
+    function deleteItem(id) {
+      if (!confirm('Delete this item?')) return;
+      fetch('/api/menu/' + id, { method: 'DELETE' }).then(() => loadData());
+    }
+
+    loadData();
+  </script>
+</body>
+</html>

@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Order Online - Vishal Foodiez</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col font-sans pb-32">
+
+  <!-- Top Header -->
+  <header class="bg-white sticky top-0 z-30 shadow-xs border-b px-4 py-3 flex justify-between items-center">
+    <div>
+      <h1 class="text-lg font-black text-gray-900 tracking-tight">VISHAL FOODIEZ</h1>
+      <p class="text-[10px] text-gray-500 font-semibold">Budhlada • Fresh & Fast</p>
+    </div>
+    <div class="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 px-2.5 py-1 rounded-full text-[10px] font-black">
+      <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+      <span>ONLINE ORDERING</span>
+    </div>
+  </header>
+
+  <!-- Order Mode Selector -->
+  <div class="bg-white p-3 border-b shadow-xs space-y-2 sticky top-[57px] z-20">
+    <div class="grid grid-cols-3 gap-1.5 bg-gray-100 p-1 rounded-xl text-xs font-black">
+      <button onclick="setMode('Dine-In')" id="mDine" class="py-2 rounded-lg bg-white text-indigo-700 shadow-xs transition">🍽 Dine-In</button>
+      <button onclick="setMode('Takeaway')" id="mTake" class="py-2 rounded-lg text-gray-500 transition">🛍 Takeaway</button>
+      <button onclick="setMode('Delivery')" id="mDeliv" class="py-2 rounded-lg text-gray-500 transition">🛵 Delivery</button>
+    </div>
+    <input type="text" id="targetLoc" placeholder="Table Number (e.g. Table 2)" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs outline-none bg-gray-50 font-bold focus:bg-white focus:border-indigo-500 transition">
+  </div>
+
+  <!-- Category Badges Bar -->
+  <div id="categoryBar" class="p-3 flex gap-2 overflow-x-auto no-scrollbar pb-1"></div>
+
+  <!-- Menu Listing -->
+  <main class="p-3 flex-1">
+    <div id="menuGrid" class="space-y-3">
+      <div class="text-center py-12 text-gray-400 text-xs font-semibold">Loading menu items...</div>
+    </div>
+  </main>
+
+  <!-- Sticky Bottom Cart Bar -->
+  <div id="cartBar" class="hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t p-3 shadow-2xl z-40">
+    <div class="max-w-md mx-auto flex justify-between items-center">
+      <div onclick="openCheckout()" class="cursor-pointer">
+        <span id="cartCount" class="text-[10px] font-black bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">0 items</span>
+        <div id="cartTotal" class="text-xl font-black text-gray-900">₹0</div>
+      </div>
+      <button onclick="openCheckout()" class="bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-black px-6 py-3 rounded-2xl text-xs shadow-lg transition">
+        View Order →
+      </button>
+    </div>
+  </div>
+
+  <!-- Checkout Popup Modal -->
+  <div id="checkoutModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-end justify-center">
+    <div class="bg-white w-full max-w-md rounded-t-3xl p-5 shadow-2xl space-y-4 animate-in slide-in-from-bottom duration-200">
+      <div class="flex justify-between items-center border-b pb-3">
+        <div>
+          <h3 class="text-base font-black text-gray-900">Review & Place Order</h3>
+          <p id="modalModeText" class="text-[11px] text-gray-500 font-semibold">Dine-In Order</p>
+        </div>
+        <button onclick="closeCheckout()" class="text-gray-400 hover:text-gray-700 text-lg font-bold p-1">✕</button>
+      </div>
+
+      <!-- Item Cart Items List -->
+      <div id="cartList" class="space-y-2 max-h-48 overflow-y-auto divide-y divide-gray-100 pr-1"></div>
+
+      <!-- Customer Details Input -->
+      <div class="space-y-2 pt-1">
+        <input type="text" id="cName" placeholder="Your Name" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-500 font-medium">
+        <input type="tel" id="cPhone" placeholder="10-digit Phone Number" maxlength="10" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs font-mono outline-none focus:border-indigo-500 font-medium">
+      </div>
+
+      <!-- Bill Total & Send Button -->
+      <div class="pt-3 border-t flex justify-between items-center">
+        <div>
+          <p class="text-[10px] text-gray-400 uppercase font-black tracking-wider">Total Payable</p>
+          <span id="cTotal" class="text-xl font-black text-emerald-600">₹0</span>
+        </div>
+        <button id="submitBtn" onclick="placeOrder()" class="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black px-6 py-3 rounded-xl text-xs shadow-lg transition flex items-center gap-2">
+          <span>🚀 Place Order</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let mode = 'Dine-In';
+    let cart = [];
+    let menu = [];
+    let activeCategory = 'All';
+
+    function setMode(m) {
+      mode = m;
+      document.getElementById('mDine').className = m === 'Dine-In' ? "py-2 rounded-lg bg-white text-indigo-700 shadow-xs transition" : "py-2 rounded-lg text-gray-500 transition";
+      document.getElementById('mTake').className = m === 'Takeaway' ? "py-2 rounded-lg bg-white text-indigo-700 shadow-xs transition" : "py-2 rounded-lg text-gray-500 transition";
+      document.getElementById('mDeliv').className = m === 'Delivery' ? "py-2 rounded-lg bg-white text-indigo-700 shadow-xs transition" : "py-2 rounded-lg text-gray-500 transition";
+      
+      const locInput = document.getElementById('targetLoc');
+      if (m === 'Dine-In') locInput.placeholder = "Table Number (e.g. Table 2)";
+      else if (m === 'Takeaway') locInput.placeholder = "Pickup Note (Optional)";
+      else locInput.placeholder = "Delivery Address & Landmark";
+
+      document.getElementById('modalModeText').innerText = `${m} Order`;
+    }
+
+    // Load Menu from POS Backend
+    fetch('/api/menu')
+      .then(r => r.json())
+      .then(items => {
+        menu = items;
+        renderCategories();
+        renderMenu();
+      })
+      .catch(err => {
+        document.getElementById('menuGrid').innerHTML = `
+          <div class="text-center py-10 text-rose-500 font-bold text-xs">
+            Unable to fetch menu. Please refresh.
+          </div>`;
+      });
+
+    function renderCategories() {
+      const categories = ['All', ...new Set(menu.map(i => i.category || 'General'))];
+      const bar = document.getElementById('categoryBar');
+      bar.innerHTML = categories.map(cat => `
+        <button onclick="filterCat('${cat}')" class="px-3.5 py-1.5 rounded-full text-xs font-bold shrink-0 transition ${activeCategory === cat ? 'bg-indigo-600 text-white shadow-xs' : 'bg-white border text-gray-600'}">
+          ${cat}
+        </button>
+      `).join('');
+    }
+
+    function filterCat(cat) {
+      activeCategory = cat;
+      renderCategories();
+      renderMenu();
+    }
+
+    function renderMenu() {
+      const filtered = activeCategory === 'All' ? menu : menu.filter(i => (i.category || 'General') === activeCategory);
+      const grid = document.getElementById('menuGrid');
+
+      if (!filtered.length) {
+        grid.innerHTML = '<div class="text-center py-10 text-gray-400 text-xs">No items in this category.</div>';
+        return;
+      }
+
+      grid.innerHTML = filtered.map(item => {
+        const inCart = cart.find(i => i.id === item.id);
+        return `
+          <div class="bg-white p-3.5 rounded-2xl border border-gray-100 flex justify-between items-center shadow-xs">
+            <div class="space-y-0.5">
+              <span class="text-[9px] font-black px-2 py-0.5 rounded bg-gray-100 text-gray-500 uppercase">${item.category || 'General'}</span>
+              <h3 class="font-bold text-gray-900 text-sm">${item.name}</h3>
+              <p class="text-emerald-600 font-black text-sm">₹${item.price}</p>
+            </div>
+            <div>
+              ${inCart ? `
+                <div class="flex items-center bg-indigo-50 border border-indigo-200 rounded-xl overflow-hidden">
+                  <button onclick="changeQty(${item.id}, -1)" class="px-3 py-1 font-black text-indigo-700 hover:bg-indigo-100 active:scale-95">-</button>
+                  <span class="px-2 font-black text-xs text-indigo-900">${inCart.qty}</span>
+                  <button onclick="changeQty(${item.id}, 1)" class="px-3 py-1 font-black text-indigo-700 hover:bg-indigo-100 active:scale-95">+</button>
+                </div>
+              ` : `
+                <button onclick='addItem(${JSON.stringify(item)})' class="bg-indigo-50 hover:bg-indigo-100 active:scale-95 border border-indigo-200 text-indigo-700 font-black text-xs px-4 py-1.5 rounded-xl transition">
+                  + ADD
+                </button>
+              `}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function addItem(item) {
+      cart.push({ id: item.id, name: item.name, price: Number(item.price), qty: 1 });
+      updateCartUI();
+      renderMenu();
+    }
+
+    function changeQty(id, delta) {
+      const item = cart.find(i => i.id === id);
+      if (!item) return;
+      item.qty += delta;
+      if (item.qty <= 0) {
+        cart = cart.filter(i => i.id !== id);
+      }
+      updateCartUI();
+      renderMenu();
+    }
+
+    function updateCartUI() {
+      const count = cart.reduce((s, i) => s + i.qty, 0);
+      const total = cart.reduce((s, i) => s + (i.price * i.qty), 0);
+      document.getElementById('cartCount').innerText = `${count} ${count === 1 ? 'item' : 'items'}`;
+      document.getElementById('cartTotal').innerText = `₹${total}`;
+      document.getElementById('cTotal').innerText = `₹${total}`;
+      document.getElementById('cartBar').classList.toggle('hidden', count === 0);
+    }
+
+    function openCheckout() {
+      const list = document.getElementById('cartList');
+      list.innerHTML = cart.map(i => `
+        <div class="flex justify-between items-center py-2 text-xs">
+          <div>
+            <span class="font-bold text-gray-800">${i.name}</span>
+            <span class="text-gray-400 ml-1">× ${i.qty}</span>
+          </div>
+          <span class="font-black text-gray-900">₹${i.price * i.qty}</span>
+        </div>
+      `).join('');
+      document.getElementById('checkoutModal').classList.remove('hidden');
+    }
+
+    function closeCheckout() {
+      document.getElementById('checkoutModal').classList.add('hidden');
+    }
+
+    function placeOrder() {
+      const phone = document.getElementById('cPhone').value.trim();
+      const name = document.getElementById('cName').value.trim();
+      const loc = document.getElementById('targetLoc').value.trim();
+      const btn = document.getElementById('submitBtn');
+
+      if (!phone || phone.length < 10) {
+        alert('Please enter a valid 10-digit phone number.');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerText = 'Sending...';
+
+      const total = cart.reduce((s, i) => s + (i.price * i.qty), 0);
+
+      // Sent with status: 'RUNNING' so POS Active board captures it immediately
+      fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_type: 'Online',
+          status: 'RUNNING',
+          table_no: `${mode} - ${loc || 'Direct'}`,
+          customer_name: name || 'Online Guest',
+          customer_phone: phone,
+          items: cart,
+          payment_mode: 'ONLINE_PENDING',
+          subtotal: total,
+          discount: 0,
+          gst: 0,
+          total: total
+        })
+      })
+      .then(r => r.json())
+      .then(d => {
+        alert(`Order Placed Successfully!\nToken #${d.orderId || 'CONFIRMED'}\nYour order has reached the restaurant.`);
+        cart = [];
+        closeCheckout();
+        updateCartUI();
+        renderMenu();
+        window.location.reload();
+      })
+      .catch(err => {
+        alert('Failed to send order. Please verify your connection.');
+        btn.disabled = false;
+        btn.innerText = '🚀 Place Order';
+      });
+    }
+  </script>
+</body>
+</html>

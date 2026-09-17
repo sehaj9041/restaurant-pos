@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Restaurant Profile Settings</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen p-8 font-sans">
+  <div class="max-w-2xl mx-auto">
+    
+    <div class="flex justify-between items-center mb-6">
+      <div>
+        <h1 class="text-3xl font-black text-gray-800">Restaurant Settings</h1>
+        <p class="text-sm text-gray-500">Yeh details aapke thermal printed bill par dikhengi</p>
+      </div>
+      <a href="/" class="bg-gray-900 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-black transition">
+        ← Back to POS
+      </a>
+    </div>
+
+    <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-200">
+      <form id="settingsForm" onsubmit="saveSettings(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Restaurant Name</label>
+          <input id="restaurant_name" type="text" required class="w-full border p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Tagline / Slogan</label>
+          <input id="tagline" type="text" placeholder="e.g. Best Burgers in Town" class="w-full border p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Address</label>
+          <input id="address" type="text" required class="w-full border p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Phone Number</label>
+            <input id="phone" type="text" required class="w-full border p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-600 uppercase mb-1">GSTIN / Tax No (Optional)</label>
+            <input id="gstin" type="text" placeholder="Optional" class="w-full border p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+        </div>
+
+        <button type="submit" class="w-full mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black py-3 rounded-xl transition text-base shadow-sm">
+          Save Settings
+        </button>
+      </form>
+    </div>
+
+  </div>
+
+  <script>
+    // Load Settings
+    fetch('/api/settings')
+      .then(res => res.json())
+      .then(data => {
+        if (!data) return;
+        document.getElementById('restaurant_name').value = data.restaurant_name || '';
+        document.getElementById('tagline').value = data.tagline || '';
+        document.getElementById('address').value = data.address || '';
+        document.getElementById('phone').value = data.phone || '';
+        document.getElementById('gstin').value = data.gstin || '';
+      });
+
+    function saveSettings(e) {
+      e.preventDefault();
+      const payload = {
+        restaurant_name: document.getElementById('restaurant_name').value,
+        tagline: document.getElementById('tagline').value,
+        address: document.getElementById('address').value,
+        phone: document.getElementById('phone').value,
+        gstin: document.getElementById('gstin').value
+      };
+
+      fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      .then(res => res.json())
+      .then(() => {
+        alert('Settings saved successfully!');
+        window.location.href = '/';
+      });
+    }
+  </script>
+</body>
+</html>
