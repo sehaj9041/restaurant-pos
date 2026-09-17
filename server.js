@@ -8,16 +8,21 @@ const db = require('./database');
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+
 // Ngrok warning bypass & Customer ordering route
 app.use((req, res, next) => {
   res.setHeader('ngrok-skip-browser-warning', 'true');
   next();
 });
 
-app.get('/order', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'order.html'));
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'order.html'));
 });
+
+app.get('/pos', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
 // Real-time Live Cart Storage for Customer Facing Display
