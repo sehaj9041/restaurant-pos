@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vishal Foodiez - Table Order</title>
+  <style>
+    body { font-family: sans-serif; margin: 0; padding: 15px; background: #f8f9fa; }
+    header { text-align: center; margin-bottom: 20px; }
+    .item-card { background: #fff; border-radius: 8px; padding: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .btn-add { background: #28a745; color: white; border: none; padding: 8px 14px; border-radius: 5px; cursor: pointer; }
+    .footer-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; padding: 12px 20px; box-shadow: 0 -2px 8px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; }
+    .btn-order { background: #d9534f; color: white; border: none; padding: 10px 18px; border-radius: 5px; font-weight: bold; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h2>Vishal Foodiez</h2>
+    <p id="table-display">Table: Loading...</p>
+  </header>
+
+  <div id="menu-list">
+    <!-- Menu Items -->
+  </div>
+
+  <div class="footer-bar">
+    <div>Total: ₹<span id="cart-total">0</span></div>
+    <button class="btn-order" onclick="submitOrder()">Place Order</button>
+  </div>
+
+  <script>
+    // URL se table number read karna (?table=1)
+    const urlParams = new URLSearchParams(window.location.search);
+    const tableNo = urlParams.get('table') || '1';
+    document.getElementById('table-display').innerText = 'Table #' + tableNo;
+
+    let cart = [];
+
+    // Backend se active menu items fetch karna
+    fetch('/api/menu')
+      .then(res => res.json())
+      .then(items => {
+        const container = document.getElementById('menu-list');
+        container.innerHTML = items.map(item => `
+          <div class="item-card">
+            <div>
+              <strong>${item.name}</strong><br>
+              <small>₹${item.price}</small>
+            </div>
+            <button class="btn-add" onclick="addToCart('${item.name}', ${item.price})">+ Add</button>
+          </div>
+        `).join('');
+      });
+
+    function addToCart(name, price) {
+      cart.push({ name, price });
+      updateTotal();
+    }
+
+    function updateTotal() {
+      const total = cart.reduce((sum, i) => sum + i.price, 0);
+      document.getElementById('cart-total').innerText = total;
+    }
+
+    function submitOrder() {
+      if(cart.length === 0) return alert('Cart khali hai!');
+      
+      fetch('/api/place-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ table: tableNo, items: cart })
+      })
+      .then(res => res.json())
+      .then(data => {
+        alert('Order place ho gaya! KOT counter par bhej diya gaya hai.');
+        cart = [];
+        updateTotal();
+      });
+    }
+  </script>
+</body>
+</html>
