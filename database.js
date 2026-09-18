@@ -26,6 +26,9 @@ db.serialize(() => {
     price REAL,
     FOREIGN KEY(order_id) REFERENCES orders(id)
   )`);
+  db.run(`ALTER TABLE menu ADD COLUMN is_exempt INTEGER DEFAULT 0`, (err) => {
+    // Agar column pehle se maujood hai toh error silently ignore ho jayega
+  });
 
   db.get("SELECT COUNT(*) AS count FROM menu", (err, row) => {
     if (row && row.count === 0) {
