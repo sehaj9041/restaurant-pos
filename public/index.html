@@ -887,8 +887,8 @@
         const gstVal = billCalculation.gst || 0;
         const halfGst = (gstVal / 2).toFixed(2);
         const orderTypeHtml = orderType ? ` (${orderType.toUpperCase()})` : '';
-        const tableHtml = tableName ? `<div>Table: ${tableName}</div>` : '';
-        const customerHtml = custName ? `<div>Customer: ${custName}</div>` : '';
+       const tableHtml = (typeof tableName !== 'undefined' && tableName) ? `<div>Table: ${tableName}</div>` : ((typeof tableNo !== 'undefined' && tableNo) ? `<div>Table: ${tableNo}</div>` : '');
+        const customerHtml = (typeof custName !== 'undefined' && custName) ? `<div>Customer: ${custName}</div>` : '';
       const discountHtml = (billCalculation.discount > 0) 
             ? `<div class="row"><span>Discount:</span><span>-₹${billCalculation.discount.toFixed(2)}</span></div>` 
             : '';
