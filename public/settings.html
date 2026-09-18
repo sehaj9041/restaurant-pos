@@ -22,6 +22,14 @@
     <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-200">
       <form id="settingsForm" onsubmit="saveSettings(event)" class="space-y-4">
         <div>
+            <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Receipt Logo (Image)</label>
+            <div class="flex items-center gap-3">
+              <input type="file" id="logoInput" accept="image/*" class="w-full border p-2 rounded-xl text-sm file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 bg-white" />
+              <img id="logoPreview" src="" alt="Preview" class="h-10 w-10 object-contain rounded border p-1 hidden bg-white" />
+              <button type="button" id="removeLogoBtn" class="text-xs text-red-500 font-bold hidden whitespace-nowrap">Remove</button>
+            </div>
+          </div>
+        <div>
           <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Restaurant Name</label>
           <input id="restaurant_name" type="text" required class="w-full border p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500">
         </div>
@@ -92,9 +100,32 @@
         document.getElementById('gstin').value = data.gstin || '';
         document.getElementById('default_gst').value = data.default_gst || 5;
       });
+    const savedLogo = localStorage.getItem('pos_receipt_logo');
+    const previewImg = document.getElementById('logoPreview');
+    const removeBtn = document.getElementById('removeLogoBtn');
+    if (savedLogo) {
+      previewImg.src = savedLogo;
+      previewImg.classList.remove('hidden');
+      removeBtn.classList.remove('hidden');
+    }
+    removeBtn.addEventListener('click', () => {
+      localStorage.removeItem('pos_receipt_logo');
+      document.getElementById('logoInput').value = '';
+      previewImg.src = '';
+      previewImg.classList.add('hidden');
+      removeBtn.classList.add('hidden');
+    });
 
     function saveSettings(e) {
       e.preventDefault();
+      const logoInput = document.getElementById('logoInput');
+    if (logoInput.files && logoInput.files[0]) {
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        localStorage.setItem('pos_receipt_logo', evt.target.result);
+      };
+      reader.readAsDataURL(logoInput.files[0]);
+    }
       fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
