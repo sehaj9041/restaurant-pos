@@ -186,9 +186,9 @@ app.get('/api/menu', (req, res) => {
 
 app.post('/api/menu', (req, res) => {
   const { name, category, price, stock, image, variations, assigned_addon_groups, is_exempt } = req.body;
-  db.run(
+ db.run(
     `INSERT INTO menu (name, category, price, stock, image, variations, assigned_addon_groups, is_exempt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [name, category || 'General', price, stock || 50, image || '', JSON.stringify(variations || []), JSON.stringify(assigned_addon_groups || [])], is_exempt ? 1 : 0],
+    [name, category || 'General', price, stock || 50, image || '', JSON.stringify(variations || []), JSON.stringify(assigned_addon_groups || []), is_exempt ? 1 : 0],
     function (err) {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ success: true, id: this.lastID });
