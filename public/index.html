@@ -944,7 +944,7 @@
         setTimeout(() => document.body.removeChild(printFrame), 1000);
     }, 250);
 }
-
+    function printKOT(orderId, orderType, tableNo, items) {
       fetch('/api/printer/print-kot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -955,7 +955,7 @@
           items
         })
       }).catch(() => {});
-    
+    }
 
     function openCashDrawer() {
       fetch('/api/drawer/open', { method: 'POST' }).then(() => console.log("Drawer opened"));
