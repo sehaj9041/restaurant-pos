@@ -886,7 +886,9 @@
 
         const gstVal = billCalculation.gst || 0;
         const halfGst = (gstVal / 2).toFixed(2);
-
+        const orderTypeHtml = orderType ? ` (${orderType.toUpperCase()})` : '';
+        const tableHtml = tableName ? `<div>Table: ${tableName}</div>` : '';
+        const customerHtml = custName ? `<div>Customer: ${custName}</div>` : '';
       const discountHtml = (billCalculation.discount > 0) 
             ? `<div class="row"><span>Discount:</span><span>-₹${billCalculation.discount.toFixed(2)}</span></div>` 
             : '';
@@ -943,9 +945,11 @@
                     TOKEN #${orderId || '---'}
                 </div>
 
-                <div class="row"><span>Order: #${orderId || '---'}</span><span>${orderType \vert{}\vert{} ''}</span></div>${tableNo ? `<div>Table: ${tableNo}</div>` : ''}
-                ${custName ? `<div>Customer: ${custName}</div>` : ''}
-                <div>Date: ${new Date().toLocaleDateString('en-IN')}${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
+                <div class="row"><span>Order: #${orderId || '---'}</span><span>${orderTypeHtml}</span></div>
+                ${tableHtml}
+                ${customerHtml}
+                <div>Date: ${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
+                
 
                 <div class="divider"></div>
                 <div class="row bold"><span>Item</span><span>Price</span></div>
