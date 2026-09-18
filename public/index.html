@@ -799,7 +799,8 @@
           name: displayName,
           price: finalPrice,
           notes: noteText,
-          qty: 1
+          qty: 1,
+          is_exempt: selectedMenuItem ? (selectedMenuItem.is_exempt || false) : false
         });
       }
 
