@@ -875,61 +875,93 @@
         </div>
     `).join('');
 
-    const receiptHtml = `
-        <html>
-        <head>
-           <style>
-   @page { margin: 0; size: 80mm auto; }
-            * { box-sizing: border-box; }
-            html, body { margin: 0; padding: 0; }
-           body {
-            font-family: Arial, Helvetica, sans-serif;
-            font-size: 13px;
-            font-weight: 700;
-            color: #000;
-            margin-top: -4px !important;
-            padding: 0 6px 4px 6px;
-            width: 68mm;
-            -webkit-print-color-adjust: exact;
-        }
-    .center { text-align: center; }
-    .bold { font-weight: 900; }
-    .divider { border-top: 1.5px dashed #000; margin: 6px 0; }
-    .row { display: flex; justify-content: space-between; align-items: flex-start; }
-</style>
-        </head>
-        <body>
-            <div class="center bold" style="font-size:18px;">VISHAL FOODIEZ</div>
-            <div class="center" style="font-size:11px;">Railway Road, Budhlada</div>
-            <div class="center" style="font-size:11px;">GSTIN: 03AHXPL9631N1ZJ | Ph: 9041398515</div>
-            <div class="divider"></div>
-            
-            <div class="row"><span>Order: #${orderId || '---'}</span><span>${orderType || ''}</span></div>
-            ${tableNo ? `<div>Table: ${tableNo}</div>` : ''}
-            ${custName ? `<div>Customer: ${custName}</div>` : ''}
-            <div>Date: ${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN', {hour: '2-digit', minute:'2-digit'})}</div>
-            
-            <div class="divider"></div>
-            <div class="row bold"><span>Item</span><span>Price</span></div>
-            <div class="divider"></div>
-            
-            ${itemsHtml}
-            
-            <div class="divider"></div>
-            <div class="row"><span>Subtotal:</span><span>₹${billCalculation.subtotal.toFixed(2)}</span></div>
-            ${billCalculation.discount > 0 ? `<div class="row"><span>Discount:</span><span>-₹${billCalculation.discount.toFixed(2)}</span></div>` : ''}
-            ${billCalculation.gst > 0 ? `<div class="row"><span>GST (5%):</span><span>₹${billCalculation.gst.toFixed(2)}</span></div>` : ''}
-            <div class="divider"></div>
-            <div class="row bold" style="font-size:16px;"><span>TOTAL:</span><span>₹${billCalculation.finalTotal.toFixed(2)}</span></div>
-            <div class="divider"></div>
-            
-            <div class="center" style="font-size:11px; margin-top:8px;">Payment Mode: <b>${mode || 'Cash'}</b></div>
-            <div class="center" style="font-size:11px; margin-top:4px;">Thanks For Visiting Us!</div>
-            <div class="center" style="font-size:10px;">Order Online: www.vishalfoodiez.in</div>
-        </body>
-        </html>
-    `;
+    const savedCfg = JSON.parse(localStorage.getItem('pos_receipt_config')) || {
+            h1: 'VISHAL FOODIEZ',
+            h2: 'Railway Road, Budhlada',
+            h3: 'GSTIN: 03AHXPL9631N1ZJ | Ph: 9041398515',
+            f1: 'Thanks For Visiting Us!',
+            f2: 'Order Online: www.vishalfoodiez.in'
+        };
+        const savedLogo = localStorage.getItem('pos_receipt_logo');
 
+        const gstVal = billCalculation.gst || 0;
+        const halfGst = (gstVal / 2).toFixed(2);
+
+        const receiptHtml = `
+            <html>
+            <head>
+                <style>
+                    @page { margin: 0; size: 80mm auto; }
+                    * { box-sizing: border-box; }
+                    html, body { margin: 0; padding: 0; }
+                    body { 
+                        font-family: Arial, Helvetica, sans-serif; 
+                        font-size: 13px; 
+                        font-weight: 700;
+                        color: #000; 
+                        margin-top: -4px !important; 
+                        padding: 0 6px 4px 6px; 
+                        width: 68mm;
+                        -webkit-print-color-adjust: exact;
+                    }
+                    .center { text-align: center; }
+                    .bold { font-weight: 900; }
+                    .divider { border-top: 1.5px dashed #000; margin: 6px 0; }
+                    .row { display: flex; justify-content: space-between; align-items: flex-start; }
+                    .token-box {
+                        border: 2.5px solid #000;
+                        font-size: 26px;
+                        font-weight: 900;
+                        text-align: center;
+                        padding: 4px 0;
+                        margin: 6px 0;
+                        letter-spacing: 1px;
+                    }
+                    .receipt-logo {
+                        max-width: 42mm;
+                        max-height: 38mm;
+                        display: block;
+                        margin: 0 auto 4px auto;
+                        filter: grayscale(100%) contrast(140%);
+                    }
+                </style>
+            </head>
+            <body>
+                ${savedLogo ? `<img src="${savedLogo}" class="receipt-logo" />` : ''}
+                <div class="center bold" style="font-size:18px;">${savedCfg.h1}</div>
+                <div class="center" style="font-size:11px;">${savedCfg.h2}</div>
+                <div class="center" style="font-size:11px;">${savedCfg.h3}</div>
+
+                <div class="token-box">
+                    TOKEN #${orderId || '---'}
+                </div>
+
+                <div class="row"><span>Order: #${orderId || '---'}</span><span>${orderType \vert{}\vert{} ''}</span></div>${tableNo ? `<div>Table: ${tableNo}</div>` : ''}
+                ${custName ? `<div>Customer: ${custName}</div>` : ''}
+                <div>Date: ${new Date().toLocaleDateString('en-IN')}${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
+
+                <div class="divider"></div>
+                <div class="row bold"><span>Item</span><span>Price</span></div>
+                <div class="divider"></div>
+
+                ${itemsHtml}
+
+                <div class="divider"></div>
+                <div class="row"><span>Subtotal:</span><span>₹${billCalculation.subtotal.toFixed(2)}</span></div>${billCalculation.discount > 0 ? `<div class="row"><span>Discount:</span><span>-₹${billCalculation.discount.toFixed(2)}</span></div>` : ''}
+                ${gstVal > 0 ? `
+                    <div class="row" style="font-size:11px;"><span>CGST (2.5%):</span><span>₹${halfGst}</span></div>
+                    <div class="row" style="font-size:11px;"><span>SGST (2.5%):</span><span>₹${halfGst}</span></div>
+                ` : ''}
+                <div class="divider"></div>
+                <div class="row bold" style="font-size:16px;"><span>TOTAL:</span><span>₹${billCalculation.finalTotal.toFixed(2)}</span></div>
+                <div class="divider"></div>
+
+                <div class="center" style="font-size:11px; margin-top:8px;">Payment Mode: <b>${mode || 'Cash'}</b></div>
+                <div class="center" style="font-size:11px; margin-top:4px;">${savedCfg.f1}</div>
+                <div class="center" style="font-size:10px;">${savedCfg.f2}</div>
+            </body>
+            </html>
+        \`;
     const printFrame = document.createElement('iframe');
     printFrame.style.position = 'fixed';
     printFrame.style.right = '0';
