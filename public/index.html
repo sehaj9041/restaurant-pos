@@ -816,19 +816,27 @@
     }
 
     function calculateBill() {
-      const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-      const discVal = Number(document.getElementById('discountInput').value) || 0;
-      const discType = document.getElementById('discountType').value;
+    const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+    const discVal = Number(document.getElementById('discountInput').value) || 0;
+    const discType = document.getElementById('discountType').value;
 
-      let discountAmt = discType === 'PERCENT' ? (subtotal * discVal) / 100 : discVal;
-      if (discountAmt > subtotal) discountAmt = subtotal;
+    let discountAmt = discType === 'PERCENT' ? (subtotal * discVal) / 100 : discVal;
+    if (discountAmt > subtotal) discountAmt = subtotal;
 
-      const taxable = subtotal - discountAmt;
-      const isGst = document.getElementById('gstToggle').checked;
-      const gstRate = restaurantInfo.default_gst || 5;
-      const gstAmt = isGst ? Math.round((taxable * gstRate) / 100) : 0;
-      const finalTotal = Math.round(taxable + gstAmt);
+    // Item-wise taxable amount calculate karein (jinpe no_gst ya exempt nahi hai)
+    let taxableBase = cart.reduce((sum, item) => {
+      const isExempt = item.is_exempt || item.no_gst || item.exempt_gst || false;
+      return sum + (isExempt ? 0 : (item.price * item.qty));
+    }, 0);
 
+    // Discount ko proportional subtract karein taxable base se
+    const discountRatio = subtotal > 0 ? (discountAmt / subtotal) : 0;
+    const taxableAfterDisc = Math.max(0, taxableBase - (taxableBase * discountRatio));
+
+    const isGst = document.getElementById('gstToggle').checked;
+    const gstRate = restaurantInfo.default_gst || 5;
+    const gstAmt = isGst ? Math.round((taxableAfterDisc * gstRate) / 100) : 0;
+    const finalTotal = Math.round(subtotal - discountAmt + gstAmt);
       billCalculation = { subtotal, discount: Math.round(discountAmt), gst: gstAmt, finalTotal };
 
       document.getElementById('calc-subtotal').innerText = '₹' + subtotal;
