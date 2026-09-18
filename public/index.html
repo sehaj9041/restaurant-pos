@@ -868,25 +868,82 @@
     }
 
     function printBill(orderId, orderType, tableNo, custName, items, mode) {
-      fetch('/api/printer/print-bill', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId,
-          orderType,
-          tableNo,
-          customerName: custName,
-          items,
-          subtotal: billCalculation.subtotal,
-          discount: billCalculation.discount,
-          gst: billCalculation.gst,
-          total: billCalculation.finalTotal,
-          mode
-        })
-      })
-      .then(res => res.json())
-      .then(() => window.print())
-      .catch(() => {});
+    const itemsHtml = items.map(item => `
+        <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
+            <span style="max-width:60%;">${item.name} x ${item.quantity || 1}</span>
+            <span>₹${(item.price * (item.quantity || 1)).toFixed(2)}</span>
+        </div>
+    `).join('');
+
+    const receiptHtml = `
+        <html>
+        <head>
+            <style>
+                @page { margin: 0; size: 80mm auto; }
+                body { 
+                    font-family: 'Courier New', monospace; 
+                    font-size: 13px; 
+                    color: #000; 
+                    margin: 0; 
+                    padding: 8px; 
+                    width: 72mm;
+                }
+                .center { text-align: center; }
+                .bold { font-weight: bold; }
+                .divider { border-top: 1px dashed #000; margin: 6px 0; }
+                .row { display: flex; justify-content: space-between; }
+            </style>
+        </head>
+        <body>
+            <div class="center bold" style="font-size:18px;">VISHAL FOODIEZ</div>
+            <div class="center" style="font-size:11px;">Railway Road, Budhlada</div>
+            <div class="center" style="font-size:11px;">GSTIN: 03AHXPL9631N1ZJ | Ph: 9041398515</div>
+            <div class="divider"></div>
+            
+            <div class="row"><span>Order: #${orderId || '---'}</span><span>${orderType || ''}</span></div>
+            ${tableNo ? `<div>Table: ${tableNo}</div>` : ''}
+            ${custName ? `<div>Customer: ${custName}</div>` : ''}
+            <div>Date: ${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN', {hour: '2-digit', minute:'2-digit'})}</div>
+            
+            <div class="divider"></div>
+            <div class="row bold"><span>Item</span><span>Price</span></div>
+            <div class="divider"></div>
+            
+            ${itemsHtml}
+            
+            <div class="divider"></div>
+            <div class="row"><span>Subtotal:</span><span>₹${billCalculation.subtotal.toFixed(2)}</span></div>
+            ${billCalculation.discount > 0 ? `<div class="row"><span>Discount:</span><span>-₹${billCalculation.discount.toFixed(2)}</span></div>` : ''}
+            ${billCalculation.gst > 0 ? `<div class="row"><span>GST (5%):</span><span>₹${billCalculation.gst.toFixed(2)}</span></div>` : ''}
+            <div class="divider"></div>
+            <div class="row bold" style="font-size:16px;"><span>TOTAL:</span><span>₹${billCalculation.finalTotal.toFixed(2)}</span></div>
+            <div class="divider"></div>
+            
+            <div class="center" style="font-size:11px; margin-top:8px;">Payment Mode: <b>${mode || 'Cash'}</b></div>
+            <div class="center" style="font-size:11px; margin-top:4px;">Thanks For Visiting Us!</div>
+            <div class="center" style="font-size:10px;">Order Online: www.vishalfoodiez.in</div>
+        </body>
+        </html>
+    `;
+
+    const printFrame = document.createElement('iframe');
+    printFrame.style.position = 'fixed';
+    printFrame.style.right = '0';
+    printFrame.style.bottom = '0';
+    printFrame.style.width = '0';
+    printFrame.style.height = '0';
+    printFrame.style.border = '0';
+    document.body.appendChild(printFrame);
+
+    printFrame.contentDocument.write(receiptHtml);
+    printFrame.contentDocument.close();
+
+    printFrame.contentWindow.focus();
+    setTimeout(() => {
+        printFrame.contentWindow.print();
+        setTimeout(() => document.body.removeChild(printFrame), 1000);
+    }, 250);
+}
 
       fetch('/api/printer/print-kot', {
         method: 'POST',
