@@ -185,10 +185,10 @@ app.get('/api/menu', (req, res) => {
 });
 
 app.post('/api/menu', (req, res) => {
-  const { name, category, price, stock, image, variations, assigned_addon_groups } = req.body;
+  const { name, category, price, stock, image, variations, assigned_addon_groups, is_exempt } = req.body;
   db.run(
-    `INSERT INTO menu (name, category, price, stock, image, variations, assigned_addon_groups) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [name, category || 'General', price, stock || 50, image || '', JSON.stringify(variations || []), JSON.stringify(assigned_addon_groups || [])],
+    `INSERT INTO menu (name, category, price, stock, image, variations, assigned_addon_groups, is_exempt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [name, category || 'General', price, stock || 50, image || '', JSON.stringify(variations || []), JSON.stringify(assigned_addon_groups || [])], is_exempt ? 1 : 0],
     function (err) {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ success: true, id: this.lastID });
@@ -197,10 +197,10 @@ app.post('/api/menu', (req, res) => {
 });
 
 app.put('/api/menu/:id', (req, res) => {
-  const { name, category, price, stock, image, variations, assigned_addon_groups } = req.body;
+  const { name, category, price, stock, image, variations, assigned_addon_groups, is_exempt } = req.body;
   db.run(
-    `UPDATE menu SET name = ?, category = ?, price = ?, stock = ?, image = ?, variations = ?, assigned_addon_groups = ? WHERE id = ?`,
-    [name, category, price, stock, image || '', JSON.stringify(variations || []), JSON.stringify(assigned_addon_groups || []), req.params.id],
+    `UPDATE menu SET name = ?, category = ?, price = ?, stock = ?, image = ?, variations = ?, assigned_addon_groups = ?, is_exampt = ? WHERE id = ?`,
+    [name, category, price, stock, image || '', JSON.stringify(variations || []), JSON.stringify(assigned_addon_groups || []), is_exempt ? 1 : 0, req.params.id],
     function (err) {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ success: true });
