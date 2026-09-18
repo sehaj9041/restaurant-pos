@@ -887,6 +887,13 @@
         const gstVal = billCalculation.gst || 0;
         const halfGst = (gstVal / 2).toFixed(2);
 
+      const discountHtml = (billCalculation.discount > 0) 
+            ? `<div class="row"><span>Discount:</span><span>-₹${billCalculation.discount.toFixed(2)}</span></div>` 
+            : '';
+
+        const gstHtml = (gstVal > 0) 
+            ? `<div class="row" style="font-size:11px;"><span>CGST (2.5%):</span><span>₹${halfGst}</span></div><div class="row" style="font-size:11px;"><span>SGST (2.5%):</span><span>₹${halfGst}</span></div>` 
+            : '';
         const receiptHtml = `
             <html>
             <head>
@@ -947,11 +954,9 @@
                 ${itemsHtml}
 
                 <div class="divider"></div>
-              <div class="row"><span>Subtotal:</span><span>₹${billCalculation.subtotal.toFixed(2)}</span></div>${billCalculation.discount > 0 ? `<div class="row"><span>Discount:</span><span>-₹${billCalculation.discount.toFixed(2)}</span></div>` : ''}
-                ${gstVal > 0 ? `
-                    <div class="row" style="font-size:11px;"><span>CGST (2.5%):</span><span>₹${halfGst}</span></div>
-                    <div class="row" style="font-size:11px;"><span>SGST (2.5%):</span><span>₹${halfGst}</span></div>
-                ` : ''}
+             <div class="row"><span>Subtotal:</span><span>₹${billCalculation.subtotal.toFixed(2)}</span></div>
+                ${discountHtml}
+                ${gstHtml}
                 <div class="row bold" style="font-size:16px;"><span>TOTAL:</span><span>₹${billCalculation.finalTotal.toFixed(2)}</span></div>
                 <div class="divider"></div>
 
