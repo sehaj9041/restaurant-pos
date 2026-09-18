@@ -35,14 +35,17 @@
     <div id="tabItems" class="space-y-6">
       <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
         <h2 class="text-base font-bold text-gray-800 mb-3">Add New Menu Item</h2>
-        <form onsubmit="saveNewItem(event)" class="grid grid-cols-1 md:grid-cols-5 gap-3 items-center">
+        <form onsubmit="saveNewItem(event)" class="grid grid-cols-1 md:grid-cols-6 gap-3 items-center">
           <input id="new_name" type="text" placeholder="Item Name (e.g. Burger)" required class="border p-2.5 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500">
           <input id="new_cat" type="text" placeholder="Category (e.g. Burgers)" required class="border p-2.5 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500">
           <input id="new_price" type="number" placeholder="Base Price (₹)" required class="border p-2.5 rounded-xl text-xs outline-none font-bold">
           <div>
             <input type="file" id="new_img" accept="image/*" class="text-[11px] text-gray-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700">
           </div>
-          <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-xs transition">
+         <label class="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-gray-600 select-none">
+              <input type="checkbox" id="new_is_exempt" class="rounded text-indigo-600">
+              <span>No GST</span>
+            </label> <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-xs transition">
             + Save Item
           </button>
         </form>
@@ -332,13 +335,15 @@
           image: imgUrl,
           stock: 50,
           variations: [],
-          assigned_addon_groups: []
+          assigned_addon_groups: [],
+          is_exempt: document.getElementById('new_is_exempt').checked ? 1 : 0
         })
       }).then(() => {
         document.getElementById('new_name').value = '';
         document.getElementById('new_cat').value = '';
         document.getElementById('new_price').value = '';
         document.getElementById('new_img').value = '';
+        document.getElementById('new_is_exempt').checked = false;
         loadData();
       });
     }
