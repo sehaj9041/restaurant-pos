@@ -969,24 +969,24 @@
                 <div class="center" style="font-size:10px;">${savedCfg.f2}</div>
             </body>
             </html>
-        \`;
+        `;
     const printFrame = document.createElement('iframe');
-    printFrame.style.position = 'fixed';
-    printFrame.style.right = '0';
-    printFrame.style.bottom = '0';
-    printFrame.style.width = '0';
-    printFrame.style.height = '0';
-    printFrame.style.border = '0';
-    document.body.appendChild(printFrame);
+        printFrame.style.position = 'fixed';
+        printFrame.style.right = '0';
+        printFrame.style.bottom = '0';
+        printFrame.style.width = '0';
+        printFrame.style.height = '0';
+        printFrame.style.border = '0';
+        document.body.appendChild(printFrame);
 
-    printFrame.contentDocument.write(receiptHtml);
-    printFrame.contentDocument.close();
+        printFrame.contentDocument.write(receiptHtml);
+        printFrame.contentDocument.close();
 
-    printFrame.contentWindow.focus();
-    setTimeout(() => {
-        printFrame.contentWindow.print();
-        setTimeout(() => document.body.removeChild(printFrame), 1000);
-    }, 250);
+        printFrame.contentWindow.focus();
+        setTimeout(() => {
+            printFrame.contentWindow.print();
+            setTimeout(() => document.body.removeChild(printFrame), 1000);
+        }, 250);
 }
     function printKOT(orderId, orderType, tableNo, items) {
       fetch('/api/printer/print-kot', {
