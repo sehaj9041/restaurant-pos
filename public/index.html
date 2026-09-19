@@ -1035,7 +1035,10 @@
           }
           if (top.id > lastOnlineSeenId) {
             lastOnlineSeenId = top.id;
-            showPopupNotice(top);
+            // Filter: Sirf actual Online ya Delivery orders par notification bajayein
+            if (top.order_type === 'Online' || top.order_type === 'Delivery') {
+              showPopupNotice(top);
+            }
           }
         })
         .catch(() => {});
