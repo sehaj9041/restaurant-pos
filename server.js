@@ -252,6 +252,7 @@ app.get('/api/orders/active', (req, res) => {
       res.json(orders.map(o => ({ ...o, items: [] })));
     }
 });
+});
 // Update Existing Order In-Place
 app.put('/api/orders/:id', (req, res) => {
   const orderId = req.params.id;
