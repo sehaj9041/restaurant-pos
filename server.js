@@ -215,27 +215,44 @@ app.delete('/api/menu/:id', (req, res) => {
   });
 });
 
-// 7. ACTIVE ORDERS (RUNNING_TABLE, PENDING, DUE_PENDING)
+// 7.// ACTIVE ORDERS (RUNNING_TABLE, PENDING, DUE_PENDING)
 app.get('/api/orders/active', (req, res) => {
-  db.all(
-    `SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, TIME(created_at, 'localtime') as time
-     FROM orders
-    WHERE status IN ('RUNNING_TABLE', 'PENDING', 'DUE_PENDING', 'RUNNING') OR order_type = 'Online' OR payment_mode = 'ONLINE_PENDING'
-     ORDER BY id DESC`,
-    [],
-    async (err, orders) => {
-      if (err) return res.status(500).json({ error: err.message });
+  const query = `
+    SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status
+    FROM orders 
+    WHERE status IN ('RUNNING_TABLE', 'PENDING', 'DUE_PENDING', 'RUNNING') 
+       OR order_type = 'Online' 
+       OR payment_mode = 'Due'
+    ORDER BY id DESC
+  `;
+
+  db.all(query, [], async (err, orders) => {
+    if (err) {
+      console.error('Active orders error:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+    
+    if (!orders || orders.length === 0) {
+      return res.json([]);
+    }
+
+    try {
       const fullOrders = await Promise.all(
         orders.map(order => {
           return new Promise((resolve) => {
-            db.all(`SELECT id, name, qty, price, notes FROM order_items WHERE order_id = ?`, [order.id], (err2, items) => {
+            db.all('SELECT id, name, qty, price, notes FROM order_items WHERE order_id = ?', [order.id], (err2, items) => {
               resolve({ ...order, items: items || [] });
             });
           });
         })
       );
       res.json(fullOrders);
+    } catch (e) {
+      console.error('Items fetch error:', e.message);
+      res.json(orders.map(o => ({ ...o, items: [] })));
     }
+  });
+});
   );
 });
 
