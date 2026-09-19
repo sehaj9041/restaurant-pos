@@ -16,11 +16,11 @@ app.use((req, res, next) => {
 });
 
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'order.html'));
+  res.sendFile(path.join(__dirname, 'public', 'order.html'));
 });
 
 app.get('/pos', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
@@ -72,36 +72,46 @@ app.post('/api/drawer/open', (req, res) => {
 
 // 3. INTERACTIVE FLOOR PLAN APIS
 app.get('/api/floor-tables', (req, res) => {
-  db.all("SELECT * FROM floor_tables ORDER BY id ASC", [], (err, rows) => {
+  db.all("SELECT * FROM floor_tables ORDER BY id ASC", [], async (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     if (!rows || rows.length === 0) {
-      const stmt = db.prepare("INSERT INTO floor_tables (table_no, x, y, seats) VALUES (?, ?, ?, ?)");
       for (let i = 1; i <= 8; i++) {
-        stmt.run(`T-${i}`, ((i - 1) % 4) * 120 + 20, Math.floor((i - 1) / 4) * 100 + 20, 4);
+        await new Promise((resolve) => {
+          db.run(
+            "INSERT INTO floor_tables (table_no, x, y, seats) VALUES (?, ?, ?, ?)",
+            [`T-${i}`, ((i - 1) % 4) * 120 + 20, Math.floor((i - 1) / 4) * 100 + 20, 4],
+            () => resolve()
+          );
+        });
       }
-      stmt.finalize(() => {
-        db.all("SELECT * FROM floor_tables ORDER BY id ASC", [], (err2, rows2) => res.json(rows2));
-      });
+      db.all("SELECT * FROM floor_tables ORDER BY id ASC", [], (err2, rows2) => res.json(rows2 || []));
     } else {
       res.json(rows);
     }
   });
 });
 
-app.post('/api/floor-tables/save-positions', (req, res) => {
+app.post('/api/floor-tables/save-positions', async (req, res) => {
   const { tables } = req.body;
-  const stmt = db.prepare("UPDATE floor_tables SET x = ?, y = ? WHERE id = ?");
-  tables.forEach(t => stmt.run(t.x, t.y, t.id));
-  stmt.finalize(() => res.json({ success: true }));
+  if (Array.isArray(tables)) {
+    for (const t of tables) {
+      await new Promise((resolve) => {
+        db.run("UPDATE floor_tables SET x = ?, y = ? WHERE id = ?", [t.x, t.y, t.id], () => resolve());
+      });
+    }
+  }
+  res.json({ success: true });
 });
 
 app.post('/api/floor-tables', (req, res) => {
   const { table_no, seats, x, y } = req.body;
-  db.run("INSERT INTO floor_tables (table_no, seats, x, y) VALUES (?, ?, ?, ?)",
+  db.all(
+    "INSERT INTO floor_tables (table_no, seats, x, y) VALUES (?, ?, ?, ?) RETURNING id",
     [table_no, seats || 4, x || 20, y || 20],
-    function(err) {
+    (err, result) => {
       if (err) return res.status(500).json({ error: err.message });
-      res.json({ success: true, id: this.lastID });
+      const id = result && result[0] ? result[0].id : null;
+      res.json({ success: true, id });
     }
   );
 });
@@ -114,18 +124,19 @@ app.delete('/api/floor-tables/:id', (req, res) => {
 app.get('/api/addon-groups', (req, res) => {
   db.all("SELECT * FROM addon_groups ORDER BY id DESC", [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
+    res.json(rows || []);
   });
 });
 
 app.post('/api/addon-groups', (req, res) => {
   const { name, min_selection, max_selection, is_mandatory, items } = req.body;
-  db.run(
-    `INSERT INTO addon_groups (name, min_selection, max_selection, is_mandatory, items) VALUES (?, ?, ?, ?, ?)`,
+  db.all(
+    `INSERT INTO addon_groups (name, min_selection, max_selection, is_mandatory, items) VALUES (?, ?, ?, ?, ?) RETURNING id`,
     [name, min_selection || 0, max_selection || 5, is_mandatory ? 1 : 0, JSON.stringify(items || [])],
-    function (err) {
+    (err, result) => {
       if (err) return res.status(500).json({ error: err.message });
-      res.json({ success: true, id: this.lastID });
+      const id = result && result[0] ? result[0].id : null;
+      res.json({ success: true, id });
     }
   );
 });
@@ -141,18 +152,19 @@ app.delete('/api/addon-groups/:id', (req, res) => {
 app.get('/api/variation-masters', (req, res) => {
   db.all("SELECT * FROM variation_masters ORDER BY id DESC", [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
+    res.json(rows || []);
   });
 });
 
 app.post('/api/variation-masters', (req, res) => {
   const { name, options } = req.body;
-  db.run(
-    "INSERT INTO variation_masters (name, options) VALUES (?, ?)",
+  db.all(
+    "INSERT INTO variation_masters (name, options) VALUES (?, ?) RETURNING id",
     [name, JSON.stringify(options || [])],
-    function (err) {
+    (err, result) => {
       if (err) return res.status(500).json({ error: err.message });
-      res.json({ success: true, id: this.lastID });
+      const id = result && result[0] ? result[0].id : null;
+      res.json({ success: true, id });
     }
   );
 });
@@ -171,7 +183,7 @@ app.post('/api/menu/assign-variations-category', (req, res) => {
     [JSON.stringify(variations || []), category],
     function (err) {
       if (err) return res.status(500).json({ error: err.message });
-      res.json({ success: true, updated: this.changes });
+      res.json({ success: true });
     }
   );
 });
@@ -180,18 +192,19 @@ app.post('/api/menu/assign-variations-category', (req, res) => {
 app.get('/api/menu', (req, res) => {
   db.all("SELECT * FROM menu ORDER BY category, name", [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
+    res.json(rows || []);
   });
 });
 
 app.post('/api/menu', (req, res) => {
   const { name, category, price, stock, image, variations, assigned_addon_groups, is_exempt } = req.body;
- db.run(
-    `INSERT INTO menu (name, category, price, stock, image, variations, assigned_addon_groups, is_exempt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  db.all(
+    `INSERT INTO menu (name, category, price, stock, image, variations, assigned_addon_groups, is_exempt) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
     [name, category || 'General', price, stock || 50, image || '', JSON.stringify(variations || []), JSON.stringify(assigned_addon_groups || []), is_exempt ? 1 : 0],
-    function (err) {
+    (err, result) => {
       if (err) return res.status(500).json({ error: err.message });
-      res.json({ success: true, id: this.lastID });
+      const id = result && result[0] ? result[0].id : null;
+      res.json({ success: true, id });
     }
   );
 });
@@ -199,7 +212,7 @@ app.post('/api/menu', (req, res) => {
 app.put('/api/menu/:id', (req, res) => {
   const { name, category, price, stock, image, variations, assigned_addon_groups, is_exempt } = req.body;
   db.run(
-    `UPDATE menu SET name = ?, category = ?, price = ?, stock = ?, image = ?, variations = ?, assigned_addon_groups = ?, is_exampt = ? WHERE id = ?`,
+    `UPDATE menu SET name = ?, category = ?, price = ?, stock = ?, image = ?, variations = ?, assigned_addon_groups = ?, is_exempt = ? WHERE id = ?`,
     [name, category, price, stock, image || '', JSON.stringify(variations || []), JSON.stringify(assigned_addon_groups || []), is_exempt ? 1 : 0, req.params.id],
     function (err) {
       if (err) return res.status(500).json({ error: err.message });
@@ -215,7 +228,7 @@ app.delete('/api/menu/:id', (req, res) => {
   });
 });
 
-// 7.// ACTIVE ORDERS (RUNNING_TABLE, PENDING, DUE_PENDING)
+// 7. ACTIVE ORDERS (RUNNING_TABLE, PENDING, DUE_PENDING)
 app.get('/api/orders/active', (req, res) => {
   const query = `
     SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status
@@ -251,8 +264,9 @@ app.get('/api/orders/active', (req, res) => {
       console.error('Items fetch error:', e.message);
       res.json(orders.map(o => ({ ...o, items: [] })));
     }
+  });
 });
-});
+
 // Update Existing Order In-Place
 app.put('/api/orders/:id', (req, res) => {
   const orderId = req.params.id;
@@ -262,22 +276,31 @@ app.put('/api/orders/:id', (req, res) => {
   db.run(
     `UPDATE orders SET order_type = ?, table_no = ?, customer_name = ?, customer_phone = ?, subtotal = ?, discount = ?, gst = ?, total = ?, payment_mode = ?, status = ? WHERE id = ?`,
     [order_type, table_no || '', customer_name || '', customer_phone || '', subtotal, discount || 0, gst || 0, total, payment_mode, status, orderId],
-    (err) => {
+    async (err) => {
       if (err) return res.status(500).json({ error: err.message });
 
-      db.run("DELETE FROM order_items WHERE order_id = ?", [orderId], () => {
-        const stmt = db.prepare("INSERT INTO order_items (order_id, name, qty, price, notes) VALUES (?, ?, ?, ?, ?)");
-        items.forEach(i => stmt.run(orderId, i.name, i.qty, i.price, i.notes || ''));
-        stmt.finalize(() => res.json({ success: true, orderId }));
+      db.run("DELETE FROM order_items WHERE order_id = ?", [orderId], async () => {
+        if (Array.isArray(items) && items.length > 0) {
+          for (const item of items) {
+            await new Promise((resolve) => {
+              db.run(
+                "INSERT INTO order_items (order_id, name, qty, price, notes) VALUES (?, ?, ?, ?, ?)",
+                [orderId, item.name, item.qty, item.price, item.notes || ''],
+                () => resolve()
+              );
+            });
+          }
+        }
+        res.json({ success: true, orderId });
       });
     }
   );
 });
 
 // Punch Order: DUE orders remain strictly in 'DUE_PENDING' status
-app.post('/api/orders', (req, res) => {
+app.post('/api/orders', async (req, res) => {
   const { order_type, table_no, customer_name, customer_phone, items, payment_mode, subtotal, discount, gst, total, is_hold } = req.body;
-  
+
   let status = 'COMPLETED';
   if (is_hold) {
     status = 'RUNNING_TABLE';
@@ -285,42 +308,83 @@ app.post('/api/orders', (req, res) => {
     status = 'DUE_PENDING';
   }
 
-  db.run(
-    `INSERT INTO orders (order_type, table_no, customer_name, customer_phone, status, payment_mode, subtotal, discount, gst, total) 
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [order_type, table_no || '', customer_name || '', customer_phone || '', status, payment_mode || 'PENDING', subtotal, discount || 0, gst || 0, total],
-    function (err) {
-      if (err) return res.status(500).json({ error: err.message });
-      const orderId = this.lastID;
+  const insertOrderQuery = `
+    INSERT INTO orders (order_type, table_no, customer_name, customer_phone, status, payment_mode, subtotal, discount, gst, total)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    RETURNING id
+  `;
 
-      const stmt = db.prepare(`INSERT INTO order_items (order_id, name, qty, price, notes) VALUES (?, ?, ?, ?, ?)`);
-      const stockStmt = db.prepare(`UPDATE menu SET stock = MAX(0, stock - ?) WHERE id = ?`);
+  const orderValues = [
+    order_type,
+    table_no || '',
+    customer_name || '',
+    customer_phone || '',
+    status || 'PENDING',
+    payment_mode || 'Cash',
+    subtotal || 0,
+    discount || 0,
+    gst || 0,
+    total || 0
+  ];
 
-      items.forEach(i => {
-        stmt.run(orderId, i.name, i.qty, i.price, i.notes || '');
-        if (i.menu_id) stockStmt.run(i.qty, i.menu_id);
-      });
-      stmt.finalize();
-      stockStmt.finalize();
+  db.all(insertOrderQuery, orderValues, async (err, result) => {
+    if (err) {
+      console.error('Order creation error:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
 
-      if (customer_phone && customer_phone.trim().length >= 10 && !is_hold) {
-        const dueIncrement = (payment_mode === 'DUE') ? total : 0;
-        db.run(
-          `INSERT INTO customers (phone, name, total_spent, due_balance, orders_count, last_visit)
-           VALUES (?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
-           ON CONFLICT(phone) DO UPDATE SET
-             name = COALESCE(excluded.name, customers.name),
-             total_spent = customers.total_spent + excluded.total_spent,
-             due_balance = customers.due_balance + ?,
-             orders_count = customers.orders_count + 1,
-             last_visit = CURRENT_TIMESTAMP`,
-          [customer_phone, customer_name || 'Valued Guest', total, dueIncrement, dueIncrement]
-        );
+    const orderId = (result && result[0]) ? result[0].id : null;
+    if (!orderId) {
+      return res.status(500).json({ error: 'Failed to retrieve order id' });
+    }
+
+    try {
+      if (Array.isArray(items) && items.length > 0) {
+        for (const item of items) {
+          await new Promise((resolve) => {
+            db.run(
+              'INSERT INTO order_items (order_id, name, qty, price, notes) VALUES (?, ?, ?, ?, ?)',
+              [orderId, item.name, item.qty, item.price, item.notes || ''],
+              () => resolve()
+            );
+          });
+
+          if (item.id || item.menu_id) {
+            await new Promise((resolve) => {
+              db.run(
+                'UPDATE menu SET stock = GREATEST(0, stock - ?) WHERE id = ?',
+                [item.qty, item.id || item.menu_id],
+                () => resolve()
+              );
+            });
+          }
+        }
       }
 
-      res.json({ success: true, orderId, total });
+      if (customer_phone) {
+        const dueIncrement = (payment_mode === 'DUE') ? total : 0;
+        await new Promise((resolve) => {
+          db.run(
+            `INSERT INTO customers (phone, name, total_spent, due_balance, orders_count, last_visit)
+             VALUES (?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+             ON CONFLICT (phone) DO UPDATE SET
+               name = COALESCE(EXCLUDED.name, customers.name),
+               total_spent = customers.total_spent + EXCLUDED.total_spent,
+               due_balance = customers.due_balance + ?,
+               orders_count = customers.orders_count + 1,
+               last_visit = CURRENT_TIMESTAMP`,
+            [customer_phone, customer_name || 'Valued Guest', total, dueIncrement, dueIncrement],
+            () => resolve()
+          );
+        });
+      }
+
+      res.json({ success: true, orderId: orderId });
+    } catch (itemErr) {
+      console.error('Order items insert error:', itemErr.message);
+      res.json({ success: true, orderId: orderId });
     }
-  );
+  });
 });
 
 // Settle Order API
@@ -382,7 +446,7 @@ try {
 }
 
 app.post('/api/printer/print-bill', async (req, res) => {
-  const { orderId, orderType, tableNo, customerName, items, subtotal, discount, gst, total, mode } = req.body;
+  const { orderId, orderType, tableNo, customerName, items, total, mode } = req.body;
 
   try {
     if (ThermalPrinterClass && PrinterTypesObj) {
@@ -402,9 +466,11 @@ app.post('/api/printer/print-bill', async (req, res) => {
       if (customerName) printer.println(`Guest: ${customerName}`);
       printer.drawLine();
 
-      items.forEach(item => {
-        printer.println(`${item.name} x${item.qty} = Rs ${item.price * item.qty}`);
-      });
+      if (Array.isArray(items)) {
+        items.forEach(item => {
+          printer.println(`${item.name} x${item.qty} = Rs ${item.price * item.qty}`);
+        });
+      }
 
       printer.drawLine();
       printer.println(`Total: Rs ${total}`);
@@ -433,7 +499,9 @@ app.post('/api/printer/print-kot', async (req, res) => {
       kotPrinter.println("*** KITCHEN TICKET (KOT) ***");
       kotPrinter.println(`Order: #${orderId} | ${orderType} | ${tableNo || ''}`);
       kotPrinter.drawLine();
-      items.forEach(i => kotPrinter.println(`[ ] ${i.name} x${i.qty}`));
+      if (Array.isArray(items)) {
+        items.forEach(i => kotPrinter.println(`[ ] ${i.name} x${i.qty}`));
+      }
       kotPrinter.cut();
       await kotPrinter.execute().catch(() => null);
     }
@@ -487,7 +555,7 @@ app.get('/api/kot', (req, res) => {
   db.all(
     `SELECT o.id, o.order_type, o.table_no, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
      FROM orders o 
-     WHERE o.status IN ('PENDING', 'RUNNING_TABLE', 'DUE_PENDING') 
+     WHERE o.status IN ('PENDING', 'RUNNING_TABLE', 'DUE_PENDING', 'RUNNING') 
      ORDER BY o.id ASC`,
     [],
     async (err, orders) => {
@@ -535,14 +603,20 @@ app.get('/api/customers', (req, res) => {
 });
 
 app.get('/api/expenses/today', (req, res) => {
-  db.all("SELECT id, title, amount, payment_mode, TIME(created_at, 'localtime') as time FROM expenses WHERE DATE(created_at, 'localtime') = DATE('now', 'localtime') ORDER BY id DESC", [], (err, rows) => res.json(rows || []));
+  db.all("SELECT id, title, amount, payment_mode, TO_CHAR(created_at, 'HH12:MI AM') as time FROM expenses WHERE created_at::date = CURRENT_DATE ORDER BY id DESC", [], (err, rows) => res.json(rows || []));
 });
 
 app.post('/api/expenses', (req, res) => {
   const { title, amount, payment_mode } = req.body;
-  db.run("INSERT INTO expenses (title, amount, payment_mode) VALUES (?, ?, ?)", [title, amount, payment_mode || 'CASH'], function () {
-    res.json({ success: true, id: this.lastID });
-  });
+  db.all(
+    "INSERT INTO expenses (title, amount, payment_mode) VALUES (?, ?, ?) RETURNING id",
+    [title, amount, payment_mode || 'CASH'],
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      const id = result && result[0] ? result[0].id : null;
+      res.json({ success: true, id });
+    }
+  );
 });
 
 // ================= 10. ADVANCED MULTI-DIMENSIONAL REPORTS API =================
@@ -563,7 +637,7 @@ app.get('/api/reports/analytics', (req, res) => {
       COALESCE(SUM(CASE WHEN payment_mode = 'UPI' AND status != 'DUE_PENDING' THEN total ELSE 0 END), 0) AS upi_sales,
       COALESCE(SUM(CASE WHEN payment_mode = 'DUE' OR status = 'DUE_PENDING' THEN total ELSE 0 END), 0) AS due_sales
     FROM orders 
-    WHERE DATE(created_at, 'localtime') BETWEEN DATE(?) AND DATE(?) 
+    WHERE created_at::date BETWEEN ?::date AND ?::date 
       AND status != 'RUNNING_TABLE'
   `;
 
@@ -573,7 +647,7 @@ app.get('/api/reports/analytics', (req, res) => {
       COALESCE(SUM(amount), 0) as total_expense,
       COALESCE(SUM(CASE WHEN payment_mode = 'CASH' THEN amount ELSE 0 END), 0) as cash_expense
     FROM expenses 
-    WHERE DATE(created_at, 'localtime') BETWEEN DATE(?) AND DATE(?)
+    WHERE created_at::date BETWEEN ?::date AND ?::date
   `;
 
   // 3. Top Selling Items Analytics
@@ -581,7 +655,7 @@ app.get('/api/reports/analytics', (req, res) => {
     SELECT oi.name, SUM(oi.qty) as total_qty, SUM(oi.price * oi.qty) as total_revenue
     FROM order_items oi
     JOIN orders o ON o.id = oi.order_id
-    WHERE DATE(o.created_at, 'localtime') BETWEEN DATE(?) AND DATE(?) 
+    WHERE o.created_at::date BETWEEN ?::date AND ?::date 
       AND o.status != 'RUNNING_TABLE'
     GROUP BY oi.name
     ORDER BY total_qty DESC
@@ -592,7 +666,7 @@ app.get('/api/reports/analytics', (req, res) => {
   const ordersListQuery = `
     SELECT id, order_type, table_no, customer_name, customer_phone, payment_mode, status, subtotal, discount, gst, total, created_at
     FROM orders 
-    WHERE DATE(created_at, 'localtime') BETWEEN DATE(?) AND DATE(?) 
+    WHERE created_at::date BETWEEN ?::date AND ?::date 
       AND status != 'RUNNING_TABLE'
     ORDER BY id DESC
   `;
@@ -600,14 +674,15 @@ app.get('/api/reports/analytics', (req, res) => {
   db.get(summaryQuery, [start, end], (err, summary) => {
     if (err) return res.status(500).json({ error: err.message });
     db.get(expenseQuery, [start, end], (err2, exp) => {
-      summary.total_expense = exp ? exp.total_expense : 0;
-      summary.cash_expense = exp ? exp.cash_expense : 0;
-      summary.net_cash_in_hand = summary.cash_sales - summary.cash_expense;
+      const summaryData = summary || {};
+      summaryData.total_expense = exp ? exp.total_expense : 0;
+      summaryData.cash_expense = exp ? exp.cash_expense : 0;
+      summaryData.net_cash_in_hand = (summaryData.cash_sales || 0) - (summaryData.cash_expense || 0);
 
       db.all(topItemsQuery, [start, end], (err3, topItems) => {
         db.all(ordersListQuery, [start, end], (err4, ordersList) => {
           res.json({
-            summary,
+            summary: summaryData,
             topItems: topItems || [],
             orders: ordersList || [],
             range: { start, end }
@@ -641,21 +716,22 @@ app.get('/api/system/backup', (req, res) => res.download(path.join(__dirname, 'r
 
 // Reset daily sales: Due orders and active due balances are preserved
 app.post('/api/system/reset-orders', (req, res) => {
-  db.serialize(() => {
-    db.run(`DELETE FROM order_items WHERE order_id IN (
-      SELECT id FROM orders WHERE status = 'COMPLETED' AND payment_mode != 'DUE'
-    )`);
-    db.run(`DELETE FROM orders WHERE status = 'COMPLETED' AND payment_mode != 'DUE'`);
-    db.run("DELETE FROM expenses");
-    db.run("DELETE FROM customers WHERE due_balance <= 0");
-
-    console.log("[SAFE RESET] Sales reset completed. Due orders preserved.");
-    res.json({ success: true, message: "Settled sales deleted. All Due orders preserved." });
+  db.run(`DELETE FROM order_items WHERE order_id IN (
+    SELECT id FROM orders WHERE status = 'COMPLETED' AND payment_mode != 'DUE'
+  )`, [], () => {
+    db.run(`DELETE FROM orders WHERE status = 'COMPLETED' AND payment_mode != 'DUE'`, [], () => {
+      db.run("DELETE FROM expenses", [], () => {
+        db.run("DELETE FROM customers WHERE due_balance <= 0", [], () => {
+          console.log("[SAFE RESET] Sales reset completed. Due orders preserved.");
+          res.json({ success: true, message: "Settled sales deleted. All Due orders preserved." });
+        });
+      });
+    });
   });
 });
 
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server is running on port ${PORT}`);
+  console.log(`Server is running on port ${PORT}`);
 });
