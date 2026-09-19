@@ -297,11 +297,11 @@ app.put('/api/orders/:id', (req, res) => {
   );
 });
 
-// Punch Order: DUE orders remain strictly in 'DUE_PENDING' status
+// Punch Order: Starts in 'PENDING' so it actively shows on KDS
 app.post('/api/orders', async (req, res) => {
   const { order_type, table_no, customer_name, customer_phone, items, payment_mode, subtotal, discount, gst, total, is_hold } = req.body;
 
-  let status = 'COMPLETED';
+  let status = 'PENDING';
   if (is_hold) {
     status = 'RUNNING_TABLE';
   } else if (payment_mode === 'DUE') {
@@ -319,7 +319,7 @@ app.post('/api/orders', async (req, res) => {
     table_no || '',
     customer_name || '',
     customer_phone || '',
-    status || 'PENDING',
+    status,
     payment_mode || 'Cash',
     subtotal || 0,
     discount || 0,
