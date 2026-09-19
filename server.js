@@ -485,21 +485,33 @@ app.post('/api/printer/print-daily-summary', async (req, res) => {
 // 9. KITCHEN KOT, DIRECTORY & EXPENSES
 app.get('/api/kot', (req, res) => {
   db.all(
-    `SELECT o.id, o.order_type, o.table_no, TIME(o.created_at, 'localtime') as time 
-     FROM orders o WHERE o.status IN ('PENDING', 'RUNNING_TABLE', 'DUE_PENDING') ORDER BY o.id ASC`,
+    `SELECT o.id, o.order_type, o.table_no, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
+     FROM orders o 
+     WHERE o.status IN ('PENDING', 'RUNNING_TABLE', 'DUE_PENDING') 
+     ORDER BY o.id ASC`,
     [],
     async (err, orders) => {
-      if (err) return res.status(500).json({ error: err.message });
-      const fullOrders = await Promise.all(
-        orders.map(order => {
-          return new Promise((resolve) => {
-            db.all(`SELECT name, qty, notes FROM order_items WHERE order_id = ?`, [order.id], (err2, items) => {
-              resolve({ ...order, items: items || [] });
+      if (err) {
+        console.error('KOT error:', err.message);
+        return res.json([]);
+      }
+      if (!orders || orders.length === 0) {
+        return res.json([]);
+      }
+      try {
+        const fullOrders = await Promise.all(
+          orders.map(order => {
+            return new Promise((resolve) => {
+              db.all('SELECT name, qty, notes FROM order_items WHERE order_id = ?', [order.id], (err2, items) => {
+                resolve({ ...order, items: items || [] });
+              });
             });
-          });
-        })
-      );
-      res.json(fullOrders);
+          })
+        );
+        res.json(fullOrders);
+      } catch (e) {
+        res.json(orders.map(o => ({ ...o, items: [] })));
+      }
     }
   );
 });
