@@ -10,16 +10,17 @@
   <meta name="theme-color" content="#ea580c">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    /* Custom Scrollbars */
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    /* Clean custom scrollbars */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: #f8fafc; }
     ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
     ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     
-    .floor-grid {
+    .floor-dots {
       background-size: 24px 24px;
       background-image: radial-gradient(circle, #e2e8f0 1.2px, transparent 1.2px);
     }
@@ -27,27 +28,42 @@
 </head>
 <body class="bg-[#f8fafc] text-gray-800 font-sans h-screen flex flex-col overflow-hidden select-none">
 
-  <!-- Silent Print Iframe -->
+  <!-- Hidden iframe for Silent / Direct Printing -->
   <iframe id="silentPrintFrame" style="position:fixed;right:0;bottom:0;width:0;height:0;border:0;"></iframe>
 
-  <!-- TOP HEADER NAVBAR -->
-  <header class="bg-white border-b border-gray-200 px-4 py-2.5 flex justify-between items-center z-20 shadow-xs">
+  <!-- ================= TOP MAIN HEADER NAVBAR ================= -->
+  <header class="bg-white border-b border-gray-200 px-4 py-2.5 flex justify-between items-center z-30 shadow-xs">
     <div class="flex items-center gap-3">
-      <button onclick="toggleSideMenu()" class="p-1.5 hover:bg-gray-100 rounded-lg text-gray-600 transition">
+      <button onclick="protectedNav('/admin.html')" class="p-1.5 hover:bg-gray-100 rounded-lg text-gray-600 transition" title="Menu Settings">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"/></svg>
       </button>
       <div class="flex items-center gap-2">
         <span class="text-orange-500 font-black text-lg">📑</span>
-        <h1 class="text-base font-black tracking-tight text-gray-800">Orders</h1>
+        <h1 id="topPageTitle" class="text-base font-black tracking-tight text-gray-800">Orders</h1>
       </div>
     </div>
 
-    <!-- Right Top Controls -->
+    <!-- Right Controls in Top Bar -->
     <div class="flex items-center gap-2">
       <div class="flex items-center gap-1.5 bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-full text-xs font-bold text-gray-700">
         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
         <span>Sehaj</span>
       </div>
+
+      <a href="/customer.html" target="_blank" class="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-700 flex items-center gap-1 transition">
+        <span>🖥</span> Customer Display
+      </a>
+
+      <!-- In-Order Mode Pill (Visible only when punching order) -->
+      <div id="topOrderActiveBadge" class="hidden flex items-center gap-1.5 bg-emerald-50 border border-emerald-300 text-emerald-800 px-2.5 py-1 rounded-full text-xs font-black">
+        <span class="w-2 h-2 rounded-full bg-emerald-600"></span>
+        <span id="topOrderActiveText">Order • 0</span>
+      </div>
+
+      <!-- Cancel Button (Returns to Floor Dashboard) -->
+      <button id="btnCancelOrderView" onclick="closePOSOrderView()" class="hidden text-xs font-bold px-3 py-1.5 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 text-gray-700 transition">
+        ✕ Cancel
+      </button>
 
       <button onclick="protectedNav('/report.html')" class="p-1.5 hover:bg-gray-100 text-gray-600 rounded-lg relative transition">
         <span class="text-base">🔔</span>
@@ -62,16 +78,17 @@
         <span>💵</span> Open Drawer
       </button>
 
-      <button onclick="openOrderDrawer('Takeaway')" class="bg-orange-500 hover:bg-orange-600 text-white px-3.5 py-1.5 rounded-lg text-xs font-black shadow-sm flex items-center gap-1 transition">
+      <button onclick="openPOSOrderView('Takeaway', '')" class="bg-orange-500 hover:bg-orange-600 text-white px-3.5 py-1.5 rounded-lg text-xs font-black shadow-sm flex items-center gap-1 transition">
         <span>+</span> New Order
       </button>
     </div>
   </header>
 
-  <!-- MAIN SCROLLABLE CONTENT AREA -->
-  <main class="flex-1 overflow-y-auto p-4 space-y-3 pb-16">
+
+  <!-- ================= VIEW 1: DEFAULT FLOOR & QUEUES DASHBOARD ================= -->
+  <div id="viewFloorDashboard" class="flex-1 overflow-y-auto p-4 space-y-3 pb-16">
     
-    <!-- 4 ANALYTICS METRIC CARDS -->
+    <!-- 4 ANALYTICS SUMMARY CARDS -->
     <div class="grid grid-cols-4 gap-3">
       <!-- Active -->
       <div class="bg-white border border-gray-200 rounded-xl p-3 flex justify-between items-center shadow-2xs">
@@ -122,7 +139,7 @@
       </div>
     </div>
 
-    <!-- FILTER & ACTION TAB BAR -->
+    <!-- FILTER BUTTONS ROW -->
     <div class="flex justify-between items-center bg-white p-2 rounded-xl border border-gray-200 shadow-2xs">
       <div class="flex items-center gap-2">
         <button class="bg-orange-500 text-white text-xs font-black px-3 py-1.5 rounded-lg shadow-2xs">
@@ -137,19 +154,14 @@
       </div>
 
       <div class="flex items-center gap-2">
-        <a href="/customer.html" target="_blank" class="text-xs font-bold px-2.5 py-1 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-700 flex items-center gap-1">
-          <span>🖥</span> Customer Display <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-        </a>
-        <button onclick="openOrderDrawer('Takeaway')" class="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1 rounded-lg text-xs font-black shadow-2xs">
+        <button onclick="openPOSOrderView('Takeaway', '')" class="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1 rounded-lg text-xs font-black shadow-2xs">
           + New Order
         </button>
       </div>
     </div>
 
-    <!-- FLOOR PLAN VIEW CONTAINER -->
+    <!-- FLOOR PLAN VIEW BOX -->
     <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-2xs">
-      
-      <!-- Subbar for Floor View -->
       <div class="p-2.5 border-b border-gray-100 flex justify-between items-center text-xs">
         <div class="flex items-center gap-3">
           <span class="font-bold text-gray-700">Dining Room</span>
@@ -163,27 +175,24 @@
           <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-100 border border-emerald-400"></span> Free</span>
           <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-orange-100 border border-orange-400"></span> Occupied</span>
           <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-amber-100 border border-amber-400"></span> Needs Attention</span>
-          <button onclick="promptAddTable()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-2 py-1 rounded border border-gray-200 text-[11px] ml-2">
+          <button onclick="promptAddCustomTable()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-2 py-1 rounded border border-gray-200 text-[11px] ml-2">
             ✏️ Edit Layout
           </button>
         </div>
       </div>
 
-      <!-- Centered Tables Grid -->
-      <div class="floor-grid py-8 px-4 flex flex-col items-center justify-center min-h-[300px]">
-        <div class="bg-gray-100 text-gray-500 text-[10px] font-black px-4 py-1 rounded-md border border-gray-200 mb-6">
+      <!-- Centered 2-Column Tables (T01 - T08) -->
+      <div class="floor-dots py-6 px-4 flex flex-col items-center justify-center min-h-[310px]">
+        <div class="bg-gray-100 text-gray-500 text-[10px] font-black px-4 py-1 rounded-md border border-gray-200 mb-5 tracking-wide">
           Billing/POS
         </div>
 
-        <!-- Tables T01 to T08 (2 Columns) -->
-        <div id="floorTablesContainer" class="grid grid-cols-2 gap-x-12 gap-y-4 max-w-md w-full">
-          <!-- Dynamically populated tables -->
-        </div>
+        <div id="floorTablesGrid" class="grid grid-cols-2 gap-x-12 gap-y-3.5 max-w-sm w-full"></div>
       </div>
     </div>
 
     <!-- DINE-IN NEEDS A TABLE (Kiosk Orders without Table No) -->
-    <div id="kioskUnassignedSection" class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs space-y-2 hidden">
+    <div id="kioskUnassignedBox" class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs space-y-2 hidden">
       <div class="flex justify-between items-center text-xs font-bold text-gray-700 border-b pb-2">
         <span class="flex items-center gap-1.5">
           <span>🪑</span> Dine-in - needs a table
@@ -193,174 +202,283 @@
       <div id="kioskUnassignedList" class="space-y-2"></div>
     </div>
 
-    <!-- LOWER QUEUES (Takeaway & Delivery Split) -->
+    <!-- LOWER QUEUES: TAKEAWAY (LEFT) & DELIVERY (RIGHT) -->
     <div class="grid grid-cols-2 gap-3">
       
-      <!-- Left: Takeaway Queue -->
+      <!-- Takeaway Queue -->
       <div class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs flex flex-col">
         <div class="flex justify-between items-center text-xs font-black text-gray-800 border-b pb-2 mb-2">
           <span class="flex items-center gap-1.5">🛍 Takeaway Queue</span>
-          <span id="takeawayBadgeCount" class="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
+          <span id="takeawayQueueBadge" class="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
         </div>
-        <div id="takeawayOrdersList" class="space-y-2 flex-1 overflow-y-auto max-h-[360px] pr-1">
+        <div id="takeawayQueueList" class="space-y-2 flex-1 overflow-y-auto max-h-[350px] pr-1">
           <p class="text-xs text-gray-400 italic text-center py-6">No takeaway orders in queue</p>
         </div>
       </div>
 
-      <!-- Right: Delivery Queue -->
+      <!-- Delivery Queue -->
       <div class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs flex flex-col">
         <div class="flex justify-between items-center text-xs font-black text-gray-800 border-b pb-2 mb-2">
           <span class="flex items-center gap-1.5">🛵 Delivery</span>
-          <span id="deliveryBadgeCount" class="bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
+          <span id="deliveryQueueBadge" class="bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
         </div>
-        <div id="deliveryOrdersList" class="space-y-2 flex-1 overflow-y-auto max-h-[360px] pr-1">
+        <div id="deliveryQueueList" class="space-y-2 flex-1 overflow-y-auto max-h-[350px] pr-1">
           <p class="text-xs text-gray-400 italic text-center py-6">No delivery orders in queue</p>
         </div>
       </div>
 
     </div>
 
-  </main>
+  </div>
 
-  <!-- BILLING & ORDERING MODAL DRAWER -->
-  <div id="orderBillingDrawer" class="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex justify-end hidden">
-    <div class="bg-white w-full max-w-4xl h-full shadow-2xl flex flex-col">
-      
-      <!-- Drawer Header -->
-      <div class="p-3 border-b flex justify-between items-center bg-gray-50">
-        <div class="flex items-center gap-3">
-          <span class="font-black text-sm text-gray-800" id="drawerTitle">New Order</span>
-          <div class="flex bg-gray-200 p-0.5 rounded-lg text-xs font-bold">
-            <button id="btnOrderDineIn" onclick="switchOrderType('Dine-In')" class="px-2.5 py-1 rounded bg-white text-orange-600 shadow-xs">🍽 Dine-In</button>
-            <button id="btnOrderTakeaway" onclick="switchOrderType('Takeaway')" class="px-2.5 py-1 rounded text-gray-600">🛍 Takeaway</button>
-            <button id="btnOrderDelivery" onclick="switchOrderType('Delivery')" class="px-2.5 py-1 rounded text-gray-600">🛵 Delivery</button>
-          </div>
-        </div>
-        <button onclick="closeOrderDrawer()" class="text-gray-400 hover:text-black font-black text-lg px-2">✕</button>
+
+  <!-- ================= VIEW 2: FULL 3-COLUMN POS BILLING SCREEN (SCREENSHOTS 3 & 4) ================= -->
+  <div id="viewPOSOrderScreen" class="flex-1 flex overflow-hidden hidden bg-white">
+    
+    <!-- COLUMN 1: CATEGORIES SIDEBAR (LEFT) -->
+    <div class="w-48 border-r border-gray-200 bg-white flex flex-col overflow-y-auto shrink-0">
+      <div class="p-3 text-[10px] font-black uppercase text-gray-400 tracking-wider border-b">
+        Categories
       </div>
-
-      <!-- Drawer Body: Left Catalogue (60%), Right Bill Cart (40%) -->
-      <div class="flex-1 flex overflow-hidden">
-        
-        <!-- Left: Menu Grid -->
-        <div class="w-7/12 p-3 border-r overflow-y-auto flex flex-col space-y-2">
-          <input type="text" id="menuSearchInput" oninput="filterMenu()" placeholder="Search burger, pizza, wrap..." class="w-full border rounded-lg p-2 text-xs outline-none bg-gray-50 focus:bg-white focus:border-orange-500 font-medium">
-          <div id="drawerMenuGrid" class="grid grid-cols-2 gap-2 pt-1"></div>
-        </div>
-
-        <!-- Right: Order Summary & Cart -->
-        <div class="w-5/12 p-3 flex flex-col justify-between bg-gray-50/50">
-          <div>
-            <div class="grid grid-cols-2 gap-2 mb-2 text-xs">
-              <input type="text" id="cartTableNo" placeholder="Table No (e.g. T01)" class="border rounded-lg p-1.5 bg-white font-bold outline-none">
-              <input type="text" id="cartCustPhone" placeholder="Guest Phone" class="border rounded-lg p-1.5 bg-white font-mono outline-none">
-            </div>
-            <input type="text" id="cartCustName" placeholder="Guest Name" class="w-full border rounded-lg p-1.5 bg-white text-xs mb-2 outline-none">
-
-            <!-- Cart Items List -->
-            <div id="drawerCartItems" class="space-y-1.5 max-h-[35vh] overflow-y-auto pr-1 text-xs">
-              <p class="text-center text-gray-400 py-8 italic">No items added to cart</p>
-            </div>
-          </div>
-
-          <!-- Total Calculation -->
-          <div class="border-t pt-2 space-y-1 text-xs">
-            <div class="flex justify-between text-gray-600">
-              <span>Subtotal:</span>
-              <span id="billSubtotal" class="font-bold">₹0.00</span>
-            </div>
-            <div class="flex justify-between items-center text-gray-600">
-              <span>Discount:</span>
-              <input type="number" id="billDiscount" value="0" min="0" oninput="calculateDrawerBill()" class="w-14 border rounded px-1 py-0.5 text-right font-bold">
-            </div>
-            <div class="flex justify-between text-gray-600">
-              <label class="flex items-center gap-1 cursor-pointer">
-                <input type="checkbox" id="billGstToggle" checked onchange="calculateDrawerBill()" class="rounded text-orange-600">
-                <span>GST (5%)</span>
-              </label>
-              <span id="billGst" class="font-bold">₹0.00</span>
-            </div>
-            <div class="flex justify-between text-base font-black text-gray-900 pt-1 border-t">
-              <span>Grand Total:</span>
-              <span id="billGrandTotal" class="text-orange-600">₹0.00</span>
-            </div>
-
-            <!-- Action Buttons Grid -->
-            <div class="grid grid-cols-4 gap-1.5 pt-2">
-              <button onclick="submitOrder('HOLD')" class="bg-amber-500 text-white font-bold py-2 rounded-lg hover:bg-amber-600 transition shadow-xs text-[11px]">⏳ Hold</button>
-              <button onclick="triggerManualKOT()" class="bg-orange-600 text-white font-black py-2 rounded-lg hover:bg-orange-700 transition shadow-xs text-[11px]">🍳 KOT</button>
-              <button onclick="submitOrder('CASH')" class="bg-emerald-600 text-white font-black py-2 rounded-lg hover:bg-emerald-700 transition shadow-xs text-[11px]">💵 Cash</button>
-              <button onclick="submitOrder('UPI')" class="bg-indigo-600 text-white font-black py-2 rounded-lg hover:bg-indigo-700 transition shadow-xs text-[11px]">📲 UPI</button>
-            </div>
-          </div>
-        </div>
-
+      <div id="categoriesList" class="divide-y divide-gray-50 flex-1">
+        <!-- Dynamically populated categories -->
       </div>
     </div>
+
+    <!-- COLUMN 2: STEP 2 - SELECT ITEMS (MIDDLE) -->
+    <div class="flex-1 flex flex-col border-r border-gray-200 overflow-hidden bg-[#fafafa]">
+      
+      <!-- Top Filters & Search Row -->
+      <div class="p-3 bg-white border-b border-gray-200 space-y-2.5">
+        <div class="flex justify-between items-center">
+          <h2 class="text-xs font-black text-gray-800 tracking-tight">Step 2 — Select Items</h2>
+          <div class="flex items-center gap-2">
+            <div class="flex bg-gray-100 p-0.5 rounded-lg text-xs">
+              <button class="bg-orange-500 text-white px-2 py-1 rounded shadow-xs text-[11px] font-bold">▦</button>
+              <button class="text-gray-500 px-2 py-1 rounded text-[11px] font-bold">☰</button>
+            </div>
+            <input type="text" id="menuItemSearch" oninput="filterMenuItems()" placeholder="Search menu..." class="border border-gray-200 rounded-lg px-2.5 py-1 text-xs outline-none bg-gray-50 focus:bg-white focus:border-orange-500 w-44">
+          </div>
+        </div>
+
+        <!-- Filter Pills -->
+        <div class="flex items-center gap-1.5 text-[11px] font-bold overflow-x-auto pb-1">
+          <button onclick="setPriceFilter('ALL')" id="filterBtnAll" class="px-2.5 py-1 rounded-full bg-orange-500 text-white shadow-2xs">Any Price</button>
+          <button onclick="setPriceFilter('UNDER200')" id="filterBtn200" class="px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200">Under ₹200</button>
+          <button onclick="setPriceFilter('200TO500')" id="filterBtn500" class="px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200">₹200–500</button>
+          <button onclick="setPriceFilter('ABOVE500')" id="filterBtnAbove500" class="px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200">₹500+</button>
+        </div>
+      </div>
+
+      <!-- Items Grid (2 Columns) -->
+      <div id="posItemsGrid" class="flex-1 overflow-y-auto p-3 grid grid-cols-2 gap-2.5 content-start">
+        <!-- Dynamically rendered menu items -->
+      </div>
+    </div>
+
+    <!-- COLUMN 3: ORDER TYPE & CUSTOMER / ORDER SUMMARY (RIGHT) -->
+    <div class="w-80 flex flex-col bg-white shrink-0 justify-between">
+      
+      <!-- Top Dual Tabs -->
+      <div>
+        <div class="grid grid-cols-2 p-1.5 bg-gray-100 border-b text-xs font-bold">
+          <button id="tabBtnCustomer" onclick="switchRightTab('CUSTOMER')" class="py-1.5 rounded-lg transition bg-white text-orange-600 shadow-2xs font-black">
+            Order Type & Customer
+          </button>
+          <button id="tabBtnSummary" onclick="switchRightTab('SUMMARY')" class="py-1.5 rounded-lg transition text-gray-500 hover:text-gray-900 flex items-center justify-center gap-1">
+            <span>Order Summary</span>
+            <span id="tabSummaryBadge" class="bg-orange-500 text-white text-[9px] font-black px-1.5 py-0.2 rounded-full">0</span>
+          </button>
+        </div>
+
+        <!-- TAB 1: ORDER TYPE & CUSTOMER CONTENT -->
+        <div id="tabContentCustomer" class="p-3.5 space-y-3">
+          <!-- Selected Table Card -->
+          <div class="bg-gray-50 border border-gray-200 rounded-xl p-2.5 flex justify-between items-center text-xs">
+            <div>
+              <span class="text-[10px] font-bold text-gray-400 block uppercase">Selected Table</span>
+              <span id="posDisplayTable" class="font-black text-gray-800 text-sm">T08 • cap. 2</span>
+            </div>
+            <button onclick="closePOSOrderView()" class="text-orange-600 font-bold text-xs underline">Change</button>
+          </div>
+
+          <!-- 3 Big Buttons: Dine-In, Takeaway, Delivery -->
+          <div class="grid grid-cols-3 gap-1.5">
+            <button id="posBtnDineIn" onclick="setPOSOrderType('Dine-In')" class="border-2 border-orange-500 bg-orange-50/50 rounded-xl py-3 flex flex-col items-center justify-center text-orange-700 shadow-2xs">
+              <span class="text-base mb-0.5">🍽</span>
+              <span class="text-[11px] font-black">Dine-In</span>
+            </button>
+            <button id="posBtnTakeaway" onclick="setPOSOrderType('Takeaway')" class="border border-gray-200 hover:bg-gray-50 rounded-xl py-3 flex flex-col items-center justify-center text-gray-600">
+              <span class="text-base mb-0.5">🛍</span>
+              <span class="text-[11px] font-bold">Takeaway</span>
+            </button>
+            <button id="posBtnDelivery" onclick="setPOSOrderType('Delivery')" class="border border-gray-200 hover:bg-gray-50 rounded-xl py-3 flex flex-col items-center justify-center text-gray-600">
+              <span class="text-base mb-0.5">🛵</span>
+              <span class="text-[11px] font-bold">Delivery</span>
+            </button>
+          </div>
+
+          <!-- Customer Input Fields -->
+          <div class="space-y-2 pt-1">
+            <div>
+              <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Phone Number</label>
+              <input type="text" id="posCustPhone" placeholder="e.g. 9876543210" onblur="lookupCustomerPhone()" class="w-full border border-gray-200 rounded-lg p-2 text-xs font-mono outline-none focus:border-orange-500 bg-white">
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Customer Name</label>
+              <input type="text" id="posCustName" placeholder="Auto-filled from phone" class="w-full border border-gray-200 rounded-lg p-2 text-xs outline-none focus:border-orange-500 bg-white">
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 2: ORDER SUMMARY CART CONTENT (SCREENSHOT 4) -->
+        <div id="tabContentSummary" class="p-3 hidden space-y-2">
+          <div id="posCartItemList" class="space-y-1.5 max-h-[38vh] overflow-y-auto pr-1 text-xs divide-y divide-gray-100">
+            <p class="text-gray-400 text-center py-10 italic">Cart is empty</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- BOTTOM BILL CALCULATION & PAYMENT CONTROLS (SCREENSHOT 4) -->
+      <div class="border-t border-gray-200 p-3 bg-white space-y-2">
+        
+        <div class="flex justify-between items-center text-xs font-bold text-gray-500">
+          <span class="flex items-center gap-1 text-orange-600 cursor-pointer">🏷 Offers</span>
+          <div class="flex items-center gap-1.5">
+            <span class="text-[11px] text-gray-400">Guests</span>
+            <div class="flex items-center border rounded bg-gray-50 px-1.5 py-0.5">
+              <button onclick="changeGuestCount(-1)" class="font-bold px-1 hover:text-black">-</button>
+              <span id="guestCountLabel" class="px-1.5 font-black text-gray-800">1</span>
+              <button onclick="changeGuestCount(1)" class="font-bold px-1 hover:text-black">+</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tax Breakdown -->
+        <div class="text-[11px] text-gray-500 flex justify-between border-t pt-1.5">
+          <span>Subtotal: <b id="posCalcSubtotal">₹0</b></span>
+          <span>GST (5%): <b id="posCalcGst">₹0.00</b></span>
+          <span>Round Off: <b id="posCalcRound">₹0.00</b></span>
+        </div>
+
+        <!-- Grand Total -->
+        <div class="flex justify-between items-center pt-1 border-t">
+          <span class="text-sm font-bold text-gray-700">Total</span>
+          <span id="posCalcGrandTotal" class="text-xl font-black text-gray-900">₹0</span>
+        </div>
+
+        <!-- 4 Quick Payment Buttons -->
+        <div class="grid grid-cols-4 gap-1.5 pt-1">
+          <button onclick="selectPaymentMode('Cash')" id="payBtnCash" class="border-2 border-emerald-600 bg-emerald-50 text-emerald-800 py-1.5 rounded-lg text-xs font-black flex items-center justify-center gap-1">
+            💵 Cash
+          </button>
+          <button onclick="selectPaymentMode('UPI')" id="payBtnUPI" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1">
+            📲 UPI
+          </button>
+          <button onclick="selectPaymentMode('Card')" id="payBtnCard" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1">
+            💳 Card
+          </button>
+          <button onclick="selectPaymentMode('DUE')" id="payBtnSplit" class="border border-gray-200 hover:bg-gray-50 text-rose-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1">
+            📒 Due
+          </button>
+        </div>
+
+        <!-- Place Order Primary Action Button -->
+        <div class="flex gap-1.5 pt-1">
+          <button onclick="executePlaceOrder()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5">
+            <span>✓ Place Order</span>
+          </button>
+          <button onclick="triggerManualKOTDirect()" title="Print KOT Slip" class="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3 rounded-xl font-black text-xs">
+            🍳
+          </button>
+        </div>
+
+      </div>
+
+    </div>
+
   </div>
 
   <script>
-    var activeOrders = [];
-    var menuItems = [];
-    var currentCart = [];
-    var selectedOrderType = 'Dine-In';
-    var defaultTables = [
-      { id: 'T04', label: 'T04', seats: 2, order: null },
-      { id: 'T08', label: 'T08', seats: 2, order: null },
-      { id: 'T03', label: 'T03', seats: 2, order: null },
-      { id: 'T07', label: 'T07', seats: 2, order: null },
-      { id: 'T02', label: 'T02', seats: 2, order: null },
-      { id: 'T06', label: 'T06', seats: 2, order: null },
-      { id: 'T01', label: 'T01', seats: 2, order: null },
-      { id: 'T05', label: 'T05', seats: 2, order: null }
+    // Global Application State
+    var allActiveOrders = [];
+    var allMenuItems = [];
+    var allCategories = [];
+    var posCart = [];
+    var selectedCategory = 'ALL';
+    var selectedPriceFilter = 'ALL';
+    var currentPOSOrderType = 'Dine-In';
+    var selectedPOSTableId = 'T01';
+    var selectedPaymentMode = 'Cash';
+    var currentGuestCount = 1;
+    var editingActiveOrderId = null;
+
+    var defaultFloorTables = [
+      { id: 'T04', label: 'T04', seats: 2 },
+      { id: 'T08', label: 'T08', seats: 2 },
+      { id: 'T03', label: 'T03', seats: 2 },
+      { id: 'T07', label: 'T07', seats: 2 },
+      { id: 'T02', label: 'T02', seats: 2 },
+      { id: 'T06', label: 'T06', seats: 2 },
+      { id: 'T01', label: 'T01', seats: 2 },
+      { id: 'T05', label: 'T05', seats: 2 }
     ];
 
-    // ================= FETCH DATA & INITIALIZE =================
-    function initDashboard() {
-      loadMenu();
-      loadActiveOrders();
-      setInterval(loadActiveOrders, 4000);
+    // ================= INITIALIZATION =================
+    function initializePOS() {
+      fetchMenu();
+      fetchActiveOrders();
+      setInterval(fetchActiveOrders, 4000);
 
-      // Register PWA Service Worker
+      // PWA Service worker registration
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js').catch(function(){});
       }
     }
 
-    function loadMenu() {
+    function fetchMenu() {
       fetch('/api/menu')
-        .then(function(res) { return res.json(); })
+        .then(function(r) { return r.json(); })
         .then(function(items) {
-          menuItems = items || [];
-          renderDrawerMenu(menuItems);
+          allMenuItems = items || [];
+          extractCategories();
+          renderCategoriesSidebar();
+          renderPOSItems();
         }).catch(function(){});
     }
 
-    function loadActiveOrders() {
+    function extractCategories() {
+      var set = new Set();
+      allMenuItems.forEach(function(i) {
+        if (i.category) set.add(i.category.trim());
+      });
+      allCategories = Array.from(set);
+    }
+
+    function fetchActiveOrders() {
       fetch('/api/orders/active')
-        .then(function(res) { return res.json(); })
+        .then(function(r) { return r.json(); })
         .then(function(orders) {
-          activeOrders = orders || [];
+          allActiveOrders = orders || [];
           renderDashboardMetrics();
-          renderFloorTables();
-          renderQueues();
+          renderFloorTablesGrid();
+          renderAllQueues();
         }).catch(function(){});
     }
 
-    // ================= METRICS CALCULATION =================
+    // ================= DASHBOARD RENDERING (VIEW 1) =================
     function renderDashboardMetrics() {
-      document.getElementById('metricActiveCount').innerText = activeOrders.length;
-      document.getElementById('filterActiveBadge').innerText = activeOrders.length;
+      document.getElementById('metricActiveCount').innerText = allActiveOrders.length;
+      document.getElementById('filterActiveBadge').innerText = allActiveOrders.length;
 
-      var deliveryCount = activeOrders.filter(function(o) { return o.order_type === 'Delivery'; }).length;
+      var deliveryCount = allActiveOrders.filter(function(o) { return o.order_type === 'Delivery'; }).length;
       document.getElementById('metricDeliveryCount').innerText = deliveryCount;
 
-      var dueOrders = activeOrders.filter(function(o) { return o.payment_mode === 'DUE' || o.status === 'DUE_PENDING'; });
+      var dueOrders = allActiveOrders.filter(function(o) { return o.payment_mode === 'DUE' || o.status === 'DUE_PENDING'; });
       document.getElementById('filterDueCount').innerText = dueOrders.length;
-      var dueSum = dueOrders.reduce(function(sum, o) { return sum + (Number(o.total) || 0); }, 0);
+      var dueSum = dueOrders.reduce(function(s, o) { return s + (Number(o.total) || 0); }, 0);
       document.getElementById('filterDueTotal').innerText = '₹' + dueSum;
 
-      // Completed Count query
       fetch('/api/orders/today-stats')
         .then(function(r){ return r.json(); })
         .then(function(stats){
@@ -370,44 +488,34 @@
         }).catch(function(){});
     }
 
-    // ================= RENDER FLOOR TABLES (T01 - T08) =================
-    function renderFloorTables() {
-      var container = document.getElementById('floorTablesContainer');
-      if (!container) return;
+    function renderFloorTablesGrid() {
+      var grid = document.getElementById('floorTablesGrid');
+      if (!grid) return;
 
-      container.innerHTML = defaultTables.map(function(t) {
-        var busyOrder = activeOrders.find(function(o) {
-          return o.order_type === 'Dine-In' && o.table_no && (o.table_no.toUpperCase() === t.id.toUpperCase() || o.table_no === t.label);
+      grid.innerHTML = defaultFloorTables.map(function(t) {
+        var busy = allActiveOrders.find(function(o) {
+          return o.order_type === 'Dine-In' && o.table_no && (o.table_no.toUpperCase() === t.id || o.table_no === t.label);
         });
 
-        var isOccupied = !!busyOrder;
+        var isBusy = !!busy;
 
         return `
-          <div onclick="handleTableClick('${t.id}')" class="cursor-pointer border-2 rounded-2xl p-3 flex flex-col items-center justify-center transition-all duration-150 transform active:scale-95 shadow-xs ${isOccupied ? 'bg-orange-50 border-orange-400 text-orange-950 shadow-orange-100' : 'bg-emerald-50 border-emerald-300 text-emerald-950 hover:border-emerald-500'}">
+          <div onclick="openPOSOrderView('Dine-In', '${t.id}')" class="cursor-pointer border-2 rounded-2xl p-3 flex flex-col items-center justify-center transition-all duration-150 transform active:scale-95 shadow-xs ${isBusy ? 'bg-orange-50 border-orange-400 text-orange-950 shadow-orange-100' : 'bg-emerald-50 border-emerald-300 text-emerald-950 hover:border-emerald-500'}">
             <span class="font-black text-sm tracking-wide">${t.label}</span>
             <span class="text-[10px] font-bold opacity-75">${t.seats} seats</span>
-            ${isOccupied ? `<span class="text-xs font-black text-orange-700 mt-1">₹${busyOrder.total}</span>` : `<span class="text-[9px] text-emerald-600 font-bold mt-1">Free</span>`}
+            ${isBusy ? `<span class="text-xs font-black text-orange-700 mt-1">₹${busy.total}</span>` : `<span class="text-[9px] text-emerald-600 font-bold mt-1">Free</span>`}
           </div>
         `;
       }).join('');
     }
 
-    function handleTableClick(tableId) {
-      var busyOrder = activeOrders.find(function(o) {
-        return o.order_type === 'Dine-In' && o.table_no && o.table_no.toUpperCase() === tableId.toUpperCase();
-      });
-
-      openOrderDrawer('Dine-In', tableId, busyOrder);
-    }
-
-    // ================= QUEUES: UNASSIGNED, TAKEAWAY, DELIVERY =================
-    function renderQueues() {
+    function renderAllQueues() {
       // 1. Dine-in Kiosk Needs a Table
-      var unassignedKiosk = activeOrders.filter(function(o) {
+      var unassignedKiosk = allActiveOrders.filter(function(o) {
         return o.order_type === 'Dine-In' && (!o.table_no || o.table_no.trim() === '' || o.table_no === 'Direct');
       });
 
-      var kioskBox = document.getElementById('kioskUnassignedSection');
+      var kioskBox = document.getElementById('kioskUnassignedBox');
       var kioskList = document.getElementById('kioskUnassignedList');
       if (unassignedKiosk.length > 0) {
         kioskBox.classList.remove('hidden');
@@ -426,9 +534,9 @@
                 <div class="text-gray-600 font-medium text-[11px] mt-1 line-clamp-1">${itemsText}</div>
                 <div class="flex gap-1.5 mt-2">
                   <button onclick="promptAssignTable(${o.id})" class="bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 font-bold px-2 py-0.5 rounded text-[10px]">Assign table</button>
-                  <button onclick="triggerPrintKOT(${o.id})" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-2 py-0.5 rounded text-[10px]">🍳 KOT</button>
-                  <button onclick="triggerPrintReceipt(${o.id})" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-2 py-0.5 rounded text-[10px]">🖨 Print Receipt</button>
-                  <button onclick="settleOrderPrompt(${o.id}, 'CASH')" class="bg-emerald-600 text-white font-bold px-2 py-0.5 rounded text-[10px]">✓ Mark complete</button>
+                  <button onclick="silentPrintKOT(${o.id})" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-2 py-0.5 rounded text-[10px]">🍳 KOT</button>
+                  <button onclick="silentPrintReceipt(${o.id})" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-2 py-0.5 rounded text-[10px]">🖨 Print Receipt</button>
+                  <button onclick="settleActiveOrder(${o.id}, 'CASH')" class="bg-emerald-600 text-white font-bold px-2 py-0.5 rounded text-[10px]">✓ Mark complete</button>
                 </div>
               </div>
             </div>
@@ -438,15 +546,14 @@
         kioskBox.classList.add('hidden');
       }
 
-      // 2. Takeaway Queue (Left Split)
-      var takeawayOrders = activeOrders.filter(function(o) { return o.order_type === 'Takeaway'; });
-      document.getElementById('takeawayBadgeCount').innerText = takeawayOrders.length;
-      var takeawayContainer = document.getElementById('takeawayOrdersList');
-
+      // 2. Takeaway Queue
+      var takeawayOrders = allActiveOrders.filter(function(o) { return o.order_type === 'Takeaway'; });
+      document.getElementById('takeawayQueueBadge').innerText = takeawayOrders.length;
+      var tList = document.getElementById('takeawayQueueList');
       if (!takeawayOrders.length) {
-        takeawayContainer.innerHTML = '<p class="text-xs text-gray-400 italic text-center py-6">No takeaway orders in queue</p>';
+        tList.innerHTML = '<p class="text-xs text-gray-400 italic text-center py-6">No takeaway orders in queue</p>';
       } else {
-        takeawayContainer.innerHTML = takeawayOrders.map(function(o) {
+        tList.innerHTML = takeawayOrders.map(function(o) {
           var itemsText = (o.items || []).map(function(i){ return i.name + ' x' + i.qty; }).join(', ');
           return `
             <div class="border border-orange-100 bg-orange-50/20 rounded-xl p-2.5 text-xs hover:border-orange-300 transition">
@@ -465,9 +572,9 @@
               <div class="flex justify-between items-center text-[10px] text-gray-400">
                 <span>👤 ${o.customer_name || 'Counter'}</span>
                 <div class="flex gap-1">
-                  <button onclick="triggerPrintKOT(${o.id})" class="px-1.5 py-0.5 bg-white border rounded font-bold hover:bg-gray-50">🍳 KOT</button>
-                  <button onclick="triggerPrintReceipt(${o.id})" class="px-1.5 py-0.5 bg-white border rounded font-bold hover:bg-gray-50">🖨 Print</button>
-                  <button onclick="settleOrderPrompt(${o.id}, 'CASH')" class="px-2 py-0.5 bg-emerald-600 text-white rounded font-black hover:bg-emerald-700">Settle</button>
+                  <button onclick="silentPrintKOT(${o.id})" class="px-1.5 py-0.5 bg-white border rounded font-bold hover:bg-gray-50">🍳 KOT</button>
+                  <button onclick="silentPrintReceipt(${o.id})" class="px-1.5 py-0.5 bg-white border rounded font-bold hover:bg-gray-50">🖨 Print</button>
+                  <button onclick="settleActiveOrder(${o.id}, 'CASH')" class="px-2 py-0.5 bg-emerald-600 text-white rounded font-black hover:bg-emerald-700">Settle</button>
                 </div>
               </div>
             </div>
@@ -475,15 +582,14 @@
         }).join('');
       }
 
-      // 3. Delivery Queue (Right Split)
-      var deliveryOrders = activeOrders.filter(function(o) { return o.order_type === 'Delivery'; });
-      document.getElementById('deliveryBadgeCount').innerText = deliveryOrders.length;
-      var deliveryContainer = document.getElementById('deliveryOrdersList');
-
+      // 3. Delivery Queue
+      var deliveryOrders = allActiveOrders.filter(function(o) { return o.order_type === 'Delivery'; });
+      document.getElementById('deliveryQueueBadge').innerText = deliveryOrders.length;
+      var dList = document.getElementById('deliveryQueueList');
       if (!deliveryOrders.length) {
-        deliveryContainer.innerHTML = '<p class="text-xs text-gray-400 italic text-center py-6">No delivery orders in queue</p>';
+        dList.innerHTML = '<p class="text-xs text-gray-400 italic text-center py-6">No delivery orders in queue</p>';
       } else {
-        deliveryContainer.innerHTML = deliveryOrders.map(function(o) {
+        dList.innerHTML = deliveryOrders.map(function(o) {
           var itemsText = (o.items || []).map(function(i){ return i.name + ' x' + i.qty; }).join(', ');
           return `
             <div class="border border-purple-100 bg-purple-50/20 rounded-xl p-2.5 text-xs hover:border-purple-300 transition">
@@ -502,9 +608,9 @@
               <div class="flex justify-between items-center text-[10px] text-gray-400">
                 <span>📞 ${o.customer_phone || '-'}</span>
                 <div class="flex gap-1">
-                  <button onclick="triggerPrintKOT(${o.id})" class="px-1.5 py-0.5 bg-white border rounded font-bold hover:bg-gray-50">🍳 KOT</button>
-                  <button onclick="triggerPrintReceipt(${o.id})" class="px-1.5 py-0.5 bg-white border rounded font-bold hover:bg-gray-50">🖨 Print</button>
-                  <button onclick="settleOrderPrompt(${o.id}, 'CASH')" class="px-2 py-0.5 bg-emerald-600 text-white rounded font-black hover:bg-emerald-700">Settle</button>
+                  <button onclick="silentPrintKOT(${o.id})" class="px-1.5 py-0.5 bg-white border rounded font-bold hover:bg-gray-50">🍳 KOT</button>
+                  <button onclick="silentPrintReceipt(${o.id})" class="px-1.5 py-0.5 bg-white border rounded font-bold hover:bg-gray-50">🖨 Print</button>
+                  <button onclick="settleActiveOrder(${o.id}, 'CASH')" class="px-2 py-0.5 bg-emerald-600 text-white rounded font-black hover:bg-emerald-700">Settle</button>
                 </div>
               </div>
             </div>
@@ -513,183 +619,323 @@
       }
     }
 
-    // ================= ORDERING DRAWER & CART ENGINE =================
-    function openOrderDrawer(type, tableNo, existingOrder) {
-      selectedOrderType = type || 'Dine-In';
-      switchOrderType(selectedOrderType);
+    // ================= SWITCH BETWEEN VIEWS (FLOOR vs FULL POS) =================
+    function openPOSOrderView(orderType, tableId) {
+      currentPOSOrderType = orderType || 'Dine-In';
+      selectedPOSTableId = tableId || 'T01';
+      editingActiveOrderId = null;
+      posCart = [];
 
-      document.getElementById('cartTableNo').value = tableNo || '';
-      document.getElementById('cartCustPhone').value = '';
-      document.getElementById('cartCustName').value = '';
-      currentCart = [];
+      var running = allActiveOrders.find(function(o) {
+        return o.order_type === 'Dine-In' && o.table_no && o.table_no.toUpperCase() === selectedPOSTableId.toUpperCase();
+      });
 
-      if (existingOrder) {
-        document.getElementById('drawerTitle').innerText = 'Edit Order #' + existingOrder.id;
-        document.getElementById('cartCustPhone').value = existingOrder.customer_phone || '';
-        document.getElementById('cartCustName').value = existingOrder.customer_name || '';
-        currentCart = (existingOrder.items || []).map(function(i) {
-          return { name: i.name, qty: Number(i.qty) || 1, price: Number(i.price) || 0 };
+      if (running) {
+        editingActiveOrderId = running.id;
+        document.getElementById('posCustPhone').value = running.customer_phone || '';
+        document.getElementById('posCustName').value = running.customer_name || '';
+        posCart = (running.items || []).map(function(i) {
+          return { name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1 };
         });
       } else {
-        document.getElementById('drawerTitle').innerText = 'New ' + selectedOrderType + ' Order';
+        document.getElementById('posCustPhone').value = '';
+        document.getElementById('posCustName').value = '';
       }
 
-      renderDrawerCart();
-      document.getElementById('orderBillingDrawer').classList.remove('hidden');
+      setPOSOrderType(currentPOSOrderType);
+      document.getElementById('posDisplayTable').innerText = selectedPOSTableId + ' • cap. 2';
+
+      document.getElementById('viewFloorDashboard').classList.add('hidden');
+      document.getElementById('viewPOSOrderScreen').classList.remove('hidden');
+
+      document.getElementById('topPageTitle').innerText = 'New Order';
+      document.getElementById('btnCancelOrderView').classList.remove('hidden');
+      document.getElementById('topOrderActiveBadge').classList.remove('hidden');
+
+      renderPOSCart();
+      renderPOSItems();
     }
 
-    function closeOrderDrawer() {
-      document.getElementById('orderBillingDrawer').classList.add('hidden');
+    function closePOSOrderView() {
+      document.getElementById('viewPOSOrderScreen').classList.add('hidden');
+      document.getElementById('viewFloorDashboard').classList.remove('hidden');
+
+      document.getElementById('topPageTitle').innerText = 'Orders';
+      document.getElementById('btnCancelOrderView').classList.add('hidden');
+      document.getElementById('topOrderActiveBadge').classList.add('hidden');
+
+      fetchActiveOrders();
     }
 
-    function switchOrderType(type) {
-      selectedOrderType = type;
-      ['DineIn', 'Takeaway', 'Delivery'].forEach(function(t) {
-        var btn = document.getElementById('btnOrder' + t);
-        if (btn) {
-          if (type.replace('-', '') === t.replace('-', '')) {
-            btn.className = "px-2.5 py-1 rounded bg-white text-orange-600 shadow-xs font-bold";
-          } else {
-            btn.className = "px-2.5 py-1 rounded text-gray-600 font-bold";
-          }
-        }
-      });
-      var tblField = document.getElementById('cartTableNo');
-      if (tblField) {
-        tblField.placeholder = type === 'Dine-In' ? 'Table No (e.g. T01)' : (type === 'Delivery' ? 'Rider / Address' : 'Takeaway Token');
-      }
-    }
+    // ================= FULL POS SCREEN ENGINE (SCREENSHOTS 3 & 4) =================
+    function renderCategoriesSidebar() {
+      var container = document.getElementById('categoriesList');
+      if (!container) return;
 
-    function renderDrawerMenu(items) {
-      var grid = document.getElementById('drawerMenuGrid');
-      if (!grid) return;
-      grid.innerHTML = (items || []).map(function(item) {
+      var allBtn = `
+        <button onclick="selectPOSCategory('ALL')" class="w-full text-left px-3 py-2.5 text-xs font-bold transition flex justify-between items-center ${selectedCategory === 'ALL' ? 'bg-orange-50 text-orange-600 font-black border-r-2 border-orange-500' : 'text-gray-600 hover:bg-gray-50'}">
+          <span>All</span>
+        </button>
+      `;
+
+      var catBtns = allCategories.map(function(cat) {
+        var isSelected = (selectedCategory === cat);
         return `
-          <div onclick="addItemToDrawerCart('${item.name.replace(/'/g, "\\'")}', ${item.price})" class="bg-white border border-gray-200 hover:border-orange-500 rounded-xl p-2.5 cursor-pointer shadow-2xs transition flex justify-between items-center">
-            <div>
-              <div class="text-[10px] font-bold text-gray-400 uppercase">${item.category}</div>
-              <div class="text-xs font-bold text-gray-800 line-clamp-1">${item.name}</div>
+          <button onclick="selectPOSCategory('${cat.replace(/'/g, "\\'")}')" class="w-full text-left px-3 py-2.5 text-xs font-bold transition flex justify-between items-center ${isSelected ? 'bg-orange-50 text-orange-600 font-black border-r-2 border-orange-500' : 'text-gray-600 hover:bg-gray-50'}">
+            <span class="truncate">${cat}</span>
+          </button>
+        `;
+      }).join('');
+
+      container.innerHTML = allBtn + catBtns;
+    }
+
+    function selectPOSCategory(cat) {
+      selectedCategory = cat;
+      renderCategoriesSidebar();
+      renderPOSItems();
+    }
+
+    function setPriceFilter(filter) {
+      selectedPriceFilter = filter;
+      ['ALL', '200', '500', 'Above500'].forEach(function(f) {
+        var btn = document.getElementById('filterBtn' + f);
+        if (btn) btn.className = "px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200";
+      });
+      if (filter === 'ALL') document.getElementById('filterBtnAll').className = "px-2.5 py-1 rounded-full bg-orange-500 text-white shadow-2xs";
+      if (filter === 'UNDER200') document.getElementById('filterBtn200').className = "px-2.5 py-1 rounded-full bg-orange-500 text-white shadow-2xs";
+      if (filter === '200TO500') document.getElementById('filterBtn500').className = "px-2.5 py-1 rounded-full bg-orange-500 text-white shadow-2xs";
+      if (filter === 'ABOVE500') document.getElementById('filterBtnAbove500').className = "px-2.5 py-1 rounded-full bg-orange-500 text-white shadow-2xs";
+      renderPOSItems();
+    }
+
+    function filterMenuItems() {
+      renderPOSItems();
+    }
+
+    function renderPOSItems() {
+      var grid = document.getElementById('posItemsGrid');
+      if (!grid) return;
+
+      var q = (document.getElementById('menuItemSearch').value || '').toLowerCase().trim();
+
+      var filtered = allMenuItems.filter(function(i) {
+        var matchCat = (selectedCategory === 'ALL' || i.category === selectedCategory);
+        var matchQuery = (!q || i.name.toLowerCase().includes(q));
+        var p = Number(i.price) || 0;
+        var matchPrice = true;
+        if (selectedPriceFilter === 'UNDER200') matchPrice = (p <= 200);
+        if (selectedPriceFilter === '200TO500') matchPrice = (p > 200 && p <= 500);
+        if (selectedPriceFilter === 'ABOVE500') matchPrice = (p > 500);
+
+        return matchCat && matchQuery && matchPrice;
+      });
+
+      if (!filtered.length) {
+        grid.innerHTML = '<p class="col-span-2 text-center text-gray-400 py-16 italic text-xs">No items found in this section</p>';
+        return;
+      }
+
+      grid.innerHTML = filtered.map(function(item) {
+        var inCartItem = posCart.find(function(c) { return c.name === item.name; });
+        var inCartQty = inCartItem ? inCartItem.qty : 0;
+
+        return `
+          <div onclick="addOrIncrementItem('${item.name.replace(/'/g, "\\'")}', ${item.price})" class="bg-white border rounded-xl p-2.5 cursor-pointer shadow-2xs hover:border-orange-500 transition flex items-center justify-between ${inCartQty > 0 ? 'border-orange-400 bg-orange-50/20' : 'border-gray-200'}">
+            <div class="flex items-center gap-2.5">
+              ${item.image ? `<img src="${item.image}" class="w-12 h-12 rounded-lg object-cover border">` : `<div class="w-12 h-12 rounded-lg bg-gray-50 flex items-center justify-center text-gray-300 text-base">🍔</div>`}
+              <div>
+                <div class="text-[9px] font-bold text-gray-400 uppercase tracking-wide">${item.category || ''}</div>
+                <h3 class="text-xs font-bold text-gray-800 line-clamp-1">${item.name}</h3>
+                <div class="text-xs font-black text-gray-900 mt-0.5">₹${item.price}</div>
+              </div>
             </div>
-            <div class="text-right">
-              <div class="text-xs font-black text-emerald-600">₹${item.price}</div>
-              <span class="text-[9px] font-bold text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded">+ Add</span>
+
+            <div>
+              ${inCartQty > 0 ? `<span class="bg-orange-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shadow-xs">${inCartQty}</span>` : `<span class="text-orange-500 font-bold text-xs bg-orange-50 px-2 py-1 rounded-md">+ Add</span>`}
             </div>
           </div>
         `;
       }).join('');
     }
 
-    function filterMenu() {
-      var query = document.getElementById('menuSearchInput').value.toLowerCase().trim();
-      var filtered = menuItems.filter(function(i) {
-        return i.name.toLowerCase().includes(query) || i.category.toLowerCase().includes(query);
-      });
-      renderDrawerMenu(filtered);
-    }
-
-    function addItemToDrawerCart(name, price) {
-      var exist = currentCart.find(function(i) { return i.name === name; });
+    function addOrIncrementItem(name, price) {
+      var exist = posCart.find(function(i) { return i.name === name; });
       if (exist) {
         exist.qty += 1;
       } else {
-        currentCart.push({ name: name, price: Number(price), qty: 1 });
+        posCart.push({ name: name, price: Number(price), qty: 1 });
       }
-      renderDrawerCart();
+
+      // Switch to order summary tab automatically once an item is added
+      switchRightTab('SUMMARY');
+      renderPOSCart();
+      renderPOSItems();
     }
 
-    function changeDrawerCartQty(idx, delta) {
-      if (!currentCart[idx]) return;
-      currentCart[idx].qty += delta;
-      if (currentCart[idx].qty <= 0) currentCart.splice(idx, 1);
-      renderDrawerCart();
+    function changeItemQty(idx, delta) {
+      if (!posCart[idx]) return;
+      posCart[idx].qty += delta;
+      if (posCart[idx].qty <= 0) posCart.splice(idx, 1);
+      renderPOSCart();
+      renderPOSItems();
     }
 
-    function calculateDrawerBill() {
-      var subtotal = currentCart.reduce(function(sum, i) { return sum + (i.price * i.qty); }, 0);
-      var discount = Number(document.getElementById('billDiscount').value) || 0;
-      var isGst = document.getElementById('billGstToggle').checked;
-      var gst = isGst ? Math.round((Math.max(0, subtotal - discount) * 5) / 100) : 0;
-      var total = Math.max(0, Math.round(subtotal - discount + gst));
-
-      document.getElementById('billSubtotal').innerText = '₹' + subtotal.toFixed(2);
-      document.getElementById('billGst').innerText = '₹' + gst.toFixed(2);
-      document.getElementById('billGrandTotal').innerText = '₹' + total.toFixed(2);
-
-      return { subtotal: subtotal, discount: discount, gst: gst, total: total };
+    function removeItemCompletely(idx) {
+      if (!posCart[idx]) return;
+      posCart.splice(idx, 1);
+      renderPOSCart();
+      renderPOSItems();
     }
 
-    function renderDrawerCart() {
-      var box = document.getElementById('drawerCartItems');
-      if (!currentCart.length) {
-        box.innerHTML = '<p class="text-center text-gray-400 py-8 italic">No items added to cart</p>';
-        calculateDrawerBill();
+    function switchRightTab(tab) {
+      var btnCust = document.getElementById('tabBtnCustomer');
+      var btnSum = document.getElementById('tabBtnSummary');
+      var boxCust = document.getElementById('tabContentCustomer');
+      var boxSum = document.getElementById('tabContentSummary');
+
+      if (tab === 'CUSTOMER') {
+        btnCust.className = "py-1.5 rounded-lg transition bg-white text-orange-600 shadow-2xs font-black";
+        btnSum.className = "py-1.5 rounded-lg transition text-gray-500 hover:text-gray-900 flex items-center justify-center gap-1";
+        boxCust.classList.remove('hidden');
+        boxSum.classList.add('hidden');
+      } else {
+        btnCust.className = "py-1.5 rounded-lg transition text-gray-500 hover:text-gray-900 font-bold";
+        btnSum.className = "py-1.5 rounded-lg transition bg-white text-orange-600 shadow-2xs font-black flex items-center justify-center gap-1";
+        boxCust.classList.add('hidden');
+        boxSum.classList.remove('hidden');
+      }
+    }
+
+    function setPOSOrderType(type) {
+      currentPOSOrderType = type;
+      ['DineIn', 'Takeaway', 'Delivery'].forEach(function(t) {
+        var btn = document.getElementById('posBtn' + t);
+        if (btn) {
+          if (type.replace('-', '') === t.replace('-', '')) {
+            btn.className = "border-2 border-orange-500 bg-orange-50/50 rounded-xl py-3 flex flex-col items-center justify-center text-orange-700 shadow-2xs font-black";
+          } else {
+            btn.className = "border border-gray-200 hover:bg-gray-50 rounded-xl py-3 flex flex-col items-center justify-center text-gray-600 font-bold";
+          }
+        }
+      });
+    }
+
+    function changeGuestCount(delta) {
+      currentGuestCount = Math.max(1, currentGuestCount + delta);
+      document.getElementById('guestCountLabel').innerText = currentGuestCount;
+    }
+
+    function selectPaymentMode(mode) {
+      selectedPaymentMode = mode;
+      ['Cash', 'UPI', 'Card', 'Split'].forEach(function(m) {
+        var btn = document.getElementById('payBtn' + m);
+        if (btn) {
+          btn.className = "border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1";
+        }
+      });
+      var activeBtn = document.getElementById('payBtn' + (mode === 'DUE' ? 'Split' : mode));
+      if (activeBtn) {
+        activeBtn.className = "border-2 border-emerald-600 bg-emerald-50 text-emerald-800 py-1.5 rounded-lg text-xs font-black flex items-center justify-center gap-1";
+      }
+    }
+
+    function calculatePOSBillTotals() {
+      var subtotal = posCart.reduce(function(s, i) { return s + (i.price * i.qty); }, 0);
+      var gst = Math.round((subtotal * 5) / 100);
+      var grandTotal = Math.round(subtotal + gst);
+
+      document.getElementById('posCalcSubtotal').innerText = '₹' + subtotal;
+      document.getElementById('posCalcGst').innerText = '₹' + gst.toFixed(2);
+      document.getElementById('posCalcGrandTotal').innerText = '₹' + grandTotal;
+
+      document.getElementById('tabSummaryBadge').innerText = posCart.reduce(function(s, i){ return s + i.qty; }, 0);
+      document.getElementById('topOrderActiveText').innerText = 'Order • ' + posCart.reduce(function(s, i){ return s + i.qty; }, 0);
+
+      return { subtotal: subtotal, gst: gst, grandTotal: grandTotal };
+    }
+
+    function renderPOSCart() {
+      var box = document.getElementById('posCartItemList');
+      if (!posCart.length) {
+        box.innerHTML = '<p class="text-gray-400 text-center py-10 italic text-xs">Cart is empty</p>';
+        calculatePOSBillTotals();
         return;
       }
 
-      box.innerHTML = currentCart.map(function(item, idx) {
+      box.innerHTML = posCart.map(function(item, idx) {
         return `
-          <div class="flex justify-between items-center py-1 border-b border-gray-100">
-            <div>
-              <div class="font-bold text-gray-800">${item.name}</div>
-              <div class="text-[10px] text-gray-500">₹${item.price}</div>
-            </div>
+          <div class="py-2 flex items-center justify-between text-xs">
             <div class="flex items-center gap-2">
-              <div class="flex items-center border rounded bg-white">
-                <button onclick="changeDrawerCartQty(${idx}, -1)" class="px-2 py-0.5 font-bold hover:bg-gray-100">-</button>
-                <span class="px-2 font-bold">${item.qty}</span>
-                <button onclick="changeDrawerCartQty(${idx}, 1)" class="px-2 py-0.5 font-bold hover:bg-gray-100">+</button>
+              <div class="flex items-center border rounded bg-gray-50">
+                <button onclick="changeItemQty(${idx}, -1)" class="px-2 py-0.5 font-bold hover:bg-gray-200">-</button>
+                <span class="px-1.5 font-black text-gray-800">${item.qty}</span>
+                <button onclick="changeItemQty(${idx}, 1)" class="px-2 py-0.5 font-bold hover:bg-gray-200">+</button>
               </div>
+              <span class="font-bold text-gray-800 truncate max-w-[120px]">${item.name}</span>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button onclick="removeItemCompletely(${idx})" class="text-gray-400 hover:text-red-600 text-xs">🗑</button>
               <span class="font-black text-gray-900 w-12 text-right">₹${item.price * item.qty}</span>
             </div>
           </div>
         `;
       }).join('');
 
-      calculateDrawerBill();
+      calculatePOSBillTotals();
     }
 
-    function submitOrder(mode) {
-      if (!currentCart.length) return alert('Cart khali hai!');
+    // ================= ORDER SUBMISSION & SILENT PRINT PIPELINE =================
+    function executePlaceOrder() {
+      if (!posCart.length) return alert('Kripya cart mein item add karein!');
 
-      var tableNo = document.getElementById('cartTableNo').value.trim();
-      var custPhone = document.getElementById('cartCustPhone').value.trim();
-      var custName = document.getElementById('cartCustName').value.trim();
-      var calc = calculateDrawerBill();
+      var calc = calculatePOSBillTotals();
+      var custPhone = document.getElementById('posCustPhone').value.trim();
+      var custName = document.getElementById('posCustName').value.trim();
 
       var payload = {
-        order_type: selectedOrderType,
-        table_no: tableNo,
+        order_type: currentPOSOrderType,
+        table_no: (currentPOSOrderType === 'Dine-In' ? selectedPOSTableId : ''),
         customer_name: custName,
         customer_phone: custPhone,
-        items: [...currentCart],
-        payment_mode: mode === 'HOLD' ? 'PENDING' : mode,
+        items: [...posCart],
+        payment_mode: selectedPaymentMode,
         subtotal: calc.subtotal,
-        discount: calc.discount,
         gst: calc.gst,
-        total: calc.total,
-        is_hold: mode === 'HOLD'
+        total: calc.grandTotal,
+        guests: currentGuestCount
       };
 
-      fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
-      .then(function(res) { return res.json(); })
-      .then(function(data) {
-        printDirectThermalSlip(data.orderId, selectedOrderType, tableNo, custName, payload.items, calc, mode);
-        closeOrderDrawer();
-        loadActiveOrders();
-      });
+      if (editingActiveOrderId) {
+        fetch('/api/orders/' + editingActiveOrderId, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).then(function(){
+          dispatchDirectPrintReceipt(editingActiveOrderId, payload, calc);
+          closePOSOrderView();
+        });
+      } else {
+        fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          dispatchDirectPrintReceipt(data.orderId, payload, calc);
+          closePOSOrderView();
+        });
+      }
     }
 
-    // ================= THERMAL DIRECT SLIP PRINT ENGINE =================
-    function printDirectThermalSlip(orderId, type, tableNo, custName, items, calc, mode) {
-      var rows = (items || []).map(function(i) {
+    function dispatchDirectPrintReceipt(orderId, payload, calc) {
+      var itemsRows = (payload.items || []).map(function(item) {
         return `
           <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
-            <span style="width:70%;">${i.name} x ${i.qty}</span>
-            <span style="width:30%; text-align:right;">₹${(i.price * i.qty).toFixed(2)}</span>
+            <span style="width:70%; word-break: break-word;">${item.name} x ${item.qty}</span>
+            <span style="width:30%; text-align:right;">₹${(item.price * item.qty).toFixed(2)}</span>
           </div>
         `;
       }).join('');
@@ -710,19 +956,63 @@
           <div class="center" style="font-size:18px; font-weight:900;">VISHAL FOODIEZ</div>
           <div class="center" style="font-size:11px;">Railway Road, Budhlada</div>
           <div class="token">TOKEN #${orderId || '---'}</div>
-          <div class="row"><span>Order: #${orderId}</span><span>(${type.toUpperCase()})</span></div>
-          ${tableNo ? `<div>Table: ${tableNo}</div>` : ''}
+          <div class="row"><span>Order: #${orderId}</span><span>(${payload.order_type.toUpperCase()})</span></div>
+          ${payload.table_no ? `<div>Table: ${payload.table_no}</div>` : ''}
+          ${payload.customer_name ? `<div>Guest: ${payload.customer_name}</div>` : ''}
           <div>Date: ${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' })}</div>
           <div class="divider"></div>
-          ${rows}
+          ${itemsRows}
           <div class="divider"></div>
           <div class="row"><span>Subtotal:</span><span>₹${calc.subtotal.toFixed(2)}</span></div>
-          ${calc.discount > 0 ? `<div class="row"><span>Discount:</span><span>-₹${calc.discount.toFixed(2)}</span></div>` : ''}
-          ${calc.gst > 0 ? `<div class="row"><span>GST:</span><span>₹${calc.gst.toFixed(2)}</span></div>` : ''}
-          <div class="row" style="font-size:16px; font-weight:900;"><span>TOTAL:</span><span>₹${calc.total.toFixed(2)}</span></div>
+          <div class="row"><span>GST (5%):</span><span>₹${calc.gst.toFixed(2)}</span></div>
+          <div class="row" style="font-size:16px; font-weight:900;"><span>TOTAL:</span><span>₹${calc.grandTotal.toFixed(2)}</span></div>
           <div class="divider"></div>
-          <div class="center" style="font-size:11px;">Payment Mode: <b>${mode}</b></div>
+          <div class="center" style="font-size:11px;">Payment Mode: <b>${payload.payment_mode}</b></div>
           <div class="center" style="font-size:11px; margin-top:4px;">Thanks For Visiting Us!</div>
+        </body>
+        </html>
+      `;
+
+      var frame = document.getElementById('silentPrintFrame');
+      var doc = frame.contentWindow.document;
+      doc.open();
+      doc.write(html);
+      doc.close();
+      frame.contentWindow.focus();
+      setTimeout(function() {
+        try { frame.contentWindow.print(); } catch(e) {}
+      }, 250);
+    }
+
+    function triggerManualKOTDirect() {
+      if (!posCart.length) return alert('Cart khali hai!');
+      var itemsRows = posCart.map(function(i) {
+        return `
+          <tr>
+            <td style="font-size:14px; font-weight:bold; padding:2px 0;">${i.name}</td>
+            <td style="font-size:15px; font-weight:bold; text-align:right;">x${i.qty}</td>
+          </tr>
+        `;
+      }).join('');
+
+      var html = `
+        <html>
+        <head>
+          <style>
+            @page { size: 80mm auto; margin: 0; }
+            body { font-family: monospace; font-size: 12px; width: 72mm; margin: 0 auto; padding: 4px; }
+            .center { text-align: center; font-weight: bold; }
+            .line { border-bottom: 2px solid #000; margin: 5px 0; }
+            table { width: 100%; border-collapse: collapse; }
+          </style>
+        </head>
+        <body>
+          <div class="center" style="font-size:16px;">*** KOT (KITCHEN) ***</div>
+          <div class="line"></div>
+          <div><b>${currentPOSOrderType.toUpperCase()}</b> | Table: ${selectedPOSTableId}</div>
+          <div class="line"></div>
+          <table>${itemsRows}</table>
+          <div class="line"></div>
         </body>
         </html>
       `;
@@ -745,23 +1035,23 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ table_no: tbl.trim().toUpperCase() })
-      }).then(function(){ loadActiveOrders(); });
+      }).then(function(){ fetchActiveOrders(); });
     }
 
-    function settleOrderPrompt(orderId, mode) {
+    function settleActiveOrder(orderId, mode) {
       if (!confirm(`Settle Order #${orderId} with ${mode}?`)) return;
       fetch('/api/tables/' + orderId + '/settle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ payment_mode: mode })
-      }).then(function(){ loadActiveOrders(); });
+      }).then(function(){ fetchActiveOrders(); });
     }
 
-    function promptAddTable() {
-      var tno = prompt("New Table Number daalein (e.g. T09):");
+    function promptAddCustomTable() {
+      var tno = prompt("New Table ID (e.g. T09):");
       if (!tno) return;
-      defaultTables.push({ id: tno.trim().toUpperCase(), label: tno.trim().toUpperCase(), seats: 2, order: null });
-      renderFloorTables();
+      defaultFloorTables.push({ id: tno.trim().toUpperCase(), label: tno.trim().toUpperCase(), seats: 2 });
+      renderFloorTablesGrid();
     }
 
     function openCashDrawer() {
@@ -783,8 +1073,19 @@
       }).catch(function(){});
     }
 
-    // Init
-    initDashboard();
+    function lookupCustomerPhone() {
+      var ph = document.getElementById('posCustPhone').value.trim();
+      if (ph.length >= 10) {
+        fetch('/api/customers/' + ph)
+          .then(function(r){ return r.json(); })
+          .then(function(c){
+            if (c && c.name) document.getElementById('posCustName').value = c.name;
+          }).catch(function(){});
+      }
+    }
+
+    // Start App
+    initializePOS();
   </script>
 </body>
 </html>
