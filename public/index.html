@@ -627,51 +627,108 @@
       }).catch(function(){});
 
       // 2. Browser Direct Thermal Slip Print (No popup dialog in Chrome kiosk mode)
-      var itemsRows = items.map(function(i) {
+      var itemsHtml = (items || []).map(function(item) {
         return `
-          <tr>
-            <td style="padding:2px 0;">${i.name} x${i.qty}</td>
-            <td style="text-align:right;padding:2px 0;">₹${i.price * i.qty}</td>
-          </tr>
+          <div class="row" style="margin-bottom:3px;">
+            <span style="width:70%; word-break: break-word;">${item.name} x ${item.qty || 1}</span>
+            <span style="width:30%; text-align:right;">₹${(Number(item.price) * Number(item.qty || 1)).toFixed(2)}</span>
+          </div>
         `;
       }).join('');
 
-      var html = `
+      var savedCfg = JSON.parse(localStorage.getItem('pos_receipt_config')) || {
+        h1: 'VISHAL FOODIEZ',
+        h2: 'Railway Road, Budhlada',
+        h3: 'GSTIN: 03AHXPL9631N1ZJ | Ph: 9041398515',
+        f1: 'Thanks For Visiting Us!',
+        f2: 'Order Online: www.vishalfoodiez.in'
+      };
+      var savedLogo = localStorage.getItem('pos_receipt_logo');
+
+      var gstVal = billCalculation.gst || 0;
+      var halfGst = (gstVal / 2).toFixed(2);
+      var orderTypeHtml = orderType ? ' (' + orderType.toUpperCase() + ')' : '';
+      var tableHtml = tableNo ? '<div>Table: ' + tableNo + '</div>' : '';
+      var customerHtml = custName ? '<div>Customer: ' + custName + '</div>' : '';
+      var discountHtml = (billCalculation.discount > 0)
+        ? '<div class="row"><span>Discount:</span><span>-₹' + billCalculation.discount.toFixed(2) + '</span></div>'
+        : '';
+
+      var gstHtml = (gstVal > 0)
+        ? '<div class="row" style="font-size:11px;"><span>CGST (2.5%):</span><span>₹' + halfGst + '</span></div><div class="row" style="font-size:11px;"><span>SGST (2.5%):</span><span>₹' + halfGst + '</span></div>'
+        : '';
+
+      var receiptHtml = `
         <html>
         <head>
           <style>
-            @page { size: 80mm auto; margin: 0; }
-            body { font-family: monospace; font-size: 12px; width: 72mm; margin: 0 auto; padding: 4px; }
+            @page { margin: 0; size: 80mm auto; }
+            * { box-sizing: border-box; }
+            html, body { margin: 0; padding: 0; }
+            body { 
+              font-family: Arial, Helvetica, sans-serif; 
+              font-size: 13px; 
+              font-weight: 700;
+              color: #000; 
+              padding: 0 6px 4px 6px; 
+              width: 68mm;
+              -webkit-print-color-adjust: exact;
+            }
             .center { text-align: center; }
-            .bold { font-weight: bold; }
-            .line { border-bottom: 1px dashed #000; margin: 4px 0; }
-            table { width: 100%; border-collapse: collapse; font-size: 12px; }
+            .bold { font-weight: 900; }
+            .divider { border-top: 1.5px dashed #000; margin: 6px 0; }
+            .row { display: flex; justify-content: space-between; align-items: flex-start; }
+            .token-box {
+              border: 2.5px solid #000;
+              font-size: 26px;
+              font-weight: 900;
+              text-align: center;
+              padding: 4px 0;
+              margin: 6px 0;
+              letter-spacing: 1px;
+            }
+            .receipt-logo {
+              max-width: 42mm;
+              max-height: 38mm;
+              display: block;
+              margin: 0 auto 4px auto;
+              filter: grayscale(100%) contrast(140%);
+            }
           </style>
         </head>
         <body>
-          <div class="center bold" style="font-size: 15px;">${restaurantInfo.restaurant_name || 'Fast POS'}</div>
-          <div class="center" style="font-size: 10px;">${restaurantInfo.tagline || ''}</div>
-          <div class="line"></div>
-          <div><b>Order #:</b> ${orderId} | <b>Type:</b> ${orderType}</div>
-          ${tableNo ? `<div><b>Table:</b> ${tableNo}</div>` : ''}
-          ${custName ? `<div><b>Guest:</b> ${custName}</div>` : ''}
-          <div class="line"></div>
-          <table>${itemsRows}</table>
-          <div class="line"></div>
-          <table>
-            <tr><td>Subtotal:</td><td style="text-align:right;">₹${billCalculation.subtotal}</td></tr>
-            ${billCalculation.discount > 0 ? `<tr><td>Discount:</td><td style="text-align:right;">-₹${billCalculation.discount}</td></tr>` : ''}
-            ${billCalculation.gst > 0 ? `<tr><td>GST:</td><td style="text-align:right;">₹${billCalculation.gst}</td></tr>` : ''}
-            <tr style="font-size:14px; font-weight:bold;">
-              <td>Total (${mode}):</td><td style="text-align:right;">₹${billCalculation.finalTotal}</td>
-            </tr>
-          </table>
-          <div class="line"></div>
-          <div class="center">*** Thank You! Visit Again ***</div>
+          ${savedLogo ? '<img src="' + savedLogo + '" class="receipt-logo" />' : ''}
+          <div class="center bold" style="font-size:18px;">${savedCfg.h1}</div>
+          <div class="center" style="font-size:11px;">${savedCfg.h2}</div>
+          <div class="center" style="font-size:11px;">${savedCfg.h3}</div>
+
+          <div class="token-box">TOKEN #${orderId || '---'}</div>
+
+          <div class="row"><span>Order: #${orderId || '---'}</span><span>${orderTypeHtml}</span></div>
+          ${tableHtml}
+          ${customerHtml}
+          <div>Date: ${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
+
+          <div class="divider"></div>
+          <div class="row bold"><span>Item</span><span>Price</span></div>
+          <div class="divider"></div>
+
+          ${itemsHtml}
+
+          <div class="divider"></div>
+          <div class="row"><span>Subtotal:</span><span>₹${billCalculation.subtotal.toFixed(2)}</span></div>
+          ${discountHtml}
+          ${gstHtml}
+          <div class="row bold" style="font-size:16px;"><span>TOTAL:</span><span>₹${billCalculation.finalTotal.toFixed(2)}</span></div>
+          <div class="divider"></div>
+
+          <div class="center" style="font-size:11px; margin-top:8px;">Payment Mode: <b>${mode || 'Cash'}</b></div>
+          <div class="center" style="font-size:11px; margin-top:4px;">${savedCfg.f1}</div>
+          <div class="center" style="font-size:10px;">${savedCfg.f2}</div>
         </body>
         </html>
       `;
-      printViaHiddenFrame(html);
+      printViaHiddenFrame(receiptHtml);
     }
 
     function printKOT(orderId, orderType, tableNo, items) {
@@ -1123,6 +1180,98 @@
     loadMenu();
     loadActiveOrders();
     setInterval(loadActiveOrders, 5000);
+
+    // --- LIVE ONLINE ORDER NOTIFIER ---
+    var lastOnlineSeenId = null;
+    var audioCtx = null;
+
+    function initAudioOnInteraction() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+    window.addEventListener('click', initAudioOnInteraction);
+    window.addEventListener('keydown', initAudioOnInteraction);
+
+    function playRestaurantTone() {
+      try {
+        initAudioOnInteraction();
+        if (!audioCtx) return;
+
+        var playBeep = function(freq, start, dur) {
+          var osc = audioCtx.createOscillator();
+          var gain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, audioCtx.currentTime + start);
+          gain.gain.setValueAtTime(0.8, audioCtx.currentTime + start);
+          gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + start + dur);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(audioCtx.currentTime + start);
+          osc.stop(audioCtx.currentTime + start + dur);
+        };
+
+        playBeep(784.00, 0.0, 0.35);  // High Tone (G5)
+        playBeep(1046.50, 0.25, 0.65); // Ding-Dong Chime (C6)
+      } catch (e) {}
+    }
+
+    function showPopupNotice(order) {
+      playRestaurantTone();
+      var box = document.getElementById('livePopupNoticeBox');
+      if (!box) {
+        box = document.createElement('div');
+        box.id = 'livePopupNoticeBox';
+        box.style = 'position:fixed;top:20px;right:20px;z-index:99999;width:340px;display:flex;flex-direction:column;gap:10px;';
+        document.body.appendChild(box);
+      }
+
+      var toast = document.createElement('div');
+      toast.style = 'background:#ffffff;border:2px solid #4f46e5;border-radius:16px;padding:14px;box-shadow:0 10px 25px rgba(0,0,0,0.25);font-family:sans-serif;';
+      toast.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e5e7eb;padding-bottom:6px;margin-bottom:8px;">
+          <span style="font-weight:900;font-size:12px;color:#4f46e5;">🔔 NEW ONLINE ORDER!</span>
+          <span style="background:#eef2ff;color:#3730a3;padding:2px 6px;border-radius:6px;font-size:11px;font-weight:bold;">#${order.id}</span>
+        </div>
+        <div style="font-size:13px;font-weight:bold;color:#111827;display:flex;justify-content:space-between;margin-bottom:4px;">
+          <span>${order.customer_name || 'Customer'}</span>
+          <span style="color:#059669;font-weight:900;">₹${order.total}</span>
+        </div>
+        <div style="font-size:11px;color:#6b7280;margin-bottom:8px;">
+          📍 ${order.table_no || 'Takeaway'} • 📞 ${order.customer_phone || '-'}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <button onclick="this.closest('#livePopupNoticeBox > div').remove()" style="padding:6px;border:1px solid #d1d5db;border-radius:8px;background:#fff;font-size:11px;font-weight:bold;cursor:pointer;">Dismiss</button>
+          <button onclick="loadActiveOrders(); if(typeof renderActiveOrdersList === 'function') renderActiveOrdersList(); this.closest('#livePopupNoticeBox > div').remove();" style="padding:6px;border:none;border-radius:8px;background:#4f46e5;color:#fff;font-size:11px;font-weight:bold;cursor:pointer;">View / Accept</button>
+        </div>
+      `;
+      box.prepend(toast);
+      setTimeout(function() { if (toast.parentNode) toast.remove(); }, 40000);
+    }
+
+    setInterval(function() {
+      fetch('/api/orders/active')
+        .then(function(r) { return r.json(); })
+        .then(function(list) {
+          if (!list || !list.length) return;
+          var top = list[0];
+          if (lastOnlineSeenId === null) {
+            lastOnlineSeenId = top.id;
+            return;
+          }
+          if (top.id > lastOnlineSeenId) {
+            lastOnlineSeenId = top.id;
+            // Filter: Sirf actual Online ya Delivery orders par notification bajayein
+            if (top.order_type === 'Online' || top.order_type === 'Delivery') {
+              showPopupNotice(top);
+            }
+          }
+        })
+        .catch(function(){});
+    }, 3000);
   </script>
 </body>
 </html>
