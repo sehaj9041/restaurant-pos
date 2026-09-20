@@ -27,7 +27,7 @@
 </head>
 <body class="bg-[#f8fafc] text-gray-800 font-sans h-screen flex flex-col overflow-hidden select-none">
 
-  <!-- Hidden iframe for Direct Receipt Printing -->
+  <!-- Hidden iframe for Direct Receipt Printing & Hardware Drawer Trigger -->
   <iframe id="silentPrintFrame" style="position:fixed;right:0;bottom:0;width:0;height:0;border:0;"></iframe>
 
   <!-- ================= TOP MAIN HEADER NAVBAR ================= -->
@@ -59,7 +59,7 @@
         <span id="topOrderActiveText">Order • 0</span>
       </div>
 
-      <!-- Cancel Button -->
+      <!-- Cancel Button (Returns to Floor Dashboard) -->
       <button id="btnCancelOrderView" onclick="closePOSOrderView()" class="hidden text-xs font-bold px-3 py-1.5 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 text-gray-700 transition">
         ✕ Cancel
       </button>
@@ -73,7 +73,7 @@
         <span>📋</span> All Orders
       </button>
 
-      <!-- OPEN DRAWER BUTTON (Direct WebUSB Kick) -->
+      <!-- OPEN DRAWER BUTTON -->
       <button onclick="openCashDrawer()" class="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 flex items-center gap-1 text-amber-900 transition shadow-2xs">
         <span>💵</span> Open Drawer
       </button>
@@ -392,7 +392,6 @@
     var selectedPaymentMode = 'Cash';
     var currentGuestCount = 1;
     var editingActiveOrderId = null;
-    var usbPrinterDevice = null; // WebUSB Hardware Device
 
     var defaultFloorTables = [
       { id: 'T04', label: 'T04', seats: 2 },
@@ -993,40 +992,47 @@
       }, 250);
     }
 
-    // ================= PURE HARDWARE WEBUSB CASH DRAWER TRIGGER =================
-    async function openCashDrawer() {
-      // 1. Agar device pehle se attach hai toh seedha kick pulse bhejenge
-      if (usbPrinterDevice && usbPrinterDevice.opened) {
-        try {
-          var kickData = new Uint8Array([0x1B, 0x70, 0x00, 0x19, 0xFA]);
-          var iface = usbPrinterDevice.configuration.interfaces[0];
-          var endpoint = iface.alternate.endpoints.find(e => e.direction === 'out');
-          await usbPrinterDevice.transferOut(endpoint.endpointNumber, kickData);
-          return;
-        } catch (err) {
-          console.warn("USB transfer retry...", err);
-        }
+    // ================= HARDWARE-COMPATIBLE CASH DRAWER PULSE =================
+    function openCashDrawer() {
+      var frame = document.getElementById('silentPrintFrame');
+      if (!frame) {
+        frame = document.createElement('iframe');
+        frame.id = 'silentPrintFrame';
+        frame.style.position = 'fixed';
+        frame.style.right = '0';
+        frame.style.bottom = '0';
+        frame.style.width = '0';
+        frame.style.height = '0';
+        frame.style.border = '0';
+        document.body.appendChild(frame);
       }
 
-      // 2. Pehli baar connection prompt (Popup-free hardware pairing)
-      if (navigator.usb) {
-        try {
-          var device = await navigator.usb.requestDevice({ filters: [] });
-          await device.open();
-          await device.selectConfiguration(1);
-          await device.claimInterface(0);
-          usbPrinterDevice = device;
+      // Sends zero-height minimal print job: Posiflex CR1 hardware kick triggers automatically
+      var kickDoc = `
+        <html>
+        <head>
+          <style>
+            @page { margin: 0; size: 80mm 1mm; }
+            html, body { margin: 0; padding: 0; height: 1px; overflow: hidden; }
+          </style>
+        </head>
+        <body></body>
+        </html>
+      `;
 
-          var kickData = new Uint8Array([0x1B, 0x70, 0x00, 0x19, 0xFA]);
-          var iface = device.configuration.interfaces[0];
-          var endpoint = iface.alternate.endpoints.find(e => e.direction === 'out');
-          await device.transferOut(endpoint.endpointNumber, kickData);
-        } catch (e) {
-          console.error("USB Pairing cancelled or failed:", e);
+      var doc = frame.contentWindow.document;
+      doc.open();
+      doc.write(kickDoc);
+      doc.close();
+
+      frame.contentWindow.focus();
+      setTimeout(function() {
+        try {
+          frame.contentWindow.print();
+        } catch(e) {
+          console.error(e);
         }
-      } else {
-        alert("WebUSB HTTPS connection mangta hai.");
-      }
+      }, 100);
     }
 
     function promptAssignTable(orderId) {
