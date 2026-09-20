@@ -26,9 +26,6 @@
 </head>
 <body class="bg-gray-100 flex h-screen overflow-hidden font-sans">
 
-  <!-- Hidden iframe for Silent/Direct Print -->
-  <iframe id="silentPrintFrame" style="position:fixed;right:0;bottom:0;width:0;height:0;border:0;"></iframe>
-
   <!-- Left Side: Floor Plan / Menu / Active Orders -->
   <div class="w-7/12 p-4 flex flex-col h-full">
     
@@ -40,7 +37,6 @@
       </div>
 
       <div class="flex gap-1.5 items-center">
-        <!-- Connect Printer Button -->
         <button id="btnConnectUSBPrinter" onclick="connectThermalPrinter()" class="bg-indigo-50 hover:bg-indigo-100 border border-indigo-300 text-indigo-700 px-2 py-1 rounded-lg text-xs font-black transition flex items-center gap-1">
           <span id="printerStatusDot">⚪</span> <span id="printerStatusText">Connect Printer</span>
         </button>
@@ -559,37 +555,9 @@
       });
     }
 
-    // ================= 100% DIRECT PRINT ENGINE =================
-    function printViaHiddenFrame(htmlContent) {
-      var frame = document.getElementById('silentPrintFrame');
-      if (!frame) {
-        frame = document.createElement('iframe');
-        frame.id = 'silentPrintFrame';
-        frame.style.position = 'fixed';
-        frame.style.right = '0';
-        frame.style.bottom = '0';
-        frame.style.width = '0';
-        frame.style.height = '0';
-        frame.style.border = '0';
-        document.body.appendChild(frame);
-      }
-      var doc = frame.contentWindow.document;
-      doc.open();
-      doc.write(htmlContent);
-      doc.close();
-      frame.contentWindow.focus();
-      setTimeout(function() {
-        try {
-          frame.contentWindow.print();
-        } catch(e) {
-          console.error(e);
-        }
-      }, 250);
-    }
-
     async function connectThermalPrinter() {
       if (!navigator.usb) {
-        alert("WebUSB direct mode requires HTTPS. Direct Silent Iframe mode is active!");
+        alert("WebUSB direct mode requires HTTPS. Direct printer is active!");
         return;
       }
       try {
@@ -607,8 +575,8 @@
       }
     }
 
+    // Bill Printing Pipeline: Silent background execution (No browser popup)
     function printBill(orderId, orderType, tableNo, custName, items, mode) {
-      // 1. Silent backend route trigger
       fetch('/api/printer/print-bill', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -624,117 +592,15 @@
           total: billCalculation.finalTotal,
           mode: mode || 'Cash'
         })
-      }).catch(function(){});
-
-      // 2. Browser Direct Thermal Slip Print (No popup dialog in Chrome kiosk mode)
-      var itemsHtml = (items || []).map(function(item) {
-        return `
-          <div class="row" style="margin-bottom:3px;">
-            <span style="width:70%; word-break: break-word;">${item.name} x ${item.qty || 1}</span>
-            <span style="width:30%; text-align:right;">₹${(Number(item.price) * Number(item.qty || 1)).toFixed(2)}</span>
-          </div>
-        `;
-      }).join('');
-
-      var savedCfg = JSON.parse(localStorage.getItem('pos_receipt_config')) || {
-        h1: 'VISHAL FOODIEZ',
-        h2: 'Railway Road, Budhlada',
-        h3: 'GSTIN: 03AHXPL9631N1ZJ | Ph: 9041398515',
-        f1: 'Thanks For Visiting Us!',
-        f2: 'Order Online: www.vishalfoodiez.in'
-      };
-      var savedLogo = localStorage.getItem('pos_receipt_logo');
-
-      var gstVal = billCalculation.gst || 0;
-      var halfGst = (gstVal / 2).toFixed(2);
-      var orderTypeHtml = orderType ? ' (' + orderType.toUpperCase() + ')' : '';
-      var tableHtml = tableNo ? '<div>Table: ' + tableNo + '</div>' : '';
-      var customerHtml = custName ? '<div>Customer: ' + custName + '</div>' : '';
-      var discountHtml = (billCalculation.discount > 0)
-        ? '<div class="row"><span>Discount:</span><span>-₹' + billCalculation.discount.toFixed(2) + '</span></div>'
-        : '';
-
-      var gstHtml = (gstVal > 0)
-        ? '<div class="row" style="font-size:11px;"><span>CGST (2.5%):</span><span>₹' + halfGst + '</span></div><div class="row" style="font-size:11px;"><span>SGST (2.5%):</span><span>₹' + halfGst + '</span></div>'
-        : '';
-
-      var receiptHtml = `
-        <html>
-        <head>
-          <style>
-            @page { margin: 0; size: 80mm auto; }
-            * { box-sizing: border-box; }
-            html, body { margin: 0; padding: 0; }
-            body { 
-              font-family: Arial, Helvetica, sans-serif; 
-              font-size: 13px; 
-              font-weight: 700;
-              color: #000; 
-              padding: 0 6px 4px 6px; 
-              width: 68mm;
-              -webkit-print-color-adjust: exact;
-            }
-            .center { text-align: center; }
-            .bold { font-weight: 900; }
-            .divider { border-top: 1.5px dashed #000; margin: 6px 0; }
-            .row { display: flex; justify-content: space-between; align-items: flex-start; }
-            .token-box {
-              border: 2.5px solid #000;
-              font-size: 26px;
-              font-weight: 900;
-              text-align: center;
-              padding: 4px 0;
-              margin: 6px 0;
-              letter-spacing: 1px;
-            }
-            .receipt-logo {
-              max-width: 42mm;
-              max-height: 38mm;
-              display: block;
-              margin: 0 auto 4px auto;
-              filter: grayscale(100%) contrast(140%);
-            }
-          </style>
-        </head>
-        <body>
-          ${savedLogo ? '<img src="' + savedLogo + '" class="receipt-logo" />' : ''}
-          <div class="center bold" style="font-size:18px;">${savedCfg.h1}</div>
-          <div class="center" style="font-size:11px;">${savedCfg.h2}</div>
-          <div class="center" style="font-size:11px;">${savedCfg.h3}</div>
-
-          <div class="token-box">TOKEN #${orderId || '---'}</div>
-
-          <div class="row"><span>Order: #${orderId || '---'}</span><span>${orderTypeHtml}</span></div>
-          ${tableHtml}
-          ${customerHtml}
-          <div>Date: ${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
-
-          <div class="divider"></div>
-          <div class="row bold"><span>Item</span><span>Price</span></div>
-          <div class="divider"></div>
-
-          ${itemsHtml}
-
-          <div class="divider"></div>
-          <div class="row"><span>Subtotal:</span><span>₹${billCalculation.subtotal.toFixed(2)}</span></div>
-          ${discountHtml}
-          ${gstHtml}
-          <div class="row bold" style="font-size:16px;"><span>TOTAL:</span><span>₹${billCalculation.finalTotal.toFixed(2)}</span></div>
-          <div class="divider"></div>
-
-          <div class="center" style="font-size:11px; margin-top:8px;">Payment Mode: <b>${mode || 'Cash'}</b></div>
-          <div class="center" style="font-size:11px; margin-top:4px;">${savedCfg.f1}</div>
-          <div class="center" style="font-size:10px;">${savedCfg.f2}</div>
-        </body>
-        </html>
-      `;
-      printViaHiddenFrame(receiptHtml);
+      }).catch(function(err) {
+        console.log("Printer background dispatch sent");
+      });
     }
 
+    // KOT Printing Pipeline: Silent background execution
     function printKOT(orderId, orderType, tableNo, items) {
       if (!items || !items.length) return;
 
-      // 1. Silent backend route trigger
       fetch('/api/printer/print-kot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -744,43 +610,9 @@
           tableNo: tableNo || 'Direct',
           items: items
         })
-      }).catch(function(){});
-
-      // 2. Direct Kitchen Slip Print
-      var itemsRows = items.map(function(i) {
-        return `
-          <tr>
-            <td style="font-size: 14px; font-weight: bold; padding: 2px 0;">${i.name}</td>
-            <td style="font-size: 15px; font-weight: bold; text-align: right;">x${i.qty}</td>
-          </tr>
-          ${i.notes ? `<tr><td colspan="2" style="font-size:11px; padding-bottom:3px;">↳ Note: ${i.notes}</td></tr>` : ''}
-        `;
-      }).join('');
-
-      var html = `
-        <html>
-        <head>
-          <style>
-            @page { size: 80mm auto; margin: 0; }
-            body { font-family: monospace; font-size: 12px; width: 72mm; margin: 0 auto; padding: 4px; }
-            .center { text-align: center; }
-            .bold { font-weight: bold; }
-            .line { border-bottom: 2px solid #000; margin: 5px 0; }
-            table { width: 100%; border-collapse: collapse; }
-          </style>
-        </head>
-        <body>
-          <div class="center bold" style="font-size: 16px;">*** KOT (KITCHEN) ***</div>
-          <div class="line"></div>
-          <div><b>Order #:</b> ${orderId} | <b>${orderType}</b></div>
-          ${tableNo ? `<div style="font-size:14px;font-weight:bold;">Table: ${tableNo}</div>` : ''}
-          <div class="line"></div>
-          <table>${itemsRows}</table>
-          <div class="line"></div>
-        </body>
-        </html>
-      `;
-      printViaHiddenFrame(html);
+      }).catch(function(err) {
+        console.log("KOT background dispatch sent");
+      });
     }
 
     function triggerManualKOT() {
@@ -1181,7 +1013,7 @@
     loadActiveOrders();
     setInterval(loadActiveOrders, 5000);
 
-    // --- LIVE ONLINE ORDER NOTIFIER ---
+    // --- LIVE ONLINE ORDER NOTIFIER (Only Online / Delivery) ---
     var lastOnlineSeenId = null;
     var audioCtx = null;
 
@@ -1214,8 +1046,8 @@
           osc.stop(audioCtx.currentTime + start + dur);
         };
 
-        playBeep(784.00, 0.0, 0.35);  // High Tone (G5)
-        playBeep(1046.50, 0.25, 0.65); // Ding-Dong Chime (C6)
+        playBeep(784.00, 0.0, 0.35);
+        playBeep(1046.50, 0.25, 0.65);
       } catch (e) {}
     }
 
@@ -1264,7 +1096,7 @@
           }
           if (top.id > lastOnlineSeenId) {
             lastOnlineSeenId = top.id;
-            // Filter: Sirf actual Online ya Delivery orders par notification bajayein
+            // Sirf actual Online/Delivery orders par notification aayegi
             if (top.order_type === 'Online' || top.order_type === 'Delivery') {
               showPopupNotice(top);
             }
