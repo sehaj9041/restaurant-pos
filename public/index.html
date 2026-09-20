@@ -14,7 +14,6 @@
 
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    /* Clean custom scrollbars */
     ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-track { background: #f8fafc; }
     ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
@@ -28,7 +27,7 @@
 </head>
 <body class="bg-[#f8fafc] text-gray-800 font-sans h-screen flex flex-col overflow-hidden select-none">
 
-  <!-- Hidden iframe for Silent / Direct Printing -->
+  <!-- Hidden iframe for Silent / Direct Printing & Drawer Kick -->
   <iframe id="silentPrintFrame" style="position:fixed;right:0;bottom:0;width:0;height:0;border:0;"></iframe>
 
   <!-- ================= TOP MAIN HEADER NAVBAR ================= -->
@@ -54,7 +53,7 @@
         <span>🖥</span> Customer Display
       </a>
 
-      <!-- In-Order Mode Pill (Visible only when punching order) -->
+      <!-- In-Order Mode Pill -->
       <div id="topOrderActiveBadge" class="hidden flex items-center gap-1.5 bg-emerald-50 border border-emerald-300 text-emerald-800 px-2.5 py-1 rounded-full text-xs font-black">
         <span class="w-2 h-2 rounded-full bg-emerald-600"></span>
         <span id="topOrderActiveText">Order • 0</span>
@@ -74,7 +73,8 @@
         <span>📋</span> All Orders
       </button>
 
-      <button onclick="openCashDrawer()" class="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 flex items-center gap-1 text-gray-700 transition">
+      <!-- OPEN DRAWER BUTTON -->
+      <button onclick="openCashDrawer()" class="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 flex items-center gap-1 text-amber-900 transition shadow-2xs">
         <span>💵</span> Open Drawer
       </button>
 
@@ -90,7 +90,6 @@
     
     <!-- 4 ANALYTICS SUMMARY CARDS -->
     <div class="grid grid-cols-4 gap-3">
-      <!-- Active -->
       <div class="bg-white border border-gray-200 rounded-xl p-3 flex justify-between items-center shadow-2xs">
         <div class="flex items-center gap-2.5">
           <span class="w-3.5 h-3.5 rounded-full bg-emerald-500"></span>
@@ -102,7 +101,6 @@
         <div id="metricActiveCount" class="text-xl font-black text-gray-800">0</div>
       </div>
 
-      <!-- Completed Today -->
       <div class="bg-white border border-gray-200 rounded-xl p-3 flex justify-between items-center shadow-2xs">
         <div class="flex items-center gap-2.5">
           <span class="w-4 h-4 rounded bg-emerald-600 text-white flex items-center justify-center text-[10px] font-black">✓</span>
@@ -114,7 +112,6 @@
         <div id="metricCompletedCount" class="text-xl font-black text-gray-800">0</div>
       </div>
 
-      <!-- Delivery -->
       <div class="bg-white border border-gray-200 rounded-xl p-3 flex justify-between items-center shadow-2xs">
         <div class="flex items-center gap-2.5">
           <span class="text-base">🛵</span>
@@ -126,7 +123,6 @@
         <div id="metricDeliveryCount" class="text-xl font-black text-gray-800">0</div>
       </div>
 
-      <!-- Voided Today -->
       <div class="bg-white border border-gray-200 rounded-xl p-3 flex justify-between items-center shadow-2xs">
         <div class="flex items-center gap-2.5">
           <span class="text-red-500 font-black text-base">✕</span>
@@ -181,7 +177,7 @@
         </div>
       </div>
 
-      <!-- Centered 2-Column Tables (T01 - T08) -->
+      <!-- Centered Tables -->
       <div class="floor-dots py-6 px-4 flex flex-col items-center justify-center min-h-[310px]">
         <div class="bg-gray-100 text-gray-500 text-[10px] font-black px-4 py-1 rounded-md border border-gray-200 mb-5 tracking-wide">
           Billing/POS
@@ -191,7 +187,7 @@
       </div>
     </div>
 
-    <!-- DINE-IN NEEDS A TABLE (Kiosk Orders without Table No) -->
+    <!-- DINE-IN NEEDS A TABLE (Kiosk Unassigned) -->
     <div id="kioskUnassignedBox" class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs space-y-2 hidden">
       <div class="flex justify-between items-center text-xs font-bold text-gray-700 border-b pb-2">
         <span class="flex items-center gap-1.5">
@@ -202,7 +198,7 @@
       <div id="kioskUnassignedList" class="space-y-2"></div>
     </div>
 
-    <!-- LOWER QUEUES: TAKEAWAY (LEFT) & DELIVERY (RIGHT) -->
+    <!-- LOWER QUEUES: TAKEAWAY & DELIVERY -->
     <div class="grid grid-cols-2 gap-3">
       
       <!-- Takeaway Queue -->
@@ -232,23 +228,20 @@
   </div>
 
 
-  <!-- ================= VIEW 2: FULL 3-COLUMN POS BILLING SCREEN (SCREENSHOTS 3 & 4) ================= -->
+  <!-- ================= VIEW 2: FULL 3-COLUMN POS BILLING SCREEN ================= -->
   <div id="viewPOSOrderScreen" class="flex-1 flex overflow-hidden hidden bg-white">
     
-    <!-- COLUMN 1: CATEGORIES SIDEBAR (LEFT) -->
+    <!-- COLUMN 1: CATEGORIES SIDEBAR -->
     <div class="w-48 border-r border-gray-200 bg-white flex flex-col overflow-y-auto shrink-0">
       <div class="p-3 text-[10px] font-black uppercase text-gray-400 tracking-wider border-b">
         Categories
       </div>
-      <div id="categoriesList" class="divide-y divide-gray-50 flex-1">
-        <!-- Dynamically populated categories -->
-      </div>
+      <div id="categoriesList" class="divide-y divide-gray-50 flex-1"></div>
     </div>
 
-    <!-- COLUMN 2: STEP 2 - SELECT ITEMS (MIDDLE) -->
+    <!-- COLUMN 2: STEP 2 - SELECT ITEMS -->
     <div class="flex-1 flex flex-col border-r border-gray-200 overflow-hidden bg-[#fafafa]">
       
-      <!-- Top Filters & Search Row -->
       <div class="p-3 bg-white border-b border-gray-200 space-y-2.5">
         <div class="flex justify-between items-center">
           <h2 class="text-xs font-black text-gray-800 tracking-tight">Step 2 — Select Items</h2>
@@ -261,7 +254,6 @@
           </div>
         </div>
 
-        <!-- Filter Pills -->
         <div class="flex items-center gap-1.5 text-[11px] font-bold overflow-x-auto pb-1">
           <button onclick="setPriceFilter('ALL')" id="filterBtnAll" class="px-2.5 py-1 rounded-full bg-orange-500 text-white shadow-2xs">Any Price</button>
           <button onclick="setPriceFilter('UNDER200')" id="filterBtn200" class="px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200">Under ₹200</button>
@@ -270,16 +262,12 @@
         </div>
       </div>
 
-      <!-- Items Grid (2 Columns) -->
-      <div id="posItemsGrid" class="flex-1 overflow-y-auto p-3 grid grid-cols-2 gap-2.5 content-start">
-        <!-- Dynamically rendered menu items -->
-      </div>
+      <div id="posItemsGrid" class="flex-1 overflow-y-auto p-3 grid grid-cols-2 gap-2.5 content-start"></div>
     </div>
 
-    <!-- COLUMN 3: ORDER TYPE & CUSTOMER / ORDER SUMMARY (RIGHT) -->
+    <!-- COLUMN 3: ORDER TYPE & SUMMARY -->
     <div class="w-80 flex flex-col bg-white shrink-0 justify-between">
       
-      <!-- Top Dual Tabs -->
       <div>
         <div class="grid grid-cols-2 p-1.5 bg-gray-100 border-b text-xs font-bold">
           <button id="tabBtnCustomer" onclick="switchRightTab('CUSTOMER')" class="py-1.5 rounded-lg transition bg-white text-orange-600 shadow-2xs font-black">
@@ -291,9 +279,8 @@
           </button>
         </div>
 
-        <!-- TAB 1: ORDER TYPE & CUSTOMER CONTENT -->
+        <!-- TAB 1: CUSTOMER -->
         <div id="tabContentCustomer" class="p-3.5 space-y-3">
-          <!-- Selected Table Card -->
           <div class="bg-gray-50 border border-gray-200 rounded-xl p-2.5 flex justify-between items-center text-xs">
             <div>
               <span class="text-[10px] font-bold text-gray-400 block uppercase">Selected Table</span>
@@ -302,7 +289,6 @@
             <button onclick="closePOSOrderView()" class="text-orange-600 font-bold text-xs underline">Change</button>
           </div>
 
-          <!-- 3 Big Buttons: Dine-In, Takeaway, Delivery -->
           <div class="grid grid-cols-3 gap-1.5">
             <button id="posBtnDineIn" onclick="setPOSOrderType('Dine-In')" class="border-2 border-orange-500 bg-orange-50/50 rounded-xl py-3 flex flex-col items-center justify-center text-orange-700 shadow-2xs">
               <span class="text-base mb-0.5">🍽</span>
@@ -318,7 +304,6 @@
             </button>
           </div>
 
-          <!-- Customer Input Fields -->
           <div class="space-y-2 pt-1">
             <div>
               <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Phone Number</label>
@@ -331,7 +316,7 @@
           </div>
         </div>
 
-        <!-- TAB 2: ORDER SUMMARY CART CONTENT (SCREENSHOT 4) -->
+        <!-- TAB 2: CART SUMMARY -->
         <div id="tabContentSummary" class="p-3 hidden space-y-2">
           <div id="posCartItemList" class="space-y-1.5 max-h-[38vh] overflow-y-auto pr-1 text-xs divide-y divide-gray-100">
             <p class="text-gray-400 text-center py-10 italic">Cart is empty</p>
@@ -339,7 +324,7 @@
         </div>
       </div>
 
-      <!-- BOTTOM BILL CALCULATION & PAYMENT CONTROLS (SCREENSHOT 4) -->
+      <!-- BILLING & CONTROLS -->
       <div class="border-t border-gray-200 p-3 bg-white space-y-2">
         
         <div class="flex justify-between items-center text-xs font-bold text-gray-500">
@@ -354,20 +339,17 @@
           </div>
         </div>
 
-        <!-- Tax Breakdown -->
         <div class="text-[11px] text-gray-500 flex justify-between border-t pt-1.5">
           <span>Subtotal: <b id="posCalcSubtotal">₹0</b></span>
           <span>GST (5%): <b id="posCalcGst">₹0.00</b></span>
           <span>Round Off: <b id="posCalcRound">₹0.00</b></span>
         </div>
 
-        <!-- Grand Total -->
         <div class="flex justify-between items-center pt-1 border-t">
           <span class="text-sm font-bold text-gray-700">Total</span>
           <span id="posCalcGrandTotal" class="text-xl font-black text-gray-900">₹0</span>
         </div>
 
-        <!-- 4 Quick Payment Buttons -->
         <div class="grid grid-cols-4 gap-1.5 pt-1">
           <button onclick="selectPaymentMode('Cash')" id="payBtnCash" class="border-2 border-emerald-600 bg-emerald-50 text-emerald-800 py-1.5 rounded-lg text-xs font-black flex items-center justify-center gap-1">
             💵 Cash
@@ -383,7 +365,6 @@
           </button>
         </div>
 
-        <!-- Place Order Primary Action Button -->
         <div class="flex gap-1.5 pt-1">
           <button onclick="executePlaceOrder()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5">
             <span>✓ Place Order</span>
@@ -400,7 +381,6 @@
   </div>
 
   <script>
-    // Global Application State
     var allActiveOrders = [];
     var allMenuItems = [];
     var allCategories = [];
@@ -424,13 +404,11 @@
       { id: 'T05', label: 'T05', seats: 2 }
     ];
 
-    // ================= INITIALIZATION =================
     function initializePOS() {
       fetchMenu();
       fetchActiveOrders();
       setInterval(fetchActiveOrders, 4000);
 
-      // PWA Service worker registration
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js').catch(function(){});
       }
@@ -466,7 +444,6 @@
         }).catch(function(){});
     }
 
-    // ================= DASHBOARD RENDERING (VIEW 1) =================
     function renderDashboardMetrics() {
       document.getElementById('metricActiveCount').innerText = allActiveOrders.length;
       document.getElementById('filterActiveBadge').innerText = allActiveOrders.length;
@@ -510,7 +487,6 @@
     }
 
     function renderAllQueues() {
-      // 1. Dine-in Kiosk Needs a Table
       var unassignedKiosk = allActiveOrders.filter(function(o) {
         return o.order_type === 'Dine-In' && (!o.table_no || o.table_no.trim() === '' || o.table_no === 'Direct');
       });
@@ -534,8 +510,6 @@
                 <div class="text-gray-600 font-medium text-[11px] mt-1 line-clamp-1">${itemsText}</div>
                 <div class="flex gap-1.5 mt-2">
                   <button onclick="promptAssignTable(${o.id})" class="bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 font-bold px-2 py-0.5 rounded text-[10px]">Assign table</button>
-                  <button onclick="silentPrintKOT(${o.id})" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-2 py-0.5 rounded text-[10px]">🍳 KOT</button>
-                  <button onclick="silentPrintReceipt(${o.id})" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-2 py-0.5 rounded text-[10px]">🖨 Print Receipt</button>
                   <button onclick="settleActiveOrder(${o.id}, 'CASH')" class="bg-emerald-600 text-white font-bold px-2 py-0.5 rounded text-[10px]">✓ Mark complete</button>
                 </div>
               </div>
@@ -546,7 +520,6 @@
         kioskBox.classList.add('hidden');
       }
 
-      // 2. Takeaway Queue
       var takeawayOrders = allActiveOrders.filter(function(o) { return o.order_type === 'Takeaway'; });
       document.getElementById('takeawayQueueBadge').innerText = takeawayOrders.length;
       var tList = document.getElementById('takeawayQueueList');
@@ -572,8 +545,6 @@
               <div class="flex justify-between items-center text-[10px] text-gray-400">
                 <span>👤 ${o.customer_name || 'Counter'}</span>
                 <div class="flex gap-1">
-                  <button onclick="silentPrintKOT(${o.id})" class="px-1.5 py-0.5 bg-white border rounded font-bold hover:bg-gray-50">🍳 KOT</button>
-                  <button onclick="silentPrintReceipt(${o.id})" class="px-1.5 py-0.5 bg-white border rounded font-bold hover:bg-gray-50">🖨 Print</button>
                   <button onclick="settleActiveOrder(${o.id}, 'CASH')" class="px-2 py-0.5 bg-emerald-600 text-white rounded font-black hover:bg-emerald-700">Settle</button>
                 </div>
               </div>
@@ -582,7 +553,6 @@
         }).join('');
       }
 
-      // 3. Delivery Queue
       var deliveryOrders = allActiveOrders.filter(function(o) { return o.order_type === 'Delivery'; });
       document.getElementById('deliveryQueueBadge').innerText = deliveryOrders.length;
       var dList = document.getElementById('deliveryQueueList');
@@ -608,8 +578,6 @@
               <div class="flex justify-between items-center text-[10px] text-gray-400">
                 <span>📞 ${o.customer_phone || '-'}</span>
                 <div class="flex gap-1">
-                  <button onclick="silentPrintKOT(${o.id})" class="px-1.5 py-0.5 bg-white border rounded font-bold hover:bg-gray-50">🍳 KOT</button>
-                  <button onclick="silentPrintReceipt(${o.id})" class="px-1.5 py-0.5 bg-white border rounded font-bold hover:bg-gray-50">🖨 Print</button>
                   <button onclick="settleActiveOrder(${o.id}, 'CASH')" class="px-2 py-0.5 bg-emerald-600 text-white rounded font-black hover:bg-emerald-700">Settle</button>
                 </div>
               </div>
@@ -619,7 +587,6 @@
       }
     }
 
-    // ================= SWITCH BETWEEN VIEWS (FLOOR vs FULL POS) =================
     function openPOSOrderView(orderType, tableId) {
       currentPOSOrderType = orderType || 'Dine-In';
       selectedPOSTableId = tableId || 'T01';
@@ -667,7 +634,6 @@
       fetchActiveOrders();
     }
 
-    // ================= FULL POS SCREEN ENGINE (SCREENSHOTS 3 & 4) =================
     function renderCategoriesSidebar() {
       var container = document.getElementById('categoriesList');
       if (!container) return;
@@ -732,7 +698,7 @@
       });
 
       if (!filtered.length) {
-        grid.innerHTML = '<p class="col-span-2 text-center text-gray-400 py-16 italic text-xs">No items found in this section</p>';
+        grid.innerHTML = '<p class="col-span-2 text-center text-gray-400 py-16 italic text-xs">No items found</p>';
         return;
       }
 
@@ -767,7 +733,6 @@
         posCart.push({ name: name, price: Number(price), qty: 1 });
       }
 
-      // Switch to order summary tab automatically once an item is added
       switchRightTab('SUMMARY');
       renderPOSCart();
       renderPOSItems();
@@ -886,7 +851,6 @@
       calculatePOSBillTotals();
     }
 
-    // ================= ORDER SUBMISSION & SILENT PRINT PIPELINE =================
     function executePlaceOrder() {
       if (!posCart.length) return alert('Kripya cart mein item add karein!');
 
@@ -1028,6 +992,51 @@
       }, 250);
     }
 
+    // ================= 100% CODE-BASED CASH DRAWER KICK ENGINE =================
+    function openCashDrawer() {
+      var frame = document.getElementById('silentPrintFrame');
+      if (!frame) {
+        frame = document.createElement('iframe');
+        frame.id = 'silentPrintFrame';
+        frame.style.position = 'fixed';
+        frame.style.right = '0';
+        frame.style.bottom = '0';
+        frame.style.width = '0';
+        frame.style.height = '0';
+        frame.style.border = '0';
+        document.body.appendChild(frame);
+      }
+
+      // Sends zero-height ESC/POS drawer kick sequence (ESC p 0 25 250) directly to printer RJ11
+      var kickDoc = `
+        <html>
+        <head>
+          <style>
+            @page { margin: 0; size: 80mm 2mm; }
+            html, body { margin: 0; padding: 0; height: 1px; overflow: hidden; }
+          </style>
+        </head>
+        <body>
+          <span style="font-size:1px;color:transparent;line-height:1px;">\x1b\x70\x00\x19\xfa</span>
+        </body>
+        </html>
+      `;
+
+      var doc = frame.contentWindow.document;
+      doc.open();
+      doc.write(kickDoc);
+      doc.close();
+
+      frame.contentWindow.focus();
+      setTimeout(function() {
+        try {
+          frame.contentWindow.print();
+        } catch(e) {
+          console.error("Drawer kick error:", e);
+        }
+      }, 150);
+    }
+
     function promptAssignTable(orderId) {
       var tbl = prompt("Is Kiosk order ke liye Table Number daalein (e.g. T01, T02):");
       if (!tbl) return;
@@ -1052,10 +1061,6 @@
       if (!tno) return;
       defaultFloorTables.push({ id: tno.trim().toUpperCase(), label: tno.trim().toUpperCase(), seats: 2 });
       renderFloorTablesGrid();
-    }
-
-    function openCashDrawer() {
-      fetch('/api/drawer/open', { method: 'POST' }).catch(function(){});
     }
 
     function protectedNav(targetUrl) {
@@ -1084,7 +1089,6 @@
       }
     }
 
-    // Start App
     initializePOS();
   </script>
 </body>
