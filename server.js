@@ -3,6 +3,7 @@ const cors = require('cors');
 const path = require('path');
 const multer = require('multer');
 const fs = require('fs');
+const { exec } = require('child_process');
 const db = require('./database');
 
 const app = express();
@@ -65,10 +66,23 @@ app.get('/api/display/current', (req, res) => {
   res.json(liveCustomerCart);
 });
 
-// 2. CASH DRAWER KICK PULSE
-app.post('/api/drawer/open', (req, res) => {
-  res.json({ success: true, pulse: "\x1b\x70\x00\x19\xfa" });
-});
+// 2. HARDWARE ZERO-PAPER CASH DRAWER PULSE
+const triggerDrawerKick = (req, res) => {
+  // Posiflex PP8803 ke driver ko direct raw ESC/POS pulse bhejta hai bina spooler form-feed create kiye
+  const psCommand = `powershell -NoProfile -Command "$bytes = [byte[]](0x1B,0x70,0x00,0x19,0xFA); $path = [System.IO.Path]::Combine($env:TEMP, 'kick.bin'); [System.IO.File]::WriteAllBytes($path, $bytes); Get-Content -Path $path -Encoding Byte -Raw | Out-Printer -Name 'Posiflex PP8803 Printer'; Remove-Item $path -ErrorAction SilentlyContinue"`;
+
+  exec(psCommand, (error) => {
+    if (error) {
+      console.error('[DRAWER ERROR]:', error.message);
+      return res.status(500).json({ success: false, message: 'Drawer trigger error', error: error.message });
+    }
+    console.log('[DRAWER SUCCESS]: Raw pulse sent to Posiflex PP8803 (Zero paper feed)');
+    res.json({ success: true });
+  });
+};
+
+app.post('/api/drawer/open', triggerDrawerKick);
+app.post('/api/open-drawer', triggerDrawerKick);
 
 // 3. INTERACTIVE FLOOR PLAN APIS
 app.get('/api/floor-tables', (req, res) => {
