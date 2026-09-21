@@ -375,13 +375,13 @@
 
         <div id="tabContentSummary" class="p-3 hidden space-y-2">
           <div id="posCartItemList" class="space-y-1.5 max-h-[35vh] overflow-y-auto pr-1 text-xs divide-y divide-gray-100">
-            <p class="text-gray-400 text-center py-10 italic">Cart is empty</p>
+            <p class="text-gray-400 text-center py-10 italic text-xs">Cart is empty</p>
           </div>
         </div>
       </div>
 
       <!-- BILLING & CONTROLS -->
-      <div class="border-t border-gray-200 p-3 bg-white space-y-2 max-h-[52vh] overflow-y-auto">
+      <div class="border-t border-gray-200 p-3 bg-white space-y-2 max-h-[55vh] overflow-y-auto">
         <div class="flex justify-between items-center text-xs font-bold text-gray-500">
           <span class="flex items-center gap-1 text-orange-600 cursor-pointer">🏷 Offers</span>
           <div class="flex items-center gap-1.5">
@@ -394,6 +394,15 @@
           </div>
         </div>
 
+        <!-- RUNNING PAID ORDER BANNER -->
+        <div id="boxAlreadyPaidBanner" class="hidden bg-emerald-50 border border-emerald-200 rounded-xl p-2 text-xs flex justify-between items-center">
+          <div>
+            <span class="text-[10px] font-black uppercase text-emerald-600 block">Already Received</span>
+            <span id="lblAlreadyPaidMode" class="text-[11px] font-bold text-emerald-800">Cash</span>
+          </div>
+          <span id="lblAlreadyPaidAmount" class="text-sm font-black text-emerald-700">₹0.00</span>
+        </div>
+
         <div class="text-[11px] text-gray-500 flex justify-between border-t pt-1.5">
           <span>Subtotal: <b id="posCalcSubtotal">₹0</b></span>
           <span>GST (5%): <b id="posCalcGst">₹0.00</b></span>
@@ -401,8 +410,11 @@
         </div>
 
         <div class="flex justify-between items-center pt-1 border-t">
-          <span class="text-sm font-bold text-gray-700">Total</span>
-          <span id="posCalcGrandTotal" class="text-xl font-black text-gray-900">₹0</span>
+          <div>
+            <span class="text-xs font-bold text-gray-500 block">Grand Total: <b id="posCalcGrandTotal" class="text-gray-900 font-black">₹0</b></span>
+            <span id="lblPayableDiffTitle" class="text-sm font-black text-orange-700">Payable Now</span>
+          </div>
+          <span id="posCalcPayableNow" class="text-2xl font-black text-gray-900">₹0</span>
         </div>
 
         <!-- 5 PAYMENT BUTTONS: CASH, UPI, CARD, SPLIT, DUE -->
@@ -467,7 +479,6 @@
           </div>
         </div>
 
-        <!-- PLACE ORDER BUTTON (ALWAYS ACTIVE WHEN CART HAS ITEMS) -->
         <div class="flex gap-1.5 pt-1">
           <button id="btnPOSPlaceOrder" onclick="executePlaceOrder()" class="flex-1 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5">
             <span>✓ Place Order</span>
@@ -487,7 +498,7 @@
       </div>
 
       <div class="flex justify-between items-center pt-1">
-        <span class="text-[11px] font-black uppercase tracking-wider text-gray-400">ORDER TOTAL</span>
+        <span class="text-[11px] font-black uppercase tracking-wider text-gray-400">PAYABLE AMOUNT</span>
         <span id="modalCashOrderTotal" class="text-base font-black text-gray-900">₹0.00</span>
       </div>
 
@@ -610,6 +621,10 @@
     var currentGuestCount = 1;
     var editingActiveOrderId = null;
 
+    // DIFFERENTIAL BILLING STATE
+    var alreadyPaidAmount = 0;
+    var alreadyPaidMode = '';
+
     var currentCashReceived = 0;
     var currentCashChange = 0;
     var splitMethod1 = 'Cash';
@@ -649,7 +664,6 @@
         numpad.classList.remove('hidden');
         document.getElementById('numPadDisplayLabel').innerText = inputEl.placeholder || 'Enter digits...';
         
-        // Position Check: If opened from Split Payment, move to LEFT so right panel is 100% visible!
         if (position === 'left') {
           numpad.style.right = 'auto';
           numpad.style.left = '420px';
@@ -924,11 +938,29 @@
       dispatchDirectPrintReceipt(ord.id, ord, calc);
     }
 
+    // ================= EDIT / ADD ITEMS TO ORDER (WITH ALREADY PAID DETECTION) =================
     function actionEditAddItems(orderId) {
       var ord = allActiveOrders.find(function(o) { return o.id === orderId; });
       if (!ord) return;
+      
       openPOSOrderView(ord.order_type, ord.table_no || '');
       editingActiveOrderId = ord.id;
+      
+      // If already paid previously:
+      var isAlreadyPaid = (ord.payment_mode && ord.payment_mode !== 'UNPAID' && ord.payment_mode !== 'DUE' && ord.status !== 'RUNNING_TABLE');
+      if (isAlreadyPaid) {
+        alreadyPaidAmount = Number(ord.total) || 0;
+        alreadyPaidMode = ord.payment_mode;
+        
+        document.getElementById('boxAlreadyPaidBanner').classList.remove('hidden');
+        document.getElementById('lblAlreadyPaidAmount').innerText = '₹' + alreadyPaidAmount.toFixed(2);
+        document.getElementById('lblAlreadyPaidMode').innerText = alreadyPaidMode;
+      } else {
+        alreadyPaidAmount = 0;
+        alreadyPaidMode = '';
+        document.getElementById('boxAlreadyPaidBanner').classList.add('hidden');
+      }
+
       posCart = (ord.items || []).map(function(i) {
         return { name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1 };
       });
@@ -948,12 +980,13 @@
 
     // ================= PAYMENT MODE SELECTION & CASH MODAL =================
     function handlePaymentModeClick(mode) {
+      var calc = calculatePOSBillTotals();
+      var payableAmount = calc.payableNow;
+
       if (mode === 'Cash') {
-        var calc = calculatePOSBillTotals();
-        if (calc.grandTotal <= 0) return alert('Cart mein pehle item add karein!');
-        document.getElementById('modalCashOrderTotal').innerText = '₹' + calc.grandTotal.toFixed(2);
+        if (payableAmount <= 0) return alert('No additional payment pending!');
+        document.getElementById('modalCashOrderTotal').innerText = '₹' + payableAmount.toFixed(2);
         
-        // NO AUTOFILL: Blank value on open
         document.getElementById('inputCashReceivedAmount').value = '';
         currentCashReceived = 0;
         currentCashChange = 0;
@@ -965,10 +998,8 @@
 
       if (mode === 'Split') {
         selectPaymentMode('Split');
-        var calc = calculatePOSBillTotals();
-        document.getElementById('splitTotalDisplay').innerText = '₹' + calc.grandTotal.toFixed(2);
+        document.getElementById('splitTotalDisplay').innerText = '₹' + payableAmount.toFixed(2);
         
-        // NO AUTOFILL: Blank values on open
         document.getElementById('splitAmount1').value = '';
         document.getElementById('splitAmount2').value = '';
         calculateSplitDifference();
@@ -977,11 +1008,9 @@
         return;
       }
 
-      // UPI, Card or DUE
       document.getElementById('splitPaymentPanel').classList.add('hidden');
       selectPaymentMode(mode);
       
-      // Ensure place order is always enabled when non-split mode is selected
       var placeBtn = document.getElementById('btnPOSPlaceOrder');
       if (placeBtn) {
         placeBtn.disabled = false;
@@ -996,9 +1025,10 @@
 
     function calculateChangeReturn() {
       var calc = calculatePOSBillTotals();
+      var payableAmount = calc.payableNow;
       var rawVal = document.getElementById('inputCashReceivedAmount').value.trim();
       var rec = parseFloat(rawVal) || 0;
-      var change = (rawVal === '') ? 0 : Math.max(0, rec - calc.grandTotal);
+      var change = (rawVal === '') ? 0 : Math.max(0, rec - payableAmount);
       currentCashReceived = rec;
       currentCashChange = change;
       document.getElementById('modalCashReturnChange').innerText = '₹' + change.toFixed(2);
@@ -1039,7 +1069,7 @@
 
     function fillSplitRest(targetMethod) {
       var calc = calculatePOSBillTotals();
-      var total = calc.grandTotal;
+      var total = calc.payableNow;
       if (targetMethod === 1) {
         var m2 = parseFloat(document.getElementById('splitAmount2').value) || 0;
         document.getElementById('splitAmount1').value = Math.max(0, total - m2).toFixed(2);
@@ -1052,7 +1082,7 @@
 
     function calculateSplitDifference() {
       var calc = calculatePOSBillTotals();
-      var total = calc.grandTotal;
+      var total = calc.payableNow;
       var raw1 = document.getElementById('splitAmount1').value.trim();
       var raw2 = document.getElementById('splitAmount2').value.trim();
       var a1 = parseFloat(raw1) || 0;
@@ -1065,7 +1095,6 @@
       var pending = document.getElementById('splitPendingDiff');
       var placeBtn = document.getElementById('btnPOSPlaceOrder');
 
-      // Only control place order disable state if Split mode is actually active
       if (selectedPaymentMode === 'Split') {
         if ((raw1 !== '' || raw2 !== '') && Math.abs(diff) < 0.01) {
           alertBox.className = "border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-lg p-2 text-[10px] font-bold flex justify-between items-center";
@@ -1102,7 +1131,6 @@
         }
       }
 
-      // If user unselects split or selects anything else, re-enable Place Order for Hold/Normal
       if (selectedPaymentMode !== 'Split') {
         var placeBtn = document.getElementById('btnPOSPlaceOrder');
         if (placeBtn) {
@@ -1116,15 +1144,17 @@
       var subtotal = posCart.reduce(function(s, i) { return s + (i.price * i.qty); }, 0);
       var gst = Math.round((subtotal * 5) / 100);
       var grandTotal = Math.round(subtotal + gst);
+      var payableNow = Math.max(0, grandTotal - alreadyPaidAmount);
 
       document.getElementById('posCalcSubtotal').innerText = '₹' + subtotal;
       document.getElementById('posCalcGst').innerText = '₹' + gst.toFixed(2);
       document.getElementById('posCalcGrandTotal').innerText = '₹' + grandTotal;
+      document.getElementById('posCalcPayableNow').innerText = '₹' + payableNow;
 
       document.getElementById('tabSummaryBadge').innerText = posCart.reduce(function(s, i){ return s + i.qty; }, 0);
       document.getElementById('topOrderActiveText').innerText = 'Order • ' + posCart.reduce(function(s, i){ return s + i.qty; }, 0);
 
-      return { subtotal: subtotal, gst: gst, grandTotal: grandTotal };
+      return { subtotal: subtotal, gst: gst, grandTotal: grandTotal, payableNow: payableNow };
     }
 
     function renderPOSCart() {
@@ -1137,7 +1167,6 @@
         return;
       }
 
-      // Re-enable place order button when cart has items (unless inside invalid split)
       if (selectedPaymentMode !== 'Split' && placeBtn) {
         placeBtn.disabled = false;
         placeBtn.className = "flex-1 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5";
@@ -1173,8 +1202,12 @@
       var custPhone = document.getElementById('posCustPhone').value.trim();
       var custName = document.getElementById('posCustName').value.trim();
 
-      var isHoldOrder = !selectedPaymentMode; 
-      var actualPaymentMode = selectedPaymentMode || 'UNPAID';
+      var isHoldOrder = !selectedPaymentMode && calc.payableNow > 0; 
+      var actualPaymentMode = selectedPaymentMode;
+
+      if (!actualPaymentMode) {
+        actualPaymentMode = alreadyPaidAmount > 0 ? (calc.payableNow === 0 ? alreadyPaidMode : 'PARTIALLY_PAID') : 'UNPAID';
+      }
 
       var splitDetails = null;
       if (selectedPaymentMode === 'Split') {
@@ -1197,6 +1230,9 @@
         subtotal: calc.subtotal,
         gst: calc.gst,
         total: calc.grandTotal,
+        payable_now: calc.payableNow,
+        already_paid: alreadyPaidAmount,
+        already_paid_mode: alreadyPaidMode,
         guests: currentGuestCount,
         is_hold: isHoldOrder,
         cash_received: currentCashReceived,
@@ -1236,6 +1272,14 @@
           </div>
         `;
       }).join('');
+
+      var diffSection = '';
+      if (payload.already_paid > 0) {
+        diffSection = `
+          <div class="row" style="color:#047857;"><span>Previously Paid (${payload.already_paid_mode}):</span><span>-₹${payload.already_paid.toFixed(2)}</span></div>
+          <div class="row" style="font-weight:900;"><span>Balance Paid Now:</span><span>₹${(payload.payable_now || 0).toFixed(2)}</span></div>
+        `;
+      }
 
       var cashSection = '';
       if (payload.payment_mode === 'Cash' && payload.cash_received > 0) {
@@ -1277,7 +1321,8 @@
           <div class="divider"></div>
           <div class="row"><span>Subtotal:</span><span>₹${calc.subtotal.toFixed(2)}</span></div>
           <div class="row"><span>GST (5%):</span><span>₹${calc.gst.toFixed(2)}</span></div>
-          <div class="row" style="font-size:16px; font-weight:900;"><span>TOTAL:</span><span>₹${calc.grandTotal.toFixed(2)}</span></div>
+          <div class="row" style="font-size:16px; font-weight:900;"><span>TOTAL BILL:</span><span>₹${calc.grandTotal.toFixed(2)}</span></div>
+          ${diffSection}
           ${cashSection}
           ${splitSection}
           <div class="divider"></div>
@@ -1402,14 +1447,16 @@
       currentPOSOrderType = orderType || 'Dine-In';
       selectedPOSTableId = tableId || 'T01';
       editingActiveOrderId = null;
+      alreadyPaidAmount = 0;
+      alreadyPaidMode = '';
       posCart = [];
       selectedPaymentMode = null; 
       currentCashReceived = 0;
       currentCashChange = 0;
 
+      document.getElementById('boxAlreadyPaidBanner').classList.add('hidden');
       document.getElementById('splitPaymentPanel').classList.add('hidden');
 
-      // Ensure Place Order button is enabled when opening screen
       var placeBtn = document.getElementById('btnPOSPlaceOrder');
       if (placeBtn) {
         placeBtn.disabled = false;
