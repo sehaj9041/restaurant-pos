@@ -234,7 +234,7 @@
         </button>
       </div>
 
-      <button onclick="openPOSOrderView('Takeaway', '')" class="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1 rounded-lg text-xs font-black shadow-2xs">
+      <button onclick="openPOSOrderView('Takeaway', '')" class="bg-orange-500 hover:bg-orange-600 text-white px-3.5 py-1 rounded-lg text-xs font-black shadow-2xs">
         + New Order
       </button>
     </div>
@@ -412,7 +412,7 @@
           <span id="posCalcGrandTotal" class="text-xl font-black text-gray-900">₹0</span>
         </div>
 
-        <!-- 4 PAYMENT BUTTONS (DEFAULT NEUTRAL) -->
+        <!-- 4 PAYMENT BUTTONS -->
         <div class="grid grid-cols-4 gap-1.5 pt-1">
           <button onclick="selectPaymentMode('Cash')" id="payBtnCash" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1">💵 Cash</button>
           <button onclick="selectPaymentMode('UPI')" id="payBtnUPI" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1">📲 UPI</button>
@@ -741,7 +741,6 @@
         kioskBox.classList.add('hidden');
       }
 
-      // Helper function to build 7-button actions box exactly like screenshot
       function buildOrderActionCard(o) {
         var itemsText = (o.items || []).map(function(i){ return i.name + ' x' + i.qty; }).join(', ');
         var isUnpaid = (o.payment_mode === 'UNPAID' || !o.payment_mode || o.payment_mode === 'Due' || o.status === 'RUNNING_TABLE');
@@ -775,7 +774,7 @@
               </div>
             </div>
 
-            <!-- 7 ACTION BUTTONS ROW (EXACT LIKE SCREENSHOT) -->
+            <!-- 7 ACTION BUTTONS ROW -->
             <div class="flex flex-wrap gap-1.5 pt-1.5 border-t border-gray-100 text-[10px] font-bold">
               <button onclick="actionViewOrder(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs">
                 <span>👁</span> View
@@ -792,9 +791,11 @@
               <button onclick="actionEditAddItems(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs">
                 <span>+</span> Add Item
               </button>
+              <!-- Settle Opens Same POS Billing Page -->
               <button onclick="actionSettlePopup(${o.id})" class="px-2.5 py-1 bg-orange-100 hover:bg-orange-200 text-orange-800 rounded border border-orange-300 font-black shadow-2xs">
                 Settle
               </button>
+              <!-- Mark Due Opens Same POS Billing Page with DUE preselected -->
               <button onclick="actionMarkDue(${o.id})" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded border border-rose-300 font-black shadow-2xs">
                 Mark Due
               </button>
@@ -871,21 +872,17 @@
       renderPOSCart();
     }
 
+    // SETTLE BUTTON: Opens the exact same POS Billing page
     function actionSettlePopup(orderId) {
-      var mode = prompt("Settle karne ke liye payment mode likhein:\n(Cash / UPI / Card):", "Cash");
-      if (!mode) return;
-      settleActiveOrder(orderId, mode.toUpperCase().trim());
+      actionEditAddItems(orderId);
+      switchRightTab('SUMMARY');
     }
 
+    // MARK DUE BUTTON: Opens the exact same POS Billing page with DUE pre-selected
     function actionMarkDue(orderId) {
-      var ord = allActiveOrders.find(function(o) { return o.id === orderId; });
-      if (!ord) return;
-      if (!ord.customer_phone || ord.customer_phone.trim().length < 10) {
-        var ph = prompt("Khata (Due) lagane ke liye customer ka Phone Number zaroori hai. Number daalein:");
-        if (!ph) return;
-        ord.customer_phone = ph.trim();
-      }
-      settleActiveOrder(orderId, 'DUE');
+      actionEditAddItems(orderId);
+      selectPaymentMode('DUE');
+      switchRightTab('SUMMARY');
     }
 
     function openPOSOrderView(orderType, tableId) {
