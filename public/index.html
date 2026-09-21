@@ -315,7 +315,6 @@
               <button class="bg-orange-500 text-white px-2 py-1 rounded shadow-xs text-[11px] font-bold">▦</button>
               <button class="text-gray-500 px-2 py-1 rounded text-[11px] font-bold">☰</button>
             </div>
-            <!-- Menu Search: Connected to Virtual Text Keyboard -->
             <input type="text" id="menuItemSearch" onfocus="openVirtualKeyboard(this, 'text')" oninput="filterMenuItems()" placeholder="Search menu..." class="border border-gray-200 rounded-lg px-2.5 py-1 text-xs outline-none bg-gray-50 focus:bg-white focus:border-orange-500 w-44">
           </div>
         </div>
@@ -370,12 +369,10 @@
           <div class="space-y-2 pt-1">
             <div>
               <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Phone Number</label>
-              <!-- Numeric Keyboard triggers on click -->
               <input type="text" id="posCustPhone" readonly onclick="openVirtualKeyboard(this, 'number')" placeholder="e.g. 9876543210" class="w-full border border-gray-200 rounded-lg p-2 text-xs font-mono outline-none focus:border-orange-500 bg-white cursor-pointer">
             </div>
             <div>
               <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Customer Name</label>
-              <!-- QWERTY Keyboard triggers on click -->
               <input type="text" id="posCustName" readonly onclick="openVirtualKeyboard(this, 'text')" placeholder="Auto-filled from phone" class="w-full border border-gray-200 rounded-lg p-2 text-xs outline-none focus:border-orange-500 bg-white cursor-pointer">
             </div>
           </div>
@@ -414,18 +411,30 @@
           <span id="posCalcGrandTotal" class="text-xl font-black text-gray-900">₹0</span>
         </div>
 
+        <!-- 4 PAYMENT BUTTONS: DEFAULT NEUTRAL (NONE SELECTED) -->
         <div class="grid grid-cols-4 gap-1.5 pt-1">
-          <button onclick="selectPaymentMode('Cash')" id="payBtnCash" class="border-2 border-emerald-600 bg-emerald-50 text-emerald-800 py-1.5 rounded-lg text-xs font-black flex items-center justify-center gap-1">💵 Cash</button>
-          <button onclick="selectPaymentMode('UPI')" id="payBtnUPI" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1">📲 UPI</button>
-          <button onclick="selectPaymentMode('Card')" id="payBtnCard" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1">💳 Card</button>
-          <button onclick="selectPaymentMode('DUE')" id="payBtnSplit" class="border border-gray-200 hover:bg-gray-50 text-rose-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1">📒 Due</button>
+          <button onclick="selectPaymentMode('Cash')" id="payBtnCash" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1">
+            💵 Cash
+          </button>
+          <button onclick="selectPaymentMode('UPI')" id="payBtnUPI" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1">
+            📲 UPI
+          </button>
+          <button onclick="selectPaymentMode('Card')" id="payBtnCard" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1">
+            💳 Card
+          </button>
+          <button onclick="selectPaymentMode('DUE')" id="payBtnSplit" class="border border-gray-200 hover:bg-gray-50 text-rose-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1">
+            📒 Due
+          </button>
         </div>
 
+        <!-- PLACE ORDER & KOT BUTTONS -->
         <div class="flex gap-1.5 pt-1">
-          <button onclick="executePlaceOrder()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5">
+          <button onclick="executePlaceOrder()" class="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5">
             <span>✓ Place Order</span>
           </button>
-          <button onclick="triggerManualKOTDirect()" title="Print KOT Slip" class="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3 rounded-xl font-black text-xs">🍳</button>
+          <button onclick="triggerManualKOTDirect()" title="Print KOT Slip" class="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3 rounded-xl font-black text-xs">
+            🍳
+          </button>
         </div>
       </div>
     </div>
@@ -540,11 +549,13 @@
     var selectedPriceFilter = 'ALL';
     var currentPOSOrderType = 'Dine-In';
     var selectedPOSTableId = 'T01';
-    var selectedPaymentMode = 'Cash';
+    
+    // DEFAULT PAYMENT MODE: NULL (Koi bhi pre-selected nahi rahega)
+    var selectedPaymentMode = null; 
+    
     var currentGuestCount = 1;
     var editingActiveOrderId = null;
 
-    // Active Input Element Target for Virtual Keyboards
     var activeVirtualInput = null;
     var isShiftActive = false;
 
@@ -569,7 +580,7 @@
       }
     }
 
-    // ================= VIRTUAL KEYBOARD ENGINE =================
+    // ================= VIRTUAL KEYBOARDS =================
     function openVirtualKeyboard(inputEl, mode) {
       activeVirtualInput = inputEl;
       closeVirtualKeyboards();
@@ -606,8 +617,7 @@
       var char = isShiftActive ? letter.toUpperCase() : letter.toLowerCase();
       activeVirtualInput.value += char;
       triggerInputEvent(activeVirtualInput);
-
-      if (isShiftActive) toggleShiftMode(); // Auto-reset shift after 1 character
+      if (isShiftActive) toggleShiftMode();
     }
 
     function keypadBackspace() {
@@ -822,6 +832,13 @@
       selectedPOSTableId = tableId || 'T01';
       editingActiveOrderId = null;
       posCart = [];
+      selectedPaymentMode = null; // Reset: No payment mode selected
+
+      // Reset payment button styles to neutral gray
+      ['Cash', 'UPI', 'Card', 'Split'].forEach(function(m) {
+        var btn = document.getElementById('payBtn' + m);
+        if (btn) btn.className = "border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1";
+      });
 
       var running = allActiveOrders.find(function(o) {
         return o.order_type === 'Dine-In' && o.table_no && o.table_no.toUpperCase() === selectedPOSTableId.toUpperCase();
@@ -834,6 +851,9 @@
         posCart = (running.items || []).map(function(i) {
           return { name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1 };
         });
+        if (running.payment_mode && running.payment_mode !== 'Cash') {
+          selectPaymentMode(running.payment_mode);
+        }
       } else {
         document.getElementById('posCustPhone').value = '';
         document.getElementById('posCustName').value = '';
@@ -1023,17 +1043,26 @@
       document.getElementById('guestCountLabel').innerText = currentGuestCount;
     }
 
+    // Toggle Payment Selection: Click again to de-select
     function selectPaymentMode(mode) {
-      selectedPaymentMode = mode;
+      if (selectedPaymentMode === mode) {
+        selectedPaymentMode = null; // Unselect if clicked again
+      } else {
+        selectedPaymentMode = mode;
+      }
+
       ['Cash', 'UPI', 'Card', 'Split'].forEach(function(m) {
         var btn = document.getElementById('payBtn' + m);
         if (btn) {
           btn.className = "border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1";
         }
       });
-      var activeBtn = document.getElementById('payBtn' + (mode === 'DUE' ? 'Split' : mode));
-      if (activeBtn) {
-        activeBtn.className = "border-2 border-emerald-600 bg-emerald-50 text-emerald-800 py-1.5 rounded-lg text-xs font-black flex items-center justify-center gap-1";
+
+      if (selectedPaymentMode) {
+        var activeBtn = document.getElementById('payBtn' + (selectedPaymentMode === 'DUE' ? 'Split' : selectedPaymentMode));
+        if (activeBtn) {
+          activeBtn.className = "border-2 border-emerald-600 bg-emerald-50 text-emerald-800 py-1.5 rounded-lg text-xs font-black flex items-center justify-center gap-1";
+        }
       }
     }
 
@@ -1083,6 +1112,7 @@
       calculatePOSBillTotals();
     }
 
+    // ================= PLACE ORDER (WITH HOLD / UNPAID LOGIC) =================
     function executePlaceOrder() {
       if (!posCart.length) return alert('Kripya cart mein item add karein!');
 
@@ -1090,17 +1120,22 @@
       var custPhone = document.getElementById('posCustPhone').value.trim();
       var custName = document.getElementById('posCustName').value.trim();
 
+      // Agar payment mode select nahi hai -> is_hold = true (Status: RUNNING_TABLE)
+      var isHoldOrder = !selectedPaymentMode; 
+      var actualPaymentMode = selectedPaymentMode || 'UNPAID';
+
       var payload = {
         order_type: currentPOSOrderType,
         table_no: (currentPOSOrderType === 'Dine-In' ? selectedPOSTableId : ''),
         customer_name: custName,
         customer_phone: custPhone,
         items: [...posCart],
-        payment_mode: selectedPaymentMode,
+        payment_mode: actualPaymentMode,
         subtotal: calc.subtotal,
         gst: calc.gst,
         total: calc.grandTotal,
-        guests: currentGuestCount
+        guests: currentGuestCount,
+        is_hold: isHoldOrder
       };
 
       if (editingActiveOrderId) {
@@ -1109,7 +1144,10 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         }).then(function(){
-          dispatchDirectPrintReceipt(editingActiveOrderId, payload, calc);
+          // Agar payment mode selected tha tabhi bill print karein
+          if (!isHoldOrder) {
+            dispatchDirectPrintReceipt(editingActiveOrderId, payload, calc);
+          }
           closePOSOrderView();
         });
       } else {
@@ -1120,7 +1158,10 @@
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {
-          dispatchDirectPrintReceipt(data.orderId, payload, calc);
+          // Agar payment mode selected tha tabhi final bill print karein, hold par nahi
+          if (!isHoldOrder) {
+            dispatchDirectPrintReceipt(data.orderId, payload, calc);
+          }
           closePOSOrderView();
         });
       }
