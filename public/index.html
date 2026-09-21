@@ -165,7 +165,7 @@
         <span>💵</span> Open Drawer
       </button>
 
-      <button onclick="openPOSOrderView('Takeaway', '')" class="bg-orange-500 hover:bg-orange-600 text-white px-3.5 py-1.5 rounded-lg text-xs font-black shadow-sm flex items-center gap-1 transition">
+      <button onclick="openPOSOrderView('Takeaway', '')" class="bg-orange-500 hover:bg-orange-600 text-white px-3.5 py-1 rounded-lg text-xs font-black shadow-sm flex items-center gap-1 transition">
         <span>+</span> New Order
       </button>
     </div>
@@ -417,7 +417,7 @@
           <span id="posCalcPayableNow" class="text-2xl font-black text-gray-900">₹0</span>
         </div>
 
-        <!-- 5 PAYMENT BUTTONS: CASH, UPI, CARD, SPLIT, DUE -->
+        <!-- 5 PAYMENT BUTTONS -->
         <div class="grid grid-cols-5 gap-1 pt-1">
           <button onclick="handlePaymentModeClick('Cash')" id="payBtnCash" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5">💵 Cash</button>
           <button onclick="handlePaymentModeClick('UPI')" id="payBtnUPI" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5">📲 UPI</button>
@@ -621,7 +621,7 @@
     var currentGuestCount = 1;
     var editingActiveOrderId = null;
 
-    // DIFFERENTIAL BILLING STATE
+    // LOCKED DIFFERENTIAL BILLING STATE
     var alreadyPaidAmount = 0;
     var alreadyPaidMode = '';
 
@@ -850,8 +850,30 @@
 
       function buildOrderActionCard(o) {
         var itemsText = (o.items || []).map(function(i){ return i.name + ' x' + i.qty; }).join(', ');
-        var isUnpaid = (o.payment_mode === 'UNPAID' || !o.payment_mode || o.payment_mode === 'Due' || o.status === 'RUNNING_TABLE');
-        var statusTag = isUnpaid ? 'Unpaid' : (o.payment_mode || 'Paid');
+        var totalAmount = Number(o.total) || 0;
+        var paidAmount = Number(o.paid_amount) || Number(o.already_paid) || 0;
+
+        // If explicitly paid originally
+        if (paidAmount === 0 && o.payment_mode && o.payment_mode !== 'UNPAID' && o.payment_mode !== 'DUE' && o.status !== 'RUNNING_TABLE') {
+          paidAmount = totalAmount;
+        }
+
+        var remainingDue = Math.max(0, totalAmount - paidAmount);
+        var isFullyPaid = paidAmount >= totalAmount && totalAmount > 0;
+        var isPartiallyPaid = paidAmount > 0 && remainingDue > 0;
+
+        var statusTag = '';
+        var tagBg = '';
+        if (isFullyPaid) {
+          statusTag = o.payment_mode || 'Paid';
+          tagBg = 'bg-emerald-100 text-emerald-800';
+        } else if (isPartiallyPaid) {
+          statusTag = `Partially Paid (Due: ₹${remainingDue})`;
+          tagBg = 'bg-amber-100 text-amber-900';
+        } else {
+          statusTag = (o.payment_mode === 'DUE') ? 'Due' : 'Unpaid';
+          tagBg = 'bg-amber-100 text-amber-900';
+        }
 
         return `
           <div class="border border-orange-200/70 bg-[#fffdfa] rounded-xl p-3 text-xs shadow-2xs hover:border-orange-300 transition space-y-2">
@@ -873,7 +895,7 @@
                 <div class="flex items-center justify-end gap-1 mb-0.5">
                   <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100/70 text-orange-800">Preparing</span>
                   <span class="font-black text-gray-900 text-sm">₹${o.total}</span>
-                  <span class="text-[10px] font-black px-1.5 py-0.5 rounded ${isUnpaid ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800'}">${statusTag}</span>
+                  <span class="text-[10px] font-black px-1.5 py-0.5 rounded ${tagBg}">${statusTag}</span>
                 </div>
                 <div class="text-[9px] text-gray-400">${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short' })} • ${new Date().toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' })}</div>
               </div>
@@ -909,7 +931,7 @@
       var ord = allActiveOrders.find(function(o) { return o.id === orderId; });
       if (!ord) return;
       var items = (ord.items || []).map(function(i) { return `• ${i.name} x${i.qty} = ₹${i.price * i.qty}`; }).join('\n');
-      alert(`Order #ORD-${orderId} (${ord.order_type})\nTotal: ₹${ord.total} | Status: ${ord.payment_mode || 'UNPAID'}\n\nItems:\n${items}`);
+      alert(`Order #ORD-${orderId} (${ord.order_type})\nTotal: ₹${ord.total} | Paid: ₹${ord.paid_amount || ord.already_paid || 0}\n\nItems:\n${items}`);
     }
 
     function actionAddPhone(orderId) {
@@ -938,7 +960,7 @@
       dispatchDirectPrintReceipt(ord.id, ord, calc);
     }
 
-    // ================= EDIT / ADD ITEMS TO ORDER (WITH ALREADY PAID DETECTION) =================
+    // ================= PERSISTENT DIFFERENTIAL DETECTION =================
     function actionEditAddItems(orderId) {
       var ord = allActiveOrders.find(function(o) { return o.id === orderId; });
       if (!ord) return;
@@ -946,11 +968,17 @@
       openPOSOrderView(ord.order_type, ord.table_no || '');
       editingActiveOrderId = ord.id;
       
-      // If already paid previously:
-      var isAlreadyPaid = (ord.payment_mode && ord.payment_mode !== 'UNPAID' && ord.payment_mode !== 'DUE' && ord.status !== 'RUNNING_TABLE');
-      if (isAlreadyPaid) {
-        alreadyPaidAmount = Number(ord.total) || 0;
-        alreadyPaidMode = ord.payment_mode;
+      // Look up recorded historical payment
+      var recordedPaid = Number(ord.paid_amount) || Number(ord.already_paid) || 0;
+      
+      // Fallback: If order had a paid payment mode originally
+      if (recordedPaid === 0 && ord.payment_mode && ord.payment_mode !== 'UNPAID' && ord.payment_mode !== 'DUE' && ord.status !== 'RUNNING_TABLE') {
+        recordedPaid = Number(ord.total) || 0;
+      }
+
+      if (recordedPaid > 0) {
+        alreadyPaidAmount = recordedPaid;
+        alreadyPaidMode = ord.already_paid_mode || ord.payment_mode || 'Paid';
         
         document.getElementById('boxAlreadyPaidBanner').classList.remove('hidden');
         document.getElementById('lblAlreadyPaidAmount').innerText = '₹' + alreadyPaidAmount.toFixed(2);
@@ -1195,6 +1223,7 @@
       calculatePOSBillTotals();
     }
 
+    // ================= ROBUST PLACE ORDER (PRESERVES PAID AMOUNTS) =================
     function executePlaceOrder() {
       if (!posCart.length) return alert('Kripya cart mein item add karein!');
 
@@ -1202,22 +1231,49 @@
       var custPhone = document.getElementById('posCustPhone').value.trim();
       var custName = document.getElementById('posCustName').value.trim();
 
-      var isHoldOrder = !selectedPaymentMode && calc.payableNow > 0; 
-      var actualPaymentMode = selectedPaymentMode;
+      // Total new money collected right now in this punch
+      var newlyPaidAmount = 0;
+      var newPaymentModeLabel = selectedPaymentMode;
 
-      if (!actualPaymentMode) {
-        actualPaymentMode = alreadyPaidAmount > 0 ? (calc.payableNow === 0 ? alreadyPaidMode : 'PARTIALLY_PAID') : 'UNPAID';
+      if (selectedPaymentMode === 'Cash' || selectedPaymentMode === 'UPI' || selectedPaymentMode === 'Card') {
+        newlyPaidAmount = calc.payableNow;
+      } else if (selectedPaymentMode === 'Split') {
+        var a1 = parseFloat(document.getElementById('splitAmount1').value) || 0;
+        var a2 = parseFloat(document.getElementById('splitAmount2').value) || 0;
+        newlyPaidAmount = a1 + a2;
+        newPaymentModeLabel = `SPLIT (${splitMethod1}: ₹${a1}, ${splitMethod2}: ₹${a2})`;
+      }
+
+      // Total money collected on this order to date
+      var cumulativeTotalPaid = alreadyPaidAmount + newlyPaidAmount;
+      var remainingDue = Math.max(0, calc.grandTotal - cumulativeTotalPaid);
+
+      // Determine final status & payment mode label
+      var finalMode = '';
+      var isHoldOrder = false;
+
+      if (remainingDue === 0) {
+        // Fully paid
+        finalMode = alreadyPaidAmount > 0 
+          ? (newlyPaidAmount > 0 ? `${alreadyPaidMode} + ${newPaymentModeLabel}` : alreadyPaidMode)
+          : (newPaymentModeLabel || 'PAID');
+        isHoldOrder = false;
+      } else {
+        // Partial or Hold
+        if (cumulativeTotalPaid > 0) {
+          finalMode = `PARTIAL (${alreadyPaidMode || 'Paid'}: ₹${cumulativeTotalPaid}, Due: ₹${remainingDue})`;
+        } else {
+          finalMode = (selectedPaymentMode === 'DUE') ? 'DUE' : 'UNPAID';
+        }
+        isHoldOrder = !selectedPaymentMode && remainingDue > 0;
       }
 
       var splitDetails = null;
       if (selectedPaymentMode === 'Split') {
-        var a1 = parseFloat(document.getElementById('splitAmount1').value) || 0;
-        var a2 = parseFloat(document.getElementById('splitAmount2').value) || 0;
         splitDetails = [
-          { mode: splitMethod1, amount: a1 },
-          { mode: splitMethod2, amount: a2 }
+          { mode: splitMethod1, amount: parseFloat(document.getElementById('splitAmount1').value) || 0 },
+          { mode: splitMethod2, amount: parseFloat(document.getElementById('splitAmount2').value) || 0 }
         ];
-        actualPaymentMode = `SPLIT (${splitMethod1}: ₹${a1}, ${splitMethod2}: ₹${a2})`;
       }
 
       var payload = {
@@ -1226,13 +1282,14 @@
         customer_name: custName,
         customer_phone: custPhone,
         items: [...posCart],
-        payment_mode: actualPaymentMode,
+        payment_mode: finalMode,
         subtotal: calc.subtotal,
         gst: calc.gst,
         total: calc.grandTotal,
-        payable_now: calc.payableNow,
-        already_paid: alreadyPaidAmount,
-        already_paid_mode: alreadyPaidMode,
+        paid_amount: cumulativeTotalPaid,
+        already_paid: cumulativeTotalPaid,
+        already_paid_mode: finalMode,
+        payable_now: remainingDue,
         guests: currentGuestCount,
         is_hold: isHoldOrder,
         cash_received: currentCashReceived,
@@ -1246,7 +1303,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         }).then(function(){
-          if (!isHoldOrder) dispatchDirectPrintReceipt(editingActiveOrderId, payload, calc);
+          if (newlyPaidAmount > 0) dispatchDirectPrintReceipt(editingActiveOrderId, payload, calc);
           closePOSOrderView();
         });
       } else {
@@ -1257,7 +1314,7 @@
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {
-          if (!isHoldOrder) dispatchDirectPrintReceipt(data.orderId, payload, calc);
+          if (newlyPaidAmount > 0) dispatchDirectPrintReceipt(data.orderId, payload, calc);
           closePOSOrderView();
         });
       }
@@ -1274,15 +1331,15 @@
       }).join('');
 
       var diffSection = '';
-      if (payload.already_paid > 0) {
+      if (alreadyPaidAmount > 0) {
         diffSection = `
-          <div class="row" style="color:#047857;"><span>Previously Paid (${payload.already_paid_mode}):</span><span>-₹${payload.already_paid.toFixed(2)}</span></div>
-          <div class="row" style="font-weight:900;"><span>Balance Paid Now:</span><span>₹${(payload.payable_now || 0).toFixed(2)}</span></div>
+          <div class="row" style="color:#047857;"><span>Previously Paid:</span><span>-₹${alreadyPaidAmount.toFixed(2)}</span></div>
+          <div class="row" style="font-weight:900;"><span>Balance Paid Now:</span><span>₹${(calc.payableNow || 0).toFixed(2)}</span></div>
         `;
       }
 
       var cashSection = '';
-      if (payload.payment_mode === 'Cash' && payload.cash_received > 0) {
+      if (payload.payment_mode && payload.payment_mode.includes('Cash') && payload.cash_received > 0) {
         cashSection = `
           <div class="row"><span>Cash Tendered:</span><span>₹${payload.cash_received.toFixed(2)}</span></div>
           <div class="row"><span>Change Returned:</span><span>₹${payload.cash_change.toFixed(2)}</span></div>
