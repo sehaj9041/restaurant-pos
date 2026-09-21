@@ -992,20 +992,19 @@
       }, 250);
     }
 
-    // ================= 100% ZERO-PAPER DIRECT HARDWARE CASH DRAWER KICK =================
+    // ================= 100% ZERO-PAPER LOCAL AGENT CASH DRAWER KICK =================
     function openCashDrawer() {
-      fetch('/api/drawer/open', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+      fetch('http://127.0.0.1:4567/kick-drawer', {
+        method: 'POST'
       })
       .then(function(res) { return res.json(); })
       .then(function(data) {
         if (!data.success) {
-          console.error('Drawer trigger failed on server:', data.message);
+          console.error('Drawer trigger failed via local agent');
         }
       })
       .catch(function(err) {
-        console.error('Network error triggering drawer:', err);
+        console.error('Agent offline! Kripya counter PC par StartAgent.bat run karein.', err);
       });
     }
 
