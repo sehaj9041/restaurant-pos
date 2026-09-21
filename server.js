@@ -10,10 +10,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Auto-migrate paid_amount column in orders table if not present (SQLite & PostgreSQL safe)
-db.run("ALTER TABLE orders ADD COLUMN paid_amount REAL DEFAULT 0", (err) => {
-  // Column already exists ya error ignore karein
-});
+// Auto-migrate paid_amount column in orders table if not present
+db.run("ALTER TABLE orders ADD COLUMN paid_amount REAL DEFAULT 0", (err) => {});
 
 // Ngrok warning bypass & Customer ordering route
 app.use((req, res, next) => {
@@ -246,15 +244,14 @@ app.delete('/api/menu/:id', (req, res) => {
   });
 });
 
-// 7. ACTIVE ORDERS (PAID_AMOUNT SELECT INCLUDED)
+// 7. ACTIVE ORDERS (INCLUDES KITCHEN_ACTIVE SO PAID ORDERS REMAIN VISIBLE UNTIL KDS FINISHES)
 app.get('/api/orders/active', (req, res) => {
   const query = `
     SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount
     FROM orders 
-    WHERE status IN ('RUNNING_TABLE', 'PENDING', 'DUE_PENDING', 'RUNNING') 
+    WHERE status IN ('RUNNING_TABLE', 'PENDING', 'DUE_PENDING', 'RUNNING', 'KITCHEN_ACTIVE') 
        OR order_type = 'Online' 
        OR payment_mode = 'Due'
-       OR (paid_amount > 0 AND status != 'COMPLETED')
     ORDER BY id DESC
   `;
 
@@ -289,14 +286,12 @@ app.get('/api/orders/active', (req, res) => {
 // Update Existing Order In-Place (LOCKED PAID AMOUNT PROTECTION)
 app.put('/api/orders/:id', (req, res) => {
   const orderId = req.params.id;
-  const { order_type, table_no, customer_name, customer_phone, items, subtotal, discount, gst, total, payment_mode, paid_amount, is_hold } = req.body;
+  const { order_type, table_no, customer_name, customer_phone, items, subtotal, discount, gst, total, payment_mode, paid_amount } = req.body;
 
-  // Retrieve current database order to guarantee recorded payments are never wiped out
   db.get("SELECT total, paid_amount, payment_mode FROM orders WHERE id = ?", [orderId], (errGet, currentOrder) => {
     let prevPaid = 0;
     if (currentOrder) {
       prevPaid = Number(currentOrder.paid_amount) || 0;
-      // Fallback: Agar pehle order paid tha aur paid_amount zero tha
       if (prevPaid === 0 && currentOrder.payment_mode && currentOrder.payment_mode !== 'UNPAID' && currentOrder.payment_mode !== 'DUE' && !currentOrder.payment_mode.includes('PARTIAL')) {
         prevPaid = Number(currentOrder.total) || 0;
       }
@@ -309,8 +304,8 @@ app.put('/api/orders/:id', (req, res) => {
     let status = 'RUNNING_TABLE';
     let finalMode = payment_mode;
 
-    if (finalRemaining === 0) {
-      status = 'COMPLETED';
+    if (finalRemaining === 0 && finalPaid > 0) {
+      status = 'KITCHEN_ACTIVE';
     } else if (finalPaid > 0) {
       status = 'RUNNING_TABLE';
       finalMode = `PARTIAL (Paid: ₹${finalPaid}, Due: ₹${finalRemaining})`;
@@ -357,6 +352,8 @@ app.post('/api/orders', async (req, res) => {
     status = 'RUNNING_TABLE';
   } else if (payment_mode === 'DUE') {
     status = 'DUE_PENDING';
+  } else if (initialPaid >= Number(total) && Number(total) > 0) {
+    status = 'KITCHEN_ACTIVE';
   }
 
   const insertOrderQuery = `
@@ -439,7 +436,7 @@ app.post('/api/orders', async (req, res) => {
   });
 });
 
-// Settle Order API
+// SETTLE ORDER API: Settle hone par status 'KITCHEN_ACTIVE' rahega (KDS par bana rahega!)
 app.post('/api/tables/:id/settle', (req, res) => {
   const { payment_mode } = req.body;
   db.get("SELECT * FROM orders WHERE id = ?", [req.params.id], (err, order) => {
@@ -455,7 +452,7 @@ app.post('/api/tables/:id/settle', (req, res) => {
         res.json({ success: true, duePending: true });
       });
     } else {
-      db.run("UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE id = ?", [payment_mode, req.params.id], (err2) => {
+      db.run("UPDATE orders SET status = 'KITCHEN_ACTIVE', payment_mode = ?, paid_amount = total WHERE id = ?", [payment_mode, req.params.id], (err2) => {
         if (err2) return res.status(500).json({ error: err2.message });
         res.json({ success: true });
       });
@@ -602,12 +599,12 @@ app.post('/api/printer/print-daily-summary', async (req, res) => {
   }
 });
 
-// 9. KITCHEN KOT, DIRECTORY & EXPENSES
+// 9. KITCHEN KOT
 app.get('/api/kot', (req, res) => {
   db.all(
     `SELECT o.id, o.order_type, o.table_no, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
      FROM orders o 
-     WHERE o.status IN ('PENDING', 'RUNNING_TABLE', 'DUE_PENDING', 'RUNNING') 
+     WHERE o.status IN ('PENDING', 'RUNNING_TABLE', 'DUE_PENDING', 'RUNNING', 'KITCHEN_ACTIVE') 
      ORDER BY o.id ASC`,
     [],
     async (err, orders) => {
@@ -636,9 +633,10 @@ app.get('/api/kot', (req, res) => {
   );
 });
 
+// KDS COMPLETE: ONLY HERE the order is completely marked COMPLETED and removed from both screens!
 app.post('/api/kot/:id/complete', (req, res) => {
-  db.get("SELECT payment_mode FROM orders WHERE id = ?", [req.params.id], (err, row) => {
-    if (row && row.payment_mode === 'DUE') {
+  db.get("SELECT payment_mode, status FROM orders WHERE id = ?", [req.params.id], (err, row) => {
+    if (row && (row.payment_mode === 'DUE' || row.status === 'DUE_PENDING')) {
       db.run("UPDATE orders SET status = 'DUE_PENDING' WHERE id = ?", [req.params.id], () => res.json({ success: true }));
     } else {
       db.run("UPDATE orders SET status = 'COMPLETED' WHERE id = ?", [req.params.id], () => res.json({ success: true }));
