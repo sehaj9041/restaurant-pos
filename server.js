@@ -10,6 +10,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Auto-migrate paid_amount column in orders table if not present (SQLite & PostgreSQL safe)
+db.run("ALTER TABLE orders ADD COLUMN paid_amount REAL DEFAULT 0", (err) => {
+  // Column already exists ya error ignore karein
+});
+
 // Ngrok warning bypass & Customer ordering route
 app.use((req, res, next) => {
   res.setHeader('ngrok-skip-browser-warning', 'true');
@@ -68,7 +73,6 @@ app.get('/api/display/current', (req, res) => {
 
 // 2. HARDWARE ZERO-PAPER CASH DRAWER PULSE
 const triggerDrawerKick = (req, res) => {
-  // Posiflex PP8803 ke driver ko direct raw ESC/POS pulse bhejta hai bina spooler form-feed create kiye
   const psCommand = `powershell -NoProfile -Command "$bytes = [byte[]](0x1B,0x70,0x00,0x19,0xFA); $path = [System.IO.Path]::Combine($env:TEMP, 'kick.bin'); [System.IO.File]::WriteAllBytes($path, $bytes); Get-Content -Path $path -Encoding Byte -Raw | Out-Printer -Name 'Posiflex PP8803 Printer'; Remove-Item $path -ErrorAction SilentlyContinue"`;
 
   exec(psCommand, (error) => {
@@ -242,14 +246,15 @@ app.delete('/api/menu/:id', (req, res) => {
   });
 });
 
-// 7. ACTIVE ORDERS (RUNNING_TABLE, PENDING, DUE_PENDING)
+// 7. ACTIVE ORDERS (PAID_AMOUNT SELECT INCLUDED)
 app.get('/api/orders/active', (req, res) => {
   const query = `
-    SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status
+    SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount
     FROM orders 
     WHERE status IN ('RUNNING_TABLE', 'PENDING', 'DUE_PENDING', 'RUNNING') 
        OR order_type = 'Online' 
        OR payment_mode = 'Due'
+       OR (paid_amount > 0 AND status != 'COMPLETED')
     ORDER BY id DESC
   `;
 
@@ -281,39 +286,71 @@ app.get('/api/orders/active', (req, res) => {
   });
 });
 
-// Update Existing Order In-Place
+// Update Existing Order In-Place (LOCKED PAID AMOUNT PROTECTION)
 app.put('/api/orders/:id', (req, res) => {
   const orderId = req.params.id;
-  const { order_type, table_no, customer_name, customer_phone, items, subtotal, discount, gst, total, payment_mode } = req.body;
-  const status = (payment_mode === 'DUE') ? 'DUE_PENDING' : 'RUNNING_TABLE';
+  const { order_type, table_no, customer_name, customer_phone, items, subtotal, discount, gst, total, payment_mode, paid_amount, is_hold } = req.body;
 
-  db.run(
-    `UPDATE orders SET order_type = ?, table_no = ?, customer_name = ?, customer_phone = ?, subtotal = ?, discount = ?, gst = ?, total = ?, payment_mode = ?, status = ? WHERE id = ?`,
-    [order_type, table_no || '', customer_name || '', customer_phone || '', subtotal, discount || 0, gst || 0, total, payment_mode, status, orderId],
-    async (err) => {
-      if (err) return res.status(500).json({ error: err.message });
-
-      db.run("DELETE FROM order_items WHERE order_id = ?", [orderId], async () => {
-        if (Array.isArray(items) && items.length > 0) {
-          for (const item of items) {
-            await new Promise((resolve) => {
-              db.run(
-                "INSERT INTO order_items (order_id, name, qty, price, notes) VALUES (?, ?, ?, ?, ?)",
-                [orderId, item.name, item.qty, item.price, item.notes || ''],
-                () => resolve()
-              );
-            });
-          }
-        }
-        res.json({ success: true, orderId });
-      });
+  // Retrieve current database order to guarantee recorded payments are never wiped out
+  db.get("SELECT total, paid_amount, payment_mode FROM orders WHERE id = ?", [orderId], (errGet, currentOrder) => {
+    let prevPaid = 0;
+    if (currentOrder) {
+      prevPaid = Number(currentOrder.paid_amount) || 0;
+      // Fallback: Agar pehle order paid tha aur paid_amount zero tha
+      if (prevPaid === 0 && currentOrder.payment_mode && currentOrder.payment_mode !== 'UNPAID' && currentOrder.payment_mode !== 'DUE' && !currentOrder.payment_mode.includes('PARTIAL')) {
+        prevPaid = Number(currentOrder.total) || 0;
+      }
     }
-  );
+
+    let incomingPaid = Number(paid_amount) || 0;
+    let finalPaid = Math.max(prevPaid, incomingPaid);
+    let finalRemaining = Math.max(0, Number(total) - finalPaid);
+
+    let status = 'RUNNING_TABLE';
+    let finalMode = payment_mode;
+
+    if (finalRemaining === 0) {
+      status = 'COMPLETED';
+    } else if (finalPaid > 0) {
+      status = 'RUNNING_TABLE';
+      finalMode = `PARTIAL (Paid: ₹${finalPaid}, Due: ₹${finalRemaining})`;
+    } else if (payment_mode === 'DUE') {
+      status = 'DUE_PENDING';
+    }
+
+    db.run(
+      `UPDATE orders SET order_type = ?, table_no = ?, customer_name = ?, customer_phone = ?, subtotal = ?, discount = ?, gst = ?, total = ?, payment_mode = ?, status = ?, paid_amount = ? WHERE id = ?`,
+      [order_type, table_no || '', customer_name || '', customer_phone || '', subtotal, discount || 0, gst || 0, total, finalMode, status, finalPaid, orderId],
+      async (err) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        db.run("DELETE FROM order_items WHERE order_id = ?", [orderId], async () => {
+          if (Array.isArray(items) && items.length > 0) {
+            for (const item of items) {
+              await new Promise((resolve) => {
+                db.run(
+                  "INSERT INTO order_items (order_id, name, qty, price, notes) VALUES (?, ?, ?, ?, ?)",
+                  [orderId, item.name, item.qty, item.price, item.notes || ''],
+                  () => resolve()
+                );
+              });
+            }
+          }
+          res.json({ success: true, orderId, paid_amount: finalPaid, payable_now: finalRemaining });
+        });
+      }
+    );
+  });
 });
 
 // Punch Order: Starts in 'PENDING' so it actively shows on KDS
 app.post('/api/orders', async (req, res) => {
-  const { order_type, table_no, customer_name, customer_phone, items, payment_mode, subtotal, discount, gst, total, is_hold } = req.body;
+  const { order_type, table_no, customer_name, customer_phone, items, payment_mode, subtotal, discount, gst, total, is_hold, paid_amount } = req.body;
+
+  let initialPaid = 0;
+  if (payment_mode && payment_mode !== 'UNPAID' && payment_mode !== 'DUE') {
+    initialPaid = Number(paid_amount) || Number(total) || 0;
+  }
 
   let status = 'PENDING';
   if (is_hold) {
@@ -323,8 +360,8 @@ app.post('/api/orders', async (req, res) => {
   }
 
   const insertOrderQuery = `
-    INSERT INTO orders (order_type, table_no, customer_name, customer_phone, status, payment_mode, subtotal, discount, gst, total)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO orders (order_type, table_no, customer_name, customer_phone, status, payment_mode, subtotal, discount, gst, total, paid_amount)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     RETURNING id
   `;
 
@@ -338,7 +375,8 @@ app.post('/api/orders', async (req, res) => {
     subtotal || 0,
     discount || 0,
     gst || 0,
-    total || 0
+    total || 0,
+    initialPaid
   ];
 
   db.all(insertOrderQuery, orderValues, async (err, result) => {
@@ -393,7 +431,7 @@ app.post('/api/orders', async (req, res) => {
         });
       }
 
-      res.json({ success: true, orderId: orderId });
+      res.json({ success: true, orderId: orderId, paid_amount: initialPaid });
     } catch (itemErr) {
       console.error('Order items insert error:', itemErr.message);
       res.json({ success: true, orderId: orderId });
@@ -408,15 +446,16 @@ app.post('/api/tables/:id/settle', (req, res) => {
     if (err || !order) return res.status(404).json({ error: 'Order not found' });
     
     if (payment_mode === 'DUE') {
+      const remainingDue = Math.max(0, Number(order.total) - (Number(order.paid_amount) || 0));
       if (order.customer_phone && order.customer_phone.length >= 10) {
-        db.run("UPDATE customers SET due_balance = due_balance + ? WHERE phone = ?", [order.total, order.customer_phone]);
+        db.run("UPDATE customers SET due_balance = due_balance + ? WHERE phone = ?", [remainingDue, order.customer_phone]);
       }
       db.run("UPDATE orders SET status = 'DUE_PENDING', payment_mode = 'DUE' WHERE id = ?", [req.params.id], (err2) => {
         if (err2) return res.status(500).json({ error: err2.message });
         res.json({ success: true, duePending: true });
       });
     } else {
-      db.run("UPDATE orders SET status = 'COMPLETED', payment_mode = ? WHERE id = ?", [payment_mode, req.params.id], (err2) => {
+      db.run("UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE id = ?", [payment_mode, req.params.id], (err2) => {
         if (err2) return res.status(500).json({ error: err2.message });
         res.json({ success: true });
       });
@@ -526,7 +565,6 @@ app.post('/api/printer/print-kot', async (req, res) => {
   }
 });
 
-// Daily Summary Silent Thermal Slip API
 app.post('/api/printer/print-daily-summary', async (req, res) => {
   const { summary, dateRange } = req.body;
   try {
@@ -633,13 +671,12 @@ app.post('/api/expenses', (req, res) => {
   );
 });
 
-// ================= 10. ADVANCED MULTI-DIMENSIONAL REPORTS API =================
+// 10. ADVANCED MULTI-DIMENSIONAL REPORTS API
 app.get('/api/reports/analytics', (req, res) => {
   const { startDate, endDate } = req.query;
   const start = startDate ? startDate : new Date().toISOString().slice(0, 10);
   const end = endDate ? endDate : new Date().toISOString().slice(0, 10);
 
-  // 1. Overall Financial Summary
   const summaryQuery = `
     SELECT 
       COUNT(*) AS total_orders,
@@ -655,7 +692,6 @@ app.get('/api/reports/analytics', (req, res) => {
       AND status != 'RUNNING_TABLE'
   `;
 
-  // 2. Expenses Query
   const expenseQuery = `
     SELECT 
       COALESCE(SUM(amount), 0) as total_expense,
@@ -664,7 +700,6 @@ app.get('/api/reports/analytics', (req, res) => {
     WHERE created_at::date BETWEEN ?::date AND ?::date
   `;
 
-  // 3. Top Selling Items Analytics
   const topItemsQuery = `
     SELECT oi.name, SUM(oi.qty) as total_qty, SUM(oi.price * oi.qty) as total_revenue
     FROM order_items oi
@@ -676,7 +711,6 @@ app.get('/api/reports/analytics', (req, res) => {
     LIMIT 10
   `;
 
-  // 4. Detailed Orders History
   const ordersListQuery = `
     SELECT id, order_type, table_no, customer_name, customer_phone, payment_mode, status, subtotal, discount, gst, total, created_at
     FROM orders 
@@ -728,7 +762,6 @@ app.post('/api/settings', (req, res) => {
 
 app.get('/api/system/backup', (req, res) => res.download(path.join(__dirname, 'restaurant.db'), `POS_Backup_${new Date().toISOString().slice(0, 10)}.db`));
 
-// Reset daily sales: Due orders and active due balances are preserved
 app.post('/api/system/reset-orders', (req, res) => {
   db.run(`DELETE FROM order_items WHERE order_id IN (
     SELECT id FROM orders WHERE status = 'COMPLETED' AND payment_mode != 'DUE'
