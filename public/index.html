@@ -274,13 +274,14 @@
       <div id="kioskUnassignedList" class="space-y-2"></div>
     </div>
 
+    <!-- LOWER QUEUES: TAKEAWAY & DELIVERY WITH 7 ACTIONS BUTTONS -->
     <div class="grid grid-cols-2 gap-3">
       <div class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs flex flex-col">
         <div class="flex justify-between items-center text-xs font-black text-gray-800 border-b pb-2 mb-2">
           <span class="flex items-center gap-1.5">🛍 Takeaway Queue</span>
           <span id="takeawayQueueBadge" class="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
         </div>
-        <div id="takeawayQueueList" class="space-y-2 flex-1 overflow-y-auto max-h-[350px] pr-1">
+        <div id="takeawayQueueList" class="space-y-2 flex-1 overflow-y-auto max-h-[420px] pr-1">
           <p class="text-xs text-gray-400 italic text-center py-6">No takeaway orders in queue</p>
         </div>
       </div>
@@ -290,7 +291,7 @@
           <span class="flex items-center gap-1.5">🛵 Delivery</span>
           <span id="deliveryQueueBadge" class="bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
         </div>
-        <div id="deliveryQueueList" class="space-y-2 flex-1 overflow-y-auto max-h-[350px] pr-1">
+        <div id="deliveryQueueList" class="space-y-2 flex-1 overflow-y-auto max-h-[420px] pr-1">
           <p class="text-xs text-gray-400 italic text-center py-6">No delivery orders in queue</p>
         </div>
       </div>
@@ -411,36 +412,25 @@
           <span id="posCalcGrandTotal" class="text-xl font-black text-gray-900">₹0</span>
         </div>
 
-        <!-- 4 PAYMENT BUTTONS: DEFAULT NEUTRAL (NONE SELECTED) -->
+        <!-- 4 PAYMENT BUTTONS (DEFAULT NEUTRAL) -->
         <div class="grid grid-cols-4 gap-1.5 pt-1">
-          <button onclick="selectPaymentMode('Cash')" id="payBtnCash" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1">
-            💵 Cash
-          </button>
-          <button onclick="selectPaymentMode('UPI')" id="payBtnUPI" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1">
-            📲 UPI
-          </button>
-          <button onclick="selectPaymentMode('Card')" id="payBtnCard" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1">
-            💳 Card
-          </button>
-          <button onclick="selectPaymentMode('DUE')" id="payBtnSplit" class="border border-gray-200 hover:bg-gray-50 text-rose-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1">
-            📒 Due
-          </button>
+          <button onclick="selectPaymentMode('Cash')" id="payBtnCash" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1">💵 Cash</button>
+          <button onclick="selectPaymentMode('UPI')" id="payBtnUPI" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1">📲 UPI</button>
+          <button onclick="selectPaymentMode('Card')" id="payBtnCard" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1">💳 Card</button>
+          <button onclick="selectPaymentMode('DUE')" id="payBtnSplit" class="border border-gray-200 hover:bg-gray-50 text-rose-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1">📒 Due</button>
         </div>
 
-        <!-- PLACE ORDER & KOT BUTTONS -->
         <div class="flex gap-1.5 pt-1">
           <button onclick="executePlaceOrder()" class="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5">
             <span>✓ Place Order</span>
           </button>
-          <button onclick="triggerManualKOTDirect()" title="Print KOT Slip" class="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3 rounded-xl font-black text-xs">
-            🍳
-          </button>
+          <button onclick="triggerManualKOTDirect()" title="Print KOT Slip" class="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3 rounded-xl font-black text-xs">🍳</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ================= VIRTUAL KEYBOARD 1: COMPACT NUMERIC PAD ================= -->
+  <!-- ================= VIRTUAL KEYBOARDS ================= -->
   <div id="vKeypadNum" class="fixed right-4 bottom-4 w-72 bg-[#f1f3f5] border border-gray-300 rounded-2xl shadow-2xl p-3 z-50 hidden select-none">
     <div class="flex justify-between items-center mb-2 pb-1 border-b border-gray-200 text-gray-500 text-xs">
       <span class="font-bold">⌨</span>
@@ -469,15 +459,12 @@
     </button>
   </div>
 
-  <!-- ================= VIRTUAL KEYBOARD 2: QWERTY TEXT KEYBOARD ================= -->
   <div id="vKeypadText" class="fixed left-1/2 -translate-x-1/2 bottom-3 w-[520px] bg-[#eef0f3] border border-gray-300 rounded-3xl shadow-2xl p-3 z-50 hidden select-none">
     <div class="flex justify-between items-center mb-2 px-2 text-xs text-gray-500">
       <span class="font-bold text-[11px]">⌨</span>
       <span id="textPadDisplayLabel" class="font-bold text-gray-700 truncate max-w-[300px]">Type here...</span>
       <button onclick="closeVirtualKeyboards()" class="text-xs font-bold text-gray-500 hover:text-black">Hide</button>
     </div>
-
-    <!-- Numbers Row -->
     <div class="grid grid-cols-10 gap-1 mb-1">
       <button onclick="keypadPress('1')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">1</button>
       <button onclick="keypadPress('2')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">2</button>
@@ -490,8 +477,6 @@
       <button onclick="keypadPress('9')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">9</button>
       <button onclick="keypadPress('0')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">0</button>
     </div>
-
-    <!-- QWERTY Row 1 -->
     <div class="grid grid-cols-10 gap-1 mb-1">
       <button onclick="keypadPressLetter('q')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">q</button>
       <button onclick="keypadPressLetter('w')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">w</button>
@@ -504,8 +489,6 @@
       <button onclick="keypadPressLetter('o')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">o</button>
       <button onclick="keypadPressLetter('p')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">p</button>
     </div>
-
-    <!-- QWERTY Row 2 -->
     <div class="grid grid-cols-9 gap-1 px-4 mb-1">
       <button onclick="keypadPressLetter('a')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">a</button>
       <button onclick="keypadPressLetter('s')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">s</button>
@@ -517,8 +500,6 @@
       <button onclick="keypadPressLetter('k')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">k</button>
       <button onclick="keypadPressLetter('l')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">l</button>
     </div>
-
-    <!-- QWERTY Row 3 -->
     <div class="flex gap-1 mb-1.5">
       <button onclick="toggleShiftMode()" id="btnShiftKey" class="w-12 bg-gray-200 active:bg-gray-300 text-gray-700 font-bold text-xs py-2.5 rounded-lg shadow-2xs">⇧</button>
       <div class="grid grid-cols-7 gap-1 flex-1">
@@ -532,8 +513,6 @@
       </div>
       <button onclick="keypadBackspace()" class="w-12 bg-gray-200 active:bg-gray-300 text-gray-700 font-bold text-sm py-2.5 rounded-lg shadow-2xs flex items-center justify-center">⌫</button>
     </div>
-
-    <!-- Space & Return Row -->
     <div class="flex gap-1.5">
       <button onclick="keypadPress(' ')" class="flex-1 bg-white active:bg-gray-200 text-gray-400 font-bold text-xs py-2.5 rounded-lg shadow-2xs">space</button>
       <button onclick="closeVirtualKeyboards()" class="w-24 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-black text-xs py-2.5 rounded-lg shadow-2xs">return</button>
@@ -549,10 +528,7 @@
     var selectedPriceFilter = 'ALL';
     var currentPOSOrderType = 'Dine-In';
     var selectedPOSTableId = 'T01';
-    
-    // DEFAULT PAYMENT MODE: NULL (Koi bhi pre-selected nahi rahega)
     var selectedPaymentMode = null; 
-    
     var currentGuestCount = 1;
     var editingActiveOrderId = null;
 
@@ -730,6 +706,7 @@
       }).join('');
     }
 
+    // ================= QUEUES CARD WITH 7 BUTTONS =================
     function renderAllQueues() {
       var unassignedKiosk = allActiveOrders.filter(function(o) {
         return o.order_type === 'Dine-In' && (!o.table_no || o.table_no.trim() === '' || o.table_no === 'Direct');
@@ -764,35 +741,75 @@
         kioskBox.classList.add('hidden');
       }
 
+      // Helper function to build 7-button actions box exactly like screenshot
+      function buildOrderActionCard(o) {
+        var itemsText = (o.items || []).map(function(i){ return i.name + ' x' + i.qty; }).join(', ');
+        var isUnpaid = (o.payment_mode === 'UNPAID' || !o.payment_mode || o.payment_mode === 'Due' || o.status === 'RUNNING_TABLE');
+        var statusTag = isUnpaid ? 'Unpaid' : (o.payment_mode || 'Paid');
+
+        return `
+          <div class="border border-orange-200/70 bg-[#fffdfa] rounded-xl p-3 text-xs shadow-2xs hover:border-orange-300 transition space-y-2">
+            <!-- Header Row -->
+            <div class="flex justify-between items-start">
+              <div>
+                <div class="flex items-center gap-1.5">
+                  <span class="text-gray-500 font-bold text-[10px]">Token ${o.id.toString().padStart(3, '0')}</span>
+                  <span class="font-black text-gray-800 text-xs">ORD-${o.id}</span>
+                </div>
+                <div class="text-[11px] text-gray-600 mt-0.5 line-clamp-1">${itemsText || 'Order placed'}</div>
+                <div class="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
+                  <span>👤 ${o.customer_name || 'Sehaj'}</span>
+                  <span class="bg-gray-100 text-gray-500 font-bold px-1 rounded text-[9px]">You</span>
+                  ${o.customer_phone ? `<span class="ml-1 text-gray-500 font-mono">(${o.customer_phone})</span>` : ''}
+                </div>
+              </div>
+
+              <!-- Price & Status Badge -->
+              <div class="text-right">
+                <div class="flex items-center justify-end gap-1 mb-0.5">
+                  <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100/70 text-orange-800">Preparing</span>
+                  <span class="font-black text-gray-900 text-sm">₹${o.total}</span>
+                  <span class="text-[10px] font-black px-1.5 py-0.5 rounded ${isUnpaid ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800'}">${statusTag}</span>
+                </div>
+                <div class="text-[9px] text-gray-400">${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short' })} • ${new Date().toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' })}</div>
+              </div>
+            </div>
+
+            <!-- 7 ACTION BUTTONS ROW (EXACT LIKE SCREENSHOT) -->
+            <div class="flex flex-wrap gap-1.5 pt-1.5 border-t border-gray-100 text-[10px] font-bold">
+              <button onclick="actionViewOrder(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs">
+                <span>👁</span> View
+              </button>
+              <button onclick="actionAddPhone(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-orange-700 rounded border border-orange-200 flex items-center gap-1 shadow-2xs">
+                <span>📞</span> Add phone
+              </button>
+              <button onclick="actionPrintKOT(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs">
+                <span>🍳</span> KOT •
+              </button>
+              <button onclick="actionPrintReceipt(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs">
+                <span>🖨</span> Print Receipt
+              </button>
+              <button onclick="actionEditAddItems(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs">
+                <span>+</span> Add Item
+              </button>
+              <button onclick="actionSettlePopup(${o.id})" class="px-2.5 py-1 bg-orange-100 hover:bg-orange-200 text-orange-800 rounded border border-orange-300 font-black shadow-2xs">
+                Settle
+              </button>
+              <button onclick="actionMarkDue(${o.id})" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded border border-rose-300 font-black shadow-2xs">
+                Mark Due
+              </button>
+            </div>
+          </div>
+        `;
+      }
+
       var takeawayOrders = allActiveOrders.filter(function(o) { return o.order_type === 'Takeaway'; });
       document.getElementById('takeawayQueueBadge').innerText = takeawayOrders.length;
       var tList = document.getElementById('takeawayQueueList');
       if (!takeawayOrders.length) {
         tList.innerHTML = '<p class="text-xs text-gray-400 italic text-center py-6">No takeaway orders in queue</p>';
       } else {
-        tList.innerHTML = takeawayOrders.map(function(o) {
-          var itemsText = (o.items || []).map(function(i){ return i.name + ' x' + i.qty; }).join(', ');
-          return `
-            <div class="border border-orange-100 bg-orange-50/20 rounded-xl p-2.5 text-xs hover:border-orange-300 transition">
-              <div class="flex justify-between items-start mb-1">
-                <div>
-                  <span class="font-bold text-gray-500 text-[10px]">Token #${o.id}</span>
-                  <span class="font-black text-gray-800 ml-1">ORD-${o.id}</span>
-                </div>
-                <div class="flex items-center gap-1.5">
-                  <span class="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800">Preparing</span>
-                  <span class="font-black text-gray-900">₹${o.total}</span>
-                  <span class="text-[9px] font-bold px-1 rounded ${o.payment_mode === 'DUE' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}">${o.payment_mode || 'PAID'}</span>
-                </div>
-              </div>
-              <div class="text-[11px] text-gray-600 line-clamp-1 mb-1.5">${itemsText}</div>
-              <div class="flex justify-between items-center text-[10px] text-gray-400">
-                <span>👤 ${o.customer_name || 'Counter'}</span>
-                <button onclick="settleActiveOrder(${o.id}, 'CASH')" class="px-2 py-0.5 bg-emerald-600 text-white rounded font-black hover:bg-emerald-700">Settle</button>
-              </div>
-            </div>
-          `;
-        }).join('');
+        tList.innerHTML = takeawayOrders.map(buildOrderActionCard).join('');
       }
 
       var deliveryOrders = allActiveOrders.filter(function(o) { return o.order_type === 'Delivery'; });
@@ -801,30 +818,74 @@
       if (!deliveryOrders.length) {
         dList.innerHTML = '<p class="text-xs text-gray-400 italic text-center py-6">No delivery orders in queue</p>';
       } else {
-        dList.innerHTML = deliveryOrders.map(function(o) {
-          var itemsText = (o.items || []).map(function(i){ return i.name + ' x' + i.qty; }).join(', ');
-          return `
-            <div class="border border-purple-100 bg-purple-50/20 rounded-xl p-2.5 text-xs hover:border-purple-300 transition">
-              <div class="flex justify-between items-start mb-1">
-                <div>
-                  <span class="font-bold text-gray-500 text-[10px]">Token #${o.id}</span>
-                  <span class="font-black text-gray-800 ml-1">ORD-${o.id} • ${o.customer_name || 'Guest'}</span>
-                </div>
-                <div class="flex items-center gap-1.5">
-                  <span class="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800">Preparing</span>
-                  <span class="font-black text-gray-900">₹${o.total}</span>
-                  <span class="text-[9px] font-bold px-1 rounded ${o.payment_mode === 'DUE' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}">${o.payment_mode || 'PAID'}</span>
-                </div>
-              </div>
-              <div class="text-[11px] text-gray-600 line-clamp-1 mb-1.5">${itemsText}</div>
-              <div class="flex justify-between items-center text-[10px] text-gray-400">
-                <span>📞 ${o.customer_phone || '-'}</span>
-                <button onclick="settleActiveOrder(${o.id}, 'CASH')" class="px-2 py-0.5 bg-emerald-600 text-white rounded font-black hover:bg-emerald-700">Settle</button>
-              </div>
-            </div>
-          `;
-        }).join('');
+        dList.innerHTML = deliveryOrders.map(buildOrderActionCard).join('');
       }
+    }
+
+    // ================= ACTIONS HANDLERS (7 BUTTONS LOGIC) =================
+    function actionViewOrder(orderId) {
+      var ord = allActiveOrders.find(function(o) { return o.id === orderId; });
+      if (!ord) return;
+      var items = (ord.items || []).map(function(i) { return `• ${i.name} x${i.qty} = ₹${i.price * i.qty}`; }).join('\n');
+      alert(`Order #ORD-${orderId} (${ord.order_type})\nTotal: ₹${ord.total} | Status: ${ord.payment_mode || 'UNPAID'}\n\nItems:\n${items}`);
+    }
+
+    function actionAddPhone(orderId) {
+      var ph = prompt("Customer Phone Number daalein:");
+      if (!ph || ph.trim().length < 10) return alert("Valid 10-digit number enter karein!");
+      fetch('/api/orders/' + orderId + '/update-phone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: ph.trim() })
+      }).then(function(){ fetchActiveOrders(); });
+    }
+
+    function actionPrintKOT(orderId) {
+      var ord = allActiveOrders.find(function(o) { return o.id === orderId; });
+      if (!ord) return;
+      posCart = (ord.items || []).map(function(i){ return { name: i.name, qty: i.qty }; });
+      selectedPOSTableId = ord.table_no || ord.order_type;
+      currentPOSOrderType = ord.order_type;
+      triggerManualKOTDirect();
+    }
+
+    function actionPrintReceipt(orderId) {
+      var ord = allActiveOrders.find(function(o) { return o.id === orderId; });
+      if (!ord) return;
+      var calc = {
+        subtotal: Number(ord.subtotal) || Number(ord.total),
+        gst: Number(ord.gst) || 0,
+        grandTotal: Number(ord.total)
+      };
+      dispatchDirectPrintReceipt(ord.id, ord, calc);
+    }
+
+    function actionEditAddItems(orderId) {
+      var ord = allActiveOrders.find(function(o) { return o.id === orderId; });
+      if (!ord) return;
+      openPOSOrderView(ord.order_type, ord.table_no || '');
+      editingActiveOrderId = ord.id;
+      posCart = (ord.items || []).map(function(i) {
+        return { name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1 };
+      });
+      renderPOSCart();
+    }
+
+    function actionSettlePopup(orderId) {
+      var mode = prompt("Settle karne ke liye payment mode likhein:\n(Cash / UPI / Card):", "Cash");
+      if (!mode) return;
+      settleActiveOrder(orderId, mode.toUpperCase().trim());
+    }
+
+    function actionMarkDue(orderId) {
+      var ord = allActiveOrders.find(function(o) { return o.id === orderId; });
+      if (!ord) return;
+      if (!ord.customer_phone || ord.customer_phone.trim().length < 10) {
+        var ph = prompt("Khata (Due) lagane ke liye customer ka Phone Number zaroori hai. Number daalein:");
+        if (!ph) return;
+        ord.customer_phone = ph.trim();
+      }
+      settleActiveOrder(orderId, 'DUE');
     }
 
     function openPOSOrderView(orderType, tableId) {
@@ -832,9 +893,8 @@
       selectedPOSTableId = tableId || 'T01';
       editingActiveOrderId = null;
       posCart = [];
-      selectedPaymentMode = null; // Reset: No payment mode selected
+      selectedPaymentMode = null; 
 
-      // Reset payment button styles to neutral gray
       ['Cash', 'UPI', 'Card', 'Split'].forEach(function(m) {
         var btn = document.getElementById('payBtn' + m);
         if (btn) btn.className = "border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1";
@@ -1043,10 +1103,9 @@
       document.getElementById('guestCountLabel').innerText = currentGuestCount;
     }
 
-    // Toggle Payment Selection: Click again to de-select
     function selectPaymentMode(mode) {
       if (selectedPaymentMode === mode) {
-        selectedPaymentMode = null; // Unselect if clicked again
+        selectedPaymentMode = null;
       } else {
         selectedPaymentMode = mode;
       }
@@ -1112,7 +1171,6 @@
       calculatePOSBillTotals();
     }
 
-    // ================= PLACE ORDER (WITH HOLD / UNPAID LOGIC) =================
     function executePlaceOrder() {
       if (!posCart.length) return alert('Kripya cart mein item add karein!');
 
@@ -1120,7 +1178,6 @@
       var custPhone = document.getElementById('posCustPhone').value.trim();
       var custName = document.getElementById('posCustName').value.trim();
 
-      // Agar payment mode select nahi hai -> is_hold = true (Status: RUNNING_TABLE)
       var isHoldOrder = !selectedPaymentMode; 
       var actualPaymentMode = selectedPaymentMode || 'UNPAID';
 
@@ -1144,7 +1201,6 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         }).then(function(){
-          // Agar payment mode selected tha tabhi bill print karein
           if (!isHoldOrder) {
             dispatchDirectPrintReceipt(editingActiveOrderId, payload, calc);
           }
@@ -1158,7 +1214,6 @@
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {
-          // Agar payment mode selected tha tabhi final bill print karein, hold par nahi
           if (!isHoldOrder) {
             dispatchDirectPrintReceipt(data.orderId, payload, calc);
           }
@@ -1265,7 +1320,6 @@
       }, 250);
     }
 
-    // ================= 100% ZERO-PAPER LOCAL AGENT CASH DRAWER KICK =================
     function openCashDrawer() {
       fetch('http://127.0.0.1:4567/kick-drawer', {
         method: 'POST'
@@ -1290,7 +1344,6 @@
     }
 
     function settleActiveOrder(orderId, mode) {
-      if (!confirm(`Settle Order #${orderId} with ${mode}?`)) return;
       fetch('/api/tables/' + orderId + '/settle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
