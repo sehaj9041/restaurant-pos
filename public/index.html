@@ -414,14 +414,14 @@
           <button onclick="handlePaymentModeClick('DUE')" id="payBtnDUE" class="border border-rose-200 hover:bg-rose-50 text-rose-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5">📒 Due</button>
         </div>
 
-        <!-- SPLIT PAYMENT PANEL (WITH BLANK AMOUNTS ON OPEN) -->
+        <!-- SPLIT PAYMENT PANEL -->
         <div id="splitPaymentPanel" class="hidden border border-blue-100 bg-blue-50/20 rounded-xl p-2.5 space-y-2.5 text-xs mt-2">
           <div class="flex justify-between items-center border-b border-blue-100 pb-1.5">
             <span class="font-bold text-gray-600 text-[11px]">Total to split</span>
             <span id="splitTotalDisplay" class="font-black text-gray-900 text-sm">₹0.00</span>
           </div>
 
-          <!-- Method 1 (Cash, UPI, Card, Due) -->
+          <!-- Method 1 -->
           <div class="bg-white border border-gray-200 rounded-lg p-2 space-y-1.5 shadow-2xs">
             <div class="flex justify-between items-center text-[10px] font-bold text-gray-400 uppercase">
               <span>Method 1</span>
@@ -435,14 +435,13 @@
             <div class="flex items-center gap-1.5 pt-1">
               <div class="relative flex-1">
                 <span class="absolute left-2 top-1.5 text-gray-400 font-bold text-xs">₹</span>
-                <!-- Position = 'left' so keyboard won't overlap the right panel! -->
                 <input type="text" id="splitAmount1" readonly onclick="openVirtualKeyboard(this, 'number', 'left')" oninput="calculateSplitDifference()" placeholder="0.00" value="" class="w-full pl-5 pr-2 py-1 border border-gray-200 rounded text-xs font-mono font-black outline-none bg-gray-50 focus:bg-white cursor-pointer">
               </div>
               <button onclick="fillSplitRest(1)" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-[10px] font-bold px-2.5 py-1 rounded border">Fill rest</button>
             </div>
           </div>
 
-          <!-- Method 2 (Cash, UPI, Card, Due) -->
+          <!-- Method 2 -->
           <div class="bg-white border border-gray-200 rounded-lg p-2 space-y-1.5 shadow-2xs">
             <div class="flex justify-between items-center text-[10px] font-bold text-gray-400 uppercase">
               <span>Method 2</span>
@@ -456,7 +455,6 @@
             <div class="flex items-center gap-1.5 pt-1">
               <div class="relative flex-1">
                 <span class="absolute left-2 top-1.5 text-gray-400 font-bold text-xs">₹</span>
-                <!-- Position = 'left' so keyboard won't overlap the right panel! -->
                 <input type="text" id="splitAmount2" readonly onclick="openVirtualKeyboard(this, 'number', 'left')" oninput="calculateSplitDifference()" placeholder="0.00" value="" class="w-full pl-5 pr-2 py-1 border border-gray-200 rounded text-xs font-mono font-black outline-none bg-gray-50 focus:bg-white cursor-pointer">
               </div>
               <button onclick="fillSplitRest(2)" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-[10px] font-bold px-2.5 py-1 rounded border">Fill rest</button>
@@ -469,8 +467,9 @@
           </div>
         </div>
 
+        <!-- PLACE ORDER BUTTON (ALWAYS ACTIVE WHEN CART HAS ITEMS) -->
         <div class="flex gap-1.5 pt-1">
-          <button id="btnPOSPlaceOrder" onclick="executePlaceOrder()" class="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5">
+          <button id="btnPOSPlaceOrder" onclick="executePlaceOrder()" class="flex-1 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5">
             <span>✓ Place Order</span>
           </button>
           <button onclick="triggerManualKOTDirect()" title="Print KOT Slip" class="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3 rounded-xl font-black text-xs">🍳</button>
@@ -479,7 +478,7 @@
     </div>
   </div>
 
-  <!-- ================= CASH RECEIVED POPUP MODAL (BLANK AMOUNT ON OPEN) ================= -->
+  <!-- ================= CASH RECEIVED POPUP MODAL ================= -->
   <div id="modalCashReceived" class="fixed inset-0 bg-black/40 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-4 space-y-3.5 border border-gray-200 animate-in fade-in zoom-in duration-150">
       <div class="flex justify-between items-center border-b border-gray-100 pb-2">
@@ -494,7 +493,6 @@
 
       <div>
         <label class="block text-[10px] font-black uppercase text-gray-400 mb-1">CASH RECEIVED</label>
-        <!-- Opens Numpad cleanly without prefilling! -->
         <input type="text" id="inputCashReceivedAmount" readonly onclick="openVirtualKeyboard(this, 'number', 'center')" oninput="calculateChangeReturn()" placeholder="0.00" value="" class="w-full border-2 border-orange-400 rounded-xl p-2.5 text-base font-mono font-black outline-none bg-orange-50/20 focus:bg-white cursor-pointer">
       </div>
 
@@ -510,7 +508,7 @@
     </div>
   </div>
 
-  <!-- ================= VIRTUAL KEYBOARDS (DYNAMIC POSITIONING) ================= -->
+  <!-- ================= VIRTUAL KEYBOARDS ================= -->
   <div id="vKeypadNum" class="fixed bottom-4 w-72 bg-[#f1f3f5] border border-gray-300 rounded-2xl shadow-2xl p-3 z-50 hidden select-none transition-all">
     <div class="flex justify-between items-center mb-2 pb-1 border-b border-gray-200 text-gray-500 text-xs">
       <span class="font-bold">⌨</span>
@@ -982,6 +980,13 @@
       // UPI, Card or DUE
       document.getElementById('splitPaymentPanel').classList.add('hidden');
       selectPaymentMode(mode);
+      
+      // Ensure place order is always enabled when non-split mode is selected
+      var placeBtn = document.getElementById('btnPOSPlaceOrder');
+      if (placeBtn) {
+        placeBtn.disabled = false;
+        placeBtn.className = "flex-1 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5";
+      }
     }
 
     function closeCashReceivedModal() {
@@ -1060,18 +1065,21 @@
       var pending = document.getElementById('splitPendingDiff');
       var placeBtn = document.getElementById('btnPOSPlaceOrder');
 
-      if ((raw1 !== '' || raw2 !== '') && Math.abs(diff) < 0.01) {
-        alertBox.className = "border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-lg p-2 text-[10px] font-bold flex justify-between items-center";
-        msg.innerText = "✓ Exact total matched!";
-        pending.innerText = "₹0.00";
-        placeBtn.disabled = false;
-        placeBtn.className = "flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5";
-      } else {
-        alertBox.className = "border border-rose-200 bg-rose-50 text-rose-700 rounded-lg p-2 text-[10px] font-bold flex justify-between items-center";
-        msg.innerText = "Split must equal the total";
-        pending.innerText = (diff > 0 ? "Remaining: ₹" : "Exceeded: ₹") + Math.abs(diff).toFixed(2);
-        placeBtn.disabled = true;
-        placeBtn.className = "flex-1 bg-gray-300 text-gray-500 py-2.5 rounded-xl font-black text-xs cursor-not-allowed flex items-center justify-center gap-1.5";
+      // Only control place order disable state if Split mode is actually active
+      if (selectedPaymentMode === 'Split') {
+        if ((raw1 !== '' || raw2 !== '') && Math.abs(diff) < 0.01) {
+          alertBox.className = "border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-lg p-2 text-[10px] font-bold flex justify-between items-center";
+          msg.innerText = "✓ Exact total matched!";
+          pending.innerText = "₹0.00";
+          placeBtn.disabled = false;
+          placeBtn.className = "flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5";
+        } else {
+          alertBox.className = "border border-rose-200 bg-rose-50 text-rose-700 rounded-lg p-2 text-[10px] font-bold flex justify-between items-center";
+          msg.innerText = "Split must equal the total";
+          pending.innerText = (diff > 0 ? "Remaining: ₹" : "Exceeded: ₹") + Math.abs(diff).toFixed(2);
+          placeBtn.disabled = true;
+          placeBtn.className = "flex-1 bg-gray-300 text-gray-500 py-2.5 rounded-xl font-black text-xs cursor-not-allowed flex items-center justify-center gap-1.5";
+        }
       }
     }
 
@@ -1093,6 +1101,15 @@
             : "border-2 border-emerald-600 bg-emerald-50 text-emerald-800 py-1.5 rounded-lg text-xs font-black flex items-center justify-center gap-0.5";
         }
       }
+
+      // If user unselects split or selects anything else, re-enable Place Order for Hold/Normal
+      if (selectedPaymentMode !== 'Split') {
+        var placeBtn = document.getElementById('btnPOSPlaceOrder');
+        if (placeBtn) {
+          placeBtn.disabled = false;
+          placeBtn.className = "flex-1 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5";
+        }
+      }
     }
 
     function calculatePOSBillTotals() {
@@ -1112,10 +1129,18 @@
 
     function renderPOSCart() {
       var box = document.getElementById('posCartItemList');
+      var placeBtn = document.getElementById('btnPOSPlaceOrder');
+
       if (!posCart.length) {
         box.innerHTML = '<p class="text-gray-400 text-center py-10 italic text-xs">Cart is empty</p>';
         calculatePOSBillTotals();
         return;
+      }
+
+      // Re-enable place order button when cart has items (unless inside invalid split)
+      if (selectedPaymentMode !== 'Split' && placeBtn) {
+        placeBtn.disabled = false;
+        placeBtn.className = "flex-1 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5";
       }
 
       box.innerHTML = posCart.map(function(item, idx) {
@@ -1383,6 +1408,13 @@
       currentCashChange = 0;
 
       document.getElementById('splitPaymentPanel').classList.add('hidden');
+
+      // Ensure Place Order button is enabled when opening screen
+      var placeBtn = document.getElementById('btnPOSPlaceOrder');
+      if (placeBtn) {
+        placeBtn.disabled = false;
+        placeBtn.className = "flex-1 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5";
+      }
 
       ['Cash', 'UPI', 'Card', 'Split', 'DUE'].forEach(function(m) {
         var btn = document.getElementById('payBtn' + m);
