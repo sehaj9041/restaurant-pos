@@ -25,15 +25,188 @@
     }
   </style>
 </head>
-<body class="bg-[#f8fafc] text-gray-800 font-sans h-screen flex flex-col overflow-hidden select-none">
+<body class="bg-[#f8fafc] text-gray-800 font-sans h-screen flex flex-col overflow-hidden select-none relative">
 
   <!-- Hidden iframe for Silent Receipts Printing -->
   <iframe id="silentPrintFrame" style="position:fixed;right:0;bottom:0;width:0;height:0;border:0;"></iframe>
 
+  <!-- ================= SLIDE-OUT LEFT SIDEBAR DRAWER OVERLAY ================= -->
+  <div id="sidebarBackdrop" onclick="toggleSidebarMenu(false)" class="fixed inset-0 bg-black/40 z-40 hidden transition-opacity duration-200"></div>
+
+  <!-- ================= SLIDE-OUT LEFT SIDEBAR MENU ================= -->
+  <aside id="sidebarDrawer" class="fixed top-0 left-0 h-full w-64 bg-white z-50 shadow-2xl transform -translate-x-full transition-transform duration-200 ease-in-out flex flex-col justify-between border-r border-gray-200 text-xs select-none">
+    
+    <!-- Sidebar Top Header -->
+    <div>
+      <div class="p-3.5 border-b border-gray-100 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-orange-600 text-white font-black flex items-center justify-center text-sm shadow-xs">
+            V
+          </div>
+          <div>
+            <div class="font-black text-gray-800 leading-tight text-[13px]">Vishal Foodiez</div>
+            <div class="text-[9px] font-bold tracking-wider text-gray-400 uppercase">Restaurant Portal</div>
+          </div>
+        </div>
+        <button onclick="toggleSidebarMenu(false)" class="p-1 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition">
+          ✕
+        </button>
+      </div>
+
+      <!-- Navigation Links Container (Scrollable) -->
+      <div class="overflow-y-auto max-h-[calc(100vh-130px)] p-2 space-y-3">
+        
+        <!-- SECTION: OVERVIEW -->
+        <div>
+          <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Overview</div>
+          <div class="space-y-0.5">
+            <button onclick="toggleSidebarMenu(false); closePOSOrderView();" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="text-sm">⚡</span> Dashboard
+            </button>
+          </div>
+        </div>
+
+        <!-- SECTION: OPERATIONS -->
+        <div>
+          <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Operations</div>
+          <div class="space-y-0.5">
+            <button onclick="toggleSidebarMenu(false); closePOSOrderView();" class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-black bg-orange-50 text-orange-600 border border-orange-200 transition">
+              <span class="flex items-center gap-2.5"><span class="text-sm">📑</span> Orders</span>
+            </button>
+            <button onclick="toggleSidebarMenu(false); closePOSOrderView();" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="text-sm">🪑</span> Tables & Floor
+            </button>
+            <button onclick="protectedNav('/kot.html')" class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="flex items-center gap-2.5"><span class="text-sm">🍳</span> Kitchen (KDS)</span>
+              <span class="bg-emerald-100 text-emerald-700 text-[9px] font-black px-1.5 py-0.2 rounded-full">Live</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- SECTION: MENU -->
+        <div>
+          <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Menu</div>
+          <div class="space-y-0.5">
+            <button onclick="protectedNav('/admin.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="text-sm">🍽</span> Menu Management
+            </button>
+          </div>
+        </div>
+
+        <!-- SECTION: INVENTORY -->
+        <div>
+          <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Inventory</div>
+          <div class="space-y-0.5">
+            <button onclick="alert('Inventory module coming soon!')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="text-sm">📦</span> Ingredients & Stock
+            </button>
+            <button onclick="alert('Purchase Orders coming soon!')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="text-sm">📝</span> Purchase Orders
+            </button>
+            <button onclick="alert('Suppliers directory coming soon!')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="text-sm">🚚</span> Suppliers
+            </button>
+          </div>
+        </div>
+
+        <!-- SECTION: BILLING -->
+        <div>
+          <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Billing</div>
+          <div class="space-y-0.5">
+            <button onclick="protectedNav('/report.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="text-sm">🧾</span> Bills & Receipts
+            </button>
+            <button onclick="protectedNav('/report.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="text-sm">💸</span> Expenses
+            </button>
+          </div>
+        </div>
+
+        <!-- SECTION: PEOPLE -->
+        <div>
+          <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">People</div>
+          <div class="space-y-0.5">
+            <button onclick="alert('Staff management coming soon!')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="text-sm">👔</span> Staff
+            </button>
+            <button onclick="protectedNav('/customers.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="text-sm">👥</span> Customers (CRM)
+            </button>
+          </div>
+        </div>
+
+        <!-- SECTION: RESERVATIONS & DELIVERY -->
+        <div>
+          <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Reservations & Delivery</div>
+          <div class="space-y-0.5">
+            <button onclick="alert('Table Reservations coming soon!')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="text-sm">📅</span> Reservations
+            </button>
+            <button onclick="toggleSidebarMenu(false); filterDeliveryView();" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="text-sm">🛵</span> Deliveries
+            </button>
+          </div>
+        </div>
+
+        <!-- SECTION: REPORTS & SUPPORT -->
+        <div>
+          <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Reports & Support</div>
+          <div class="space-y-0.5">
+            <button onclick="protectedNav('/report.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="text-sm">📊</span> Analytics & Reports
+            </button>
+            <button onclick="alert('TadkaTech Support Helpline: +91-XXXXXXXXXX')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="text-sm">🎧</span> Support
+            </button>
+          </div>
+        </div>
+
+        <!-- SECTION: CONFIG -->
+        <div>
+          <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Config</div>
+          <div class="space-y-0.5">
+            <button onclick="alert('WhatsApp marketing & bills coming soon!')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="text-sm">💬</span> WhatsApp
+            </button>
+            <a href="/customer.html" target="_blank" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="text-sm">🖥</span> Kiosk / Devices
+            </a>
+            <button onclick="protectedNav('/admin.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="text-sm">⚙️</span> Settings
+            </button>
+            <button onclick="alert('Latest Update v2.4: Zero-Paper Cash Drawer Kick Integration live!')" class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="flex items-center gap-2.5"><span class="text-sm">📢</span> What's New</span>
+              <span class="bg-orange-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">1</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Sidebar Footer / User Profile Card -->
+    <div class="p-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <div class="w-7 h-7 rounded-full bg-orange-100 border border-orange-300 text-orange-700 font-black flex items-center justify-center text-xs">
+          S
+        </div>
+        <div>
+          <div class="font-black text-gray-800 text-[11px] leading-tight">Sehaj</div>
+          <div class="text-[9px] text-gray-400 font-bold">Owner</div>
+        </div>
+      </div>
+      <button onclick="location.reload()" title="Logout / Reload" class="text-gray-400 hover:text-red-600 transition text-[11px] font-bold flex items-center gap-1">
+        ↪ Log out
+      </button>
+    </div>
+
+  </aside>
+
   <!-- ================= TOP MAIN HEADER NAVBAR ================= -->
   <header class="bg-white border-b border-gray-200 px-4 py-2.5 flex justify-between items-center z-30 shadow-xs">
     <div class="flex items-center gap-3">
-      <button onclick="protectedNav('/admin.html')" class="p-1.5 hover:bg-gray-100 rounded-lg text-gray-600 transition" title="Menu Settings">
+      <!-- 3 Lines Hamburger Menu Button that triggers the Sidebar -->
+      <button onclick="toggleSidebarMenu(true)" class="p-1.5 hover:bg-gray-100 rounded-lg text-gray-600 transition" title="Open Menu">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"/></svg>
       </button>
       <div class="flex items-center gap-2">
@@ -411,6 +584,27 @@
 
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js').catch(function(){});
+      }
+    }
+
+    // ================= SIDEBAR MENU CONTROL =================
+    function toggleSidebarMenu(show) {
+      var drawer = document.getElementById('sidebarDrawer');
+      var backdrop = document.getElementById('sidebarBackdrop');
+
+      if (show) {
+        backdrop.classList.remove('hidden');
+        drawer.classList.remove('-translate-x-full');
+      } else {
+        drawer.classList.add('-translate-x-full');
+        backdrop.classList.add('hidden');
+      }
+    }
+
+    function filterDeliveryView() {
+      var dList = document.getElementById('deliveryQueueList');
+      if (dList) {
+        dList.scrollIntoView({ behavior: 'smooth' });
       }
     }
 
