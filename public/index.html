@@ -35,38 +35,26 @@
 
   <!-- ================= SLIDE-OUT LEFT SIDEBAR MENU ================= -->
   <aside id="sidebarDrawer" class="fixed top-0 left-0 h-full w-64 bg-white z-50 shadow-2xl transform -translate-x-full transition-transform duration-200 ease-in-out flex flex-col justify-between border-r border-gray-200 text-xs select-none">
-    
-    <!-- Sidebar Top Header -->
     <div>
       <div class="p-3.5 border-b border-gray-100 flex items-center justify-between">
         <div class="flex items-center gap-2.5">
-          <div class="w-8 h-8 rounded-lg bg-orange-600 text-white font-black flex items-center justify-center text-sm shadow-xs">
-            V
-          </div>
+          <div class="w-8 h-8 rounded-lg bg-orange-600 text-white font-black flex items-center justify-center text-sm shadow-xs">V</div>
           <div>
             <div class="font-black text-gray-800 leading-tight text-[13px]">Vishal Foodiez</div>
             <div class="text-[9px] font-bold tracking-wider text-gray-400 uppercase">Restaurant Portal</div>
           </div>
         </div>
-        <button onclick="toggleSidebarMenu(false)" class="p-1 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition">
-          ✕
-        </button>
+        <button onclick="toggleSidebarMenu(false)" class="p-1 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition">✕</button>
       </div>
 
-      <!-- Navigation Links Container (Scrollable) -->
       <div class="overflow-y-auto max-h-[calc(100vh-130px)] p-2 space-y-3">
-        
-        <!-- SECTION: OVERVIEW -->
         <div>
           <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Overview</div>
-          <div class="space-y-0.5">
-            <button onclick="toggleSidebarMenu(false); closePOSOrderView();" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
-              <span class="text-sm">⚡</span> Dashboard
-            </button>
-          </div>
+          <button onclick="toggleSidebarMenu(false); closePOSOrderView();" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+            <span class="text-sm">⚡</span> Dashboard
+          </button>
         </div>
 
-        <!-- SECTION: OPERATIONS -->
         <div>
           <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Operations</div>
           <div class="space-y-0.5">
@@ -83,33 +71,13 @@
           </div>
         </div>
 
-        <!-- SECTION: MENU -->
         <div>
           <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Menu</div>
-          <div class="space-y-0.5">
-            <button onclick="protectedNav('/admin.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
-              <span class="text-sm">🍽</span> Menu Management
-            </button>
-          </div>
+          <button onclick="protectedNav('/admin.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+            <span class="text-sm">🍽</span> Menu Management
+          </button>
         </div>
 
-        <!-- SECTION: INVENTORY -->
-        <div>
-          <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Inventory</div>
-          <div class="space-y-0.5">
-            <button onclick="alert('Inventory module coming soon!')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
-              <span class="text-sm">📦</span> Ingredients & Stock
-            </button>
-            <button onclick="alert('Purchase Orders coming soon!')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
-              <span class="text-sm">📝</span> Purchase Orders
-            </button>
-            <button onclick="alert('Suppliers directory coming soon!')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
-              <span class="text-sm">🚚</span> Suppliers
-            </button>
-          </div>
-        </div>
-
-        <!-- SECTION: BILLING -->
         <div>
           <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Billing</div>
           <div class="space-y-0.5">
@@ -122,90 +90,42 @@
           </div>
         </div>
 
-        <!-- SECTION: PEOPLE -->
         <div>
           <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">People</div>
-          <div class="space-y-0.5">
-            <button onclick="alert('Staff management coming soon!')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
-              <span class="text-sm">👔</span> Staff
-            </button>
-            <button onclick="protectedNav('/customers.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
-              <span class="text-sm">👥</span> Customers (CRM)
-            </button>
-          </div>
+          <button onclick="protectedNav('/customers.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+            <span class="text-sm">👥</span> Customers (CRM)
+          </button>
         </div>
 
-        <!-- SECTION: RESERVATIONS & DELIVERY -->
-        <div>
-          <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Reservations & Delivery</div>
-          <div class="space-y-0.5">
-            <button onclick="alert('Table Reservations coming soon!')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
-              <span class="text-sm">📅</span> Reservations
-            </button>
-            <button onclick="toggleSidebarMenu(false); filterDeliveryView();" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
-              <span class="text-sm">🛵</span> Deliveries
-            </button>
-          </div>
-        </div>
-
-        <!-- SECTION: REPORTS & SUPPORT -->
         <div>
           <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Reports & Support</div>
           <div class="space-y-0.5">
             <button onclick="protectedNav('/report.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
               <span class="text-sm">📊</span> Analytics & Reports
             </button>
-            <button onclick="alert('TadkaTech Support Helpline: +91-XXXXXXXXXX')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
-              <span class="text-sm">🎧</span> Support
-            </button>
-          </div>
-        </div>
-
-        <!-- SECTION: CONFIG -->
-        <div>
-          <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Config</div>
-          <div class="space-y-0.5">
-            <button onclick="alert('WhatsApp marketing & bills coming soon!')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
-              <span class="text-sm">💬</span> WhatsApp
-            </button>
-            <a href="/customer.html" target="_blank" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
-              <span class="text-sm">🖥</span> Kiosk / Devices
-            </a>
             <button onclick="protectedNav('/admin.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
               <span class="text-sm">⚙️</span> Settings
             </button>
-            <button onclick="alert('Latest Update v2.4: Zero-Paper Cash Drawer Kick Integration live!')" class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
-              <span class="flex items-center gap-2.5"><span class="text-sm">📢</span> What's New</span>
-              <span class="bg-orange-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">1</span>
-            </button>
           </div>
         </div>
-
       </div>
     </div>
 
-    <!-- Sidebar Footer / User Profile Card -->
     <div class="p-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
       <div class="flex items-center gap-2">
-        <div class="w-7 h-7 rounded-full bg-orange-100 border border-orange-300 text-orange-700 font-black flex items-center justify-center text-xs">
-          S
-        </div>
+        <div class="w-7 h-7 rounded-full bg-orange-100 border border-orange-300 text-orange-700 font-black flex items-center justify-center text-xs">S</div>
         <div>
           <div class="font-black text-gray-800 text-[11px] leading-tight">Sehaj</div>
           <div class="text-[9px] text-gray-400 font-bold">Owner</div>
         </div>
       </div>
-      <button onclick="location.reload()" title="Logout / Reload" class="text-gray-400 hover:text-red-600 transition text-[11px] font-bold flex items-center gap-1">
-        ↪ Log out
-      </button>
+      <button onclick="location.reload()" title="Logout" class="text-gray-400 hover:text-red-600 transition text-[11px] font-bold">↪ Log out</button>
     </div>
-
   </aside>
 
   <!-- ================= TOP MAIN HEADER NAVBAR ================= -->
   <header class="bg-white border-b border-gray-200 px-4 py-2.5 flex justify-between items-center z-30 shadow-xs">
     <div class="flex items-center gap-3">
-      <!-- 3 Lines Hamburger Menu Button that triggers the Sidebar -->
       <button onclick="toggleSidebarMenu(true)" class="p-1.5 hover:bg-gray-100 rounded-lg text-gray-600 transition" title="Open Menu">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"/></svg>
       </button>
@@ -215,7 +135,6 @@
       </div>
     </div>
 
-    <!-- Right Controls in Top Bar -->
     <div class="flex items-center gap-2">
       <div class="flex items-center gap-1.5 bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-full text-xs font-bold text-gray-700">
         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -226,13 +145,11 @@
         <span>🖥</span> Customer Display
       </a>
 
-      <!-- In-Order Mode Pill -->
       <div id="topOrderActiveBadge" class="hidden flex items-center gap-1.5 bg-emerald-50 border border-emerald-300 text-emerald-800 px-2.5 py-1 rounded-full text-xs font-black">
         <span class="w-2 h-2 rounded-full bg-emerald-600"></span>
         <span id="topOrderActiveText">Order • 0</span>
       </div>
 
-      <!-- Cancel Button (Returns to Floor Dashboard) -->
       <button id="btnCancelOrderView" onclick="closePOSOrderView()" class="hidden text-xs font-bold px-3 py-1.5 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 text-gray-700 transition">
         ✕ Cancel
       </button>
@@ -246,7 +163,6 @@
         <span>📋</span> All Orders
       </button>
 
-      <!-- ZERO-PAPER CASH DRAWER BUTTON -->
       <button onclick="openCashDrawer()" class="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 flex items-center gap-1 text-amber-900 transition shadow-2xs">
         <span>💵</span> Open Drawer
       </button>
@@ -257,11 +173,8 @@
     </div>
   </header>
 
-
   <!-- ================= VIEW 1: DEFAULT FLOOR & QUEUES DASHBOARD ================= -->
   <div id="viewFloorDashboard" class="flex-1 overflow-y-auto p-4 space-y-3 pb-16">
-    
-    <!-- 4 ANALYTICS SUMMARY CARDS -->
     <div class="grid grid-cols-4 gap-3">
       <div class="bg-white border border-gray-200 rounded-xl p-3 flex justify-between items-center shadow-2xs">
         <div class="flex items-center gap-2.5">
@@ -308,7 +221,6 @@
       </div>
     </div>
 
-    <!-- FILTER BUTTONS ROW -->
     <div class="flex justify-between items-center bg-white p-2 rounded-xl border border-gray-200 shadow-2xs">
       <div class="flex items-center gap-2">
         <button class="bg-orange-500 text-white text-xs font-black px-3 py-1.5 rounded-lg shadow-2xs">
@@ -322,14 +234,11 @@
         </button>
       </div>
 
-      <div class="flex items-center gap-2">
-        <button onclick="openPOSOrderView('Takeaway', '')" class="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1 rounded-lg text-xs font-black shadow-2xs">
-          + New Order
-        </button>
-      </div>
+      <button onclick="openPOSOrderView('Takeaway', '')" class="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1 rounded-lg text-xs font-black shadow-2xs">
+        + New Order
+      </button>
     </div>
 
-    <!-- FLOOR PLAN VIEW BOX -->
     <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-2xs">
       <div class="p-2.5 border-b border-gray-100 flex justify-between items-center text-xs">
         <div class="flex items-center gap-3">
@@ -343,38 +252,29 @@
         <div class="flex items-center gap-3 text-[10px] font-bold text-gray-500">
           <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-100 border border-emerald-400"></span> Free</span>
           <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-orange-100 border border-orange-400"></span> Occupied</span>
-          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-amber-100 border border-amber-400"></span> Needs Attention</span>
           <button onclick="promptAddCustomTable()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-2 py-1 rounded border border-gray-200 text-[11px] ml-2">
             ✏️ Edit Layout
           </button>
         </div>
       </div>
 
-      <!-- Centered Tables -->
       <div class="floor-dots py-6 px-4 flex flex-col items-center justify-center min-h-[310px]">
         <div class="bg-gray-100 text-gray-500 text-[10px] font-black px-4 py-1 rounded-md border border-gray-200 mb-5 tracking-wide">
           Billing/POS
         </div>
-
         <div id="floorTablesGrid" class="grid grid-cols-2 gap-x-12 gap-y-3.5 max-w-sm w-full"></div>
       </div>
     </div>
 
-    <!-- DINE-IN NEEDS A TABLE (Kiosk Unassigned) -->
     <div id="kioskUnassignedBox" class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs space-y-2 hidden">
       <div class="flex justify-between items-center text-xs font-bold text-gray-700 border-b pb-2">
-        <span class="flex items-center gap-1.5">
-          <span>🪑</span> Dine-in - needs a table
-        </span>
+        <span class="flex items-center gap-1.5"><span>🪑</span> Dine-in - needs a table</span>
         <span id="kioskUnassignedCount" class="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
       </div>
       <div id="kioskUnassignedList" class="space-y-2"></div>
     </div>
 
-    <!-- LOWER QUEUES: TAKEAWAY & DELIVERY -->
     <div class="grid grid-cols-2 gap-3">
-      
-      <!-- Takeaway Queue -->
       <div class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs flex flex-col">
         <div class="flex justify-between items-center text-xs font-black text-gray-800 border-b pb-2 mb-2">
           <span class="flex items-center gap-1.5">🛍 Takeaway Queue</span>
@@ -385,7 +285,6 @@
         </div>
       </div>
 
-      <!-- Delivery Queue -->
       <div class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs flex flex-col">
         <div class="flex justify-between items-center text-xs font-black text-gray-800 border-b pb-2 mb-2">
           <span class="flex items-center gap-1.5">🛵 Delivery</span>
@@ -395,26 +294,19 @@
           <p class="text-xs text-gray-400 italic text-center py-6">No delivery orders in queue</p>
         </div>
       </div>
-
     </div>
-
   </div>
-
 
   <!-- ================= VIEW 2: FULL 3-COLUMN POS BILLING SCREEN ================= -->
   <div id="viewPOSOrderScreen" class="flex-1 flex overflow-hidden hidden bg-white">
-    
     <!-- COLUMN 1: CATEGORIES SIDEBAR -->
     <div class="w-48 border-r border-gray-200 bg-white flex flex-col overflow-y-auto shrink-0">
-      <div class="p-3 text-[10px] font-black uppercase text-gray-400 tracking-wider border-b">
-        Categories
-      </div>
+      <div class="p-3 text-[10px] font-black uppercase text-gray-400 tracking-wider border-b">Categories</div>
       <div id="categoriesList" class="divide-y divide-gray-50 flex-1"></div>
     </div>
 
-    <!-- COLUMN 2: STEP 2 - SELECT ITEMS -->
+    <!-- COLUMN 2: SELECT ITEMS -->
     <div class="flex-1 flex flex-col border-r border-gray-200 overflow-hidden bg-[#fafafa]">
-      
       <div class="p-3 bg-white border-b border-gray-200 space-y-2.5">
         <div class="flex justify-between items-center">
           <h2 class="text-xs font-black text-gray-800 tracking-tight">Step 2 — Select Items</h2>
@@ -423,7 +315,8 @@
               <button class="bg-orange-500 text-white px-2 py-1 rounded shadow-xs text-[11px] font-bold">▦</button>
               <button class="text-gray-500 px-2 py-1 rounded text-[11px] font-bold">☰</button>
             </div>
-            <input type="text" id="menuItemSearch" oninput="filterMenuItems()" placeholder="Search menu..." class="border border-gray-200 rounded-lg px-2.5 py-1 text-xs outline-none bg-gray-50 focus:bg-white focus:border-orange-500 w-44">
+            <!-- Menu Search: Connected to Virtual Text Keyboard -->
+            <input type="text" id="menuItemSearch" onfocus="openVirtualKeyboard(this, 'text')" oninput="filterMenuItems()" placeholder="Search menu..." class="border border-gray-200 rounded-lg px-2.5 py-1 text-xs outline-none bg-gray-50 focus:bg-white focus:border-orange-500 w-44">
           </div>
         </div>
 
@@ -440,12 +333,9 @@
 
     <!-- COLUMN 3: ORDER TYPE & SUMMARY -->
     <div class="w-80 flex flex-col bg-white shrink-0 justify-between">
-      
       <div>
         <div class="grid grid-cols-2 p-1.5 bg-gray-100 border-b text-xs font-bold">
-          <button id="tabBtnCustomer" onclick="switchRightTab('CUSTOMER')" class="py-1.5 rounded-lg transition bg-white text-orange-600 shadow-2xs font-black">
-            Order Type & Customer
-          </button>
+          <button id="tabBtnCustomer" onclick="switchRightTab('CUSTOMER')" class="py-1.5 rounded-lg transition bg-white text-orange-600 shadow-2xs font-black">Order Type & Customer</button>
           <button id="tabBtnSummary" onclick="switchRightTab('SUMMARY')" class="py-1.5 rounded-lg transition text-gray-500 hover:text-gray-900 flex items-center justify-center gap-1">
             <span>Order Summary</span>
             <span id="tabSummaryBadge" class="bg-orange-500 text-white text-[9px] font-black px-1.5 py-0.2 rounded-full">0</span>
@@ -480,11 +370,13 @@
           <div class="space-y-2 pt-1">
             <div>
               <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Phone Number</label>
-              <input type="text" id="posCustPhone" placeholder="e.g. 9876543210" onblur="lookupCustomerPhone()" class="w-full border border-gray-200 rounded-lg p-2 text-xs font-mono outline-none focus:border-orange-500 bg-white">
+              <!-- Numeric Keyboard triggers on click -->
+              <input type="text" id="posCustPhone" readonly onclick="openVirtualKeyboard(this, 'number')" placeholder="e.g. 9876543210" class="w-full border border-gray-200 rounded-lg p-2 text-xs font-mono outline-none focus:border-orange-500 bg-white cursor-pointer">
             </div>
             <div>
               <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Customer Name</label>
-              <input type="text" id="posCustName" placeholder="Auto-filled from phone" class="w-full border border-gray-200 rounded-lg p-2 text-xs outline-none focus:border-orange-500 bg-white">
+              <!-- QWERTY Keyboard triggers on click -->
+              <input type="text" id="posCustName" readonly onclick="openVirtualKeyboard(this, 'text')" placeholder="Auto-filled from phone" class="w-full border border-gray-200 rounded-lg p-2 text-xs outline-none focus:border-orange-500 bg-white cursor-pointer">
             </div>
           </div>
         </div>
@@ -499,7 +391,6 @@
 
       <!-- BILLING & CONTROLS -->
       <div class="border-t border-gray-200 p-3 bg-white space-y-2">
-        
         <div class="flex justify-between items-center text-xs font-bold text-gray-500">
           <span class="flex items-center gap-1 text-orange-600 cursor-pointer">🏷 Offers</span>
           <div class="flex items-center gap-1.5">
@@ -524,33 +415,120 @@
         </div>
 
         <div class="grid grid-cols-4 gap-1.5 pt-1">
-          <button onclick="selectPaymentMode('Cash')" id="payBtnCash" class="border-2 border-emerald-600 bg-emerald-50 text-emerald-800 py-1.5 rounded-lg text-xs font-black flex items-center justify-center gap-1">
-            💵 Cash
-          </button>
-          <button onclick="selectPaymentMode('UPI')" id="payBtnUPI" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1">
-            📲 UPI
-          </button>
-          <button onclick="selectPaymentMode('Card')" id="payBtnCard" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1">
-            💳 Card
-          </button>
-          <button onclick="selectPaymentMode('DUE')" id="payBtnSplit" class="border border-gray-200 hover:bg-gray-50 text-rose-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1">
-            📒 Due
-          </button>
+          <button onclick="selectPaymentMode('Cash')" id="payBtnCash" class="border-2 border-emerald-600 bg-emerald-50 text-emerald-800 py-1.5 rounded-lg text-xs font-black flex items-center justify-center gap-1">💵 Cash</button>
+          <button onclick="selectPaymentMode('UPI')" id="payBtnUPI" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1">📲 UPI</button>
+          <button onclick="selectPaymentMode('Card')" id="payBtnCard" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1">💳 Card</button>
+          <button onclick="selectPaymentMode('DUE')" id="payBtnSplit" class="border border-gray-200 hover:bg-gray-50 text-rose-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1">📒 Due</button>
         </div>
 
         <div class="flex gap-1.5 pt-1">
           <button onclick="executePlaceOrder()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5">
             <span>✓ Place Order</span>
           </button>
-          <button onclick="triggerManualKOTDirect()" title="Print KOT Slip" class="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3 rounded-xl font-black text-xs">
-            🍳
-          </button>
+          <button onclick="triggerManualKOTDirect()" title="Print KOT Slip" class="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3 rounded-xl font-black text-xs">🍳</button>
         </div>
-
       </div>
+    </div>
+  </div>
 
+  <!-- ================= VIRTUAL KEYBOARD 1: COMPACT NUMERIC PAD ================= -->
+  <div id="vKeypadNum" class="fixed right-4 bottom-4 w-72 bg-[#f1f3f5] border border-gray-300 rounded-2xl shadow-2xl p-3 z-50 hidden select-none">
+    <div class="flex justify-between items-center mb-2 pb-1 border-b border-gray-200 text-gray-500 text-xs">
+      <span class="font-bold">⌨</span>
+      <span id="numPadDisplayLabel" class="font-mono font-bold text-gray-700 truncate max-w-[150px]">Enter digits...</span>
+      <button onclick="closeVirtualKeyboards()" class="font-black text-gray-400 hover:text-black text-sm px-1.5">✕</button>
+    </div>
+    <div class="grid grid-cols-3 gap-2">
+      <button onclick="keypadPress('1')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">1</button>
+      <button onclick="keypadPress('2')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">2</button>
+      <button onclick="keypadPress('3')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">3</button>
+
+      <button onclick="keypadPress('4')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">4</button>
+      <button onclick="keypadPress('5')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">5</button>
+      <button onclick="keypadPress('6')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">6</button>
+
+      <button onclick="keypadPress('7')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">7</button>
+      <button onclick="keypadPress('8')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">8</button>
+      <button onclick="keypadPress('9')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">9</button>
+
+      <button onclick="keypadPress('.')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">.</button>
+      <button onclick="keypadPress('0')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">0</button>
+      <button onclick="keypadBackspace()" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-base py-3 rounded-xl shadow-xs flex items-center justify-center">⌫</button>
+    </div>
+    <button onclick="closeVirtualKeyboards()" class="w-full mt-2.5 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-black text-sm py-2.5 rounded-xl shadow-xs">
+      ✓ Done
+    </button>
+  </div>
+
+  <!-- ================= VIRTUAL KEYBOARD 2: QWERTY TEXT KEYBOARD ================= -->
+  <div id="vKeypadText" class="fixed left-1/2 -translate-x-1/2 bottom-3 w-[520px] bg-[#eef0f3] border border-gray-300 rounded-3xl shadow-2xl p-3 z-50 hidden select-none">
+    <div class="flex justify-between items-center mb-2 px-2 text-xs text-gray-500">
+      <span class="font-bold text-[11px]">⌨</span>
+      <span id="textPadDisplayLabel" class="font-bold text-gray-700 truncate max-w-[300px]">Type here...</span>
+      <button onclick="closeVirtualKeyboards()" class="text-xs font-bold text-gray-500 hover:text-black">Hide</button>
     </div>
 
+    <!-- Numbers Row -->
+    <div class="grid grid-cols-10 gap-1 mb-1">
+      <button onclick="keypadPress('1')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">1</button>
+      <button onclick="keypadPress('2')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">2</button>
+      <button onclick="keypadPress('3')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">3</button>
+      <button onclick="keypadPress('4')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">4</button>
+      <button onclick="keypadPress('5')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">5</button>
+      <button onclick="keypadPress('6')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">6</button>
+      <button onclick="keypadPress('7')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">7</button>
+      <button onclick="keypadPress('8')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">8</button>
+      <button onclick="keypadPress('9')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">9</button>
+      <button onclick="keypadPress('0')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">0</button>
+    </div>
+
+    <!-- QWERTY Row 1 -->
+    <div class="grid grid-cols-10 gap-1 mb-1">
+      <button onclick="keypadPressLetter('q')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">q</button>
+      <button onclick="keypadPressLetter('w')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">w</button>
+      <button onclick="keypadPressLetter('e')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">e</button>
+      <button onclick="keypadPressLetter('r')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">r</button>
+      <button onclick="keypadPressLetter('t')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">t</button>
+      <button onclick="keypadPressLetter('y')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">y</button>
+      <button onclick="keypadPressLetter('u')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">u</button>
+      <button onclick="keypadPressLetter('i')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">i</button>
+      <button onclick="keypadPressLetter('o')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">o</button>
+      <button onclick="keypadPressLetter('p')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">p</button>
+    </div>
+
+    <!-- QWERTY Row 2 -->
+    <div class="grid grid-cols-9 gap-1 px-4 mb-1">
+      <button onclick="keypadPressLetter('a')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">a</button>
+      <button onclick="keypadPressLetter('s')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">s</button>
+      <button onclick="keypadPressLetter('d')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">d</button>
+      <button onclick="keypadPressLetter('f')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">f</button>
+      <button onclick="keypadPressLetter('g')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">g</button>
+      <button onclick="keypadPressLetter('h')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">h</button>
+      <button onclick="keypadPressLetter('j')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">j</button>
+      <button onclick="keypadPressLetter('k')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">k</button>
+      <button onclick="keypadPressLetter('l')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">l</button>
+    </div>
+
+    <!-- QWERTY Row 3 -->
+    <div class="flex gap-1 mb-1.5">
+      <button onclick="toggleShiftMode()" id="btnShiftKey" class="w-12 bg-gray-200 active:bg-gray-300 text-gray-700 font-bold text-xs py-2.5 rounded-lg shadow-2xs">⇧</button>
+      <div class="grid grid-cols-7 gap-1 flex-1">
+        <button onclick="keypadPressLetter('z')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">z</button>
+        <button onclick="keypadPressLetter('x')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">x</button>
+        <button onclick="keypadPressLetter('c')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">c</button>
+        <button onclick="keypadPressLetter('v')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">v</button>
+        <button onclick="keypadPressLetter('b')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">b</button>
+        <button onclick="keypadPressLetter('n')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">n</button>
+        <button onclick="keypadPressLetter('m')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">m</button>
+      </div>
+      <button onclick="keypadBackspace()" class="w-12 bg-gray-200 active:bg-gray-300 text-gray-700 font-bold text-sm py-2.5 rounded-lg shadow-2xs flex items-center justify-center">⌫</button>
+    </div>
+
+    <!-- Space & Return Row -->
+    <div class="flex gap-1.5">
+      <button onclick="keypadPress(' ')" class="flex-1 bg-white active:bg-gray-200 text-gray-400 font-bold text-xs py-2.5 rounded-lg shadow-2xs">space</button>
+      <button onclick="closeVirtualKeyboards()" class="w-24 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-black text-xs py-2.5 rounded-lg shadow-2xs">return</button>
+    </div>
   </div>
 
   <script>
@@ -565,6 +543,10 @@
     var selectedPaymentMode = 'Cash';
     var currentGuestCount = 1;
     var editingActiveOrderId = null;
+
+    // Active Input Element Target for Virtual Keyboards
+    var activeVirtualInput = null;
+    var isShiftActive = false;
 
     var defaultFloorTables = [
       { id: 'T04', label: 'T04', seats: 2 },
@@ -587,6 +569,71 @@
       }
     }
 
+    // ================= VIRTUAL KEYBOARD ENGINE =================
+    function openVirtualKeyboard(inputEl, mode) {
+      activeVirtualInput = inputEl;
+      closeVirtualKeyboards();
+
+      if (mode === 'number') {
+        document.getElementById('vKeypadNum').classList.remove('hidden');
+        document.getElementById('numPadDisplayLabel').innerText = inputEl.placeholder || 'Enter digits...';
+      } else {
+        document.getElementById('vKeypadText').classList.remove('hidden');
+        document.getElementById('textPadDisplayLabel').innerText = inputEl.placeholder || 'Type here...';
+      }
+    }
+
+    function closeVirtualKeyboards() {
+      document.getElementById('vKeypadNum').classList.add('hidden');
+      document.getElementById('vKeypadText').classList.add('hidden');
+
+      if (activeVirtualInput && activeVirtualInput.id === 'posCustPhone') {
+        lookupCustomerPhone();
+      }
+      if (activeVirtualInput && activeVirtualInput.id === 'menuItemSearch') {
+        filterMenuItems();
+      }
+    }
+
+    function keypadPress(val) {
+      if (!activeVirtualInput) return;
+      activeVirtualInput.value += val;
+      triggerInputEvent(activeVirtualInput);
+    }
+
+    function keypadPressLetter(letter) {
+      if (!activeVirtualInput) return;
+      var char = isShiftActive ? letter.toUpperCase() : letter.toLowerCase();
+      activeVirtualInput.value += char;
+      triggerInputEvent(activeVirtualInput);
+
+      if (isShiftActive) toggleShiftMode(); // Auto-reset shift after 1 character
+    }
+
+    function keypadBackspace() {
+      if (!activeVirtualInput) return;
+      activeVirtualInput.value = activeVirtualInput.value.slice(0, -1);
+      triggerInputEvent(activeVirtualInput);
+    }
+
+    function toggleShiftMode() {
+      isShiftActive = !isShiftActive;
+      var btn = document.getElementById('btnShiftKey');
+      btn.className = isShiftActive 
+        ? "w-12 bg-orange-500 text-white font-black text-xs py-2.5 rounded-lg shadow-2xs" 
+        : "w-12 bg-gray-200 active:bg-gray-300 text-gray-700 font-bold text-xs py-2.5 rounded-lg shadow-2xs";
+
+      var letters = document.querySelectorAll('.vKeyLetter');
+      letters.forEach(function(el) {
+        el.innerText = isShiftActive ? el.innerText.toUpperCase() : el.innerText.toLowerCase();
+      });
+    }
+
+    function triggerInputEvent(el) {
+      var event = new Event('input', { bubbles: true });
+      el.dispatchEvent(event);
+    }
+
     // ================= SIDEBAR MENU CONTROL =================
     function toggleSidebarMenu(show) {
       var drawer = document.getElementById('sidebarDrawer');
@@ -598,13 +645,6 @@
       } else {
         drawer.classList.add('-translate-x-full');
         backdrop.classList.add('hidden');
-      }
-    }
-
-    function filterDeliveryView() {
-      var dList = document.getElementById('deliveryQueueList');
-      if (dList) {
-        dList.scrollIntoView({ behavior: 'smooth' });
       }
     }
 
@@ -738,9 +778,7 @@
               <div class="text-[11px] text-gray-600 line-clamp-1 mb-1.5">${itemsText}</div>
               <div class="flex justify-between items-center text-[10px] text-gray-400">
                 <span>👤 ${o.customer_name || 'Counter'}</span>
-                <div class="flex gap-1">
-                  <button onclick="settleActiveOrder(${o.id}, 'CASH')" class="px-2 py-0.5 bg-emerald-600 text-white rounded font-black hover:bg-emerald-700">Settle</button>
-                </div>
+                <button onclick="settleActiveOrder(${o.id}, 'CASH')" class="px-2 py-0.5 bg-emerald-600 text-white rounded font-black hover:bg-emerald-700">Settle</button>
               </div>
             </div>
           `;
@@ -771,9 +809,7 @@
               <div class="text-[11px] text-gray-600 line-clamp-1 mb-1.5">${itemsText}</div>
               <div class="flex justify-between items-center text-[10px] text-gray-400">
                 <span>📞 ${o.customer_phone || '-'}</span>
-                <div class="flex gap-1">
-                  <button onclick="settleActiveOrder(${o.id}, 'CASH')" class="px-2 py-0.5 bg-emerald-600 text-white rounded font-black hover:bg-emerald-700">Settle</button>
-                </div>
+                <button onclick="settleActiveOrder(${o.id}, 'CASH')" class="px-2 py-0.5 bg-emerald-600 text-white rounded font-black hover:bg-emerald-700">Settle</button>
               </div>
             </div>
           `;
@@ -818,6 +854,7 @@
     }
 
     function closePOSOrderView() {
+      closeVirtualKeyboards();
       document.getElementById('viewPOSOrderScreen').classList.add('hidden');
       document.getElementById('viewFloorDashboard').classList.remove('hidden');
 
@@ -948,6 +985,7 @@
     }
 
     function switchRightTab(tab) {
+      closeVirtualKeyboards();
       var btnCust = document.getElementById('tabBtnCustomer');
       var btnSum = document.getElementById('tabBtnSummary');
       var boxCust = document.getElementById('tabContentCustomer');
@@ -1193,12 +1231,10 @@
       })
       .then(function(res) { return res.json(); })
       .then(function(data) {
-        if (!data.success) {
-          console.error('Drawer trigger failed via local agent');
-        }
+        if (!data.success) console.error('Drawer trigger failed via local agent');
       })
       .catch(function(err) {
-        console.error('Agent offline! Kripya counter PC par StartAgent.bat run karein.', err);
+        console.error('Agent offline! Counter PC par StartAgent.bat run karein.', err);
       });
     }
 
