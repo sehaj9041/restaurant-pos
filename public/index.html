@@ -27,7 +27,7 @@
 </head>
 <body class="bg-[#f8fafc] text-gray-800 font-sans h-screen flex flex-col overflow-hidden select-none">
 
-  <!-- Hidden iframe for Silent Receipts & Drawer Kick -->
+  <!-- Hidden iframe for Silent Receipts Printing -->
   <iframe id="silentPrintFrame" style="position:fixed;right:0;bottom:0;width:0;height:0;border:0;"></iframe>
 
   <!-- ================= TOP MAIN HEADER NAVBAR ================= -->
@@ -992,57 +992,21 @@
       }, 250);
     }
 
-    // ================= ZERO-PAPER SILENT CASH DRAWER KICK =================
+    // ================= 100% ZERO-PAPER DIRECT HARDWARE CASH DRAWER KICK =================
     function openCashDrawer() {
-      var frame = document.getElementById('silentPrintFrame');
-      if (!frame) {
-        frame = document.createElement('iframe');
-        frame.id = 'silentPrintFrame';
-        frame.style.position = 'fixed';
-        frame.style.right = '0';
-        frame.style.bottom = '0';
-        frame.style.width = '0';
-        frame.style.height = '0';
-        frame.style.border = '0';
-        document.body.appendChild(frame);
-      }
-
-      // Zero mm page size prevents the roller motor from feeding paper while Windows CR1 kick opens the drawer
-      var kickDoc = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <style>
-            @page { 
-              size: 0mm 0mm !important; 
-              margin: 0 !important; 
-            }
-            html, body { 
-              width: 0 !important; 
-              height: 0 !important; 
-              margin: 0 !important; 
-              padding: 0 !important; 
-              overflow: hidden !important; 
-            }
-          </style>
-        </head>
-        <body style="background:transparent;"></body>
-        </html>
-      `;
-
-      var doc = frame.contentWindow.document;
-      doc.open();
-      doc.write(kickDoc);
-      doc.close();
-
-      frame.contentWindow.focus();
-      setTimeout(function() {
-        try {
-          frame.contentWindow.print();
-        } catch(e) {
-          console.error(e);
+      fetch('/api/drawer/open', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (!data.success) {
+          console.error('Drawer trigger failed on server:', data.message);
         }
-      }, 20);
+      })
+      .catch(function(err) {
+        console.error('Network error triggering drawer:', err);
+      });
     }
 
     function promptAssignTable(orderId) {
