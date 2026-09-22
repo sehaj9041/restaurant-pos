@@ -90,6 +90,11 @@
     </div>
 
     <div class="flex items-center gap-2">
+      <!-- BACK BUTTON ADDED HERE -->
+      <button id="btnPOSBack" onclick="handlePOSBackNavigation()" class="hidden text-xs font-bold px-3 py-1.5 rounded-lg border border-gray-300 bg-gray-100 hover:bg-gray-200 text-gray-700 transition flex items-center gap-1">
+        <span>← Back</span>
+      </button>
+
       <div class="flex items-center gap-1.5 bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-full text-xs font-bold text-gray-700">
         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
         <span>Sehaj</span>
@@ -112,7 +117,7 @@
         <span>💵</span> Open Drawer
       </button>
 
-      <button onclick="openPOSOrderView('Takeaway', '')" class="bg-orange-500 hover:bg-orange-600 text-white px-3.5 py-1.5 rounded-lg text-xs font-black shadow-sm flex items-center gap-1 transition">
+      <button onclick="openPOSOrderView('Takeaway', '', false)" class="bg-orange-500 hover:bg-orange-600 text-white px-3.5 py-1.5 rounded-lg text-xs font-black shadow-sm flex items-center gap-1 transition">
         <span>+</span> New Order
       </button>
     </div>
@@ -179,7 +184,7 @@
         </button>
       </div>
 
-      <button onclick="openPOSOrderView('Takeaway', '')" class="bg-orange-500 hover:bg-orange-600 text-white px-3.5 py-1 rounded-lg text-xs font-black shadow-2xs">
+      <button onclick="openPOSOrderView('Takeaway', '', false)" class="bg-orange-500 hover:bg-orange-600 text-white px-3.5 py-1 rounded-lg text-xs font-black shadow-2xs">
         + New Order
       </button>
     </div>
@@ -384,6 +389,8 @@
 
     var alreadyPaidAmount = 0;
     var alreadyPaidMode = '';
+    var previousViewSource = 'dashboard'; // tracks where user came from
+
     var defaultFloorTables = [
       { id: 'T04', label: 'T04', seats: 2 },
       { id: 'T08', label: 'T08', seats: 2 },
@@ -402,18 +409,22 @@
     }
 
     function showDashboardView() {
+      previousViewSource = 'dashboard';
       document.getElementById('viewOrderHistoryScreen').classList.add('hidden');
       document.getElementById('viewPOSOrderScreen').classList.add('hidden');
       document.getElementById('viewFloorDashboard').classList.remove('hidden');
       document.getElementById('topPageTitle').innerText = 'Orders';
+      document.getElementById('btnPOSBack').classList.add('hidden');
       fetchActiveOrders();
     }
 
     function showOrderHistoryView() {
+      previousViewSource = 'history';
       document.getElementById('viewFloorDashboard').classList.add('hidden');
       document.getElementById('viewPOSOrderScreen').classList.add('hidden');
       document.getElementById('viewOrderHistoryScreen').classList.remove('hidden');
       document.getElementById('topPageTitle').innerText = 'Order History';
+      document.getElementById('btnPOSBack').classList.add('hidden');
       
       const today = new Date().toISOString().slice(0, 10);
       const dateInput = document.getElementById('historyFilterDate');
@@ -466,7 +477,7 @@
           const ord = (data.orders || []).find(o => o.id === orderId);
           if (!ord) return;
 
-          openPOSOrderView(ord.order_type || 'Takeaway', ord.table_no || '');
+          openPOSOrderView(ord.order_type || 'Takeaway', ord.table_no || '', true);
           editingActiveOrderId = ord.id;
           document.getElementById('posCustPhone').value = ord.customer_phone || '';
           document.getElementById('posCustName').value = ord.customer_name || '';
@@ -522,7 +533,7 @@
         });
         var isBusy = !!busy;
         return `
-          <div onclick="openPOSOrderView('Dine-In', '${t.id}')" class="cursor-pointer border-2 rounded-2xl p-3 flex flex-col items-center justify-center transition-all shadow-xs ${isBusy ? 'bg-orange-50 border-orange-400 text-orange-950' : 'bg-emerald-50 border-emerald-300 text-emerald-950'}">
+          <div onclick="openPOSOrderView('Dine-In', '${t.id}', false)" class="cursor-pointer border-2 rounded-2xl p-3 flex flex-col items-center justify-center transition-all shadow-xs ${isBusy ? 'bg-orange-50 border-orange-400 text-orange-950' : 'bg-emerald-50 border-emerald-300 text-emerald-950'}">
             <span class="font-black text-sm">${t.label}</span>
             <span class="text-[10px] font-bold opacity-75">${t.seats} seats</span>
             ${isBusy ? `<span class="text-xs font-black text-orange-700 mt-1">₹${busy.total}</span>` : `<span class="text-[9px] text-emerald-600 font-bold mt-1">Free</span>`}
@@ -532,65 +543,6 @@
     }
 
     function renderAllQueues() {
-      function buildOrderActionCard(o) {
-        var itemsText = (o.items || []).map(function(i){ return i.name + ' x' + i.qty; }).join(', ');
-        var totalAmount = Number(o.total) || 0;
-        var paidAmount = Number(o.paid_amount) || Number(o.already_paid) || 0;
-
-        if (paidAmount === 0 && o.payment_mode && o.payment_mode !== 'UNPAID' && o.payment_mode !== 'DUE' && o.status !== 'RUNNING_TABLE') {
-          paidAmount = totalAmount;
-        }
-
-        var remainingDue = Math.max(0, totalAmount - paidAmount);
-        var isFullyPaid = paidAmount >= totalAmount && totalAmount > 0;
-        var isPartiallyPaid = paidAmount > 0 && remainingDue > 0;
-
-        var statusTag = '';
-        var tagBg = '';
-        if (isFullyPaid) {
-          statusTag = o.payment_mode || 'Paid';
-          tagBg = 'bg-emerald-100 text-emerald-800';
-        } else if (isPartiallyPaid) {
-          statusTag = `Partially Paid (Due: ₹${remainingDue})`;
-          tagBg = 'bg-amber-100 text-amber-900';
-        } else {
-          statusTag = (o.payment_mode === 'DUE') ? 'Due' : 'Unpaid';
-          tagBg = 'bg-amber-100 text-amber-900';
-        }
-
-        return `
-          <div class="border border-orange-200/70 bg-[#fffdfa] rounded-xl p-3 text-xs shadow-2xs hover:border-orange-300 transition space-y-2">
-            <div class="flex justify-between items-start">
-              <div>
-                <div class="flex items-center gap-1.5">
-                  <span class="text-gray-500 font-bold text-[10px]">Token ${o.id.toString().padStart(3, '0')}</span>
-                  <span class="font-black text-gray-800 text-xs">ORD-${o.id}</span>
-                </div>
-                <div class="text-[11px] text-gray-600 mt-0.5 line-clamp-1">${itemsText || 'Order placed'}</div>
-                <div class="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
-                  <span>👤 ${o.customer_name || 'Sehaj'}</span>
-                  <span class="bg-gray-100 text-gray-500 font-bold px-1 rounded text-[9px]">You</span>
-                  ${o.customer_phone ? `<span class="ml-1 text-gray-500 font-mono">(${o.customer_phone})</span>` : ''}
-                </div>
-              </div>
-
-              <div class="text-right">
-                <div class="flex items-center justify-end gap-1 mb-0.5">
-                  <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100/70 text-orange-800">Preparing</span>
-                  <span class="font-black text-gray-900 text-sm">₹${o.total}</span>
-                  <span class="text-[10px] font-black px-1.5 py-0.5 rounded ${tagBg}">${statusTag}</span>
-                </div>
-                <div class="text-[9px] text-gray-400">${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short' })} • ${new Date().toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' })}</div>
-              </div>
-            </div>
-
-            <div class="flex flex-wrap gap-1.5 pt-1.5 border-t border-gray-100 text-[10px] font-bold">
-              <button onclick="selectHistoryOrderToPOS(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>👁</span> View / Edit</button>
-            </div>
-          </div>
-        `;
-      }
-
       var takeawayOrders = allActiveOrders.filter(function(o) { return o.order_type === 'Takeaway'; });
       var takeawayBadge = document.getElementById('takeawayQueueBadge');
       if (takeawayBadge) takeawayBadge.innerText = takeawayOrders.length;
@@ -608,6 +560,61 @@
         if (!deliveryOrders.length) dList.innerHTML = '<p class="text-xs text-gray-400 italic text-center py-6">No delivery orders in queue</p>';
         else dList.innerHTML = deliveryOrders.map(buildOrderActionCard).join('');
       }
+    }
+
+    function buildOrderActionCard(o) {
+      var itemsText = (o.items || []).map(function(i){ return i.name + ' x' + i.qty; }).join(', ');
+      var totalAmount = Number(o.total) || 0;
+      var paidAmount = Number(o.paid_amount) || Number(o.already_paid) || 0;
+
+      if (paidAmount === 0 && o.payment_mode && o.payment_mode !== 'UNPAID' && o.payment_mode !== 'DUE' && o.status !== 'RUNNING_TABLE') {
+        paidAmount = totalAmount;
+      }
+
+      var remainingDue = Math.max(0, totalAmount - paidAmount);
+      var isFullyPaid = paidAmount >= totalAmount && totalAmount > 0;
+      var isPartiallyPaid = paidAmount > 0 && remainingDue > 0;
+
+      var statusTag = '';
+      var tagBg = '';
+      if (isFullyPaid) {
+        statusTag = o.payment_mode || 'Paid';
+        tagBg = 'bg-emerald-100 text-emerald-800';
+      } else if (isPartiallyPaid) {
+        statusTag = `Partially Paid (Due: ₹${remainingDue})`;
+        tagBg = 'bg-amber-100 text-amber-900';
+      } else {
+        statusTag = (o.payment_mode === 'DUE') ? 'Due' : 'Unpaid';
+        tagBg = 'bg-amber-100 text-amber-900';
+      }
+
+      return `
+        <div class="border border-orange-200/70 bg-[#fffdfa] rounded-xl p-3 text-xs shadow-2xs hover:border-orange-300 transition space-y-2">
+          <div class="flex justify-between items-start">
+            <div>
+              <div class="flex items-center gap-1.5">
+                <span class="text-gray-500 font-bold text-[10px]">Token ${o.id.toString().padStart(3, '0')}</span>
+                <span class="font-black text-gray-800 text-xs">ORD-${o.id}</span>
+              </div>
+              <div class="text-[11px] text-gray-600 mt-0.5 line-clamp-1">${itemsText || 'Order placed'}</div>
+              <div class="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
+                <span>👤 ${o.customer_name || 'Sehaj'}</span>
+                <span class="bg-gray-100 text-gray-500 font-bold px-1 rounded text-[9px]">You</span>
+                ${o.customer_phone ? `<span class="ml-1 text-gray-500 font-mono">(${o.customer_phone})</span>` : ''}
+              </div>
+            </div>
+
+            <div class="text-right">
+              <div class="flex items-center justify-end gap-1 mb-0.5">
+                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100/70 text-orange-800">Preparing</span>
+                <span class="font-black text-gray-900 text-sm">₹${o.total}</span>
+                <span class="text-[10px] font-black px-1.5 py-0.5 rounded ${tagBg}">${statusTag}</span>
+              </div>
+              <div class="text-[9px] text-gray-400">${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short' })} • ${new Date().toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' })}</div>
+            </div>
+          </div>
+        </div>
+      `;
     }
 
     function calculatePOSBillTotals() {
@@ -682,22 +689,41 @@
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
-        }).then(() => { showDashboardView(); });
+        }).then(() => { handlePOSBackNavigation(); });
       } else {
         fetch('/api/orders', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
-        }).then(() => { showDashboardView(); });
+        }).then(() => { handlePOSBackNavigation(); });
       }
     }
 
-    function openPOSOrderView(type, table) {
+    function openPOSOrderView(type, table, isFromHistory) {
       currentPOSOrderType = type;
       selectedPOSTableId = table || 'T01';
+      if (isFromHistory) {
+        previousViewSource = 'history';
+        document.getElementById('btnPOSBack').classList.remove('hidden');
+      } else {
+        previousViewSource = 'dashboard';
+        document.getElementById('btnPOSBack').classList.add('hidden');
+      }
       document.getElementById('viewOrderHistoryScreen').classList.add('hidden');
       document.getElementById('viewFloorDashboard').classList.add('hidden');
       document.getElementById('viewPOSOrderScreen').classList.remove('hidden');
+    }
+
+    function handlePOSBackNavigation() {
+      if (previousViewSource === 'history') {
+        showOrderHistoryView();
+      } else {
+        showDashboardView();
+      }
+    }
+
+    function closePOSOrderView() {
+      handlePOSBackNavigation();
     }
 
     function switchRightTab(tab) {
