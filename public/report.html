@@ -1,189 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Sales & Analytics Reports - Fast POS</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-100 min-h-screen p-6 font-sans">
-  <div class="max-w-7xl mx-auto space-y-6">
-    
-    <!-- Top Header -->
-    <div class="flex justify-between items-center bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
-      <div>
-        <h1 class="text-2xl font-black text-gray-900">Analytics & Sales Reports</h1>
-        <p class="text-xs text-gray-500 font-medium">Revenue, Khata Due, Cash In Hand, aur Item-wise Sales tracking</p>
-      </div>
-
-      <div class="flex items-center gap-3">
-        <button onclick="printDailySettlementSlip()" class="bg-amber-500 hover:bg-amber-600 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow-sm transition flex items-center gap-1.5">
-          🖨 Print Summary Slip
-        </button>
-        <button onclick="exportToCSV()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow-sm transition flex items-center gap-1.5">
-          📥 Export CSV
-        </button>
-        <a href="/" class="bg-gray-900 hover:bg-black text-white px-4 py-2 rounded-xl font-bold text-xs transition">
-          ← Back to POS
-        </a>
-      </div>
-    </div>
-
-    <!-- Date Filter Toolbar -->
-    <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
-      <div class="flex items-center gap-1.5">
-        <button onclick="setDatePreset('today')" id="btnPresetToday" class="px-3 py-1.5 rounded-xl text-xs font-black bg-indigo-600 text-white transition">
-          Today
-        </button>
-        <button onclick="setDatePreset('yesterday')" id="btnPresetYesterday" class="px-3 py-1.5 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-100 transition">
-          Yesterday
-        </button>
-        <button onclick="setDatePreset('7days')" id="btnPreset7Days" class="px-3 py-1.5 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-100 transition">
-          Last 7 Days
-        </button>
-        <button onclick="setDatePreset('month')" id="btnPresetMonth" class="px-3 py-1.5 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-100 transition">
-          This Month
-        </button>
-      </div>
-
-      <div class="flex items-center gap-2">
-        <span class="text-xs font-bold text-gray-500">From:</span>
-        <input type="date" id="filterStartDate" class="border p-1.5 rounded-xl text-xs outline-none bg-gray-50 font-bold">
-        <span class="text-xs font-bold text-gray-500">To:</span>
-        <input type="date" id="filterEndDate" class="border p-1.5 rounded-xl text-xs outline-none bg-gray-50 font-bold">
-        <button onclick="loadReportData()" class="bg-indigo-600 text-white font-bold px-4 py-1.5 rounded-xl text-xs hover:bg-indigo-700 transition">
-          Apply Filter
-        </button>
-      </div>
-    </div>
-
-    <!-- 6 KPI Revenue Cards Grid -->
-    <div class="grid grid-cols-2 md:grid-cols-6 gap-3">
-      
-      <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
-        <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Gross Turnover</span>
-        <h2 id="kpiGrossTurnover" class="text-xl font-black text-gray-900 mt-1">₹0</h2>
-        <p id="kpiOrderCount" class="text-[10px] text-gray-400 mt-0.5">0 Orders</p>
-      </div>
-
-      <div class="bg-white p-4 rounded-2xl border border-emerald-200 bg-emerald-50/20 shadow-sm">
-        <span class="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Cash Sales</span>
-        <h2 id="kpiCashSales" class="text-xl font-black text-emerald-600 mt-1">₹0</h2>
-        <p class="text-[10px] text-emerald-500 mt-0.5">Received</p>
-      </div>
-
-      <div class="bg-white p-4 rounded-2xl border border-indigo-200 bg-indigo-50/20 shadow-sm">
-        <span class="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">UPI / Digital</span>
-        <h2 id="kpiUpiSales" class="text-xl font-black text-indigo-600 mt-1">₹0</h2>
-        <p class="text-[10px] text-indigo-500 mt-0.5">Bank Inflow</p>
-      </div>
-
-      <div class="bg-white p-4 rounded-2xl border border-rose-200 bg-rose-50/20 shadow-sm">
-        <span class="text-[10px] font-bold text-rose-600 uppercase tracking-wider">Unpaid Khata (Due)</span>
-        <h2 id="kpiDueSales" class="text-xl font-black text-rose-600 mt-1">₹0</h2>
-        <p class="text-[10px] text-rose-500 mt-0.5">Pending Collection</p>
-      </div>
-
-      <div class="bg-white p-4 rounded-2xl border border-amber-200 bg-amber-50/20 shadow-sm">
-        <span class="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Total Expenses</span>
-        <h2 id="kpiTotalExpense" class="text-xl font-black text-amber-700 mt-1">₹0</h2>
-        <p id="kpiCashExpense" class="text-[10px] text-amber-600 mt-0.5">Cash: ₹0</p>
-      </div>
-
-      <div class="bg-gradient-to-br from-gray-900 to-slate-800 p-4 rounded-2xl shadow-md text-white">
-        <span class="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Net Cash in Hand</span>
-        <h2 id="kpiNetCash" class="text-xl font-black text-emerald-400 mt-1">₹0</h2>
-        <p class="text-[10px] text-gray-400 mt-0.5">Physical Cash Drawer</p>
-      </div>
-
-    </div>
-
-    <!-- Middle: Top Selling Items + Quick Expense Add -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-      
-      <!-- Top 10 Best Sellers -->
-      <div class="md:col-span-2 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
-        <div class="p-4 border-b bg-gray-50 flex justify-between items-center">
-          <h3 class="text-xs font-black text-gray-800 uppercase tracking-wider">🏆 Top Selling Items (Best Performers)</h3>
-          <span class="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">Volume & Revenue</span>
-        </div>
-        <div class="p-4 flex-1 overflow-x-auto">
-          <table class="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr class="text-gray-400 border-b">
-                <th class="pb-2 font-bold">ITEM NAME</th>
-                <th class="pb-2 font-bold text-center">QUANTITY SOLD</th>
-                <th class="pb-2 font-bold text-right">TOTAL REVENUE</th>
-              </tr>
-            </thead>
-            <tbody id="topItemsBody" class="divide-y divide-gray-100"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Quick Expense Logger -->
-      <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 flex flex-col justify-between">
-        <div>
-          <h3 class="text-xs font-black text-gray-800 uppercase tracking-wider mb-2">💸 Record Daily Expense</h3>
-          <p class="text-[11px] text-gray-500 mb-3">Dairy, vegetables, petrol ya staff daily payment record karein.</p>
-          
-          <form onsubmit="saveExpense(event)" class="space-y-2.5">
-            <div>
-              <label class="block text-[10px] font-bold text-gray-600 mb-1">Expense Title</label>
-              <input type="text" id="exp_title" placeholder="e.g. Milk & Veggies" required class="w-full border p-2 rounded-xl text-xs outline-none bg-gray-50">
-            </div>
-            <div class="grid grid-cols-2 gap-2">
-              <div>
-                <label class="block text-[10px] font-bold text-gray-600 mb-1">Amount (₹)</label>
-                <input type="number" id="exp_amt" placeholder="Amount" required class="w-full border p-2 rounded-xl text-xs font-bold outline-none bg-gray-50">
-              </div>
-              <div>
-                <label class="block text-[10px] font-bold text-gray-600 mb-1">Payment Mode</label>
-                <select id="exp_mode" class="w-full border p-2 rounded-xl text-xs font-bold outline-none bg-gray-50">
-                  <option value="CASH">Cash</option>
-                  <option value="UPI">UPI</option>
-                </select>
-              </div>
-            </div>
-            <button type="submit" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-black py-2 rounded-xl text-xs transition mt-2 shadow-sm">
-              + Add Expense
-            </button>
-          </form>
-        </div>
-
-        <div class="mt-4 pt-3 border-t">
-          <span class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Today's Expense Log</span>
-          <div id="todayExpenseList" class="space-y-1 max-h-28 overflow-y-auto pr-1"></div>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- Detailed Orders Log Table -->
-    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-      <div class="p-4 border-b bg-gray-50 flex justify-between items-center">
-        <h3 class="text-xs font-black text-gray-800 uppercase tracking-wider">📋 Orders Audit Log</h3>
-        <span id="logCountBadge" class="text-xs font-bold text-gray-500">0 records</span>
-      </div>
-      <table class="w-full text-left text-xs border-collapse">
-        <thead>
-          <tr class="bg-gray-50 text-gray-400 border-b">
-            <th class="p-3 font-bold">ORDER ID</th>
-            <th class="p-3 font-bold">DATE & TIME</th>
-            <th class="p-3 font-bold">TYPE / TABLE</th>
-            <th class="p-3 font-bold">GUEST DETAILS</th>
-            <th class="p-3 font-bold">PAYMENT MODE</th>
-            <th class="p-3 font-bold">DISCOUNT</th>
-            <th class="p-3 font-bold">GST</th>
-            <th class="p-3 font-bold text-right">TOTAL (₹)</th>
-          </tr>
-        </thead>
-        <tbody id="ordersLogBody" class="divide-y divide-gray-100"></tbody>
-      </table>
-    </div>
-
-  </div>
-
-  <script>
+<script>
     let currentReport = { summary: {}, topItems: [], orders: [], range: {} };
 
     function setDatePreset(type) {
@@ -260,7 +75,7 @@
     }
 
     function renderOrdersLog(orders) {
-      document.getElementById('logCountBadge').innerText = `${orders.length} orders`;
+      document.getElementById('logCountBadge').innerText = `${orders.length} orders (Click any row to open in POS)`;
       const tbody = document.getElementById('ordersLogBody');
       if (!orders.length) {
         tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-gray-400 font-bold">No orders found for this range</td></tr>';
@@ -271,14 +86,14 @@
         let badge = '';
         if (o.status === 'DUE_PENDING' || o.payment_mode === 'DUE') {
           badge = `<span class="bg-rose-100 text-rose-800 px-2 py-0.5 rounded text-[10px] font-black">📒 DUE (KHATA)</span>`;
-        } else if (o.payment_mode === 'CASH') {
+        } else if (o.payment_mode && o.payment_mode.includes('CASH')) {
           badge = `<span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded text-[10px] font-black">💵 CASH</span>`;
         } else {
-          badge = `<span class="bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded text-[10px] font-black">📲 UPI</span>`;
+          badge = `<span class="bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded text-[10px] font-black">📲 ${o.payment_mode || 'UPI'}</span>`;
         }
 
         return `
-          <tr class="hover:bg-gray-50">
+          <tr onclick="selectHistoryOrder(${o.id})" class="hover:bg-amber-50/60 cursor-pointer transition" title="Click to load this order into POS">
             <td class="p-3 font-mono font-bold text-gray-900">#${o.id}</td>
             <td class="p-3 text-[11px] text-gray-500">${new Date(o.created_at).toLocaleString('en-IN')}</td>
             <td class="p-3 font-semibold text-gray-700">${o.order_type} ${o.table_no ? '(' + o.table_no + ')' : ''}</td>
@@ -290,6 +105,16 @@
           </tr>
         `;
       }).join('');
+    }
+
+    // FEATURE: Click history order to open directly in POS screen
+    function selectHistoryOrder(orderId) {
+      const selectedOrder = currentReport.orders.find(o => o.id === orderId);
+      if (!selectedOrder) return;
+
+      // Save order data to localStorage so POS index.html can catch and open it
+      localStorage.setItem('POS_EDIT_ORDER', JSON.stringify(selectedOrder));
+      window.location.href = '/pos';
     }
 
     function loadTodayExpenses() {
@@ -355,8 +180,5 @@
       .then(() => alert('Daily Settlement Summary sent to thermal printer silently!'));
     }
 
-    // Default initialization: Today
     setDatePreset('today');
   </script>
-</body>
-</html>
