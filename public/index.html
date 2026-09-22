@@ -48,7 +48,7 @@
       <div class="overflow-y-auto max-h-[calc(100vh-130px)] p-2 space-y-3">
         <div>
           <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Overview</div>
-          <button onclick="toggleSidebarMenu(false); closePOSOrderView();" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+          <button onclick="toggleSidebarMenu(false); showActiveOrdersView();" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
             <span class="text-sm">⚡</span> Dashboard
           </button>
         </div>
@@ -56,10 +56,10 @@
         <div>
           <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Operations</div>
           <div class="space-y-0.5">
-            <button onclick="toggleSidebarMenu(false); closePOSOrderView();" class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-black bg-orange-50 text-orange-600 border border-orange-200 transition">
+            <button onclick="toggleSidebarMenu(false); showActiveOrdersView();" class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-black bg-orange-50 text-orange-600 border border-orange-200 transition">
               <span class="flex items-center gap-2.5"><span class="text-sm">📑</span> Orders</span>
             </button>
-            <button onclick="toggleSidebarMenu(false); closePOSOrderView();" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+            <button onclick="toggleSidebarMenu(false); showActiveOrdersView();" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
               <span class="text-sm">🪑</span> Tables & Floor
             </button>
             <button onclick="protectedNav('/kot.html')" class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
@@ -79,8 +79,8 @@
         <div>
           <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Billing</div>
           <div class="space-y-0.5">
-            <button onclick="protectedNav('/report.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
-              <span class="text-sm">🧾</span> Bills & Receipts
+            <button onclick="toggleSidebarMenu(false); showOrderHistoryView();" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="text-sm">🧾</span> Order History
             </button>
             <button onclick="protectedNav('/report.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
               <span class="text-sm">💸</span> Expenses
@@ -127,6 +127,12 @@
       <button onclick="toggleSidebarMenu(true)" class="p-1.5 hover:bg-gray-100 rounded-lg text-gray-600 transition" title="Open Menu">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"/></svg>
       </button>
+
+      <!-- GLOBAL TOP BACK BUTTON -->
+      <button id="btnTopBack" onclick="handleGlobalBackNavigation()" class="hidden text-xs font-bold px-2.5 py-1 rounded-lg border border-gray-300 bg-gray-50 hover:bg-gray-100 text-gray-700 transition flex items-center gap-1">
+        <span>← Back</span>
+      </button>
+
       <div class="flex items-center gap-2">
         <span class="text-orange-500 font-black text-lg">📑</span>
         <h1 id="topPageTitle" class="text-base font-black tracking-tight text-gray-800">Orders</h1>
@@ -157,7 +163,7 @@
         <span id="topNotificationBadge" class="absolute top-0.5 right-0.5 bg-orange-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">1</span>
       </button>
 
-      <button onclick="protectedNav('/report.html')" class="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 flex items-center gap-1 text-gray-700 transition">
+      <button onclick="showOrderHistoryView()" class="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 flex items-center gap-1 text-gray-700 transition">
         <span>📋</span> All Orders
       </button>
 
@@ -219,15 +225,16 @@
       </div>
     </div>
 
+    <!-- FILTER & ACTION BAR -->
     <div class="flex justify-between items-center bg-white p-2 rounded-xl border border-gray-200 shadow-2xs">
       <div class="flex items-center gap-2">
-        <button class="bg-orange-500 text-white text-xs font-black px-3 py-1.5 rounded-lg shadow-2xs">
+        <button id="btnNavActiveOrders" onclick="showActiveOrdersView()" class="bg-orange-500 text-white text-xs font-black px-3 py-1.5 rounded-lg shadow-2xs transition">
           Active Orders (<span id="filterActiveBadge">0</span>)
         </button>
         <button onclick="protectedNav('/customers.html')" class="text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition">
           Due (<span id="filterDueCount">0</span>) • <span id="filterDueTotal">₹0</span>
         </button>
-        <button onclick="protectedNav('/report.html')" class="text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition">
+        <button id="btnNavOrderHistory" onclick="showOrderHistoryView()" class="text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition">
           Order History
         </button>
       </div>
@@ -237,59 +244,103 @@
       </button>
     </div>
 
-    <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-2xs">
-      <div class="p-2.5 border-b border-gray-100 flex justify-between items-center text-xs">
-        <div class="flex items-center gap-3">
-          <span class="font-bold text-gray-700">Dining Room</span>
-          <div class="flex bg-gray-100 p-0.5 rounded-lg">
-            <button class="bg-white text-gray-800 font-bold px-2 py-0.5 rounded shadow-xs text-[11px]">Floor Plan</button>
-            <button class="text-gray-500 hover:text-gray-800 font-bold px-2 py-0.5 rounded text-[11px]">Table Numbers</button>
+    <!-- ORDER HISTORY SCREEN (Screenshot Layout) -->
+    <div id="orderHistoryContainer" class="hidden bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-2xs">
+      <div class="p-3 border-b border-gray-100 flex flex-wrap justify-between items-center gap-2 bg-gray-50/50">
+        <div class="flex items-center gap-2">
+          <input type="text" id="histSearchInput" oninput="filterHistoryRows()" placeholder="Search order #, customer..." class="border border-gray-200 rounded-lg px-2.5 py-1 text-xs outline-none bg-white focus:border-orange-500 w-44">
+          <select id="histTypeFilter" onchange="filterHistoryRows()" class="border border-gray-200 rounded-lg px-2 py-1 text-xs outline-none bg-white">
+            <option value="ALL">All Types</option>
+            <option value="Dine-In">Dine-In</option>
+            <option value="Takeaway">Takeaway</option>
+            <option value="Delivery">Delivery</option>
+          </select>
+          <input type="date" id="histDateFilter" onchange="loadSettledOrderHistory()" class="border border-gray-200 rounded-lg px-2 py-1 text-xs outline-none bg-white font-bold">
+        </div>
+        <div class="text-xs font-bold text-gray-500">
+          Showing <span id="histCountLabel" class="text-gray-900 font-black">0</span> settled orders
+        </div>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs border-collapse">
+          <thead>
+            <tr class="bg-gray-50 text-gray-400 font-bold border-b border-gray-100 uppercase tracking-wider text-[10px]">
+              <th class="p-3">ORDER #</th>
+              <th class="p-3">TYPE / TABLE</th>
+              <th class="p-3">ITEMS</th>
+              <th class="p-3">CUSTOMER</th>
+              <th class="p-3">STATUS</th>
+              <th class="p-3">TIME</th>
+              <th class="p-3">AMOUNT</th>
+              <th class="p-3 text-center">ACTION</th>
+            </tr>
+          </thead>
+          <tbody id="orderHistoryTableBody" class="divide-y divide-gray-100">
+            <tr>
+              <td colspan="8" class="text-center py-10 text-gray-400 font-bold">Loading settled orders...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- MAIN FLOOR CONTENT (Floor Plan & Queues) -->
+    <div id="mainFloorDashboardContent" class="space-y-3">
+      <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-2xs">
+        <div class="p-2.5 border-b border-gray-100 flex justify-between items-center text-xs">
+          <div class="flex items-center gap-3">
+            <span class="font-bold text-gray-700">Dining Room</span>
+            <div class="flex bg-gray-100 p-0.5 rounded-lg">
+              <button class="bg-white text-gray-800 font-bold px-2 py-0.5 rounded shadow-xs text-[11px]">Floor Plan</button>
+              <button class="text-gray-500 hover:text-gray-800 font-bold px-2 py-0.5 rounded text-[11px]">Table Numbers</button>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-3 text-[10px] font-bold text-gray-500">
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-100 border border-emerald-400"></span> Free</span>
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-orange-100 border border-orange-400"></span> Occupied</span>
+            <button onclick="promptAddCustomTable()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-2 py-1 rounded border border-gray-200 text-[11px] ml-2">
+              ✏️ Edit Layout
+            </button>
           </div>
         </div>
 
-        <div class="flex items-center gap-3 text-[10px] font-bold text-gray-500">
-          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-100 border border-emerald-400"></span> Free</span>
-          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-orange-100 border border-orange-400"></span> Occupied</span>
-          <button onclick="promptAddCustomTable()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-2 py-1 rounded border border-gray-200 text-[11px] ml-2">
-            ✏️ Edit Layout
-          </button>
+        <div class="floor-dots py-6 px-4 flex flex-col items-center justify-center min-h-[310px]">
+          <div class="bg-gray-100 text-gray-500 text-[10px] font-black px-4 py-1 rounded-md border border-gray-200 mb-5 tracking-wide">
+            Billing/POS
+          </div>
+          <div id="floorTablesGrid" class="grid grid-cols-2 gap-x-12 gap-y-3.5 max-w-sm w-full"></div>
         </div>
       </div>
 
-      <div class="floor-dots py-6 px-4 flex flex-col items-center justify-center min-h-[310px]">
-        <div class="bg-gray-100 text-gray-500 text-[10px] font-black px-4 py-1 rounded-md border border-gray-200 mb-5 tracking-wide">
-          Billing/POS
+      <div id="kioskUnassignedBox" class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs space-y-2 hidden">
+        <div class="flex justify-between items-center text-xs font-bold text-gray-700 border-b pb-2">
+          <span class="flex items-center gap-1.5"><span>🪑</span> Dine-in - needs a table</span>
+          <span id="kioskUnassignedCount" class="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
         </div>
-        <div id="floorTablesGrid" class="grid grid-cols-2 gap-x-12 gap-y-3.5 max-w-sm w-full"></div>
-      </div>
-    </div>
-
-    <div id="kioskUnassignedBox" class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs space-y-2 hidden">
-      <div class="flex justify-between items-center text-xs font-bold text-gray-700 border-b pb-2">
-        <span class="flex items-center gap-1.5"><span>🪑</span> Dine-in - needs a table</span>
-        <span id="kioskUnassignedCount" class="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
-      </div>
-      <div id="kioskUnassignedList" class="space-y-2"></div>
-    </div>
-
-    <div class="grid grid-cols-2 gap-3">
-      <div class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs flex flex-col">
-        <div class="flex justify-between items-center text-xs font-black text-gray-800 border-b pb-2 mb-2">
-          <span class="flex items-center gap-1.5">🛍 Takeaway Queue</span>
-          <span id="takeawayQueueBadge" class="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
-        </div>
-        <div id="takeawayQueueList" class="space-y-2 flex-1 overflow-y-auto max-h-[420px] pr-1">
-          <p class="text-xs text-gray-400 italic text-center py-6">No takeaway orders in queue</p>
-        </div>
+        <div id="kioskUnassignedList" class="space-y-2"></div>
       </div>
 
-      <div class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs flex flex-col">
-        <div class="flex justify-between items-center text-xs font-black text-gray-800 border-b pb-2 mb-2">
-          <span class="flex items-center gap-1.5">🛵 Delivery</span>
-          <span id="deliveryQueueBadge" class="bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
+      <div class="grid grid-cols-2 gap-3">
+        <div class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs flex flex-col">
+          <div class="flex justify-between items-center text-xs font-black text-gray-800 border-b pb-2 mb-2">
+            <span class="flex items-center gap-1.5">🛍 Takeaway Queue</span>
+            <span id="takeawayQueueBadge" class="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
+          </div>
+          <div id="takeawayQueueList" class="space-y-2 flex-1 overflow-y-auto max-h-[420px] pr-1">
+            <p class="text-xs text-gray-400 italic text-center py-6">No takeaway orders in queue</p>
+          </div>
         </div>
-        <div id="deliveryQueueList" class="space-y-2 flex-1 overflow-y-auto max-h-[420px] pr-1">
-          <p class="text-xs text-gray-400 italic text-center py-6">No delivery orders in queue</p>
+
+        <div class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs flex flex-col">
+          <div class="flex justify-between items-center text-xs font-black text-gray-800 border-b pb-2 mb-2">
+            <span class="flex items-center gap-1.5">🛵 Delivery</span>
+            <span id="deliveryQueueBadge" class="bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
+          </div>
+          <div id="deliveryQueueList" class="space-y-2 flex-1 overflow-y-auto max-h-[420px] pr-1">
+            <p class="text-xs text-gray-400 italic text-center py-6">No delivery orders in queue</p>
+          </div>
         </div>
       </div>
     </div>
@@ -614,6 +665,7 @@
     var allMenuItems = [];
     var allCategories = [];
     var posCart = [];
+    var settledHistoryOrders = [];
     var selectedCategory = 'ALL';
     var selectedPriceFilter = 'ALL';
     var currentPOSOrderType = 'Dine-In';
@@ -632,6 +684,7 @@
 
     var activeVirtualInput = null;
     var isShiftActive = false;
+    var currentViewMode = 'DASHBOARD'; // 'DASHBOARD', 'HISTORY', 'POS'
 
     var defaultFloorTables = [
       { id: 'T04', label: 'T04', seats: 2 },
@@ -649,9 +702,163 @@
       fetchActiveOrders();
       setInterval(fetchActiveOrders, 4000);
 
+      var today = new Date().toISOString().slice(0, 10);
+      var df = document.getElementById('histDateFilter');
+      if (df) df.value = today;
+
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js').catch(function(){});
       }
+    }
+
+    // ================= GLOBAL NAVIGATION & VIEW SWITCHERS =================
+    function showActiveOrdersView() {
+      currentViewMode = 'DASHBOARD';
+      document.getElementById('viewPOSOrderScreen').classList.add('hidden');
+      document.getElementById('viewFloorDashboard').classList.remove('hidden');
+
+      document.getElementById('orderHistoryContainer').classList.add('hidden');
+      document.getElementById('mainFloorDashboardContent').classList.remove('hidden');
+
+      var btnActive = document.getElementById('btnNavActiveOrders');
+      var btnHist = document.getElementById('btnNavOrderHistory');
+      if (btnActive) btnActive.className = "bg-orange-500 text-white text-xs font-black px-3 py-1.5 rounded-lg shadow-2xs transition";
+      if (btnHist) btnHist.className = "text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition";
+
+      document.getElementById('topPageTitle').innerText = 'Orders';
+      document.getElementById('btnTopBack').classList.add('hidden');
+      document.getElementById('btnCancelOrderView').classList.add('hidden');
+      document.getElementById('topOrderActiveBadge').classList.add('hidden');
+      fetchActiveOrders();
+    }
+
+    function showOrderHistoryView() {
+      currentViewMode = 'HISTORY';
+      document.getElementById('viewPOSOrderScreen').classList.add('hidden');
+      document.getElementById('viewFloorDashboard').classList.remove('hidden');
+
+      document.getElementById('mainFloorDashboardContent').classList.add('hidden');
+      document.getElementById('orderHistoryContainer').classList.remove('hidden');
+
+      var btnActive = document.getElementById('btnNavActiveOrders');
+      var btnHist = document.getElementById('btnNavOrderHistory');
+      if (btnHist) btnHist.className = "bg-orange-500 text-white text-xs font-black px-3 py-1.5 rounded-lg shadow-2xs transition";
+      if (btnActive) btnActive.className = "text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition";
+
+      document.getElementById('topPageTitle').innerText = 'Order History';
+      document.getElementById('btnTopBack').classList.remove('hidden');
+      loadSettledOrderHistory();
+    }
+
+    function handleGlobalBackNavigation() {
+      if (currentViewMode === 'POS') {
+        closePOSOrderView();
+      } else {
+        showActiveOrdersView();
+      }
+    }
+
+    // ================= LOAD & RENDER ORDER HISTORY =================
+    function loadSettledOrderHistory() {
+      var dateVal = document.getElementById('histDateFilter').value || new Date().toISOString().slice(0, 10);
+      var tbody = document.getElementById('orderHistoryTableBody');
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-gray-400 font-bold">Loading settled orders...</td></tr>';
+
+      fetch('/api/orders/history?date=' + dateVal)
+        .then(function(r){ return r.json(); })
+        .then(function(orders){
+          settledHistoryOrders = orders || [];
+          filterHistoryRows();
+        })
+        .catch(function(){
+          tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-rose-500 font-bold">Failed to load order history</td></tr>';
+        });
+    }
+
+    function filterHistoryRows() {
+      var q = (document.getElementById('histSearchInput').value || '').toLowerCase().trim();
+      var typeF = document.getElementById('histTypeFilter').value;
+
+      var filtered = settledHistoryOrders.filter(function(o){
+        var matchType = (typeF === 'ALL' || o.order_type === typeF);
+        var matchQ = (!q || 
+          ('ORD-' + o.id).toLowerCase().includes(q) || 
+          (o.customer_name || '').toLowerCase().includes(q) || 
+          (o.customer_phone || '').includes(q)
+        );
+        return matchType && matchQ;
+      });
+
+      document.getElementById('histCountLabel').innerText = filtered.length;
+      renderHistoryTable(filtered);
+    }
+
+    function renderHistoryTable(orders) {
+      var tbody = document.getElementById('orderHistoryTableBody');
+      if (!orders || orders.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-12 text-gray-400 font-bold italic">No settled orders found</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = orders.map(function(o){
+        var itemsText = (o.items && o.items.length > 0)
+          ? o.items.map(function(i){ return i.name + ' ×' + i.qty; }).join(', ')
+          : 'Items logged';
+
+        var typeBadge = o.order_type === 'Dine-In'
+          ? '<span class="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-[10px] font-bold">Dine-In</span>'
+          : (o.order_type === 'Delivery' 
+              ? '<span class="bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded text-[10px] font-bold">Delivery</span>'
+              : '<span class="bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded text-[10px] font-bold">Takeaway</span>');
+
+        var modeBadge = `<span class="bg-emerald-50 text-emerald-800 font-bold px-1.5 py-0.5 rounded text-[10px]">PAID • ${o.payment_mode || 'Cash'}</span>`;
+        var d = new Date(o.created_at);
+        var timeFormatted = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) + ' • ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase();
+
+        return `
+          <tr class="hover:bg-gray-50/80 transition text-gray-700">
+            <td class="p-3 font-mono font-black text-gray-900">
+              <div>ORD-${o.id}</div>
+              <div class="text-[10px] text-gray-400 font-normal">Token ${o.id.toString().padStart(3, '0')}</div>
+            </td>
+            <td class="p-3">
+              <div class="flex items-center gap-1.5">
+                ${typeBadge}
+                ${o.table_no ? `<span class="bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded text-[10px] font-bold">${o.table_no}</span>` : ''}
+              </div>
+            </td>
+            <td class="p-3 text-[11px] font-medium text-gray-800 max-w-xs">
+              <div class="flex items-start gap-1 line-clamp-2">
+                <span>🥪</span> <span>${itemsText}</span>
+              </div>
+            </td>
+            <td class="p-3">
+              <div class="font-bold text-gray-900">${o.customer_name || 'Walk-in'}</div>
+              <div class="text-[10px] text-gray-400 font-mono">${o.customer_phone || '-'}</div>
+            </td>
+            <td class="p-3">
+              <span class="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black px-2 py-0.5 rounded-full">Closed</span>
+            </td>
+            <td class="p-3 text-[11px] text-gray-500 whitespace-nowrap">${timeFormatted}</td>
+            <td class="p-3">
+              <div class="font-black text-gray-900 text-xs">₹${o.total}</div>
+              <div class="mt-0.5">${modeBadge}</div>
+            </td>
+            <td class="p-3 text-center">
+              <button onclick="actionPrintReceiptFromHistory(${o.id})" class="border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 px-2.5 py-1 rounded-lg text-[11px] font-bold shadow-2xs transition">
+                Receipt
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function actionPrintReceiptFromHistory(orderId) {
+      var ord = settledHistoryOrders.find(function(o){ return o.id === orderId; });
+      if (!ord) return;
+      var calc = { subtotal: Number(ord.subtotal) || Number(ord.total), gst: Number(ord.gst) || 0, grandTotal: Number(ord.total), payableNow: 0 };
+      dispatchDirectPrintReceipt(ord.id, ord, calc);
     }
 
     // ================= DYNAMIC POSITIONING VIRTUAL KEYBOARD =================
@@ -1493,6 +1700,7 @@
     }
 
     function openPOSOrderView(orderType, tableId) {
+      currentViewMode = 'POS';
       currentPOSOrderType = orderType || 'Dine-In';
       selectedPOSTableId = tableId || 'T01';
       editingActiveOrderId = null;
@@ -1542,6 +1750,7 @@
       document.getElementById('viewPOSOrderScreen').classList.remove('hidden');
 
       document.getElementById('topPageTitle').innerText = 'New Order';
+      document.getElementById('btnTopBack').classList.remove('hidden');
       document.getElementById('btnCancelOrderView').classList.remove('hidden');
       document.getElementById('topOrderActiveBadge').classList.remove('hidden');
 
@@ -1555,11 +1764,12 @@
       document.getElementById('viewPOSOrderScreen').classList.add('hidden');
       document.getElementById('viewFloorDashboard').classList.remove('hidden');
 
-      document.getElementById('topPageTitle').innerText = 'Orders';
       document.getElementById('btnCancelOrderView').classList.add('hidden');
       document.getElementById('topOrderActiveBadge').classList.add('hidden');
 
-      fetchActiveOrders();
+      if (currentViewMode === 'POS') {
+        showActiveOrdersView();
+      }
     }
 
     function renderCategoriesSidebar() {
