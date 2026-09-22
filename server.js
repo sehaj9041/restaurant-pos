@@ -244,12 +244,12 @@ app.delete('/api/menu/:id', (req, res) => {
   });
 });
 
-// 7. ACTIVE ORDERS
+// 7. ACTIVE ORDERS (INCLUDES 'KOT_READY' SO UNPAID READY ORDERS STAY ON POS SCREEN)
 app.get('/api/orders/active', (req, res) => {
   const query = `
     SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount
     FROM orders 
-    WHERE status IN ('RUNNING_TABLE', 'PENDING', 'DUE_PENDING', 'RUNNING', 'KITCHEN_ACTIVE') 
+    WHERE status IN ('RUNNING_TABLE', 'PENDING', 'DUE_PENDING', 'RUNNING', 'KITCHEN_ACTIVE', 'KOT_READY') 
        OR order_type = 'Online' 
        OR payment_mode = 'Due'
     ORDER BY id DESC
@@ -283,7 +283,7 @@ app.get('/api/orders/active', (req, res) => {
   });
 });
 
-// DEDICATED SETTLED ORDER HISTORY API (FULL ITEMS EMBEDDED)
+// DEDICATED SETTLED ORDER HISTORY API (STRICT: ONLY PROPERLY PAID / CLOSED ORDERS)
 app.get('/api/orders/history', (req, res) => {
   const { date } = req.query;
   const filterDate = date ? date : new Date().toISOString().slice(0, 10);
@@ -292,8 +292,12 @@ app.get('/api/orders/history', (req, res) => {
     SELECT id, order_type, table_no, customer_name, customer_phone, payment_mode, status, subtotal, discount, gst, total, COALESCE(paid_amount, total) as paid_amount, created_at
     FROM orders 
     WHERE (DATE(created_at) = DATE(?) OR created_at::date = ?::date)
-      AND (status IN ('COMPLETED', 'CLOSED') OR (COALESCE(paid_amount, 0) >= total AND total > 0))
-      AND status != 'RUNNING_TABLE'
+      AND (
+        status IN ('COMPLETED', 'CLOSED') 
+        OR (COALESCE(paid_amount, 0) >= total AND total > 0)
+      )
+      AND status NOT IN ('RUNNING_TABLE', 'PENDING', 'KOT_READY')
+      AND payment_mode != 'UNPAID'
     ORDER BY id DESC
     LIMIT 200
   `;
@@ -475,7 +479,7 @@ app.post('/api/orders', async (req, res) => {
   });
 });
 
-// SETTLE ORDER API
+// SETTLE ORDER API: Settle hone par hi status COMPLETED hoga
 app.post('/api/tables/:id/settle', (req, res) => {
   const { payment_mode } = req.body;
   db.get("SELECT * FROM orders WHERE id = ?", [req.params.id], (err, order) => {
@@ -491,7 +495,7 @@ app.post('/api/tables/:id/settle', (req, res) => {
         res.json({ success: true, duePending: true });
       });
     } else {
-      db.run("UPDATE orders SET status = 'KITCHEN_ACTIVE', payment_mode = ?, paid_amount = total WHERE id = ?", [payment_mode, req.params.id], (err2) => {
+      db.run("UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE id = ?", [payment_mode, req.params.id], (err2) => {
         if (err2) return res.status(500).json({ error: err2.message });
         res.json({ success: true });
       });
@@ -638,7 +642,7 @@ app.post('/api/printer/print-daily-summary', async (req, res) => {
   }
 });
 
-// 9. KITCHEN KOT API (WITH ITEMS ID, NAME, QTY, NOTES FOR KDS ACCURACY)
+// 9. KITCHEN KOT API
 app.get('/api/kot', (req, res) => {
   db.all(
     `SELECT o.id, o.order_type, o.table_no, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
@@ -672,13 +676,27 @@ app.get('/api/kot', (req, res) => {
   );
 });
 
-// KDS COMPLETE
+// KDS COMPLETE: UNPAID ORDERS WILL NOT BE MARKED COMPLETED OR SETTLED!
 app.post('/api/kot/:id/complete', (req, res) => {
-  db.get("SELECT payment_mode, status FROM orders WHERE id = ?", [req.params.id], (err, row) => {
-    if (row && (row.payment_mode === 'DUE' || row.status === 'DUE_PENDING')) {
-      db.run("UPDATE orders SET status = 'DUE_PENDING' WHERE id = ?", [req.params.id], () => res.json({ success: true }));
-    } else {
-      db.run("UPDATE orders SET status = 'COMPLETED' WHERE id = ?", [req.params.id], () => res.json({ success: true }));
+  const orderId = req.params.id;
+  db.get("SELECT total, COALESCE(paid_amount, 0) as paid_amount, payment_mode, status FROM orders WHERE id = ?", [orderId], (err, order) => {
+    if (err || !order) return res.status(404).json({ error: 'Order not found' });
+
+    const total = Number(order.total) || 0;
+    const paid = Number(order.paid_amount) || 0;
+    const isFullyPaid = (paid >= total && total > 0);
+
+    // 1. Agar Khata / DUE hai
+    if (order.payment_mode === 'DUE' || order.status === 'DUE_PENDING') {
+      db.run("UPDATE orders SET status = 'DUE_PENDING' WHERE id = ?", [orderId], () => res.json({ success: true }));
+    } 
+    // 2. Agar payment pehle se completely receive ho chuki hai
+    else if (isFullyPaid) {
+      db.run("UPDATE orders SET status = 'COMPLETED' WHERE id = ?", [orderId], () => res.json({ success: true }));
+    } 
+    // 3. Agar order UNPAID ya PARTIAL hai -> KOT_READY (Kitchen se hatega, POS active rahega, Order History mein NAHI aayega)
+    else {
+      db.run("UPDATE orders SET status = 'KOT_READY' WHERE id = ?", [orderId], () => res.json({ success: true }));
     }
   });
 });
@@ -726,7 +744,7 @@ app.get('/api/reports/analytics', (req, res) => {
       COALESCE(SUM(CASE WHEN payment_mode = 'DUE' OR status = 'DUE_PENDING' THEN total ELSE 0 END), 0) AS due_sales
     FROM orders 
     WHERE (created_at::date BETWEEN ?::date AND ?::date OR DATE(created_at) BETWEEN DATE(?) AND DATE(?))
-      AND status != 'RUNNING_TABLE'
+      AND status NOT IN ('RUNNING_TABLE', 'KOT_READY')
   `;
 
   const expenseQuery = `
@@ -742,7 +760,7 @@ app.get('/api/reports/analytics', (req, res) => {
     FROM order_items oi
     JOIN orders o ON o.id = oi.order_id
     WHERE (o.created_at::date BETWEEN ?::date AND ?::date OR DATE(o.created_at) BETWEEN DATE(?) AND DATE(?))
-      AND o.status != 'RUNNING_TABLE'
+      AND o.status NOT IN ('RUNNING_TABLE', 'KOT_READY')
     GROUP BY oi.name
     ORDER BY total_qty DESC
     LIMIT 10
@@ -752,7 +770,7 @@ app.get('/api/reports/analytics', (req, res) => {
     SELECT id, order_type, table_no, customer_name, customer_phone, payment_mode, status, subtotal, discount, gst, total, COALESCE(paid_amount, total) as paid_amount, created_at
     FROM orders 
     WHERE (created_at::date BETWEEN ?::date AND ?::date OR DATE(created_at) BETWEEN DATE(?) AND DATE(?))
-      AND status != 'RUNNING_TABLE'
+      AND status NOT IN ('RUNNING_TABLE', 'KOT_READY')
     ORDER BY id DESC
   `;
 
