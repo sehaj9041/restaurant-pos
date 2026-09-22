@@ -322,12 +322,12 @@ app.get('/api/orders/history', (req, res) => {
   });
 });
 
-// Update Existing Order In-Place (LOCKED PAID AMOUNT PROTECTION)
+// Update Existing Order In-Place (LOCKED PAID AMOUNT PROTECTION & KITCHEN SYNC)
 app.put('/api/orders/:id', (req, res) => {
   const orderId = req.params.id;
   const { order_type, table_no, customer_name, customer_phone, items, subtotal, discount, gst, total, payment_mode, paid_amount } = req.body;
 
-  db.get("SELECT total, paid_amount, payment_mode FROM orders WHERE id = ?", [orderId], (errGet, currentOrder) => {
+  db.get("SELECT total, paid_amount, payment_mode, status FROM orders WHERE id = ?", [orderId], (errGet, currentOrder) => {
     let prevPaid = 0;
     if (currentOrder) {
       prevPaid = Number(currentOrder.paid_amount) || 0;
@@ -638,7 +638,7 @@ app.post('/api/printer/print-daily-summary', async (req, res) => {
   }
 });
 
-// 9. KITCHEN KOT
+// 9. KITCHEN KOT API (WITH ITEMS ID, NAME, QTY, NOTES FOR KDS ACCURACY)
 app.get('/api/kot', (req, res) => {
   db.all(
     `SELECT o.id, o.order_type, o.table_no, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
@@ -658,7 +658,7 @@ app.get('/api/kot', (req, res) => {
         const fullOrders = await Promise.all(
           orders.map(order => {
             return new Promise((resolve) => {
-              db.all('SELECT name, qty, notes FROM order_items WHERE order_id = ?', [order.id], (err2, items) => {
+              db.all('SELECT id, name, qty, notes FROM order_items WHERE order_id = ? ORDER BY id ASC', [order.id], (err2, items) => {
                 resolve({ ...order, items: items || [] });
               });
             });
