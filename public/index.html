@@ -184,7 +184,7 @@
       </button>
     </div>
 
-    <!-- RESTORED DINING ROOM FLOOR PLAN -->
+    <!-- DINING ROOM FLOOR PLAN -->
     <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-2xs">
       <div class="p-2.5 border-b border-gray-100 flex justify-between items-center text-xs">
         <div class="flex items-center gap-3">
@@ -212,15 +212,7 @@
       </div>
     </div>
 
-    <div id="kioskUnassignedBox" class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs space-y-2 hidden">
-      <div class="flex justify-between items-center text-xs font-bold text-gray-700 border-b pb-2">
-        <span class="flex items-center gap-1.5"><span>🪑</span> Dine-in - needs a table</span>
-        <span id="kioskUnassignedCount" class="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
-      </div>
-      <div id="kioskUnassignedList" class="space-y-2"></div>
-    </div>
-
-    <!-- RESTORED TAKEAWAY & DELIVERY QUEUES -->
+    <!-- TAKEAWAY & DELIVERY QUEUES -->
     <div class="grid grid-cols-2 gap-3">
       <div class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs flex flex-col">
         <div class="flex justify-between items-center text-xs font-black text-gray-800 border-b pb-2 mb-2">
@@ -540,11 +532,82 @@
     }
 
     function renderAllQueues() {
-      function buildCard(o) {
-        return `<div class="border rounded-xl p-3 text-xs bg-white shadow-2xs"><b>ORD-${o.id}</b> - ₹${o.total} (${o.payment_mode || 'Unpaid'})</div>`;
+      function buildOrderActionCard(o) {
+        var itemsText = (o.items || []).map(function(i){ return i.name + ' x' + i.qty; }).join(', ');
+        var totalAmount = Number(o.total) || 0;
+        var paidAmount = Number(o.paid_amount) || Number(o.already_paid) || 0;
+
+        if (paidAmount === 0 && o.payment_mode && o.payment_mode !== 'UNPAID' && o.payment_mode !== 'DUE' && o.status !== 'RUNNING_TABLE') {
+          paidAmount = totalAmount;
+        }
+
+        var remainingDue = Math.max(0, totalAmount - paidAmount);
+        var isFullyPaid = paidAmount >= totalAmount && totalAmount > 0;
+        var isPartiallyPaid = paidAmount > 0 && remainingDue > 0;
+
+        var statusTag = '';
+        var tagBg = '';
+        if (isFullyPaid) {
+          statusTag = o.payment_mode || 'Paid';
+          tagBg = 'bg-emerald-100 text-emerald-800';
+        } else if (isPartiallyPaid) {
+          statusTag = `Partially Paid (Due: ₹${remainingDue})`;
+          tagBg = 'bg-amber-100 text-amber-900';
+        } else {
+          statusTag = (o.payment_mode === 'DUE') ? 'Due' : 'Unpaid';
+          tagBg = 'bg-amber-100 text-amber-900';
+        }
+
+        return `
+          <div class="border border-orange-200/70 bg-[#fffdfa] rounded-xl p-3 text-xs shadow-2xs hover:border-orange-300 transition space-y-2">
+            <div class="flex justify-between items-start">
+              <div>
+                <div class="flex items-center gap-1.5">
+                  <span class="text-gray-500 font-bold text-[10px]">Token ${o.id.toString().padStart(3, '0')}</span>
+                  <span class="font-black text-gray-800 text-xs">ORD-${o.id}</span>
+                </div>
+                <div class="text-[11px] text-gray-600 mt-0.5 line-clamp-1">${itemsText || 'Order placed'}</div>
+                <div class="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
+                  <span>👤 ${o.customer_name || 'Sehaj'}</span>
+                  <span class="bg-gray-100 text-gray-500 font-bold px-1 rounded text-[9px]">You</span>
+                  ${o.customer_phone ? `<span class="ml-1 text-gray-500 font-mono">(${o.customer_phone})</span>` : ''}
+                </div>
+              </div>
+
+              <div class="text-right">
+                <div class="flex items-center justify-end gap-1 mb-0.5">
+                  <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100/70 text-orange-800">Preparing</span>
+                  <span class="font-black text-gray-900 text-sm">₹${o.total}</span>
+                  <span class="text-[10px] font-black px-1.5 py-0.5 rounded ${tagBg}">${statusTag}</span>
+                </div>
+                <div class="text-[9px] text-gray-400">${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short' })} • ${new Date().toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' })}</div>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap gap-1.5 pt-1.5 border-t border-gray-100 text-[10px] font-bold">
+              <button onclick="selectHistoryOrderToPOS(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>👁</span> View / Edit</button>
+            </div>
+          </div>
+        `;
       }
-      document.getElementById('takeawayQueueList').innerHTML = allActiveOrders.filter(o => o.order_type === 'Takeaway').map(buildCard).join('') || '<p class="text-xs text-gray-400 text-center py-6">No orders</p>';
-      document.getElementById('deliveryQueueList').innerHTML = allActiveOrders.filter(o => o.order_type === 'Delivery').map(buildCard).join('') || '<p class="text-xs text-gray-400 text-center py-6">No orders</p>';
+
+      var takeawayOrders = allActiveOrders.filter(function(o) { return o.order_type === 'Takeaway'; });
+      var takeawayBadge = document.getElementById('takeawayQueueBadge');
+      if (takeawayBadge) takeawayBadge.innerText = takeawayOrders.length;
+      var tList = document.getElementById('takeawayQueueList');
+      if (tList) {
+        if (!takeawayOrders.length) tList.innerHTML = '<p class="text-xs text-gray-400 italic text-center py-6">No takeaway orders in queue</p>';
+        else tList.innerHTML = takeawayOrders.map(buildOrderActionCard).join('');
+      }
+
+      var deliveryOrders = allActiveOrders.filter(function(o) { return o.order_type === 'Delivery'; });
+      var deliveryBadge = document.getElementById('deliveryQueueBadge');
+      if (deliveryBadge) deliveryBadge.innerText = deliveryOrders.length;
+      var dList = document.getElementById('deliveryQueueList');
+      if (dList) {
+        if (!deliveryOrders.length) dList.innerHTML = '<p class="text-xs text-gray-400 italic text-center py-6">No delivery orders in queue</p>';
+        else dList.innerHTML = deliveryOrders.map(buildOrderActionCard).join('');
+      }
     }
 
     function calculatePOSBillTotals() {
