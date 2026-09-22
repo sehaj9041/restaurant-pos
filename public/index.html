@@ -377,18 +377,21 @@
       <div id="posItemsGrid" class="flex-1 overflow-y-auto p-3 grid grid-cols-2 gap-2.5 content-start"></div>
     </div>
 
-    <!-- COLUMN 3: ORDER SUMMARY & PAYMENT -->
-    <div class="w-80 flex flex-col bg-white shrink-0 justify-between">
-      <div>
-        <div class="grid grid-cols-2 p-1.5 bg-gray-100 border-b text-xs font-bold">
-          <button id="tabBtnCustomer" onclick="switchRightTab('CUSTOMER')" class="py-1.5 rounded-lg transition bg-white text-orange-600 shadow-2xs font-black">Order Type & Customer</button>
-          <button id="tabBtnSummary" onclick="switchRightTab('SUMMARY')" class="py-1.5 rounded-lg transition text-gray-500 hover:text-gray-900 flex items-center justify-center gap-1">
-            <span>Order Summary</span>
-            <span id="tabSummaryBadge" class="bg-orange-500 text-white text-[9px] font-black px-1.5 py-0.2 rounded-full">0</span>
-          </button>
-        </div>
+    <!-- COLUMN 3: ORDER SUMMARY & PAYMENT (FLEX FULL-HEIGHT LAYOUT) -->
+    <div class="w-80 flex flex-col bg-white shrink-0 h-full border-l border-gray-200">
+      <!-- TOP TABS -->
+      <div class="grid grid-cols-2 p-1.5 bg-gray-100 border-b text-xs font-bold shrink-0">
+        <button id="tabBtnCustomer" onclick="switchRightTab('CUSTOMER')" class="py-1.5 rounded-lg transition bg-white text-orange-600 shadow-2xs font-black">Order Type & Customer</button>
+        <button id="tabBtnSummary" onclick="switchRightTab('SUMMARY')" class="py-1.5 rounded-lg transition text-gray-500 hover:text-gray-900 flex items-center justify-center gap-1">
+          <span>Order Summary</span>
+          <span id="tabSummaryBadge" class="bg-orange-500 text-white text-[9px] font-black px-1.5 py-0.2 rounded-full">0</span>
+        </button>
+      </div>
 
-        <div id="tabContentCustomer" class="p-3.5 space-y-3">
+      <!-- MIDDLE CONTENT: FULL-EXPANDING CONTAINER -->
+      <div class="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <!-- TAB 1: CUSTOMER DETAILS -->
+        <div id="tabContentCustomer" class="p-3.5 space-y-3 overflow-y-auto flex-1">
           <div class="bg-gray-50 border border-gray-200 rounded-xl p-2.5 flex justify-between items-center text-xs">
             <div>
               <span class="text-[10px] font-bold text-gray-400 block uppercase">Selected Table</span>
@@ -424,15 +427,16 @@
           </div>
         </div>
 
-        <div id="tabContentSummary" class="p-3 hidden space-y-2">
-          <div id="posCartItemList" class="space-y-1.5 max-h-[35vh] overflow-y-auto pr-1 text-xs divide-y divide-gray-100">
+        <!-- TAB 2: CART ITEMS LIST (EXPANDS TO FILL ENTIRE SCREEN HEIGHT) -->
+        <div id="tabContentSummary" class="p-3 hidden flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div id="posCartItemList" class="flex-1 overflow-y-auto pr-1 text-xs divide-y divide-gray-100 space-y-1">
             <p class="text-gray-400 text-center py-10 italic text-xs">Cart is empty</p>
           </div>
         </div>
       </div>
 
-      <!-- BILLING & CONTROLS -->
-      <div class="border-t border-gray-200 p-3 bg-white space-y-2 max-h-[55vh] overflow-y-auto">
+      <!-- BILLING & CONTROLS (BOTTOM FIXED) -->
+      <div class="border-t border-gray-200 p-3 bg-white space-y-2 shrink-0 overflow-y-auto max-h-[50vh]">
         <div class="flex justify-between items-center text-xs font-bold text-gray-500">
           <span class="flex items-center gap-1 text-orange-600 cursor-pointer">🏷 Offers</span>
           <div class="flex items-center gap-1.5">
@@ -1918,13 +1922,10 @@
       }).join('');
     }
 
-    // NEW ROW LOGIC: Existing active order me nayi item add hone par separate line row create hogi
     function addOrIncrementItem(name, price) {
       if (editingActiveOrderId) {
-        // Active/Existing order editing: Create a distinct row for newly punched item
         posCart.push({ id: null, name: name, price: Number(price), qty: 1 });
       } else {
-        // Fresh brand new order: Combine row if already in cart
         var exist = posCart.find(function(i) { return i.name === name; });
         if (exist) exist.qty += 1;
         else posCart.push({ id: null, name: name, price: Number(price), qty: 1 });
