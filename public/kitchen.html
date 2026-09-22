@@ -4,6 +4,16 @@
   <meta charset="UTF-8">
   <title>Live Kitchen Display (KOT)</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.05); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+    .badge-alert {
+      animation: pulse-ring 1.5s infinite;
+    }
+  </style>
 </head>
 <body class="bg-gray-900 min-h-screen p-6 font-sans text-white select-none">
 
@@ -32,10 +42,45 @@
   <script>
     var audioCtx = null;
     var isAudioAllowed = false;
-    var previousOrdersState = {}; 
-    var isFirstLoad = true;
 
-    // Browser audio policy bypass helper
+    // Helper functions for persistent KDS tracking in localStorage
+    function getStoredSnapshots() {
+      try {
+        return JSON.parse(localStorage.getItem('kot_order_snapshots') || '{}');
+      } catch (e) {
+        return {};
+      }
+    }
+
+    function saveStoredSnapshots(snapshots) {
+      localStorage.setItem('kot_order_snapshots', JSON.stringify(snapshots));
+    }
+
+    function getCheckedItemKeys() {
+      try {
+        return JSON.parse(localStorage.getItem('kot_checked_items') || '{}');
+      } catch (e) {
+        return {};
+      }
+    }
+
+    function saveCheckedItemKeys(store) {
+      localStorage.setItem('kot_checked_items', JSON.stringify(store));
+    }
+
+    function getAlertBadges() {
+      try {
+        return JSON.parse(localStorage.getItem('kot_alert_badges') || '{}');
+      } catch (e) {
+        return {};
+      }
+    }
+
+    function saveAlertBadges(badges) {
+      localStorage.setItem('kot_alert_badges', JSON.stringify(badges));
+    }
+
+    // Audio Unlock Logic
     function enableAudioContext() {
       try {
         if (!audioCtx) {
@@ -49,13 +94,13 @@
         var lbl = document.getElementById('lblAudioStatus');
         btn.className = "bg-emerald-600 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition flex items-center gap-1.5 shadow-sm cursor-default";
         lbl.innerText = "Sound Alert Active";
-        playKOTBeepSound(); // Ek test chime play hoga
+        playKOTBeepSound();
       } catch (e) {
         console.error('Audio init error:', e);
       }
     }
 
-    // High-pitched 2-tone kitchen order chime
+    // Dual-tone high-pitch kitchen bell
     function playKOTBeepSound() {
       try {
         if (!audioCtx) {
@@ -67,40 +112,31 @@
 
         var now = audioCtx.currentTime;
         
-        // Tone 1
+        // Bell Chime 1
         var osc1 = audioCtx.createOscillator();
         var gain1 = audioCtx.createGain();
         osc1.type = 'sine';
         osc1.frequency.setValueAtTime(880, now); // A5 note
-        gain1.gain.setValueAtTime(0.3, now);
-        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+        gain1.gain.setValueAtTime(0.35, now);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
         osc1.connect(gain1);
         gain1.connect(audioCtx.destination);
         osc1.start(now);
-        osc1.stop(now + 0.25);
+        osc1.stop(now + 0.3);
 
-        // Tone 2 (Higher Ding)
+        // Bell Chime 2
         var osc2 = audioCtx.createOscillator();
         var gain2 = audioCtx.createGain();
         osc2.type = 'sine';
-        osc2.frequency.setValueAtTime(1318.51, now + 0.15); // E6 note
-        gain2.gain.setValueAtTime(0.4, now + 0.15);
-        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+        osc2.frequency.setValueAtTime(1318.51, now + 0.12); // E6 note
+        gain2.gain.setValueAtTime(0.45, now + 0.12);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
         osc2.connect(gain2);
         gain2.connect(audioCtx.destination);
-        osc2.start(now + 0.15);
-        osc2.stop(now + 0.6);
+        osc2.start(now + 0.12);
+        osc2.stop(now + 0.65);
       } catch (err) {
-        console.warn('Audio play restricted until user clicks:', err);
-      }
-    }
-
-    // Item tick status persist rakhne ke liye helper
-    function getCheckedItemKeys() {
-      try {
-        return JSON.parse(localStorage.getItem('kot_checked_items') || '{}');
-      } catch (e) {
-        return {};
+        console.warn('Audio awaiting user interaction:', err);
       }
     }
 
@@ -108,7 +144,7 @@
       var store = getCheckedItemKeys();
       var key = orderId + '_' + itemIndex;
       store[key] = !store[key];
-      localStorage.setItem('kot_checked_items', JSON.stringify(store));
+      saveCheckedItemKeys(store);
       loadKOT();
     }
 
@@ -116,45 +152,81 @@
       fetch('/api/kot')
         .then(function(res) { return res.json(); })
         .then(function(orders) {
-          document.getElementById('pendingCount').innerText = orders.length + ' Pending';
+          document.getElementById('pendingCount').innerText = (orders ? orders.length : 0) + ' Pending';
           var grid = document.getElementById('kotGrid');
 
           if (!orders || orders.length === 0) {
             grid.innerHTML = '<div class="col-span-full text-center py-20 text-gray-500 font-bold text-lg">No active orders in kitchen right now.</div>';
-            previousOrdersState = {};
-            isFirstLoad = false;
             return;
           }
 
+          var snapshots = getStoredSnapshots();
+          var persistentBadges = getAlertBadges();
           var checkedMap = getCheckedItemKeys();
-          var shouldTriggerSound = false;
-          var currentBatchState = {};
+          var shouldPlaySound = false;
 
-          orders.forEach(function(o) {
-            var orderId = o.id;
-            var currentItems = o.items || [];
-            currentBatchState[orderId] = currentItems.length;
+          // Process current live orders and compare with snapshots
+          orders.forEach(function(order) {
+            var orderId = order.id.toString();
+            var prevSnapshot = snapshots[orderId];
 
-            if (!isFirstLoad) {
-              // 1. Agar bilkul naya KOT order aaya
-              if (!previousOrdersState[orderId]) {
-                shouldTriggerSound = true;
-              } 
-              // 2. Agar purane active order me items count badh gaya
-              else if (currentItems.length > previousOrdersState[orderId]) {
-                shouldTriggerSound = true;
-              }
+            if (!prevSnapshot) {
+              // 1. Bilkul nayi KOT aayi
+              shouldPlaySound = true;
+              snapshots[orderId] = {
+                itemsMap: {}
+              };
+              (order.items || []).forEach(function(item) {
+                snapshots[orderId].itemsMap[item.name] = Number(item.qty) || 1;
+              });
+            } else {
+              // 2. Existing KOT mein changes check karo
+              var currentItemsMap = {};
+
+              (order.items || []).forEach(function(item, idx) {
+                var itemName = item.name;
+                var currentQty = Number(item.qty) || 1;
+                currentItemsMap[itemName] = currentQty;
+
+                var prevQty = prevSnapshot.itemsMap[itemName];
+
+                // Case A: Bilkul naya item add hua
+                if (prevQty === undefined) {
+                  persistentBadges[orderId + '_' + idx] = 'NEW';
+                  shouldPlaySound = true;
+                }
+                // Case B: Purane item ki Quantity badh gayi
+                else if (currentQty > prevQty) {
+                  var diff = currentQty - prevQty;
+                  persistentBadges[orderId + '_' + idx] = '+' + diff + ' QTY';
+                  shouldPlaySound = true;
+                }
+              });
+
+              // Snapshot update karein taaki bar-bar sound na bajta rahe
+              snapshots[orderId].itemsMap = currentItemsMap;
             }
           });
 
-          if (shouldTriggerSound) {
+          // Clean up completed orders from snapshots & badges
+          var currentOrderIds = new Set(orders.map(function(o){ return o.id.toString(); }));
+          Object.keys(snapshots).forEach(function(id) {
+            if (!currentOrderIds.has(id)) delete snapshots[id];
+          });
+          Object.keys(persistentBadges).forEach(function(key) {
+            var ordId = key.split('_')[0];
+            if (!currentOrderIds.has(ordId)) delete persistentBadges[key];
+          });
+
+          saveStoredSnapshots(snapshots);
+          saveAlertBadges(persistentBadges);
+
+          if (shouldPlaySound) {
             playKOTBeepSound();
           }
 
+          // Render Grid
           grid.innerHTML = orders.map(function(order) {
-            var prevCount = previousOrdersState[order.id] || 0;
-            var isExistingOrder = (previousOrdersState[order.id] !== undefined);
-
             return `
               <div class="bg-gray-800 border border-gray-700 rounded-2xl flex flex-col justify-between overflow-hidden shadow-lg">
                 <div class="p-4 border-b border-gray-700 bg-gray-850 flex justify-between items-center">
@@ -168,8 +240,7 @@
                 <div class="p-4 flex-1 space-y-2.5">
                   ${(order.items || []).map(function(item, idx) {
                     var isDone = !!checkedMap[order.id + '_' + idx];
-                    // Agar purane order me yeh item baad me add hua hai
-                    var isNewlyAddedItem = isExistingOrder && idx >= prevCount;
+                    var badgeTag = persistentBadges[order.id + '_' + idx];
 
                     return `
                       <div onclick="toggleItemReady(${order.id},${idx})" class="border-b border-gray-700/50 pb-2 cursor-pointer select-none transition ${isDone ? 'opacity-40' : 'hover:bg-gray-750'}">
@@ -185,10 +256,10 @@
                           <!-- ITEM NAME -->
                           <span class="font-bold text-gray-200 flex-1 ${isDone ? 'line-through text-gray-400' : ''}">${item.name}</span>
 
-                          <!-- NEW BADGE ON ADDED ITEMS -->
-                          ${isNewlyAddedItem ? `
-                            <span class="bg-rose-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider animate-pulse shrink-0">
-                              NEW
+                          <!-- PERSISTENT ALERT BADGE (NEW OR QUANTITY INCREASED) -->
+                          ${badgeTag ? `
+                            <span class="badge-alert bg-rose-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 shadow-xs border border-rose-400">
+                              ${badgeTag}
                             </span>
                           ` : ''}
                         </div>
@@ -206,26 +277,36 @@
               </div>
             `;
           }).join('');
-
-          previousOrdersState = currentBatchState;
-          isFirstLoad = false;
         })
         .catch(function(){});
     }
 
     function markDone(id) {
+      // 1. Clear checkmarks for this order
       var store = getCheckedItemKeys();
       Object.keys(store).forEach(function(k) {
         if (k.startsWith(id + '_')) delete store[k];
       });
-      localStorage.setItem('kot_checked_items', JSON.stringify(store));
+      saveCheckedItemKeys(store);
+
+      // 2. Clear badges for this order
+      var badges = getAlertBadges();
+      Object.keys(badges).forEach(function(k) {
+        if (k.startsWith(id + '_')) delete badges[k];
+      });
+      saveAlertBadges(badges);
+
+      // 3. Clear snapshot
+      var snapshots = getStoredSnapshots();
+      delete snapshots[id.toString()];
+      saveStoredSnapshots(snapshots);
 
       fetch('/api/kot/' + id + '/complete', { method: 'POST' })
         .then(function(res) { return res.json(); })
         .then(function() { loadKOT(); });
     }
 
-    // Page load hone par audio unlock karne ke liye user interaction listener
+    // Auto unlock audio context on first screen tap/click
     window.addEventListener('click', function() {
       if (!isAudioAllowed) {
         enableAudioContext();
