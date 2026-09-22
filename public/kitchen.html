@@ -169,31 +169,50 @@
               shouldPlaySound = true;
               snapshots[orderId] = {
                 rowsCount: currentItems.length,
+                rowsQty: currentItems.map(function(i){ return Number(i.qty) || 1; }),
                 wasCompletedBefore: false
               };
             } else {
-              // Existing order: Agar naye rows add hue hain
               var prevRowsCount = prevSnapshot.rowsCount || 0;
+              var prevRowsQty = prevSnapshot.rowsQty || [];
 
+              // Case 1: Agar nayi rows add hui hain
               if (currentItems.length > prevRowsCount) {
                 shouldPlaySound = true;
                 for (var idx = prevRowsCount; idx < currentItems.length; idx++) {
                   var itemRowKey = orderId + '_row_' + idx;
                   persistentBadges[itemRowKey] = 'NEW';
-                  delete checkedMap[itemRowKey]; // Uncheck new row
+                  delete checkedMap[itemRowKey];
                 }
               }
 
-              // Agar pehle order complete mark ho chuka tha aur ab naya row aaya hai
-              if (prevSnapshot.wasCompletedBefore && currentItems.length > prevRowsCount) {
-                // Purani saari rows ko checked hi rakho
+              // Case 2: Agar kisi existing row ki quantity badh gayi hai
+              currentItems.forEach(function(item, idx) {
+                var currentQty = Number(item.qty) || 1;
+                var prevQty = prevRowsQty[idx];
+
+                if (prevQty !== undefined && currentQty > prevQty) {
+                  var diff = currentQty - prevQty;
+                  var rowKey = orderId + '_row_' + idx;
+                  persistentBadges[rowKey] = '+' + diff + ' QTY';
+                  delete checkedMap[rowKey]; // Untick item taaki chef dekhe
+                  shouldPlaySound = true;
+                }
+              });
+
+              // Agar pehle order complete mark ho chuka tha aur ab naya change aaya hai
+              if (prevSnapshot.wasCompletedBefore && (currentItems.length > prevRowsCount || shouldPlaySound)) {
                 for (var p = 0; p < prevRowsCount; p++) {
-                  checkedMap[orderId + '_row_' + p] = true;
+                  var rKey = orderId + '_row_' + p;
+                  if (!persistentBadges[rKey]) {
+                    checkedMap[rKey] = true;
+                  }
                 }
                 prevSnapshot.wasCompletedBefore = false;
               }
 
               snapshots[orderId].rowsCount = currentItems.length;
+              snapshots[orderId].rowsQty = currentItems.map(function(i){ return Number(i.qty) || 1; });
             }
           });
 
@@ -251,7 +270,7 @@
                           <!-- ITEM NAME -->
                           <span class="font-bold text-gray-200 flex-1 ${isDone ? 'line-through text-gray-400' : ''}">${item.name}</span>
 
-                          <!-- PERSISTENT NEW BADGE -->
+                          <!-- PERSISTENT BADGE (NEW YA +1 QTY) -->
                           ${badgeTag ? `
                             <span class="badge-alert bg-rose-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 shadow-xs border border-rose-400">
                               ${badgeTag}
@@ -281,7 +300,6 @@
       var snapshots = getStoredSnapshots();
       var checkedMap = getCheckedItemKeys();
 
-      // Saare current items ko ready mark kar do
       if (snapshots[strId]) {
         snapshots[strId].wasCompletedBefore = true;
         var rCount = snapshots[strId].rowsCount || 0;
@@ -290,7 +308,6 @@
         }
       }
 
-      // Clear badges
       var badges = getAlertBadges();
       Object.keys(badges).forEach(function(k) {
         if (k.startsWith(strId + '_')) delete badges[k];
