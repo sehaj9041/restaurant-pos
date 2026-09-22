@@ -599,10 +599,10 @@ app.post('/api/printer/print-daily-summary', async (req, res) => {
   }
 });
 
-// 9. KITCHEN KOT
+// 9. KITCHEN KOT (SQLite Compatible Date/Time)
 app.get('/api/kot', (req, res) => {
   db.all(
-    `SELECT o.id, o.order_type, o.table_no, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
+    `SELECT o.id, o.order_type, o.table_no, time(o.created_at, 'localtime') as time 
      FROM orders o 
      WHERE o.status IN ('PENDING', 'RUNNING_TABLE', 'DUE_PENDING', 'RUNNING', 'KITCHEN_ACTIVE') 
      ORDER BY o.id ASC`,
@@ -653,7 +653,7 @@ app.get('/api/customers', (req, res) => {
 });
 
 app.get('/api/expenses/today', (req, res) => {
-  db.all("SELECT id, title, amount, payment_mode, TO_CHAR(created_at, 'HH12:MI AM') as time FROM expenses WHERE created_at::date = CURRENT_DATE ORDER BY id DESC", [], (err, rows) => res.json(rows || []));
+  db.all("SELECT id, title, amount, payment_mode, time(created_at, 'localtime') as time FROM expenses WHERE date(created_at) = date('now') ORDER BY id DESC", [], (err, rows) => res.json(rows || []));
 });
 
 app.post('/api/expenses', (req, res) => {
@@ -669,7 +669,7 @@ app.post('/api/expenses', (req, res) => {
   );
 });
 
-// 10. ADVANCED MULTI-DIMENSIONAL REPORTS API
+// 10. ADVANCED MULTI-DIMENSIONAL REPORTS API (SQLite Compatible Date Filtering)
 app.get('/api/reports/analytics', (req, res) => {
   const { startDate, endDate } = req.query;
   const start = startDate ? startDate : new Date().toISOString().slice(0, 10);
@@ -686,7 +686,7 @@ app.get('/api/reports/analytics', (req, res) => {
       COALESCE(SUM(CASE WHEN payment_mode = 'UPI' AND status != 'DUE_PENDING' THEN total ELSE 0 END), 0) AS upi_sales,
       COALESCE(SUM(CASE WHEN payment_mode = 'DUE' OR status = 'DUE_PENDING' THEN total ELSE 0 END), 0) AS due_sales
     FROM orders 
-    WHERE created_at::date BETWEEN ?::date AND ?::date 
+    WHERE date(created_at) BETWEEN date(?) AND date(?) 
       AND status != 'RUNNING_TABLE'
   `;
 
@@ -695,14 +695,14 @@ app.get('/api/reports/analytics', (req, res) => {
       COALESCE(SUM(amount), 0) as total_expense,
       COALESCE(SUM(CASE WHEN payment_mode = 'CASH' THEN amount ELSE 0 END), 0) as cash_expense
     FROM expenses 
-    WHERE created_at::date BETWEEN ?::date AND ?::date
+    WHERE date(created_at) BETWEEN date(?) AND date(?)
   `;
 
   const topItemsQuery = `
     SELECT oi.name, SUM(oi.qty) as total_qty, SUM(oi.price * oi.qty) as total_revenue
     FROM order_items oi
     JOIN orders o ON o.id = oi.order_id
-    WHERE o.created_at::date BETWEEN ?::date AND ?::date 
+    WHERE date(o.created_at) BETWEEN date(?) AND date(?) 
       AND o.status != 'RUNNING_TABLE'
     GROUP BY oi.name
     ORDER BY total_qty DESC
@@ -712,7 +712,7 @@ app.get('/api/reports/analytics', (req, res) => {
   const ordersListQuery = `
     SELECT id, order_type, table_no, customer_name, customer_phone, payment_mode, status, subtotal, discount, gst, total, created_at
     FROM orders 
-    WHERE created_at::date BETWEEN ?::date AND ?::date 
+    WHERE date(created_at) BETWEEN date(?) AND date(?) 
       AND status != 'RUNNING_TABLE'
     ORDER BY id DESC
   `;
