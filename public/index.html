@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TadkaTech - Vishal Foodiez - Fast POS</title>
   
+  <!-- PWA Settings -->
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#ea580c">
   <meta name="mobile-web-app-capable" content="yes">
@@ -28,7 +29,7 @@
 
   <iframe id="silentPrintFrame" style="position:fixed;right:0;bottom:0;width:0;height:0;border:0;"></iframe>
 
-  <!-- SIDEBAR DRAWER -->
+  <!-- ================= SLIDE-OUT LEFT SIDEBAR DRAWER ================= -->
   <div id="sidebarBackdrop" onclick="toggleSidebarMenu(false)" class="fixed inset-0 bg-black/40 z-40 hidden transition-opacity duration-200"></div>
 
   <aside id="sidebarDrawer" class="fixed top-0 left-0 h-full w-64 bg-white z-50 shadow-2xl transform -translate-x-full transition-transform duration-200 ease-in-out flex flex-col justify-between border-r border-gray-200 text-xs select-none">
@@ -47,7 +48,7 @@
       <div class="overflow-y-auto max-h-[calc(100vh-130px)] p-2 space-y-3">
         <div>
           <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Overview</div>
-          <button onclick="toggleSidebarMenu(false); closePOSOrderView(); showDashboardView();" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+          <button onclick="toggleSidebarMenu(false); closePOSOrderView();" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
             <span class="text-sm">⚡</span> Dashboard
           </button>
         </div>
@@ -55,8 +56,11 @@
         <div>
           <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Operations</div>
           <div class="space-y-0.5">
-            <button onclick="toggleSidebarMenu(false); closePOSOrderView(); showDashboardView();" class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-black bg-orange-50 text-orange-600 border border-orange-200 transition">
+            <button onclick="toggleSidebarMenu(false); closePOSOrderView();" class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-black bg-orange-50 text-orange-600 border border-orange-200 transition">
               <span class="flex items-center gap-2.5"><span class="text-sm">📑</span> Orders</span>
+            </button>
+            <button onclick="toggleSidebarMenu(false); closePOSOrderView();" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="text-sm">🪑</span> Tables & Floor
             </button>
             <button onclick="protectedNav('/kot.html')" class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
               <span class="flex items-center gap-2.5"><span class="text-sm">🍳</span> Kitchen (KDS)</span>
@@ -66,18 +70,58 @@
         </div>
 
         <div>
+          <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Menu</div>
+          <button onclick="protectedNav('/admin.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+            <span class="text-sm">🍽</span> Menu Management
+          </button>
+        </div>
+
+        <div>
           <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Billing</div>
           <div class="space-y-0.5">
-            <button onclick="toggleSidebarMenu(false); showOrderHistoryView();" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
-              <span class="text-sm">🧾</span> Order History
+            <button onclick="protectedNav('/report.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="text-sm">🧾</span> Bills & Receipts
+            </button>
+            <button onclick="protectedNav('/report.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="text-sm">💸</span> Expenses
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">People</div>
+          <button onclick="protectedNav('/customers.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+            <span class="text-sm">👥</span> Customers (CRM)
+          </button>
+        </div>
+
+        <div>
+          <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Reports & Support</div>
+          <div class="space-y-0.5">
+            <button onclick="protectedNav('/report.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="text-sm">📊</span> Analytics & Reports
+            </button>
+            <button onclick="protectedNav('/admin.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="text-sm">⚙️</span> Settings
             </button>
           </div>
         </div>
       </div>
     </div>
+
+    <div class="p-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <div class="w-7 h-7 rounded-full bg-orange-100 border border-orange-300 text-orange-700 font-black flex items-center justify-center text-xs">S</div>
+        <div>
+          <div class="font-black text-gray-800 text-[11px] leading-tight">Sehaj</div>
+          <div class="text-[9px] text-gray-400 font-bold">Owner</div>
+        </div>
+      </div>
+      <button onclick="location.reload()" title="Logout" class="text-gray-400 hover:text-red-600 transition text-[11px] font-bold">↪ Log out</button>
+    </div>
   </aside>
 
-  <!-- TOP NAVBAR -->
+  <!-- ================= TOP MAIN HEADER NAVBAR ================= -->
   <header class="bg-white border-b border-gray-200 px-4 py-2.5 flex justify-between items-center z-30 shadow-xs">
     <div class="flex items-center gap-3">
       <button onclick="toggleSidebarMenu(true)" class="p-1.5 hover:bg-gray-100 rounded-lg text-gray-600 transition" title="Open Menu">
@@ -90,11 +134,6 @@
     </div>
 
     <div class="flex items-center gap-2">
-      <!-- GLOBAL BACK BUTTON -->
-      <button id="btnGlobalBack" onclick="handleGlobalBackNavigation()" class="hidden text-xs font-bold px-3 py-1.5 rounded-lg border border-gray-300 bg-gray-100 hover:bg-gray-200 text-gray-700 transition flex items-center gap-1">
-        <span>← Back</span>
-      </button>
-
       <div class="flex items-center gap-1.5 bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-full text-xs font-bold text-gray-700">
         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
         <span>Sehaj</span>
@@ -113,17 +152,26 @@
         ✕ Cancel
       </button>
 
+      <button onclick="protectedNav('/report.html')" class="p-1.5 hover:bg-gray-100 text-gray-600 rounded-lg relative transition">
+        <span class="text-base">🔔</span>
+        <span id="topNotificationBadge" class="absolute top-0.5 right-0.5 bg-orange-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">1</span>
+      </button>
+
+      <button onclick="protectedNav('/report.html')" class="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 flex items-center gap-1 text-gray-700 transition">
+        <span>📋</span> All Orders
+      </button>
+
       <button onclick="openCashDrawer()" class="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 flex items-center gap-1 text-amber-900 transition shadow-2xs">
         <span>💵</span> Open Drawer
       </button>
 
-      <button onclick="openPOSOrderView('Takeaway', '', false)" class="bg-orange-500 hover:bg-orange-600 text-white px-3.5 py-1.5 rounded-lg text-xs font-black shadow-sm flex items-center gap-1 transition">
+      <button onclick="openPOSOrderView('Takeaway', '')" class="bg-orange-500 hover:bg-orange-600 text-white px-3.5 py-1.5 rounded-lg text-xs font-black shadow-sm flex items-center gap-1 transition">
         <span>+</span> New Order
       </button>
     </div>
   </header>
 
-  <!-- DASHBOARD VIEW -->
+  <!-- ================= VIEW 1: FLOOR & QUEUES DASHBOARD ================= -->
   <div id="viewFloorDashboard" class="flex-1 overflow-y-auto p-4 space-y-3 pb-16">
     <div class="grid grid-cols-4 gap-3">
       <div class="bg-white border border-gray-200 rounded-xl p-3 flex justify-between items-center shadow-2xs">
@@ -173,23 +221,22 @@
 
     <div class="flex justify-between items-center bg-white p-2 rounded-xl border border-gray-200 shadow-2xs">
       <div class="flex items-center gap-2">
-        <button onclick="showDashboardView()" class="bg-orange-500 text-white text-xs font-black px-3 py-1.5 rounded-lg shadow-2xs">
+        <button class="bg-orange-500 text-white text-xs font-black px-3 py-1.5 rounded-lg shadow-2xs">
           Active Orders (<span id="filterActiveBadge">0</span>)
         </button>
         <button onclick="protectedNav('/customers.html')" class="text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition">
           Due (<span id="filterDueCount">0</span>) • <span id="filterDueTotal">₹0</span>
         </button>
-        <button onclick="showOrderHistoryView()" id="btnNavOrderHistory" class="text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition">
+        <button onclick="protectedNav('/report.html')" class="text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition">
           Order History
         </button>
       </div>
 
-      <button onclick="openPOSOrderView('Takeaway', '', false)" class="bg-orange-500 hover:bg-orange-600 text-white px-3.5 py-1 rounded-lg text-xs font-black shadow-2xs">
+      <button onclick="openPOSOrderView('Takeaway', '')" class="bg-orange-500 hover:bg-orange-600 text-white px-3.5 py-1 rounded-lg text-xs font-black shadow-2xs">
         + New Order
       </button>
     </div>
 
-    <!-- DINING ROOM FLOOR PLAN -->
     <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-2xs">
       <div class="p-2.5 border-b border-gray-100 flex justify-between items-center text-xs">
         <div class="flex items-center gap-3">
@@ -217,7 +264,14 @@
       </div>
     </div>
 
-    <!-- TAKEAWAY & DELIVERY QUEUES -->
+    <div id="kioskUnassignedBox" class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs space-y-2 hidden">
+      <div class="flex justify-between items-center text-xs font-bold text-gray-700 border-b pb-2">
+        <span class="flex items-center gap-1.5"><span>🪑</span> Dine-in - needs a table</span>
+        <span id="kioskUnassignedCount" class="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
+      </div>
+      <div id="kioskUnassignedList" class="space-y-2"></div>
+    </div>
+
     <div class="grid grid-cols-2 gap-3">
       <div class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs flex flex-col">
         <div class="flex justify-between items-center text-xs font-black text-gray-800 border-b pb-2 mb-2">
@@ -241,38 +295,7 @@
     </div>
   </div>
 
-  <!-- ORDER HISTORY VIEW -->
-  <div id="viewOrderHistoryScreen" class="flex-1 overflow-y-auto p-4 space-y-4 hidden bg-white">
-    <div class="flex justify-between items-center border-b pb-3">
-      <div>
-        <h2 class="text-sm font-black text-gray-900 uppercase tracking-wide">📋 Order History & Audit Log</h2>
-        <p class="text-[11px] text-gray-500">Click on any past order to open it in the POS cart with its paid history intact.</p>
-      </div>
-      <div class="flex items-center gap-2">
-        <input type="date" id="historyFilterDate" onchange="loadInPageOrderHistory()" class="border px-2.5 py-1 rounded-xl text-xs font-bold bg-gray-50">
-        <button onclick="showDashboardView()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-xl text-xs font-bold transition">← Back to Dashboard</button>
-      </div>
-    </div>
-
-    <div class="border rounded-2xl overflow-hidden shadow-2xs">
-      <table class="w-full text-left text-xs border-collapse">
-        <thead>
-          <tr class="bg-gray-50 text-gray-400 border-b">
-            <th class="p-3 font-bold">ORDER #</th>
-            <th class="p-3 font-bold">TYPE / TABLE</th>
-            <th class="p-3 font-bold">ITEMS DETAIL</th>
-            <th class="p-3 font-bold">CUSTOMER</th>
-            <th class="p-3 font-bold">STATUS</th>
-            <th class="p-3 font-bold">TIME</th>
-            <th class="p-3 font-bold text-right">AMOUNT</th>
-          </tr>
-        </thead>
-        <tbody id="inPageHistoryBody" class="divide-y divide-gray-100"></tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- POS BILLING SCREEN -->
+  <!-- ================= VIEW 2: FULL 3-COLUMN POS BILLING SCREEN ================= -->
   <div id="viewPOSOrderScreen" class="flex-1 flex overflow-hidden hidden bg-white">
     <div class="w-48 border-r border-gray-200 bg-white flex flex-col overflow-y-auto shrink-0">
       <div class="p-3 text-[10px] font-black uppercase text-gray-400 tracking-wider border-b">Categories</div>
@@ -283,35 +306,59 @@
       <div class="p-3 bg-white border-b border-gray-200 space-y-2.5">
         <div class="flex justify-between items-center">
           <h2 class="text-xs font-black text-gray-800 tracking-tight">Step 2 — Select Items</h2>
-          <input type="text" id="menuItemSearch" onfocus="openVirtualKeyboard(this, 'text')" oninput="filterMenuItems()" placeholder="Search menu..." class="border border-gray-200 rounded-lg px-2.5 py-1 text-xs outline-none bg-gray-50 focus:bg-white focus:border-orange-500 w-44">
+          <div class="flex items-center gap-2">
+            <div class="flex bg-gray-100 p-0.5 rounded-lg text-xs">
+              <button class="bg-orange-500 text-white px-2 py-1 rounded shadow-xs text-[11px] font-bold">▦</button>
+              <button class="text-gray-500 px-2 py-1 rounded text-[11px] font-bold">☰</button>
+            </div>
+            <input type="text" id="menuItemSearch" onfocus="openVirtualKeyboard(this, 'text')" oninput="filterMenuItems()" placeholder="Search menu..." class="border border-gray-200 rounded-lg px-2.5 py-1 text-xs outline-none bg-gray-50 focus:bg-white focus:border-orange-500 w-44">
+          </div>
+        </div>
+
+        <div class="flex items-center gap-1.5 text-[11px] font-bold overflow-x-auto pb-1">
+          <button onclick="setPriceFilter('ALL')" id="filterBtnAll" class="px-2.5 py-1 rounded-full bg-orange-500 text-white shadow-2xs">Any Price</button>
+          <button onclick="setPriceFilter('UNDER200')" id="filterBtn200" class="px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200">Under ₹200</button>
+          <button onclick="setPriceFilter('200TO500')" id="filterBtn500" class="px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200">₹200–500</button>
+          <button onclick="setPriceFilter('ABOVE500')" id="filterBtnAbove500" class="px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200">₹500+</button>
         </div>
       </div>
+
       <div id="posItemsGrid" class="flex-1 overflow-y-auto p-3 grid grid-cols-2 gap-2.5 content-start"></div>
     </div>
 
+    <!-- COLUMN 3: ORDER SUMMARY & PAYMENT -->
     <div class="w-80 flex flex-col bg-white shrink-0 justify-between">
       <div>
         <div class="grid grid-cols-2 p-1.5 bg-gray-100 border-b text-xs font-bold">
-          <button id="tabBtnCustomer" onclick="switchRightTab('CUSTOMER')" class="py-1.5 rounded-lg transition text-gray-500 hover:text-gray-900 font-bold">Order Type & Customer</button>
-          <button id="tabBtnSummary" onclick="switchRightTab('SUMMARY')" class="py-1.5 rounded-lg transition bg-white text-orange-600 shadow-2xs font-black flex items-center justify-center gap-1">
+          <button id="tabBtnCustomer" onclick="switchRightTab('CUSTOMER')" class="py-1.5 rounded-lg transition bg-white text-orange-600 shadow-2xs font-black">Order Type & Customer</button>
+          <button id="tabBtnSummary" onclick="switchRightTab('SUMMARY')" class="py-1.5 rounded-lg transition text-gray-500 hover:text-gray-900 flex items-center justify-center gap-1">
             <span>Order Summary</span>
             <span id="tabSummaryBadge" class="bg-orange-500 text-white text-[9px] font-black px-1.5 py-0.2 rounded-full">0</span>
           </button>
         </div>
 
-        <div id="tabContentCustomer" class="p-3.5 space-y-3 hidden">
+        <div id="tabContentCustomer" class="p-3.5 space-y-3">
           <div class="bg-gray-50 border border-gray-200 rounded-xl p-2.5 flex justify-between items-center text-xs">
             <div>
               <span class="text-[10px] font-bold text-gray-400 block uppercase">Selected Table</span>
-              <span id="posDisplayTable" class="font-black text-gray-800 text-sm">T08</span>
+              <span id="posDisplayTable" class="font-black text-gray-800 text-sm">T08 • cap. 2</span>
             </div>
             <button onclick="closePOSOrderView()" class="text-orange-600 font-bold text-xs underline">Change</button>
           </div>
 
           <div class="grid grid-cols-3 gap-1.5">
-            <button id="posBtnDineIn" onclick="setPOSOrderType('Dine-In')" class="border-2 border-orange-500 bg-orange-50/50 rounded-xl py-3 flex flex-col items-center justify-center text-orange-700 shadow-2xs font-black">Dine-In</button>
-            <button id="posBtnTakeaway" onclick="setPOSOrderType('Takeaway')" class="border border-gray-200 hover:bg-gray-50 rounded-xl py-3 flex flex-col items-center justify-center text-gray-600">Takeaway</button>
-            <button id="posBtnDelivery" onclick="setPOSOrderType('Delivery')" class="border border-gray-200 hover:bg-gray-50 rounded-xl py-3 flex flex-col items-center justify-center text-gray-600">Delivery</button>
+            <button id="posBtnDineIn" onclick="setPOSOrderType('Dine-In')" class="border-2 border-orange-500 bg-orange-50/50 rounded-xl py-3 flex flex-col items-center justify-center text-orange-700 shadow-2xs">
+              <span class="text-base mb-0.5">🍽</span>
+              <span class="text-[11px] font-black">Dine-In</span>
+            </button>
+            <button id="posBtnTakeaway" onclick="setPOSOrderType('Takeaway')" class="border border-gray-200 hover:bg-gray-50 rounded-xl py-3 flex flex-col items-center justify-center text-gray-600">
+              <span class="text-base mb-0.5">🛍</span>
+              <span class="text-[11px] font-bold">Takeaway</span>
+            </button>
+            <button id="posBtnDelivery" onclick="setPOSOrderType('Delivery')" class="border border-gray-200 hover:bg-gray-50 rounded-xl py-3 flex flex-col items-center justify-center text-gray-600">
+              <span class="text-base mb-0.5">🛵</span>
+              <span class="text-[11px] font-bold">Delivery</span>
+            </button>
           </div>
 
           <div class="space-y-2 pt-1">
@@ -326,7 +373,7 @@
           </div>
         </div>
 
-        <div id="tabContentSummary" class="p-3 space-y-2">
+        <div id="tabContentSummary" class="p-3 hidden space-y-2">
           <div id="posCartItemList" class="space-y-1.5 max-h-[35vh] overflow-y-auto pr-1 text-xs divide-y divide-gray-100">
             <p class="text-gray-400 text-center py-10 italic text-xs">Cart is empty</p>
           </div>
@@ -335,6 +382,19 @@
 
       <!-- BILLING & CONTROLS -->
       <div class="border-t border-gray-200 p-3 bg-white space-y-2 max-h-[55vh] overflow-y-auto">
+        <div class="flex justify-between items-center text-xs font-bold text-gray-500">
+          <span class="flex items-center gap-1 text-orange-600 cursor-pointer">🏷 Offers</span>
+          <div class="flex items-center gap-1.5">
+            <span class="text-[11px] text-gray-400">Guests</span>
+            <div class="flex items-center border rounded bg-gray-50 px-1.5 py-0.5">
+              <button onclick="changeGuestCount(-1)" class="font-bold px-1 hover:text-black">-</button>
+              <span id="guestCountLabel" class="px-1.5 font-black text-gray-800">1</span>
+              <button onclick="changeGuestCount(1)" class="font-bold px-1 hover:text-black">+</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- RUNNING PAID ORDER BANNER -->
         <div id="boxAlreadyPaidBanner" class="hidden bg-emerald-50 border border-emerald-200 rounded-xl p-2 text-xs flex justify-between items-center">
           <div>
             <span class="text-[10px] font-black uppercase text-emerald-600 block">Already Received</span>
@@ -346,16 +406,18 @@
         <div class="text-[11px] text-gray-500 flex justify-between border-t pt-1.5">
           <span>Subtotal: <b id="posCalcSubtotal">₹0</b></span>
           <span>GST (5%): <b id="posCalcGst">₹0.00</b></span>
+          <span>Round Off: <b id="posCalcRound">₹0.00</b></span>
         </div>
 
         <div class="flex justify-between items-center pt-1 border-t">
           <div>
             <span class="text-xs font-bold text-gray-500 block">Grand Total: <b id="posCalcGrandTotal" class="text-gray-900 font-black">₹0</b></span>
-            <span class="text-sm font-black text-orange-700">Payable Now</span>
+            <span id="lblPayableDiffTitle" class="text-sm font-black text-orange-700">Payable Now</span>
           </div>
           <span id="posCalcPayableNow" class="text-2xl font-black text-gray-900">₹0</span>
         </div>
 
+        <!-- 5 PAYMENT BUTTONS -->
         <div class="grid grid-cols-5 gap-1 pt-1">
           <button onclick="handlePaymentModeClick('Cash')" id="payBtnCash" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5">💵 Cash</button>
           <button onclick="handlePaymentModeClick('UPI')" id="payBtnUPI" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5">📲 UPI</button>
@@ -364,6 +426,60 @@
           <button onclick="handlePaymentModeClick('DUE')" id="payBtnDUE" class="border border-rose-200 hover:bg-rose-50 text-rose-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5">📒 Due</button>
         </div>
 
+        <!-- SPLIT PAYMENT PANEL -->
+        <div id="splitPaymentPanel" class="hidden border border-blue-100 bg-blue-50/20 rounded-xl p-2.5 space-y-2.5 text-xs mt-2">
+          <div class="flex justify-between items-center border-b border-blue-100 pb-1.5">
+            <span class="font-bold text-gray-600 text-[11px]">Total to split</span>
+            <span id="splitTotalDisplay" class="font-black text-gray-900 text-sm">₹0.00</span>
+          </div>
+
+          <!-- Method 1 -->
+          <div class="bg-white border border-gray-200 rounded-lg p-2 space-y-1.5 shadow-2xs">
+            <div class="flex justify-between items-center text-[10px] font-bold text-gray-400 uppercase">
+              <span>Method 1</span>
+            </div>
+            <div class="grid grid-cols-4 gap-1">
+              <button onclick="setSplitMethodType(1, 'Cash')" id="splitM1_Cash" class="border border-orange-400 bg-orange-50 text-orange-700 font-bold py-1 rounded text-[10px]">Cash</button>
+              <button onclick="setSplitMethodType(1, 'UPI')" id="splitM1_UPI" class="border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold py-1 rounded text-[10px]">UPI</button>
+              <button onclick="setSplitMethodType(1, 'Card')" id="splitM1_Card" class="border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold py-1 rounded text-[10px]">Card</button>
+              <button onclick="setSplitMethodType(1, 'DUE')" id="splitM1_DUE" class="border border-gray-200 hover:bg-gray-50 text-rose-600 font-bold py-1 rounded text-[10px]">Due</button>
+            </div>
+            <div class="flex items-center gap-1.5 pt-1">
+              <div class="relative flex-1">
+                <span class="absolute left-2 top-1.5 text-gray-400 font-bold text-xs">₹</span>
+                <input type="text" id="splitAmount1" readonly onclick="openVirtualKeyboard(this, 'number', 'left')" oninput="calculateSplitDifference()" placeholder="0.00" value="" class="w-full pl-5 pr-2 py-1 border border-gray-200 rounded text-xs font-mono font-black outline-none bg-gray-50 focus:bg-white cursor-pointer">
+              </div>
+              <button onclick="fillSplitRest(1)" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-[10px] font-bold px-2.5 py-1 rounded border">Fill rest</button>
+            </div>
+          </div>
+
+          <!-- Method 2 -->
+          <div class="bg-white border border-gray-200 rounded-lg p-2 space-y-1.5 shadow-2xs">
+            <div class="flex justify-between items-center text-[10px] font-bold text-gray-400 uppercase">
+              <span>Method 2</span>
+            </div>
+            <div class="grid grid-cols-4 gap-1">
+              <button onclick="setSplitMethodType(2, 'Cash')" id="splitM2_Cash" class="border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold py-1 rounded text-[10px]">Cash</button>
+              <button onclick="setSplitMethodType(2, 'UPI')" id="splitM2_UPI" class="border border-blue-500 bg-blue-50 text-blue-700 font-bold py-1 rounded text-[10px]">UPI</button>
+              <button onclick="setSplitMethodType(2, 'Card')" id="splitM2_Card" class="border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold py-1 rounded text-[10px]">Card</button>
+              <button onclick="setSplitMethodType(2, 'DUE')" id="splitM2_DUE" class="border border-gray-200 hover:bg-gray-50 text-rose-600 font-bold py-1 rounded text-[10px]">Due</button>
+            </div>
+            <div class="flex items-center gap-1.5 pt-1">
+              <div class="relative flex-1">
+                <span class="absolute left-2 top-1.5 text-gray-400 font-bold text-xs">₹</span>
+                <input type="text" id="splitAmount2" readonly onclick="openVirtualKeyboard(this, 'number', 'left')" oninput="calculateSplitDifference()" placeholder="0.00" value="" class="w-full pl-5 pr-2 py-1 border border-gray-200 rounded text-xs font-mono font-black outline-none bg-gray-50 focus:bg-white cursor-pointer">
+              </div>
+              <button onclick="fillSplitRest(2)" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-[10px] font-bold px-2.5 py-1 rounded border">Fill rest</button>
+            </div>
+          </div>
+
+          <div id="splitStatusAlertBox" class="border border-rose-200 bg-rose-50 text-rose-700 rounded-lg p-2 text-[10px] font-bold flex justify-between items-center">
+            <span id="splitStatusMessage">Split must equal the total</span>
+            <span id="splitPendingDiff" class="font-black text-xs">₹0.00</span>
+          </div>
+        </div>
+
+        <!-- PLACE ORDER BUTTON -->
         <div class="flex gap-1.5 pt-1">
           <button id="btnPOSPlaceOrder" onclick="executePlaceOrder()" class="flex-1 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5">
             <span>✓ Place Order</span>
@@ -371,6 +487,125 @@
           <button onclick="triggerManualKOTDirect()" title="Print KOT Slip" class="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3 rounded-xl font-black text-xs">🍳</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- ================= CASH RECEIVED POPUP MODAL ================= -->
+  <div id="modalCashReceived" class="fixed inset-0 bg-black/40 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-4 space-y-3.5 border border-gray-200 animate-in fade-in zoom-in duration-150">
+      <div class="flex justify-between items-center border-b border-gray-100 pb-2">
+        <span class="font-black text-gray-800 text-xs flex items-center gap-1.5"><span>💵</span> Cash received</span>
+        <button onclick="closeCashReceivedModal()" class="text-gray-400 hover:text-gray-600 font-black text-sm">✕</button>
+      </div>
+
+      <div class="flex justify-between items-center pt-1">
+        <span class="text-[11px] font-black uppercase tracking-wider text-gray-400">PAYABLE AMOUNT</span>
+        <span id="modalCashOrderTotal" class="text-base font-black text-gray-900">₹0.00</span>
+      </div>
+
+      <div>
+        <label class="block text-[10px] font-black uppercase text-gray-400 mb-1">CASH RECEIVED</label>
+        <input type="text" id="inputCashReceivedAmount" readonly onclick="openVirtualKeyboard(this, 'number', 'center')" oninput="calculateChangeReturn()" placeholder="0.00" value="" class="w-full border-2 border-orange-400 rounded-xl p-2.5 text-base font-mono font-black outline-none bg-orange-50/20 focus:bg-white cursor-pointer">
+      </div>
+
+      <div class="bg-orange-50/50 border border-orange-200 rounded-xl p-2.5 text-center">
+        <span class="text-[11px] font-bold text-orange-700">Return to customer: </span>
+        <span id="modalCashReturnChange" class="font-black text-sm text-orange-950">₹0.00</span>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 pt-1">
+        <button onclick="closeCashReceivedModal()" class="border border-gray-300 hover:bg-gray-100 text-gray-700 py-2.5 rounded-xl text-xs font-black transition">Cancel</button>
+        <button onclick="confirmCashPaymentExecute()" class="bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white py-2.5 rounded-xl text-xs font-black transition shadow-sm">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= VIRTUAL KEYBOARDS ================= -->
+  <div id="vKeypadNum" class="fixed bottom-4 w-72 bg-[#f1f3f5] border border-gray-300 rounded-2xl shadow-2xl p-3 z-50 hidden select-none transition-all">
+    <div class="flex justify-between items-center mb-2 pb-1 border-b border-gray-200 text-gray-500 text-xs">
+      <span class="font-bold">⌨</span>
+      <span id="numPadDisplayLabel" class="font-mono font-bold text-gray-700 truncate max-w-[150px]">Enter digits...</span>
+      <button onclick="closeVirtualKeyboards()" class="font-black text-gray-400 hover:text-black text-sm px-1.5">✕</button>
+    </div>
+    <div class="grid grid-cols-3 gap-2">
+      <button onclick="keypadPress('1')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">1</button>
+      <button onclick="keypadPress('2')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">2</button>
+      <button onclick="keypadPress('3')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">3</button>
+
+      <button onclick="keypadPress('4')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">4</button>
+      <button onclick="keypadPress('5')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">5</button>
+      <button onclick="keypadPress('6')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">6</button>
+
+      <button onclick="keypadPress('7')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">7</button>
+      <button onclick="keypadPress('8')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">8</button>
+      <button onclick="keypadPress('9')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">9</button>
+
+      <button onclick="keypadPress('.')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">.</button>
+      <button onclick="keypadPress('0')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">0</button>
+      <button onclick="keypadBackspace()" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-base py-3 rounded-xl shadow-xs flex items-center justify-center">⌫</button>
+    </div>
+    <button onclick="closeVirtualKeyboards()" class="w-full mt-2.5 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-black text-sm py-2.5 rounded-xl shadow-xs">
+      ✓ Done
+    </button>
+  </div>
+
+  <div id="vKeypadText" class="fixed left-1/2 -translate-x-1/2 bottom-3 w-[520px] bg-[#eef0f3] border border-gray-300 rounded-3xl shadow-2xl p-3 z-50 hidden select-none">
+    <div class="flex justify-between items-center mb-2 px-2 text-xs text-gray-500">
+      <span class="font-bold text-[11px]">⌨</span>
+      <span id="textPadDisplayLabel" class="font-bold text-gray-700 truncate max-w-[300px]">Type here...</span>
+      <button onclick="closeVirtualKeyboards()" class="text-xs font-bold text-gray-500 hover:text-black">Hide</button>
+    </div>
+    <div class="grid grid-cols-10 gap-1 mb-1">
+      <button onclick="keypadPress('1')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">1</button>
+      <button onclick="keypadPress('2')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">2</button>
+      <button onclick="keypadPress('3')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">3</button>
+      <button onclick="keypadPress('4')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">4</button>
+      <button onclick="keypadPress('5')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">5</button>
+      <button onclick="keypadPress('6')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">6</button>
+      <button onclick="keypadPress('7')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">7</button>
+      <button onclick="keypadPress('8')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">8</button>
+      <button onclick="keypadPress('9')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">9</button>
+      <button onclick="keypadPress('0')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">0</button>
+    </div>
+    <div class="grid grid-cols-10 gap-1 mb-1">
+      <button onclick="keypadPressLetter('q')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">q</button>
+      <button onclick="keypadPressLetter('w')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">w</button>
+      <button onclick="keypadPressLetter('e')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">e</button>
+      <button onclick="keypadPressLetter('r')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">r</button>
+      <button onclick="keypadPressLetter('t')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">t</button>
+      <button onclick="keypadPressLetter('y')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">y</button>
+      <button onclick="keypadPressLetter('u')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">u</button>
+      <button onclick="keypadPressLetter('i')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">i</button>
+      <button onclick="keypadPressLetter('o')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">o</button>
+      <button onclick="keypadPressLetter('p')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">p</button>
+    </div>
+    <div class="grid grid-cols-9 gap-1 px-4 mb-1">
+      <button onclick="keypadPressLetter('a')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">a</button>
+      <button onclick="keypadPressLetter('s')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">s</button>
+      <button onclick="keypadPressLetter('d')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">d</button>
+      <button onclick="keypadPressLetter('f')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">f</button>
+      <button onclick="keypadPressLetter('g')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">g</button>
+      <button onclick="keypadPressLetter('h')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">h</button>
+      <button onclick="keypadPressLetter('j')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">j</button>
+      <button onclick="keypadPressLetter('k')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">k</button>
+      <button onclick="keypadPressLetter('l')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">l</button>
+    </div>
+    <div class="flex gap-1 mb-1.5">
+      <button onclick="toggleShiftMode()" id="btnShiftKey" class="w-12 bg-gray-200 active:bg-gray-300 text-gray-700 font-bold text-xs py-2.5 rounded-lg shadow-2xs">⇧</button>
+      <div class="grid grid-cols-7 gap-1 flex-1">
+        <button onclick="keypadPressLetter('z')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">z</button>
+        <button onclick="keypadPressLetter('x')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">x</button>
+        <button onclick="keypadPressLetter('c')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">c</button>
+        <button onclick="keypadPressLetter('v')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">v</button>
+        <button onclick="keypadPressLetter('b')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">b</button>
+        <button onclick="keypadPressLetter('n')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">n</button>
+        <button onclick="keypadPressLetter('m')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">m</button>
+      </div>
+      <button onclick="keypadBackspace()" class="w-12 bg-gray-200 active:bg-gray-300 text-gray-700 font-bold text-sm py-2.5 rounded-lg shadow-2xs flex items-center justify-center">⌫</button>
+    </div>
+    <div class="flex gap-1.5">
+      <button onclick="keypadPress(' ')" class="flex-1 bg-white active:bg-gray-200 text-gray-400 font-bold text-xs py-2.5 rounded-lg shadow-2xs">space</button>
+      <button onclick="closeVirtualKeyboards()" class="w-24 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-black text-xs py-2.5 rounded-lg shadow-2xs">return</button>
     </div>
   </div>
 
@@ -389,7 +624,14 @@
 
     var alreadyPaidAmount = 0;
     var alreadyPaidMode = '';
-    var previousViewSource = 'dashboard';
+
+    var currentCashReceived = 0;
+    var currentCashChange = 0;
+    var splitMethod1 = 'Cash';
+    var splitMethod2 = 'UPI';
+
+    var activeVirtualInput = null;
+    var isShiftActive = false;
 
     var defaultFloorTables = [
       { id: 'T04', label: 'T04', seats: 2 },
@@ -406,136 +648,165 @@
       fetchMenu();
       fetchActiveOrders();
       setInterval(fetchActiveOrders, 4000);
-    }
 
-    function showDashboardView() {
-      previousViewSource = 'dashboard';
-      document.getElementById('viewOrderHistoryScreen').classList.add('hidden');
-      document.getElementById('viewPOSOrderScreen').classList.add('hidden');
-      document.getElementById('viewFloorDashboard').classList.remove('hidden');
-      document.getElementById('topPageTitle').innerText = 'Orders';
-      document.getElementById('btnGlobalBack').classList.add('hidden');
-      fetchActiveOrders();
-    }
-
-    function showOrderHistoryView() {
-      previousViewSource = 'history';
-      document.getElementById('viewFloorDashboard').classList.add('hidden');
-      document.getElementById('viewPOSOrderScreen').classList.add('hidden');
-      document.getElementById('viewOrderHistoryScreen').classList.remove('hidden');
-      document.getElementById('topPageTitle').innerText = 'Order History';
-      // Order History view par bhi back button dikhayenge jo Dashboard par le jayega
-      document.getElementById('btnGlobalBack').classList.remove('hidden');
-      
-      const today = new Date().toISOString().slice(0, 10);
-      const dateInput = document.getElementById('historyFilterDate');
-      if (dateInput && !dateInput.value) dateInput.value = today;
-
-      loadInPageOrderHistory();
-    }
-
-    function loadInPageOrderHistory() {
-      const dt = document.getElementById('historyFilterDate').value || new Date().toISOString().slice(0, 10);
-      fetch(`/api/reports/analytics?startDate=${dt}&endDate=${dt}`)
-        .then(res => res.json())
-        .then(data => {
-          renderInPageHistoryTable(data.orders || []);
-        });
-    }
-
-    function renderInPageHistoryTable(orders) {
-      const tbody = document.getElementById('inPageHistoryBody');
-      if (!orders.length) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-10 text-gray-400 font-bold italic">No orders found for this date</td></tr>';
-        return;
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch(function(){});
       }
-
-      tbody.innerHTML = orders.map(o => {
-        const itemsText = (o.items || []).map(i => `${i.name} x${i.qty}`).join(', ') || 'No items listed';
-        const badge = (o.status === 'COMPLETED' || o.paid_amount > 0 || (o.payment_mode && o.payment_mode !== 'DUE' && o.payment_mode !== 'UNPAID'))
-          ? `<span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded text-[10px] font-black">PAID • ${o.payment_mode || 'Cash'}</span>`
-          : `<span class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded text-[10px] font-black">${o.payment_mode || 'Unpaid'}</span>`;
-
-        return `
-          <tr onclick="selectHistoryOrderToPOS(${o.id})" class="hover:bg-orange-50/70 cursor-pointer transition">
-            <td class="p-3 font-mono font-black text-gray-900">ORD-${o.id}</td>
-            <td class="p-3 font-semibold text-gray-700">${o.order_type} ${o.table_no ? '(' + o.table_no + ')' : ''}</td>
-            <td class="p-3 text-gray-600 font-medium max-w-xs truncate">${itemsText}</td>
-            <td class="p-3">${o.customer_name ? `<span class="font-bold text-gray-800">${o.customer_name}</span> <span class="text-gray-400 font-mono text-[10px]">(${o.customer_phone})</span>` : '<span class="text-gray-400">-</span>'}</td>
-            <td class="p-3">${badge}</td>
-            <td class="p-3 text-[11px] text-gray-500">${new Date(o.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</td>
-            <td class="p-3 font-black text-right text-gray-900 text-sm">₹${o.total}</td>
-          </tr>
-        `;
-      }).join('');
     }
 
-    function selectHistoryOrderToPOS(orderId) {
-      const dt = document.getElementById('historyFilterDate').value || new Date().toISOString().slice(0, 10);
-      fetch(`/api/reports/analytics?startDate=${dt}&endDate=${dt}`)
-        .then(r => r.json())
-        .then(data => {
-          const ord = (data.orders || []).find(o => o.id === orderId);
-          if (!ord) return;
+    // ================= DYNAMIC POSITIONING VIRTUAL KEYBOARD =================
+    function openVirtualKeyboard(inputEl, mode, position) {
+      activeVirtualInput = inputEl;
+      closeVirtualKeyboards();
 
-          openPOSOrderView(ord.order_type || 'Takeaway', ord.table_no || '', true);
-          editingActiveOrderId = ord.id;
-          document.getElementById('posCustPhone').value = ord.customer_phone || '';
-          document.getElementById('posCustName').value = ord.customer_name || '';
+      if (mode === 'number') {
+        var numpad = document.getElementById('vKeypadNum');
+        numpad.classList.remove('hidden');
+        document.getElementById('numPadDisplayLabel').innerText = inputEl.placeholder || 'Enter digits...';
+        
+        if (position === 'left') {
+          numpad.style.right = 'auto';
+          numpad.style.left = '420px';
+        } else if (position === 'center') {
+          numpad.style.right = 'auto';
+          numpad.style.left = '50%';
+          numpad.style.transform = 'translateX(-50%)';
+        } else {
+          numpad.style.left = 'auto';
+          numpad.style.transform = 'none';
+          numpad.style.right = '1rem';
+        }
+      } else {
+        document.getElementById('vKeypadText').classList.remove('hidden');
+        document.getElementById('textPadDisplayLabel').innerText = inputEl.placeholder || 'Type here...';
+      }
+    }
 
-          alreadyPaidAmount = Number(ord.paid_amount) || Number(ord.total) || 0;
-          alreadyPaidMode = ord.payment_mode || 'Paid';
+    function closeVirtualKeyboards() {
+      document.getElementById('vKeypadNum').classList.add('hidden');
+      document.getElementById('vKeypadText').classList.add('hidden');
 
-          if (alreadyPaidAmount > 0) {
-            document.getElementById('boxAlreadyPaidBanner').classList.remove('hidden');
-            document.getElementById('lblAlreadyPaidAmount').innerText = '₹' + alreadyPaidAmount.toFixed(2);
-            document.getElementById('lblAlreadyPaidMode').innerText = alreadyPaidMode;
-          }
+      if (activeVirtualInput && activeVirtualInput.id === 'posCustPhone') lookupCustomerPhone();
+      if (activeVirtualInput && activeVirtualInput.id === 'menuItemSearch') filterMenuItems();
+      if (activeVirtualInput && activeVirtualInput.id === 'inputCashReceivedAmount') calculateChangeReturn();
+      if (activeVirtualInput && (activeVirtualInput.id === 'splitAmount1' || activeVirtualInput.id === 'splitAmount2')) calculateSplitDifference();
+    }
 
-          if (ord.items && ord.items.length > 0) {
-            posCart = ord.items.map(i => ({ name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1 }));
-          } else {
-            posCart = [{ name: 'Order #' + orderId, price: Number(ord.total) || 0, qty: 1 }];
-          }
+    function keypadPress(val) {
+      if (!activeVirtualInput) return;
+      if (activeVirtualInput.value === '0.00' || activeVirtualInput.value === '0') activeVirtualInput.value = '';
+      activeVirtualInput.value += val;
+      triggerInputEvent(activeVirtualInput);
+    }
 
-          renderPOSCart();
-          switchRightTab('SUMMARY');
-        });
+    function keypadPressLetter(letter) {
+      if (!activeVirtualInput) return;
+      var char = isShiftActive ? letter.toUpperCase() : letter.toLowerCase();
+      activeVirtualInput.value += char;
+      triggerInputEvent(activeVirtualInput);
+      if (isShiftActive) toggleShiftMode();
+    }
+
+    function keypadBackspace() {
+      if (!activeVirtualInput) return;
+      activeVirtualInput.value = activeVirtualInput.value.slice(0, -1);
+      triggerInputEvent(activeVirtualInput);
+    }
+
+    function toggleShiftMode() {
+      isShiftActive = !isShiftActive;
+      var btn = document.getElementById('btnShiftKey');
+      btn.className = isShiftActive 
+        ? "w-12 bg-orange-500 text-white font-black text-xs py-2.5 rounded-lg shadow-2xs" 
+        : "w-12 bg-gray-200 active:bg-gray-300 text-gray-700 font-bold text-xs py-2.5 rounded-lg shadow-2xs";
+
+      var letters = document.querySelectorAll('.vKeyLetter');
+      letters.forEach(function(el) {
+        el.innerText = isShiftActive ? el.innerText.toUpperCase() : el.innerText.toLowerCase();
+      });
+    }
+
+    function triggerInputEvent(el) {
+      var event = new Event('input', { bubbles: true });
+      el.dispatchEvent(event);
+    }
+
+    function toggleSidebarMenu(show) {
+      var drawer = document.getElementById('sidebarDrawer');
+      var backdrop = document.getElementById('sidebarBackdrop');
+      if (show) {
+        backdrop.classList.remove('hidden');
+        drawer.classList.remove('-translate-x-full');
+      } else {
+        drawer.classList.add('-translate-x-full');
+        backdrop.classList.add('hidden');
+      }
     }
 
     function fetchMenu() {
-      fetch('/api/menu').then(r => r.json()).then(items => { allMenuItems = items || []; renderPOSItems(); });
+      fetch('/api/menu')
+        .then(function(r) { return r.json(); })
+        .then(function(items) {
+          allMenuItems = items || [];
+          extractCategories();
+          renderCategoriesSidebar();
+          renderPOSItems();
+        }).catch(function(){});
+    }
+
+    function extractCategories() {
+      var set = new Set();
+      allMenuItems.forEach(function(i) {
+        if (i.category) set.add(i.category.trim());
+      });
+      allCategories = Array.from(set);
     }
 
     function fetchActiveOrders() {
-      fetch('/api/orders/active').then(r => r.json()).then(orders => {
-        allActiveOrders = orders || [];
-        renderDashboardMetrics();
-        renderFloorTablesGrid();
-        renderAllQueues();
-      });
+      fetch('/api/orders/active')
+        .then(function(r) { return r.json(); })
+        .then(function(orders) {
+          allActiveOrders = orders || [];
+          renderDashboardMetrics();
+          renderFloorTablesGrid();
+          renderAllQueues();
+        }).catch(function(){});
     }
 
     function renderDashboardMetrics() {
       document.getElementById('metricActiveCount').innerText = allActiveOrders.length;
       document.getElementById('filterActiveBadge').innerText = allActiveOrders.length;
-      document.getElementById('metricDeliveryCount').innerText = allActiveOrders.filter(o => o.order_type === 'Delivery').length;
-      const due = allActiveOrders.filter(o => o.payment_mode === 'DUE' || o.status === 'DUE_PENDING');
-      document.getElementById('filterDueCount').innerText = due.length;
-      document.getElementById('filterDueTotal').innerText = '₹' + due.reduce((s, o) => s + (Number(o.total) || 0), 0);
+
+      var deliveryCount = allActiveOrders.filter(function(o) { return o.order_type === 'Delivery'; }).length;
+      document.getElementById('metricDeliveryCount').innerText = deliveryCount;
+
+      var dueOrders = allActiveOrders.filter(function(o) { return o.payment_mode === 'DUE' || o.status === 'DUE_PENDING'; });
+      document.getElementById('filterDueCount').innerText = dueOrders.length;
+      var dueSum = dueOrders.reduce(function(s, o) { return s + (Number(o.total) || 0); }, 0);
+      document.getElementById('filterDueTotal').innerText = '₹' + dueSum;
+
+      fetch('/api/orders/today-stats')
+        .then(function(r){ return r.json(); })
+        .then(function(stats){
+          if (stats && stats.completed !== undefined) {
+            document.getElementById('metricCompletedCount').innerText = stats.completed;
+          }
+        }).catch(function(){});
     }
 
     function renderFloorTablesGrid() {
       var grid = document.getElementById('floorTablesGrid');
       if (!grid) return;
+
       grid.innerHTML = defaultFloorTables.map(function(t) {
         var busy = allActiveOrders.find(function(o) {
           return o.order_type === 'Dine-In' && o.table_no && (o.table_no.toUpperCase() === t.id || o.table_no === t.label);
         });
         var isBusy = !!busy;
+
         return `
-          <div onclick="openPOSOrderView('Dine-In', '${t.id}', false)" class="cursor-pointer border-2 rounded-2xl p-3 flex flex-col items-center justify-center transition-all shadow-xs ${isBusy ? 'bg-orange-50 border-orange-400 text-orange-950' : 'bg-emerald-50 border-emerald-300 text-emerald-950'}">
-            <span class="font-black text-sm">${t.label}</span>
+          <div onclick="openPOSOrderView('Dine-In', '${t.id}')" class="cursor-pointer border-2 rounded-2xl p-3 flex flex-col items-center justify-center transition-all duration-150 transform active:scale-95 shadow-xs ${isBusy ? 'bg-orange-50 border-orange-400 text-orange-950 shadow-orange-100' : 'bg-emerald-50 border-emerald-300 text-emerald-950 hover:border-emerald-500'}">
+            <span class="font-black text-sm tracking-wide">${t.label}</span>
             <span class="text-[10px] font-bold opacity-75">${t.seats} seats</span>
             ${isBusy ? `<span class="text-xs font-black text-orange-700 mt-1">₹${busy.total}</span>` : `<span class="text-[9px] text-emerald-600 font-bold mt-1">Free</span>`}
           </div>
@@ -544,117 +815,132 @@
     }
 
     function renderAllQueues() {
-      var takeawayOrders = allActiveOrders.filter(function(o) { return o.order_type === 'Takeaway'; });
-      var takeawayBadge = document.getElementById('takeawayQueueBadge');
-      if (takeawayBadge) takeawayBadge.innerText = takeawayOrders.length;
-      var tList = document.getElementById('takeawayQueueList');
-      if (tList) {
-        if (!takeawayOrders.length) tList.innerHTML = '<p class="text-xs text-gray-400 italic text-center py-6">No takeaway orders in queue</p>';
-        else tList.innerHTML = takeawayOrders.map(buildOrderActionCard).join('');
+      var unassignedKiosk = allActiveOrders.filter(function(o) {
+        return o.order_type === 'Dine-In' && (!o.table_no || o.table_no.trim() === '' || o.table_no === 'Direct');
+      });
+
+      var kioskBox = document.getElementById('kioskUnassignedBox');
+      var kioskList = document.getElementById('kioskUnassignedList');
+      if (unassignedKiosk.length > 0) {
+        kioskBox.classList.remove('hidden');
+        document.getElementById('kioskUnassignedCount').innerText = unassignedKiosk.length;
+        kioskList.innerHTML = unassignedKiosk.map(function(o) {
+          var itemsText = (o.items || []).map(function(i){ return i.name + ' x' + i.qty; }).join(', ');
+          return `
+            <div class="bg-gray-50 border border-gray-200 rounded-xl p-2.5 flex justify-between items-center text-xs">
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="bg-pink-100 text-pink-700 font-black px-1.5 py-0.5 rounded text-[10px]">Kiosk</span>
+                  <span class="font-black text-gray-800">ORD-${o.id}</span>
+                  <span class="text-gray-400 font-mono text-[10px]">${o.time || ''}</span>
+                  <span class="font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">₹${o.total} (${o.payment_mode || 'PAID'})</span>
+                </div>
+                <div class="text-gray-600 font-medium text-[11px] mt-1 line-clamp-1">${itemsText}</div>
+                <div class="flex gap-1.5 mt-2">
+                  <button onclick="promptAssignTable(${o.id})" class="bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 font-bold px-2 py-0.5 rounded text-[10px]">Assign table</button>
+                  <button onclick="settleActiveOrder(${o.id}, 'CASH')" class="bg-emerald-600 text-white font-bold px-2 py-0.5 rounded text-[10px]">✓ Mark complete</button>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } else {
+        kioskBox.classList.add('hidden');
       }
+
+      function buildOrderActionCard(o) {
+        var itemsText = (o.items || []).map(function(i){ return i.name + ' x' + i.qty; }).join(', ');
+        var totalAmount = Number(o.total) || 0;
+        var paidAmount = Number(o.paid_amount) || Number(o.already_paid) || 0;
+
+        if (paidAmount === 0 && o.payment_mode && o.payment_mode !== 'UNPAID' && o.payment_mode !== 'DUE' && o.status !== 'RUNNING_TABLE') {
+          paidAmount = totalAmount;
+        }
+
+        var remainingDue = Math.max(0, totalAmount - paidAmount);
+        var isFullyPaid = paidAmount >= totalAmount && totalAmount > 0;
+        var isPartiallyPaid = paidAmount > 0 && remainingDue > 0;
+
+        var statusTag = '';
+        var tagBg = '';
+        if (isFullyPaid) {
+          statusTag = o.payment_mode || 'Paid';
+          tagBg = 'bg-emerald-100 text-emerald-800';
+        } else if (isPartiallyPaid) {
+          statusTag = `Partially Paid (Due: ₹${remainingDue})`;
+          tagBg = 'bg-amber-100 text-amber-900';
+        } else {
+          statusTag = (o.payment_mode === 'DUE') ? 'Due' : 'Unpaid';
+          tagBg = 'bg-amber-100 text-amber-900';
+        }
+
+        return `
+          <div class="border border-orange-200/70 bg-[#fffdfa] rounded-xl p-3 text-xs shadow-2xs hover:border-orange-300 transition space-y-2">
+            <div class="flex justify-between items-start">
+              <div>
+                <div class="flex items-center gap-1.5">
+                  <span class="text-gray-500 font-bold text-[10px]">Token ${o.id.toString().padStart(3, '0')}</span>
+                  <span class="font-black text-gray-800 text-xs">ORD-${o.id}</span>
+                </div>
+                <div class="text-[11px] text-gray-600 mt-0.5 line-clamp-1">${itemsText || 'Order placed'}</div>
+                <div class="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
+                  <span>👤 ${o.customer_name || 'Sehaj'}</span>
+                  <span class="bg-gray-100 text-gray-500 font-bold px-1 rounded text-[9px]">You</span>
+                  ${o.customer_phone ? `<span class="ml-1 text-gray-500 font-mono">(${o.customer_phone})</span>` : ''}
+                </div>
+              </div>
+
+              <div class="text-right">
+                <div class="flex items-center justify-end gap-1 mb-0.5">
+                  <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100/70 text-orange-800">Preparing</span>
+                  <span class="font-black text-gray-900 text-sm">₹${o.total}</span>
+                  <span class="text-[10px] font-black px-1.5 py-0.5 rounded ${tagBg}">${statusTag}</span>
+                </div>
+                <div class="text-[9px] text-gray-400">${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short' })} • ${new Date().toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' })}</div>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap gap-1.5 pt-1.5 border-t border-gray-100 text-[10px] font-bold">
+              <button onclick="actionViewOrder(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>👁</span> View</button>
+              <button onclick="actionAddPhone(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-orange-700 rounded border border-orange-200 flex items-center gap-1 shadow-2xs"><span>📞</span> Add phone</button>
+              <button onclick="actionPrintKOT(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🍳</span> KOT •</button>
+              <button onclick="actionPrintReceipt(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🖨</span> Print Receipt</button>
+              <button onclick="actionEditAddItems(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>+</span> Add Item</button>
+              <button onclick="actionSettlePopup(${o.id})" class="px-2.5 py-1 bg-orange-100 hover:bg-orange-200 text-orange-800 rounded border border-orange-300 font-black shadow-2xs">Settle</button>
+              <button onclick="actionMarkDue(${o.id})" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded border border-rose-300 font-black shadow-2xs">Mark Due</button>
+            </div>
+          </div>
+        `;
+      }
+
+      var takeawayOrders = allActiveOrders.filter(function(o) { return o.order_type === 'Takeaway'; });
+      document.getElementById('takeawayQueueBadge').innerText = takeawayOrders.length;
+      var tList = document.getElementById('takeawayQueueList');
+      if (!takeawayOrders.length) tList.innerHTML = '<p class="text-xs text-gray-400 italic text-center py-6">No takeaway orders in queue</p>';
+      else tList.innerHTML = takeawayOrders.map(buildOrderActionCard).join('');
 
       var deliveryOrders = allActiveOrders.filter(function(o) { return o.order_type === 'Delivery'; });
-      var deliveryBadge = document.getElementById('deliveryQueueBadge');
-      if (deliveryBadge) deliveryBadge.innerText = deliveryOrders.length;
+      document.getElementById('deliveryQueueBadge').innerText = deliveryOrders.length;
       var dList = document.getElementById('deliveryQueueList');
-      if (dList) {
-        if (!deliveryOrders.length) dList.innerHTML = '<p class="text-xs text-gray-400 italic text-center py-6">No delivery orders in queue</p>';
-        else dList.innerHTML = deliveryOrders.map(buildOrderActionCard).join('');
-      }
+      if (!deliveryOrders.length) dList.innerHTML = '<p class="text-xs text-gray-400 italic text-center py-6">No delivery orders in queue</p>';
+      else dList.innerHTML = deliveryOrders.map(buildOrderActionCard).join('');
     }
 
-    function buildOrderActionCard(o) {
-      var itemsText = (o.items || []).map(function(i){ return i.name + ' x' + i.qty; }).join(', ');
-      var totalAmount = Number(o.total) || 0;
-      var paidAmount = Number(o.paid_amount) || Number(o.already_paid) || 0;
-
-      if (paidAmount === 0 && o.payment_mode && o.payment_mode !== 'UNPAID' && o.payment_mode !== 'DUE' && o.status !== 'RUNNING_TABLE') {
-        paidAmount = totalAmount;
-      }
-
-      var remainingDue = Math.max(0, totalAmount - paidAmount);
-      var isFullyPaid = paidAmount >= totalAmount && totalAmount > 0;
-      var isPartiallyPaid = paidAmount > 0 && remainingDue > 0;
-
-      var statusTag = '';
-      var tagBg = '';
-      if (isFullyPaid) {
-        statusTag = o.payment_mode || 'Paid';
-        tagBg = 'bg-emerald-100 text-emerald-800';
-      } else if (isPartiallyPaid) {
-        statusTag = `Partially Paid (Due: ₹${remainingDue})`;
-        tagBg = 'bg-amber-100 text-amber-900';
-      } else {
-        statusTag = (o.payment_mode === 'DUE') ? 'Due' : 'Unpaid';
-        tagBg = 'bg-amber-100 text-amber-900';
-      }
-
-      return `
-        <div class="border border-orange-200/70 bg-[#fffdfa] rounded-xl p-3 text-xs shadow-2xs hover:border-orange-300 transition space-y-2">
-          <div class="flex justify-between items-start">
-            <div>
-              <div class="flex items-center gap-1.5">
-                <span class="text-gray-500 font-bold text-[10px]">Token ${o.id.toString().padStart(3, '0')}</span>
-                <span class="font-black text-gray-800 text-xs">ORD-${o.id}</span>
-              </div>
-              <div class="text-[11px] text-gray-600 mt-0.5 line-clamp-1">${itemsText || 'Order placed'}</div>
-              <div class="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
-                <span>👤 ${o.customer_name || 'Sehaj'}</span>
-                <span class="bg-gray-100 text-gray-500 font-bold px-1 rounded text-[9px]">You</span>
-                ${o.customer_phone ? `<span class="ml-1 text-gray-500 font-mono">(${o.customer_phone})</span>` : ''}
-              </div>
-            </div>
-
-            <div class="text-right">
-              <div class="flex items-center justify-end gap-1 mb-0.5">
-                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100/70 text-orange-800">Preparing</span>
-                <span class="font-black text-gray-900 text-sm">₹${o.total}</span>
-                <span class="text-[10px] font-black px-1.5 py-0.5 rounded ${tagBg}">${statusTag}</span>
-              </div>
-              <div class="text-[9px] text-gray-400">${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short' })} • ${new Date().toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' })}</div>
-            </div>
-          </div>
-
-          <div class="flex flex-wrap gap-1.5 pt-1.5 border-t border-gray-100 text-[10px] font-bold">
-            <button onclick="actionEditAddItems(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>👁</span> View / Edit</button>
-            <button onclick="actionPrintKOT(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🍳</span> KOT</button>
-            <button onclick="actionPrintReceipt(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🖨</span> Print</button>
-            <button onclick="actionSettlePopup(${o.id})" class="px-2.5 py-1 bg-orange-100 hover:bg-orange-200 text-orange-800 rounded border border-orange-300 font-black shadow-2xs">Settle</button>
-            <button onclick="actionMarkDue(${o.id})" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded border border-rose-300 font-black shadow-2xs">Mark Due</button>
-          </div>
-        </div>
-      `;
-    }
-
-    function actionEditAddItems(orderId) {
+    function actionViewOrder(orderId) {
       var ord = allActiveOrders.find(function(o) { return o.id === orderId; });
       if (!ord) return;
-      
-      openPOSOrderView(ord.order_type, ord.table_no || '', false);
-      editingActiveOrderId = ord.id;
-      
-      var recordedPaid = Number(ord.paid_amount) || Number(ord.already_paid) || 0;
-      if (recordedPaid === 0 && ord.payment_mode && ord.payment_mode !== 'UNPAID' && ord.payment_mode !== 'DUE' && ord.status !== 'RUNNING_TABLE') {
-        recordedPaid = Number(ord.total) || 0;
-      }
+      var items = (ord.items || []).map(function(i) { return `• ${i.name} x${i.qty} = ₹${i.price * i.qty}`; }).join('\n');
+      alert(`Order #ORD-${orderId} (${ord.order_type})\nTotal: ₹${ord.total} | Paid: ₹${ord.paid_amount || ord.already_paid || 0}\n\nItems:\n${items}`);
+    }
 
-      if (recordedPaid > 0) {
-        alreadyPaidAmount = recordedPaid;
-        alreadyPaidMode = ord.already_paid_mode || ord.payment_mode || 'Paid';
-        document.getElementById('boxAlreadyPaidBanner').classList.remove('hidden');
-        document.getElementById('lblAlreadyPaidAmount').innerText = '₹' + alreadyPaidAmount.toFixed(2);
-        document.getElementById('lblAlreadyPaidMode').innerText = alreadyPaidMode;
-      } else {
-        alreadyPaidAmount = 0;
-        alreadyPaidMode = '';
-        document.getElementById('boxAlreadyPaidBanner').classList.add('hidden');
-      }
-
-      posCart = (ord.items || []).map(function(i) {
-        return { name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1 };
-      });
-      renderPOSCart();
-      switchRightTab('SUMMARY');
+    function actionAddPhone(orderId) {
+      var ph = prompt("Customer Phone Number daalein:");
+      if (!ph || ph.trim().length < 10) return alert("Valid 10-digit number enter karein!");
+      fetch('/api/orders/' + orderId + '/update-phone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: ph.trim() })
+      }).then(function(){ fetchActiveOrders(); });
     }
 
     function actionPrintKOT(orderId) {
@@ -673,13 +959,210 @@
       dispatchDirectPrintReceipt(ord.id, ord, calc);
     }
 
+    // ================= PERSISTENT DIFFERENTIAL DETECTION =================
+    function actionEditAddItems(orderId) {
+      var ord = allActiveOrders.find(function(o) { return o.id === orderId; });
+      if (!ord) return;
+      
+      openPOSOrderView(ord.order_type, ord.table_no || '');
+      editingActiveOrderId = ord.id;
+      
+      var recordedPaid = Number(ord.paid_amount) || Number(ord.already_paid) || 0;
+      
+      if (recordedPaid === 0 && ord.payment_mode && ord.payment_mode !== 'UNPAID' && ord.payment_mode !== 'DUE' && ord.status !== 'RUNNING_TABLE') {
+        recordedPaid = Number(ord.total) || 0;
+      }
+
+      if (recordedPaid > 0) {
+        alreadyPaidAmount = recordedPaid;
+        alreadyPaidMode = ord.already_paid_mode || ord.payment_mode || 'Paid';
+        
+        document.getElementById('boxAlreadyPaidBanner').classList.remove('hidden');
+        document.getElementById('lblAlreadyPaidAmount').innerText = '₹' + alreadyPaidAmount.toFixed(2);
+        document.getElementById('lblAlreadyPaidMode').innerText = alreadyPaidMode;
+      } else {
+        alreadyPaidAmount = 0;
+        alreadyPaidMode = '';
+        document.getElementById('boxAlreadyPaidBanner').classList.add('hidden');
+      }
+
+      posCart = (ord.items || []).map(function(i) {
+        return { name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1 };
+      });
+      renderPOSCart();
+    }
+
     function actionSettlePopup(orderId) {
       actionEditAddItems(orderId);
+      switchRightTab('SUMMARY');
     }
 
     function actionMarkDue(orderId) {
       actionEditAddItems(orderId);
-      selectedPaymentMode = 'DUE';
+      selectPaymentMode('DUE');
+      switchRightTab('SUMMARY');
+    }
+
+    // ================= PAYMENT MODE SELECTION & CASH MODAL =================
+    function handlePaymentModeClick(mode) {
+      var calc = calculatePOSBillTotals();
+      var payableAmount = calc.payableNow;
+
+      if (mode === 'Cash') {
+        if (payableAmount <= 0) return alert('No additional payment pending!');
+        document.getElementById('modalCashOrderTotal').innerText = '₹' + payableAmount.toFixed(2);
+        
+        document.getElementById('inputCashReceivedAmount').value = '';
+        currentCashReceived = 0;
+        currentCashChange = 0;
+        document.getElementById('modalCashReturnChange').innerText = '₹0.00';
+        
+        document.getElementById('modalCashReceived').classList.remove('hidden');
+        return;
+      }
+
+      if (mode === 'Split') {
+        selectPaymentMode('Split');
+        document.getElementById('splitTotalDisplay').innerText = '₹' + payableAmount.toFixed(2);
+        
+        document.getElementById('splitAmount1').value = '';
+        document.getElementById('splitAmount2').value = '';
+        calculateSplitDifference();
+        
+        document.getElementById('splitPaymentPanel').classList.remove('hidden');
+        return;
+      }
+
+      document.getElementById('splitPaymentPanel').classList.add('hidden');
+      selectPaymentMode(mode);
+      
+      var placeBtn = document.getElementById('btnPOSPlaceOrder');
+      if (placeBtn) {
+        placeBtn.disabled = false;
+        placeBtn.className = "flex-1 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5";
+      }
+    }
+
+    function closeCashReceivedModal() {
+      closeVirtualKeyboards();
+      document.getElementById('modalCashReceived').classList.add('hidden');
+    }
+
+    function calculateChangeReturn() {
+      var calc = calculatePOSBillTotals();
+      var payableAmount = calc.payableNow;
+      var rawVal = document.getElementById('inputCashReceivedAmount').value.trim();
+      var rec = parseFloat(rawVal) || 0;
+      var change = (rawVal === '') ? 0 : Math.max(0, rec - payableAmount);
+      currentCashReceived = rec;
+      currentCashChange = change;
+      document.getElementById('modalCashReturnChange').innerText = '₹' + change.toFixed(2);
+    }
+
+    function confirmCashPaymentExecute() {
+      closeCashReceivedModal();
+      selectPaymentMode('Cash');
+      document.getElementById('splitPaymentPanel').classList.add('hidden');
+      openCashDrawer();
+      executePlaceOrder();
+    }
+
+    // ================= SPLIT PAYMENT LOGIC =================
+    function setSplitMethodType(methodNum, type) {
+      if (methodNum === 1) splitMethod1 = type;
+      if (methodNum === 2) splitMethod2 = type;
+
+      ['Cash', 'UPI', 'Card', 'DUE'].forEach(function(m) {
+        var btn1 = document.getElementById('splitM1_' + m);
+        var btn2 = document.getElementById('splitM2_' + m);
+        if (btn1) {
+          if (splitMethod1 === m) {
+            btn1.className = (m === 'DUE') ? "border border-rose-400 bg-rose-50 text-rose-700 font-bold py-1 rounded text-[10px]" : "border border-orange-400 bg-orange-50 text-orange-700 font-bold py-1 rounded text-[10px]";
+          } else {
+            btn1.className = "border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold py-1 rounded text-[10px]";
+          }
+        }
+        if (btn2) {
+          if (splitMethod2 === m) {
+            btn2.className = (m === 'DUE') ? "border border-rose-400 bg-rose-50 text-rose-700 font-bold py-1 rounded text-[10px]" : "border border-blue-500 bg-blue-50 text-blue-700 font-bold py-1 rounded text-[10px]";
+          } else {
+            btn2.className = "border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold py-1 rounded text-[10px]";
+          }
+        }
+      });
+    }
+
+    function fillSplitRest(targetMethod) {
+      var calc = calculatePOSBillTotals();
+      var total = calc.payableNow;
+      if (targetMethod === 1) {
+        var m2 = parseFloat(document.getElementById('splitAmount2').value) || 0;
+        document.getElementById('splitAmount1').value = Math.max(0, total - m2).toFixed(2);
+      } else {
+        var m1 = parseFloat(document.getElementById('splitAmount1').value) || 0;
+        document.getElementById('splitAmount2').value = Math.max(0, total - m1).toFixed(2);
+      }
+      calculateSplitDifference();
+    }
+
+    function calculateSplitDifference() {
+      var calc = calculatePOSBillTotals();
+      var total = calc.payableNow;
+      var raw1 = document.getElementById('splitAmount1').value.trim();
+      var raw2 = document.getElementById('splitAmount2').value.trim();
+      var a1 = parseFloat(raw1) || 0;
+      var a2 = parseFloat(raw2) || 0;
+      var sum = a1 + a2;
+      var diff = total - sum;
+
+      var alertBox = document.getElementById('splitStatusAlertBox');
+      var msg = document.getElementById('splitStatusMessage');
+      var pending = document.getElementById('splitPendingDiff');
+      var placeBtn = document.getElementById('btnPOSPlaceOrder');
+
+      if (selectedPaymentMode === 'Split') {
+        if ((raw1 !== '' || raw2 !== '') && Math.abs(diff) < 0.01) {
+          alertBox.className = "border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-lg p-2 text-[10px] font-bold flex justify-between items-center";
+          msg.innerText = "✓ Exact total matched!";
+          pending.innerText = "₹0.00";
+          placeBtn.disabled = false;
+          placeBtn.className = "flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5";
+        } else {
+          alertBox.className = "border border-rose-200 bg-rose-50 text-rose-700 rounded-lg p-2 text-[10px] font-bold flex justify-between items-center";
+          msg.innerText = "Split must equal the total";
+          pending.innerText = (diff > 0 ? "Remaining: ₹" : "Exceeded: ₹") + Math.abs(diff).toFixed(2);
+          placeBtn.disabled = true;
+          placeBtn.className = "flex-1 bg-gray-300 text-gray-500 py-2.5 rounded-xl font-black text-xs cursor-not-allowed flex items-center justify-center gap-1.5";
+        }
+      }
+    }
+
+    function selectPaymentMode(mode) {
+      selectedPaymentMode = (selectedPaymentMode === mode) ? null : mode;
+
+      ['Cash', 'UPI', 'Card', 'Split', 'DUE'].forEach(function(m) {
+        var btn = document.getElementById('payBtn' + m);
+        if (btn) btn.className = (m === 'DUE') 
+          ? "border border-rose-200 hover:bg-rose-50 text-rose-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5" 
+          : "border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5";
+      });
+
+      if (selectedPaymentMode) {
+        var activeBtn = document.getElementById('payBtn' + selectedPaymentMode);
+        if (activeBtn) {
+          activeBtn.className = (selectedPaymentMode === 'DUE')
+            ? "border-2 border-rose-600 bg-rose-50 text-rose-800 py-1.5 rounded-lg text-xs font-black flex items-center justify-center gap-0.5"
+            : "border-2 border-emerald-600 bg-emerald-50 text-emerald-800 py-1.5 rounded-lg text-xs font-black flex items-center justify-center gap-0.5";
+        }
+      }
+
+      if (selectedPaymentMode !== 'Split') {
+        var placeBtn = document.getElementById('btnPOSPlaceOrder');
+        if (placeBtn) {
+          placeBtn.disabled = false;
+          placeBtn.className = "flex-1 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5";
+        }
+      }
     }
 
     function calculatePOSBillTotals() {
@@ -701,52 +1184,109 @@
 
     function renderPOSCart() {
       var box = document.getElementById('posCartItemList');
+      var placeBtn = document.getElementById('btnPOSPlaceOrder');
+
       if (!posCart.length) {
         box.innerHTML = '<p class="text-gray-400 text-center py-10 italic text-xs">Cart is empty</p>';
         calculatePOSBillTotals();
         return;
       }
+
+      if (selectedPaymentMode !== 'Split' && placeBtn) {
+        placeBtn.disabled = false;
+        placeBtn.className = "flex-1 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5";
+      }
+
       box.innerHTML = posCart.map(function(item, idx) {
         return `
           <div class="py-2 flex items-center justify-between text-xs">
-            <span class="font-bold text-gray-800">${item.name} x${item.qty}</span>
-            <span class="font-black text-gray-900">₹${item.price * item.qty}</span>
+            <div class="flex items-center gap-2">
+              <div class="flex items-center border rounded bg-gray-50">
+                <button onclick="changeItemQty(${idx}, -1)" class="px-2 py-0.5 font-bold hover:bg-gray-200">-</button>
+                <span class="px-1.5 font-black text-gray-800">${item.qty}</span>
+                <button onclick="changeItemQty(${idx}, 1)" class="px-2 py-0.5 font-bold hover:bg-gray-200">+</button>
+              </div>
+              <span class="font-bold text-gray-800 truncate max-w-[120px]">${item.name}</span>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button onclick="removeItemCompletely(${idx})" class="text-gray-400 hover:text-red-600 text-xs">🗑</button>
+              <span class="font-black text-gray-900 w-12 text-right">₹${item.price * item.qty}</span>
+            </div>
           </div>
         `;
       }).join('');
+
       calculatePOSBillTotals();
     }
 
-    function renderPOSItems() {
-      var grid = document.getElementById('posItemsGrid');
-      if (!grid) return;
-      grid.innerHTML = allMenuItems.map(item => `
-        <div onclick="addOrIncrementItem('${item.name.replace(/'/g, "\\'")}', ${item.price})" class="bg-white border rounded-xl p-2.5 cursor-pointer shadow-2xs hover:border-orange-500 transition">
-          <h3 class="text-xs font-bold text-gray-800">${item.name}</h3>
-          <div class="text-xs font-black text-gray-900 mt-0.5">₹${item.price}</div>
-        </div>
-      `).join('');
-    }
-
-    function addOrIncrementItem(name, price) {
-      var exist = posCart.find(function(i) { return i.name === name; });
-      if (exist) exist.qty += 1;
-      else posCart.push({ name: name, price: Number(price), qty: 1 });
-      renderPOSCart();
-    }
-
+    // ================= ROBUST PLACE ORDER (PRESERVES PAID AMOUNTS) =================
     function executePlaceOrder() {
-      if (!posCart.length) return alert('Cart khali hai!');
+      if (!posCart.length) return alert('Kripya cart mein item add karein!');
+
       var calc = calculatePOSBillTotals();
+      var custPhone = document.getElementById('posCustPhone').value.trim();
+      var custName = document.getElementById('posCustName').value.trim();
+
+      var newlyPaidAmount = 0;
+      var newPaymentModeLabel = selectedPaymentMode;
+
+      if (selectedPaymentMode === 'Cash' || selectedPaymentMode === 'UPI' || selectedPaymentMode === 'Card') {
+        newlyPaidAmount = calc.payableNow;
+      } else if (selectedPaymentMode === 'Split') {
+        var a1 = parseFloat(document.getElementById('splitAmount1').value) || 0;
+        var a2 = parseFloat(document.getElementById('splitAmount2').value) || 0;
+        newlyPaidAmount = a1 + a2;
+        newPaymentModeLabel = `SPLIT (${splitMethod1}: ₹${a1}, ${splitMethod2}: ₹${a2})`;
+      }
+
+      var cumulativeTotalPaid = alreadyPaidAmount + newlyPaidAmount;
+      var remainingDue = Math.max(0, calc.grandTotal - cumulativeTotalPaid);
+
+      var finalMode = '';
+      var isHoldOrder = false;
+
+      if (remainingDue === 0) {
+        finalMode = alreadyPaidAmount > 0 
+          ? (newlyPaidAmount > 0 ? `${alreadyPaidMode} + ${newPaymentModeLabel}` : alreadyPaidMode)
+          : (newPaymentModeLabel || 'PAID');
+        isHoldOrder = false;
+      } else {
+        if (cumulativeTotalPaid > 0) {
+          finalMode = `PARTIAL (${alreadyPaidMode || 'Paid'}: ₹${cumulativeTotalPaid}, Due: ₹${remainingDue})`;
+        } else {
+          finalMode = (selectedPaymentMode === 'DUE') ? 'DUE' : 'UNPAID';
+        }
+        isHoldOrder = !selectedPaymentMode && remainingDue > 0;
+      }
+
+      var splitDetails = null;
+      if (selectedPaymentMode === 'Split') {
+        splitDetails = [
+          { mode: splitMethod1, amount: parseFloat(document.getElementById('splitAmount1').value) || 0 },
+          { mode: splitMethod2, amount: parseFloat(document.getElementById('splitAmount2').value) || 0 }
+        ];
+      }
+
       var payload = {
         order_type: currentPOSOrderType,
-        table_no: selectedPOSTableId,
+        table_no: (currentPOSOrderType === 'Dine-In' ? selectedPOSTableId : ''),
+        customer_name: custName,
+        customer_phone: custPhone,
         items: [...posCart],
-        payment_mode: selectedPaymentMode || 'Cash',
+        payment_mode: finalMode,
         subtotal: calc.subtotal,
         gst: calc.gst,
         total: calc.grandTotal,
-        paid_amount: alreadyPaidAmount + calc.payableNow
+        paid_amount: cumulativeTotalPaid,
+        already_paid: cumulativeTotalPaid,
+        already_paid_mode: finalMode,
+        payable_now: remainingDue,
+        guests: currentGuestCount,
+        is_hold: isHoldOrder,
+        cash_received: currentCashReceived,
+        cash_change: currentCashChange,
+        split_details: splitDetails
       };
 
       if (editingActiveOrderId) {
@@ -754,83 +1294,424 @@
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
-        }).then(() => { handleGlobalBackNavigation(); });
+        }).then(function(){
+          if (newlyPaidAmount > 0) dispatchDirectPrintReceipt(editingActiveOrderId, payload, calc);
+          closePOSOrderView();
+        });
       } else {
         fetch('/api/orders', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
-        }).then(() => { handleGlobalBackNavigation(); });
-      }
-    }
-
-    function openPOSOrderView(type, table, isFromHistory) {
-      currentPOSOrderType = type;
-      selectedPOSTableId = table || 'T01';
-      if (isFromHistory) {
-        previousViewSource = 'history';
-        document.getElementById('btnGlobalBack').classList.remove('hidden');
-      } else {
-        previousViewSource = 'dashboard';
-        document.getElementById('btnGlobalBack').classList.remove('hidden'); // Dashboard se bhi POS khulne par back button show karega
-      }
-      document.getElementById('viewOrderHistoryScreen').classList.add('hidden');
-      document.getElementById('viewFloorDashboard').classList.add('hidden');
-      document.getElementById('viewPOSOrderScreen').classList.remove('hidden');
-    }
-
-    function handleGlobalBackNavigation() {
-      if (previousViewSource === 'history') {
-        showOrderHistoryView();
-      } else {
-        showDashboardView();
-      }
-    }
-
-    function closePOSOrderView() {
-      handleGlobalBackNavigation();
-    }
-
-    function switchRightTab(tab) {
-      const cust = document.getElementById('tabContentCustomer');
-      const sum = document.getElementById('tabContentSummary');
-      const btnC = document.getElementById('tabBtnCustomer');
-      const btnS = document.getElementById('tabBtnSummary');
-      if (tab === 'CUSTOMER') {
-        cust.classList.remove('hidden');
-        sum.classList.add('hidden');
-        btnC.className = "py-1.5 rounded-lg transition bg-white text-orange-600 shadow-2xs font-black";
-        btnS.className = "py-1.5 rounded-lg transition text-gray-500 hover:text-gray-900 font-bold";
-      } else {
-        cust.classList.add('hidden');
-        sum.classList.remove('hidden');
-        btnS.className = "py-1.5 rounded-lg transition bg-white text-orange-600 shadow-2xs font-black";
-        btnC.className = "py-1.5 rounded-lg transition text-gray-500 hover:text-gray-900 font-bold";
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (newlyPaidAmount > 0) dispatchDirectPrintReceipt(data.orderId, payload, calc);
+          closePOSOrderView();
+        });
       }
     }
 
     function dispatchDirectPrintReceipt(orderId, payload, calc) {
-      var itemsRows = (payload.items || []).map(item => `<div style="display:flex; justify-content:space-between;"><span>${item.name} x ${item.qty}</span><span>₹${item.price * item.qty}</span></div>`).join('');
-      var html = `<html><body><h3>VISHAL FOODIEZ</h3><p>Order #${orderId}</p><hr>${itemsRows}<hr><b>Total: ₹${calc.grandTotal}</b></body></html>`;
+      var itemsRows = (payload.items || []).map(function(item) {
+        return `
+          <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
+            <span style="width:70%; word-break: break-word;">${item.name} x ${item.qty}</span>
+            <span style="width:30%; text-align:right;">₹${(item.price * item.qty).toFixed(2)}</span>
+          </div>
+        `;
+      }).join('');
+
+      var diffSection = '';
+      if (alreadyPaidAmount > 0) {
+        diffSection = `
+          <div class="row" style="color:#047857;"><span>Previously Paid:</span><span>-₹${alreadyPaidAmount.toFixed(2)}</span></div>
+          <div class="row" style="font-weight:900;"><span>Balance Paid Now:</span><span>₹${(calc.payableNow || 0).toFixed(2)}</span></div>
+        `;
+      }
+
+      var cashSection = '';
+      if (payload.payment_mode && payload.payment_mode.includes('Cash') && payload.cash_received > 0) {
+        cashSection = `
+          <div class="row"><span>Cash Tendered:</span><span>₹${payload.cash_received.toFixed(2)}</span></div>
+          <div class="row"><span>Change Returned:</span><span>₹${payload.cash_change.toFixed(2)}</span></div>
+        `;
+      }
+
+      var splitSection = '';
+      if (payload.split_details && payload.split_details.length > 0) {
+        splitSection = payload.split_details.map(function(s) {
+          return `<div class="row"><span>${s.mode === 'DUE' ? 'Khata (Due)' : s.mode}:</span><span>₹${s.amount.toFixed(2)}</span></div>`;
+        }).join('');
+      }
+
+      var html = `
+        <html>
+        <head>
+          <style>
+            @page { margin: 0; size: 80mm auto; }
+            body { font-family: Arial, sans-serif; font-size: 13px; font-weight: 700; color: #000; padding: 0 6px 4px; width: 68mm; }
+            .center { text-align: center; }
+            .token { border: 2.5px solid #000; font-size: 26px; font-weight: 900; text-align: center; padding: 4px 0; margin: 6px 0; }
+            .divider { border-top: 1.5px dashed #000; margin: 6px 0; }
+            .row { display: flex; justify-content: space-between; }
+          </style>
+        </head>
+        <body>
+          <div class="center" style="font-size:18px; font-weight:900;">VISHAL FOODIEZ</div>
+          <div class="center" style="font-size:11px;">Railway Road, Budhlada</div>
+          <div class="token">TOKEN #${orderId || '---'}</div>
+          <div class="row"><span>Order: #${orderId}</span><span>(${payload.order_type.toUpperCase()})</span></div>
+          ${payload.table_no ? `<div>Table: ${payload.table_no}</div>` : ''}
+          ${payload.customer_name ? `<div>Guest: ${payload.customer_name}</div>` : ''}
+          <div>Date: ${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' })}</div>
+          <div class="divider"></div>
+          ${itemsRows}
+          <div class="divider"></div>
+          <div class="row"><span>Subtotal:</span><span>₹${calc.subtotal.toFixed(2)}</span></div>
+          <div class="row"><span>GST (5%):</span><span>₹${calc.gst.toFixed(2)}</span></div>
+          <div class="row" style="font-size:16px; font-weight:900;"><span>TOTAL BILL:</span><span>₹${calc.grandTotal.toFixed(2)}</span></div>
+          ${diffSection}
+          ${cashSection}
+          ${splitSection}
+          <div class="divider"></div>
+          <div class="center" style="font-size:11px;">Payment Mode: <b>${payload.payment_mode}</b></div>
+          <div class="center" style="font-size:11px; margin-top:4px;">Thanks For Visiting Us!</div>
+        </body>
+        </html>
+      `;
+
       var frame = document.getElementById('silentPrintFrame');
       var doc = frame.contentWindow.document;
-      doc.open(); doc.write(html); doc.close();
-      setTimeout(() => { try { frame.contentWindow.print(); } catch(e){} }, 250);
+      doc.open();
+      doc.write(html);
+      doc.close();
+      frame.contentWindow.focus();
+      setTimeout(function() {
+        try { frame.contentWindow.print(); } catch(e) {}
+      }, 250);
     }
 
     function triggerManualKOTDirect() {
-      if (!posCart.length) return;
-      var itemsRows = posCart.map(i => `<tr><td>${i.name}</td><td style="text-align:right;">x${i.qty}</td></tr>`).join('');
-      var html = `<html><body><h3>*** KOT ***</h3><table>${itemsRows}</table></body></html>`;
+      if (!posCart.length) return alert('Cart khali hai!');
+      var itemsRows = posCart.map(function(i) {
+        return `
+          <tr>
+            <td style="font-size:14px; font-weight:bold; padding:2px 0;">${i.name}</td>
+            <td style="font-size:15px; font-weight:bold; text-align:right;">x${i.qty}</td>
+          </tr>
+        `;
+      }).join('');
+
+      var html = `
+        <html>
+        <head>
+          <style>
+            @page { size: 80mm auto; margin: 0; }
+            body { font-family: monospace; font-size: 12px; width: 72mm; margin: 0 auto; padding: 4px; }
+            .center { text-align: center; font-weight: bold; }
+            .line { border-bottom: 2px solid #000; margin: 5px 0; }
+            table { width: 100%; border-collapse: collapse; }
+          </style>
+        </head>
+        <body>
+          <div class="center" style="font-size:16px;">*** KOT (KITCHEN) ***</div>
+          <div class="line"></div>
+          <div><b>${currentPOSOrderType.toUpperCase()}</b> | Table: ${selectedPOSTableId}</div>
+          <div class="line"></div>
+          <table>${itemsRows}</table>
+          <div class="line"></div>
+        </body>
+        </html>
+      `;
+
       var frame = document.getElementById('silentPrintFrame');
       var doc = frame.contentWindow.document;
-      doc.open(); doc.write(html); doc.close();
-      setTimeout(() => { try { frame.contentWindow.print(); } catch(e){} }, 250);
+      doc.open();
+      doc.write(html);
+      doc.close();
+      frame.contentWindow.focus();
+      setTimeout(function() {
+        try { frame.contentWindow.print(); } catch(e) {}
+      }, 250);
     }
 
-    function openCashDrawer() {}
-    function protectedNav(url) { window.location.href = url; }
-    function toggleSidebarMenu(show) {}
+    function openCashDrawer() {
+      fetch('http://127.0.0.1:4567/kick-drawer', { method: 'POST' })
+      .catch(function(err) { console.error('Agent offline!', err); });
+    }
+
+    function promptAssignTable(orderId) {
+      var tbl = prompt("Table Number daalein (e.g. T01, T02):");
+      if (!tbl) return;
+      fetch('/api/orders/' + orderId + '/assign-table', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ table_no: tbl.trim().toUpperCase() })
+      }).then(function(){ fetchActiveOrders(); });
+    }
+
+    function settleActiveOrder(orderId, mode) {
+      fetch('/api/tables/' + orderId + '/settle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payment_mode: mode })
+      }).then(function(){ fetchActiveOrders(); });
+    }
+
+    function promptAddCustomTable() {
+      var tno = prompt("New Table ID (e.g. T09):");
+      if (!tno) return;
+      defaultFloorTables.push({ id: tno.trim().toUpperCase(), label: tno.trim().toUpperCase(), seats: 2 });
+      renderFloorTablesGrid();
+    }
+
+    function protectedNav(targetUrl) {
+      var pin = prompt('Enter Owner/Admin Security PIN:');
+      if (!pin) return;
+      fetch('/api/verify-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: pin })
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data.valid) window.location.href = targetUrl;
+        else alert('Galat PIN!');
+      }).catch(function(){});
+    }
+
+    function lookupCustomerPhone() {
+      var ph = document.getElementById('posCustPhone').value.trim();
+      if (ph.length >= 10) {
+        fetch('/api/customers/' + ph)
+          .then(function(r){ return r.json(); })
+          .then(function(c){
+            if (c && c.name) document.getElementById('posCustName').value = c.name;
+          }).catch(function(){});
+      }
+    }
+
+    function openPOSOrderView(orderType, tableId) {
+      currentPOSOrderType = orderType || 'Dine-In';
+      selectedPOSTableId = tableId || 'T01';
+      editingActiveOrderId = null;
+      alreadyPaidAmount = 0;
+      alreadyPaidMode = '';
+      posCart = [];
+      selectedPaymentMode = null; 
+      currentCashReceived = 0;
+      currentCashChange = 0;
+
+      document.getElementById('boxAlreadyPaidBanner').classList.add('hidden');
+      document.getElementById('splitPaymentPanel').classList.add('hidden');
+
+      var placeBtn = document.getElementById('btnPOSPlaceOrder');
+      if (placeBtn) {
+        placeBtn.disabled = false;
+        placeBtn.className = "flex-1 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5";
+      }
+
+      ['Cash', 'UPI', 'Card', 'Split', 'DUE'].forEach(function(m) {
+        var btn = document.getElementById('payBtn' + m);
+        if (btn) btn.className = (m === 'DUE')
+          ? "border border-rose-200 hover:bg-rose-50 text-rose-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5"
+          : "border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5";
+      });
+
+      var running = allActiveOrders.find(function(o) {
+        return o.order_type === 'Dine-In' && o.table_no && o.table_no.toUpperCase() === selectedPOSTableId.toUpperCase();
+      });
+
+      if (running) {
+        editingActiveOrderId = running.id;
+        document.getElementById('posCustPhone').value = running.customer_phone || '';
+        document.getElementById('posCustName').value = running.customer_name || '';
+        posCart = (running.items || []).map(function(i) {
+          return { name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1 };
+        });
+      } else {
+        document.getElementById('posCustPhone').value = '';
+        document.getElementById('posCustName').value = '';
+      }
+
+      setPOSOrderType(currentPOSOrderType);
+      document.getElementById('posDisplayTable').innerText = selectedPOSTableId + ' • cap. 2';
+
+      document.getElementById('viewFloorDashboard').classList.add('hidden');
+      document.getElementById('viewPOSOrderScreen').classList.remove('hidden');
+
+      document.getElementById('topPageTitle').innerText = 'New Order';
+      document.getElementById('btnCancelOrderView').classList.remove('hidden');
+      document.getElementById('topOrderActiveBadge').classList.remove('hidden');
+
+      renderPOSCart();
+      renderPOSItems();
+    }
+
+    function closePOSOrderView() {
+      closeVirtualKeyboards();
+      closeCashReceivedModal();
+      document.getElementById('viewPOSOrderScreen').classList.add('hidden');
+      document.getElementById('viewFloorDashboard').classList.remove('hidden');
+
+      document.getElementById('topPageTitle').innerText = 'Orders';
+      document.getElementById('btnCancelOrderView').classList.add('hidden');
+      document.getElementById('topOrderActiveBadge').classList.add('hidden');
+
+      fetchActiveOrders();
+    }
+
+    function renderCategoriesSidebar() {
+      var container = document.getElementById('categoriesList');
+      if (!container) return;
+
+      var allBtn = `
+        <button onclick="selectPOSCategory('ALL')" class="w-full text-left px-3 py-2.5 text-xs font-bold transition flex justify-between items-center ${selectedCategory === 'ALL' ? 'bg-orange-50 text-orange-600 font-black border-r-2 border-orange-500' : 'text-gray-600 hover:bg-gray-50'}">
+          <span>All</span>
+        </button>
+      `;
+
+      var catBtns = allCategories.map(function(cat) {
+        var isSelected = (selectedCategory === cat);
+        return `
+          <button onclick="selectPOSCategory('${cat.replace(/'/g, "\\'")}')" class="w-full text-left px-3 py-2.5 text-xs font-bold transition flex justify-between items-center ${isSelected ? 'bg-orange-50 text-orange-600 font-black border-r-2 border-orange-500' : 'text-gray-600 hover:bg-gray-50'}">
+            <span class="truncate">${cat}</span>
+          </button>
+        `;
+      }).join('');
+
+      container.innerHTML = allBtn + catBtns;
+    }
+
+    function selectPOSCategory(cat) {
+      selectedCategory = cat;
+      renderCategoriesSidebar();
+      renderPOSItems();
+    }
+
+    function setPriceFilter(filter) {
+      selectedPriceFilter = filter;
+      ['ALL', '200', '500', 'Above500'].forEach(function(f) {
+        var btn = document.getElementById('filterBtn' + f);
+        if (btn) btn.className = "px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200";
+      });
+      if (filter === 'ALL') document.getElementById('filterBtnAll').className = "px-2.5 py-1 rounded-full bg-orange-500 text-white shadow-2xs";
+      if (filter === 'UNDER200') document.getElementById('filterBtn200').className = "px-2.5 py-1 rounded-full bg-orange-500 text-white shadow-2xs";
+      if (filter === '200TO500') document.getElementById('filterBtn500').className = "px-2.5 py-1 rounded-full bg-orange-500 text-white shadow-2xs";
+      if (filter === 'ABOVE500') document.getElementById('filterBtnAbove500').className = "px-2.5 py-1 rounded-full bg-orange-500 text-white shadow-2xs";
+      renderPOSItems();
+    }
+
+    function filterMenuItems() { renderPOSItems(); }
+
+    function renderPOSItems() {
+      var grid = document.getElementById('posItemsGrid');
+      if (!grid) return;
+
+      var q = (document.getElementById('menuItemSearch').value || '').toLowerCase().trim();
+
+      var filtered = allMenuItems.filter(function(i) {
+        var matchCat = (selectedCategory === 'ALL' || i.category === selectedCategory);
+        var matchQuery = (!q || i.name.toLowerCase().includes(q));
+        var p = Number(i.price) || 0;
+        var matchPrice = true;
+        if (selectedPriceFilter === 'UNDER200') matchPrice = (p <= 200);
+        if (selectedPriceFilter === '200TO500') matchPrice = (p > 200 && p <= 500);
+        if (selectedPriceFilter === 'ABOVE500') matchPrice = (p > 500);
+        return matchCat && matchQuery && matchPrice;
+      });
+
+      if (!filtered.length) {
+        grid.innerHTML = '<p class="col-span-2 text-center text-gray-400 py-16 italic text-xs">No items found</p>';
+        return;
+      }
+
+      grid.innerHTML = filtered.map(function(item) {
+        var inCartItem = posCart.find(function(c) { return c.name === item.name; });
+        var inCartQty = inCartItem ? inCartItem.qty : 0;
+
+        return `
+          <div onclick="addOrIncrementItem('${item.name.replace(/'/g, "\\'")}', ${item.price})" class="bg-white border rounded-xl p-2.5 cursor-pointer shadow-2xs hover:border-orange-500 transition flex items-center justify-between ${inCartQty > 0 ? 'border-orange-400 bg-orange-50/20' : 'border-gray-200'}">
+            <div class="flex items-center gap-2.5">
+              ${item.image ? `<img src="${item.image}" class="w-12 h-12 rounded-lg object-cover border">` : `<div class="w-12 h-12 rounded-lg bg-gray-50 flex items-center justify-center text-gray-300 text-base">🍔</div>`}
+              <div>
+                <div class="text-[9px] font-bold text-gray-400 uppercase tracking-wide">${item.category || ''}</div>
+                <h3 class="text-xs font-bold text-gray-800 line-clamp-1">${item.name}</h3>
+                <div class="text-xs font-black text-gray-900 mt-0.5">₹${item.price}</div>
+              </div>
+            </div>
+
+            <div>
+              ${inCartQty > 0 ? `<span class="bg-orange-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shadow-xs">${inCartQty}</span>` : `<span class="text-orange-500 font-bold text-xs bg-orange-50 px-2 py-1 rounded-md">+ Add</span>`}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function addOrIncrementItem(name, price) {
+      var exist = posCart.find(function(i) { return i.name === name; });
+      if (exist) exist.qty += 1;
+      else posCart.push({ name: name, price: Number(price), qty: 1 });
+      switchRightTab('SUMMARY');
+      renderPOSCart();
+      renderPOSItems();
+    }
+
+    function changeItemQty(idx, delta) {
+      if (!posCart[idx]) return;
+      posCart[idx].qty += delta;
+      if (posCart[idx].qty <= 0) posCart.splice(idx, 1);
+      renderPOSCart();
+      renderPOSItems();
+    }
+
+    function removeItemCompletely(idx) {
+      if (!posCart[idx]) return;
+      posCart.splice(idx, 1);
+      renderPOSCart();
+      renderPOSItems();
+    }
+
+    function switchRightTab(tab) {
+      closeVirtualKeyboards();
+      var btnCust = document.getElementById('tabBtnCustomer');
+      var btnSum = document.getElementById('tabBtnSummary');
+      var boxCust = document.getElementById('tabContentCustomer');
+      var boxSum = document.getElementById('tabContentSummary');
+
+      if (tab === 'CUSTOMER') {
+        btnCust.className = "py-1.5 rounded-lg transition bg-white text-orange-600 shadow-2xs font-black";
+        btnSum.className = "py-1.5 rounded-lg transition text-gray-500 hover:text-gray-900 flex items-center justify-center gap-1";
+        boxCust.classList.remove('hidden');
+        boxSum.classList.add('hidden');
+      } else {
+        btnCust.className = "py-1.5 rounded-lg transition text-gray-500 hover:text-gray-900 font-bold";
+        btnSum.className = "py-1.5 rounded-lg transition bg-white text-orange-600 shadow-2xs font-black flex items-center justify-center gap-1";
+        boxCust.classList.add('hidden');
+        boxSum.classList.remove('hidden');
+      }
+    }
+
+    function setPOSOrderType(type) {
+      currentPOSOrderType = type;
+      ['DineIn', 'Takeaway', 'Delivery'].forEach(function(t) {
+        var btn = document.getElementById('posBtn' + t);
+        if (btn) {
+          if (type.replace('-', '') === t.replace('-', '')) {
+            btn.className = "border-2 border-orange-500 bg-orange-50/50 rounded-xl py-3 flex flex-col items-center justify-center text-orange-700 shadow-2xs font-black";
+          } else {
+            btn.className = "border border-gray-200 hover:bg-gray-50 rounded-xl py-3 flex flex-col items-center justify-center text-gray-600 font-bold";
+          }
+        }
+      });
+    }
+
+    function changeGuestCount(delta) {
+      currentGuestCount = Math.max(1, currentGuestCount + delta);
+      document.getElementById('guestCountLabel').innerText = currentGuestCount;
+    }
 
     initializePOS();
   </script>
