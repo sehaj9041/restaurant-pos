@@ -90,8 +90,8 @@
     </div>
 
     <div class="flex items-center gap-2">
-      <!-- BACK BUTTON -->
-      <button id="btnPOSBack" onclick="handlePOSBackNavigation()" class="hidden text-xs font-bold px-3 py-1.5 rounded-lg border border-gray-300 bg-gray-100 hover:bg-gray-200 text-gray-700 transition flex items-center gap-1">
+      <!-- GLOBAL BACK BUTTON -->
+      <button id="btnGlobalBack" onclick="handleGlobalBackNavigation()" class="hidden text-xs font-bold px-3 py-1.5 rounded-lg border border-gray-300 bg-gray-100 hover:bg-gray-200 text-gray-700 transition flex items-center gap-1">
         <span>← Back</span>
       </button>
 
@@ -217,7 +217,7 @@
       </div>
     </div>
 
-    <!-- TAKEAWAY & DELIVERY QUEUES WITH FULL ACTION BUTTONS -->
+    <!-- TAKEAWAY & DELIVERY QUEUES -->
     <div class="grid grid-cols-2 gap-3">
       <div class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs flex flex-col">
         <div class="flex justify-between items-center text-xs font-black text-gray-800 border-b pb-2 mb-2">
@@ -414,7 +414,7 @@
       document.getElementById('viewPOSOrderScreen').classList.add('hidden');
       document.getElementById('viewFloorDashboard').classList.remove('hidden');
       document.getElementById('topPageTitle').innerText = 'Orders';
-      document.getElementById('btnPOSBack').classList.add('hidden');
+      document.getElementById('btnGlobalBack').classList.add('hidden');
       fetchActiveOrders();
     }
 
@@ -424,7 +424,8 @@
       document.getElementById('viewPOSOrderScreen').classList.add('hidden');
       document.getElementById('viewOrderHistoryScreen').classList.remove('hidden');
       document.getElementById('topPageTitle').innerText = 'Order History';
-      document.getElementById('btnPOSBack').classList.add('hidden');
+      // Order History view par bhi back button dikhayenge jo Dashboard par le jayega
+      document.getElementById('btnGlobalBack').classList.remove('hidden');
       
       const today = new Date().toISOString().slice(0, 10);
       const dateInput = document.getElementById('historyFilterDate');
@@ -753,13 +754,13 @@
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
-        }).then(() => { handlePOSBackNavigation(); });
+        }).then(() => { handleGlobalBackNavigation(); });
       } else {
         fetch('/api/orders', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
-        }).then(() => { handlePOSBackNavigation(); });
+        }).then(() => { handleGlobalBackNavigation(); });
       }
     }
 
@@ -768,17 +769,17 @@
       selectedPOSTableId = table || 'T01';
       if (isFromHistory) {
         previousViewSource = 'history';
-        document.getElementById('btnPOSBack').classList.remove('hidden');
+        document.getElementById('btnGlobalBack').classList.remove('hidden');
       } else {
         previousViewSource = 'dashboard';
-        document.getElementById('btnPOSBack').classList.add('hidden');
+        document.getElementById('btnGlobalBack').classList.remove('hidden'); // Dashboard se bhi POS khulne par back button show karega
       }
       document.getElementById('viewOrderHistoryScreen').classList.add('hidden');
       document.getElementById('viewFloorDashboard').classList.add('hidden');
       document.getElementById('viewPOSOrderScreen').classList.remove('hidden');
     }
 
-    function handlePOSBackNavigation() {
+    function handleGlobalBackNavigation() {
       if (previousViewSource === 'history') {
         showOrderHistoryView();
       } else {
@@ -787,7 +788,7 @@
     }
 
     function closePOSOrderView() {
-      handlePOSBackNavigation();
+      handleGlobalBackNavigation();
     }
 
     function switchRightTab(tab) {
