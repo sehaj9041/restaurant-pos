@@ -90,7 +90,7 @@
     </div>
 
     <div class="flex items-center gap-2">
-      <!-- BACK BUTTON ADDED HERE -->
+      <!-- BACK BUTTON -->
       <button id="btnPOSBack" onclick="handlePOSBackNavigation()" class="hidden text-xs font-bold px-3 py-1.5 rounded-lg border border-gray-300 bg-gray-100 hover:bg-gray-200 text-gray-700 transition flex items-center gap-1">
         <span>← Back</span>
       </button>
@@ -217,7 +217,7 @@
       </div>
     </div>
 
-    <!-- TAKEAWAY & DELIVERY QUEUES -->
+    <!-- TAKEAWAY & DELIVERY QUEUES WITH FULL ACTION BUTTONS -->
     <div class="grid grid-cols-2 gap-3">
       <div class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs flex flex-col">
         <div class="flex justify-between items-center text-xs font-black text-gray-800 border-b pb-2 mb-2">
@@ -389,7 +389,7 @@
 
     var alreadyPaidAmount = 0;
     var alreadyPaidMode = '';
-    var previousViewSource = 'dashboard'; // tracks where user came from
+    var previousViewSource = 'dashboard';
 
     var defaultFloorTables = [
       { id: 'T04', label: 'T04', seats: 2 },
@@ -613,8 +613,72 @@
               <div class="text-[9px] text-gray-400">${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short' })} • ${new Date().toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' })}</div>
             </div>
           </div>
+
+          <div class="flex flex-wrap gap-1.5 pt-1.5 border-t border-gray-100 text-[10px] font-bold">
+            <button onclick="actionEditAddItems(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>👁</span> View / Edit</button>
+            <button onclick="actionPrintKOT(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🍳</span> KOT</button>
+            <button onclick="actionPrintReceipt(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🖨</span> Print</button>
+            <button onclick="actionSettlePopup(${o.id})" class="px-2.5 py-1 bg-orange-100 hover:bg-orange-200 text-orange-800 rounded border border-orange-300 font-black shadow-2xs">Settle</button>
+            <button onclick="actionMarkDue(${o.id})" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded border border-rose-300 font-black shadow-2xs">Mark Due</button>
+          </div>
         </div>
       `;
+    }
+
+    function actionEditAddItems(orderId) {
+      var ord = allActiveOrders.find(function(o) { return o.id === orderId; });
+      if (!ord) return;
+      
+      openPOSOrderView(ord.order_type, ord.table_no || '', false);
+      editingActiveOrderId = ord.id;
+      
+      var recordedPaid = Number(ord.paid_amount) || Number(ord.already_paid) || 0;
+      if (recordedPaid === 0 && ord.payment_mode && ord.payment_mode !== 'UNPAID' && ord.payment_mode !== 'DUE' && ord.status !== 'RUNNING_TABLE') {
+        recordedPaid = Number(ord.total) || 0;
+      }
+
+      if (recordedPaid > 0) {
+        alreadyPaidAmount = recordedPaid;
+        alreadyPaidMode = ord.already_paid_mode || ord.payment_mode || 'Paid';
+        document.getElementById('boxAlreadyPaidBanner').classList.remove('hidden');
+        document.getElementById('lblAlreadyPaidAmount').innerText = '₹' + alreadyPaidAmount.toFixed(2);
+        document.getElementById('lblAlreadyPaidMode').innerText = alreadyPaidMode;
+      } else {
+        alreadyPaidAmount = 0;
+        alreadyPaidMode = '';
+        document.getElementById('boxAlreadyPaidBanner').classList.add('hidden');
+      }
+
+      posCart = (ord.items || []).map(function(i) {
+        return { name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1 };
+      });
+      renderPOSCart();
+      switchRightTab('SUMMARY');
+    }
+
+    function actionPrintKOT(orderId) {
+      var ord = allActiveOrders.find(function(o) { return o.id === orderId; });
+      if (!ord) return;
+      posCart = (ord.items || []).map(function(i){ return { name: i.name, qty: i.qty }; });
+      selectedPOSTableId = ord.table_no || ord.order_type;
+      currentPOSOrderType = ord.order_type;
+      triggerManualKOTDirect();
+    }
+
+    function actionPrintReceipt(orderId) {
+      var ord = allActiveOrders.find(function(o) { return o.id === orderId; });
+      if (!ord) return;
+      var calc = { subtotal: Number(ord.subtotal) || Number(ord.total), gst: Number(ord.gst) || 0, grandTotal: Number(ord.total) };
+      dispatchDirectPrintReceipt(ord.id, ord, calc);
+    }
+
+    function actionSettlePopup(orderId) {
+      actionEditAddItems(orderId);
+    }
+
+    function actionMarkDue(orderId) {
+      actionEditAddItems(orderId);
+      selectedPaymentMode = 'DUE';
     }
 
     function calculatePOSBillTotals() {
@@ -742,6 +806,25 @@
         btnS.className = "py-1.5 rounded-lg transition bg-white text-orange-600 shadow-2xs font-black";
         btnC.className = "py-1.5 rounded-lg transition text-gray-500 hover:text-gray-900 font-bold";
       }
+    }
+
+    function dispatchDirectPrintReceipt(orderId, payload, calc) {
+      var itemsRows = (payload.items || []).map(item => `<div style="display:flex; justify-content:space-between;"><span>${item.name} x ${item.qty}</span><span>₹${item.price * item.qty}</span></div>`).join('');
+      var html = `<html><body><h3>VISHAL FOODIEZ</h3><p>Order #${orderId}</p><hr>${itemsRows}<hr><b>Total: ₹${calc.grandTotal}</b></body></html>`;
+      var frame = document.getElementById('silentPrintFrame');
+      var doc = frame.contentWindow.document;
+      doc.open(); doc.write(html); doc.close();
+      setTimeout(() => { try { frame.contentWindow.print(); } catch(e){} }, 250);
+    }
+
+    function triggerManualKOTDirect() {
+      if (!posCart.length) return;
+      var itemsRows = posCart.map(i => `<tr><td>${i.name}</td><td style="text-align:right;">x${i.qty}</td></tr>`).join('');
+      var html = `<html><body><h3>*** KOT ***</h3><table>${itemsRows}</table></body></html>`;
+      var frame = document.getElementById('silentPrintFrame');
+      var doc = frame.contentWindow.document;
+      doc.open(); doc.write(html); doc.close();
+      setTimeout(() => { try { frame.contentWindow.print(); } catch(e){} }, 250);
     }
 
     function openCashDrawer() {}
