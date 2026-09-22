@@ -48,7 +48,7 @@
       <div class="overflow-y-auto max-h-[calc(100vh-130px)] p-2 space-y-3">
         <div>
           <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Overview</div>
-          <button onclick="toggleSidebarMenu(false); closePOSOrderView();" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+          <button onclick="toggleSidebarMenu(false); closePOSOrderView(); showDashboardView();" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
             <span class="text-sm">⚡</span> Dashboard
           </button>
         </div>
@@ -56,10 +56,10 @@
         <div>
           <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Operations</div>
           <div class="space-y-0.5">
-            <button onclick="toggleSidebarMenu(false); closePOSOrderView();" class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-black bg-orange-50 text-orange-600 border border-orange-200 transition">
+            <button onclick="toggleSidebarMenu(false); closePOSOrderView(); showDashboardView();" class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-black bg-orange-50 text-orange-600 border border-orange-200 transition">
               <span class="flex items-center gap-2.5"><span class="text-sm">📑</span> Orders</span>
             </button>
-            <button onclick="toggleSidebarMenu(false); closePOSOrderView();" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+            <button onclick="toggleSidebarMenu(false); closePOSOrderView(); showDashboardView();" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
               <span class="text-sm">🪑</span> Tables & Floor
             </button>
             <button onclick="protectedNav('/kot.html')" class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
@@ -79,30 +79,8 @@
         <div>
           <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Billing</div>
           <div class="space-y-0.5">
-            <button onclick="protectedNav('/report.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
-              <span class="text-sm">🧾</span> Bills & Receipts
-            </button>
-            <button onclick="protectedNav('/report.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
-              <span class="text-sm">💸</span> Expenses
-            </button>
-          </div>
-        </div>
-
-        <div>
-          <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">People</div>
-          <button onclick="protectedNav('/customers.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
-            <span class="text-sm">👥</span> Customers (CRM)
-          </button>
-        </div>
-
-        <div>
-          <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Reports & Support</div>
-          <div class="space-y-0.5">
-            <button onclick="protectedNav('/report.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
-              <span class="text-sm">📊</span> Analytics & Reports
-            </button>
-            <button onclick="protectedNav('/admin.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
-              <span class="text-sm">⚙️</span> Settings
+            <button onclick="toggleSidebarMenu(false); showOrderHistoryView();" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="text-sm">🧾</span> Order History
             </button>
           </div>
         </div>
@@ -152,20 +130,11 @@
         ✕ Cancel
       </button>
 
-      <button onclick="protectedNav('/report.html')" class="p-1.5 hover:bg-gray-100 text-gray-600 rounded-lg relative transition">
-        <span class="text-base">🔔</span>
-        <span id="topNotificationBadge" class="absolute top-0.5 right-0.5 bg-orange-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">1</span>
-      </button>
-
-      <button onclick="protectedNav('/report.html')" class="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 flex items-center gap-1 text-gray-700 transition">
-        <span>📋</span> All Orders
-      </button>
-
       <button onclick="openCashDrawer()" class="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 flex items-center gap-1 text-amber-900 transition shadow-2xs">
         <span>💵</span> Open Drawer
       </button>
 
-      <button onclick="openPOSOrderView('Takeaway', '')" class="bg-orange-500 hover:bg-orange-600 text-white px-3.5 py-1 rounded-lg text-xs font-black shadow-sm flex items-center gap-1 transition">
+      <button onclick="openPOSOrderView('Takeaway', '')" class="bg-orange-500 hover:bg-orange-600 text-white px-3.5 py-1.5 rounded-lg text-xs font-black shadow-sm flex items-center gap-1 transition">
         <span>+</span> New Order
       </button>
     </div>
@@ -219,15 +188,17 @@
       </div>
     </div>
 
+    <!-- EXISTING BUTTONS BAR: Active Orders, Due, AND Order History -->
     <div class="flex justify-between items-center bg-white p-2 rounded-xl border border-gray-200 shadow-2xs">
       <div class="flex items-center gap-2">
-        <button class="bg-orange-500 text-white text-xs font-black px-3 py-1.5 rounded-lg shadow-2xs">
+        <button onclick="showDashboardView()" class="bg-orange-500 text-white text-xs font-black px-3 py-1.5 rounded-lg shadow-2xs">
           Active Orders (<span id="filterActiveBadge">0</span>)
         </button>
         <button onclick="protectedNav('/customers.html')" class="text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition">
           Due (<span id="filterDueCount">0</span>) • <span id="filterDueTotal">₹0</span>
         </button>
-        <button onclick="protectedNav('/report.html')" class="text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition">
+        <!-- EXISTING ORDER HISTORY BUTTON INTEGRATED -->
+        <button onclick="showOrderHistoryView()" id="btnNavOrderHistory" class="text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition">
           Order History
         </button>
       </div>
@@ -292,6 +263,36 @@
           <p class="text-xs text-gray-400 italic text-center py-6">No delivery orders in queue</p>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- ================= VIEW 1.5: IN-PAGE ORDER HISTORY VIEW ================= -->
+  <div id="viewOrderHistoryScreen" class="flex-1 overflow-y-auto p-4 space-y-4 hidden bg-white">
+    <div class="flex justify-between items-center border-b pb-3">
+      <div>
+        <h2 class="text-sm font-black text-gray-900 uppercase tracking-wide">📋 Order History & Audit Log</h2>
+        <p class="text-[11px] text-gray-500">Click on any past order to instantly load it into the POS cart for editing/viewing.</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <input type="date" id="historyFilterDate" onchange="loadInPageOrderHistory()" class="border px-2.5 py-1 rounded-xl text-xs font-bold bg-gray-50">
+        <button onclick="showDashboardView()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-xl text-xs font-bold transition">← Back to Dashboard</button>
+      </div>
+    </div>
+
+    <div class="border rounded-2xl overflow-hidden shadow-2xs">
+      <table class="w-full text-left text-xs border-collapse">
+        <thead>
+          <tr class="bg-gray-50 text-gray-400 border-b">
+            <th class="p-3 font-bold">ORDER ID</th>
+            <th class="p-3 font-bold">DATE & TIME</th>
+            <th class="p-3 font-bold">TYPE / TABLE</th>
+            <th class="p-3 font-bold">GUEST DETAILS</th>
+            <th class="p-3 font-bold">PAYMENT MODE</th>
+            <th class="p-3 font-bold text-right">TOTAL (₹)</th>
+          </tr>
+        </thead>
+        <tbody id="inPageHistoryBody" class="divide-y divide-gray-100"></tbody>
+      </table>
     </div>
   </div>
 
@@ -394,7 +395,6 @@
           </div>
         </div>
 
-        <!-- RUNNING PAID ORDER BANNER -->
         <div id="boxAlreadyPaidBanner" class="hidden bg-emerald-50 border border-emerald-200 rounded-xl p-2 text-xs flex justify-between items-center">
           <div>
             <span class="text-[10px] font-black uppercase text-emerald-600 block">Already Received</span>
@@ -433,7 +433,6 @@
             <span id="splitTotalDisplay" class="font-black text-gray-900 text-sm">₹0.00</span>
           </div>
 
-          <!-- Method 1 -->
           <div class="bg-white border border-gray-200 rounded-lg p-2 space-y-1.5 shadow-2xs">
             <div class="flex justify-between items-center text-[10px] font-bold text-gray-400 uppercase">
               <span>Method 1</span>
@@ -453,7 +452,6 @@
             </div>
           </div>
 
-          <!-- Method 2 -->
           <div class="bg-white border border-gray-200 rounded-lg p-2 space-y-1.5 shadow-2xs">
             <div class="flex justify-between items-center text-[10px] font-bold text-gray-400 uppercase">
               <span>Method 2</span>
@@ -621,7 +619,6 @@
     var currentGuestCount = 1;
     var editingActiveOrderId = null;
 
-    // LOCKED DIFFERENTIAL BILLING STATE
     var alreadyPaidAmount = 0;
     var alreadyPaidMode = '';
 
@@ -652,6 +649,86 @@
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js').catch(function(){});
       }
+    }
+
+    // ================= VIEW SWITCHING FOR IN-PAGE ORDER HISTORY =================
+    function showDashboardView() {
+      closeVirtualKeyboards();
+      document.getElementById('viewOrderHistoryScreen').classList.add('hidden');
+      document.getElementById('viewPOSOrderScreen').classList.add('hidden');
+      document.getElementById('viewFloorDashboard').classList.remove('hidden');
+      document.getElementById('topPageTitle').innerText = 'Orders';
+      document.getElementById('btnCancelOrderView').classList.add('hidden');
+      document.getElementById('topOrderActiveBadge').classList.add('hidden');
+      fetchActiveOrders();
+    }
+
+    function showOrderHistoryView() {
+      closeVirtualKeyboards();
+      document.getElementById('viewFloorDashboard').classList.add('hidden');
+      document.getElementById('viewPOSOrderScreen').classList.add('hidden');
+      document.getElementById('viewOrderHistoryScreen').classList.remove('hidden');
+      document.getElementById('topPageTitle').innerText = 'Order History';
+      
+      const today = new Date().toISOString().slice(0, 10);
+      const dateInput = document.getElementById('historyFilterDate');
+      if (dateInput && !dateInput.value) dateInput.value = today;
+
+      loadInPageOrderHistory();
+    }
+
+    function loadInPageOrderHistory() {
+      const dt = document.getElementById('historyFilterDate').value || new Date().toISOString().slice(0, 10);
+      fetch(`/api/reports/analytics?startDate=${dt}&endDate=${dt}`)
+        .then(res => res.json())
+        .then(data => {
+          renderInPageHistoryTable(data.orders || []);
+        });
+    }
+
+    function renderInPageHistoryTable(orders) {
+      const tbody = document.getElementById('inPageHistoryBody');
+      if (!orders.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-10 text-gray-400 font-bold italic">No orders found for this date</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = orders.map(o => {
+        return `
+          <tr onclick="selectHistoryOrderToPOS(${o.id}, '${encodeURIComponent(JSON.stringify(o))}')" class="hover:bg-orange-50/70 cursor-pointer transition">
+            <td class="p-3 font-mono font-black text-gray-900">#${o.id}</td>
+            <td class="p-3 text-[11px] text-gray-500">${new Date(o.created_at).toLocaleString('en-IN')}</td>
+            <td class="p-3 font-semibold text-gray-700">${o.order_type} ${o.table_no ? '(' + o.table_no + ')' : ''}</td>
+            <td class="p-3">${o.customer_name ? `<span class="font-bold text-gray-800">${o.customer_name}</span> <span class="text-gray-400 font-mono text-[10px]">(${o.customer_phone})</span>` : '<span class="text-gray-400">-</span>'}</td>
+            <td class="p-3 font-bold text-emerald-700">${o.payment_mode || 'PAID'}</td>
+            <td class="p-3 font-black text-right text-gray-900 text-sm">₹${o.total}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function selectHistoryOrderToPOS(orderId, encodedOrder) {
+      try {
+        const ord = JSON.parse(decodeURIComponent(encodedOrder));
+        openPOSOrderView(ord.order_type || 'Takeaway', ord.table_no || '');
+        editingActiveOrderId = ord.id;
+        document.getElementById('posCustPhone').value = ord.customer_phone || '';
+        document.getElementById('posCustName').value = ord.customer_name || '';
+        
+        // Fetch full items for this order if available
+        fetch('/api/orders/active')
+          .then(r => r.json())
+          .then(activeList => {
+            const foundActive = activeList.find(a => a.id === orderId);
+            if (foundActive && foundActive.items) {
+              posCart = foundActive.items.map(i => ({ name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1 }));
+            } else {
+              posCart = [{ name: 'Order #' + orderId, price: Number(ord.total) || 0, qty: 1 }];
+            }
+            renderPOSCart();
+            switchRightTab('SUMMARY');
+          });
+      } catch(e) {}
     }
 
     // ================= DYNAMIC POSITIONING VIRTUAL KEYBOARD =================
@@ -729,18 +806,6 @@
     function triggerInputEvent(el) {
       var event = new Event('input', { bubbles: true });
       el.dispatchEvent(event);
-    }
-
-    function toggleSidebarMenu(show) {
-      var drawer = document.getElementById('sidebarDrawer');
-      var backdrop = document.getElementById('sidebarBackdrop');
-      if (show) {
-        backdrop.classList.remove('hidden');
-        drawer.classList.remove('-translate-x-full');
-      } else {
-        drawer.classList.add('-translate-x-full');
-        backdrop.classList.add('hidden');
-      }
     }
 
     function fetchMenu() {
@@ -853,7 +918,6 @@
         var totalAmount = Number(o.total) || 0;
         var paidAmount = Number(o.paid_amount) || Number(o.already_paid) || 0;
 
-        // If explicitly paid originally
         if (paidAmount === 0 && o.payment_mode && o.payment_mode !== 'UNPAID' && o.payment_mode !== 'DUE' && o.status !== 'RUNNING_TABLE') {
           paidAmount = totalAmount;
         }
@@ -960,7 +1024,6 @@
       dispatchDirectPrintReceipt(ord.id, ord, calc);
     }
 
-    // ================= PERSISTENT DIFFERENTIAL DETECTION =================
     function actionEditAddItems(orderId) {
       var ord = allActiveOrders.find(function(o) { return o.id === orderId; });
       if (!ord) return;
@@ -968,10 +1031,8 @@
       openPOSOrderView(ord.order_type, ord.table_no || '');
       editingActiveOrderId = ord.id;
       
-      // Look up recorded historical payment
       var recordedPaid = Number(ord.paid_amount) || Number(ord.already_paid) || 0;
       
-      // Fallback: If order had a paid payment mode originally
       if (recordedPaid === 0 && ord.payment_mode && ord.payment_mode !== 'UNPAID' && ord.payment_mode !== 'DUE' && ord.status !== 'RUNNING_TABLE') {
         recordedPaid = Number(ord.total) || 0;
       }
@@ -1006,7 +1067,6 @@
       switchRightTab('SUMMARY');
     }
 
-    // ================= PAYMENT MODE SELECTION & CASH MODAL =================
     function handlePaymentModeClick(mode) {
       var calc = calculatePOSBillTotals();
       var payableAmount = calc.payableNow;
@@ -1070,7 +1130,6 @@
       executePlaceOrder();
     }
 
-    // ================= SPLIT PAYMENT LOGIC =================
     function setSplitMethodType(methodNum, type) {
       if (methodNum === 1) splitMethod1 = type;
       if (methodNum === 2) splitMethod2 = type;
@@ -1223,7 +1282,6 @@
       calculatePOSBillTotals();
     }
 
-    // ================= ROBUST PLACE ORDER (PRESERVES PAID AMOUNTS) =================
     function executePlaceOrder() {
       if (!posCart.length) return alert('Kripya cart mein item add karein!');
 
@@ -1231,7 +1289,6 @@
       var custPhone = document.getElementById('posCustPhone').value.trim();
       var custName = document.getElementById('posCustName').value.trim();
 
-      // Total new money collected right now in this punch
       var newlyPaidAmount = 0;
       var newPaymentModeLabel = selectedPaymentMode;
 
@@ -1244,22 +1301,18 @@
         newPaymentModeLabel = `SPLIT (${splitMethod1}: ₹${a1}, ${splitMethod2}: ₹${a2})`;
       }
 
-      // Total money collected on this order to date
       var cumulativeTotalPaid = alreadyPaidAmount + newlyPaidAmount;
       var remainingDue = Math.max(0, calc.grandTotal - cumulativeTotalPaid);
 
-      // Determine final status & payment mode label
       var finalMode = '';
       var isHoldOrder = false;
 
       if (remainingDue === 0) {
-        // Fully paid
         finalMode = alreadyPaidAmount > 0 
           ? (newlyPaidAmount > 0 ? `${alreadyPaidMode} + ${newPaymentModeLabel}` : alreadyPaidMode)
           : (newPaymentModeLabel || 'PAID');
         isHoldOrder = false;
       } else {
-        // Partial or Hold
         if (cumulativeTotalPaid > 0) {
           finalMode = `PARTIAL (${alreadyPaidMode || 'Paid'}: ₹${cumulativeTotalPaid}, Due: ₹${remainingDue})`;
         } else {
@@ -1304,7 +1357,7 @@
           body: JSON.stringify(payload)
         }).then(function(){
           if (newlyPaidAmount > 0) dispatchDirectPrintReceipt(editingActiveOrderId, payload, calc);
-          closePOSOrderView();
+          showDashboardView();
         });
       } else {
         fetch('/api/orders', {
@@ -1315,7 +1368,7 @@
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (newlyPaidAmount > 0) dispatchDirectPrintReceipt(data.orderId, payload, calc);
-          closePOSOrderView();
+          showDashboardView();
         });
       }
     }
@@ -1546,6 +1599,7 @@
       setPOSOrderType(currentPOSOrderType);
       document.getElementById('posDisplayTable').innerText = selectedPOSTableId + ' • cap. 2';
 
+      document.getElementById('viewOrderHistoryScreen').classList.add('hidden');
       document.getElementById('viewFloorDashboard').classList.add('hidden');
       document.getElementById('viewPOSOrderScreen').classList.remove('hidden');
 
