@@ -25,54 +25,94 @@
   </div>
 
   <script>
+    // Item tick status persist rakhne ke liye helper
+    function getCheckedItemKeys() {
+      try {
+        return JSON.parse(localStorage.getItem('kot_checked_items') || '{}');
+      } catch (e) {
+        return {};
+      }
+    }
+
+    function toggleItemReady(orderId, itemIndex) {
+      var store = getCheckedItemKeys();
+      var key = orderId + '_' + itemIndex;
+      store[key] = !store[key];
+      localStorage.setItem('kot_checked_items', JSON.stringify(store));
+      loadKOT();
+    }
+
     function loadKOT() {
       fetch('/api/kot')
-        .then(res => res.json())
-        .then(orders => {
+        .then(function(res) { return res.json(); })
+        .then(function(orders) {
           document.getElementById('pendingCount').innerText = orders.length + ' Pending';
-          const grid = document.getElementById('kotGrid');
+          var grid = document.getElementById('kotGrid');
 
-          if (orders.length === 0) {
+          if (!orders || orders.length === 0) {
             grid.innerHTML = '<div class="col-span-full text-center py-20 text-gray-500 font-bold text-lg">No active orders in kitchen right now.</div>';
             return;
           }
 
-          grid.innerHTML = orders.map(order => `
-            <div class="bg-gray-800 border border-gray-700 rounded-2xl flex flex-col justify-between overflow-hidden shadow-lg">
-              <div class="p-4 border-b border-gray-700 bg-gray-850 flex justify-between items-center">
-                <div>
-                  <h3 class="text-xl font-black text-white">Order #${order.id}</h3>
-                  <span class="text-xs text-indigo-400 font-bold">${order.order_type} ${order.table_no ? '(' + order.table_no + ')' : ''}</span>
-                </div>
-                <span class="text-xs text-gray-400 font-mono">${order.time}</span>
-              </div>
+          var checkedMap = getCheckedItemKeys();
 
-              <div class="p-4 flex-1 space-y-2.5">
-                ${order.items.map(item => `
-                  <div class="border-b border-gray-700/50 pb-2">
-                    <div class="flex justify-between items-center text-sm">
-                      <span class="font-bold text-gray-200">${item.name}</span>
-                      <span class="bg-indigo-900/60 text-indigo-300 font-black px-2 py-0.5 rounded text-xs">x${item.qty}</span>
-                    </div>
-                    ${item.notes ? `<div class="text-xs text-amber-400 font-semibold mt-0.5">↳ ${item.notes}</div>` : ''}
+          grid.innerHTML = orders.map(function(order) {
+            return `
+              <div class="bg-gray-800 border border-gray-700 rounded-2xl flex flex-col justify-between overflow-hidden shadow-lg">
+                <div class="p-4 border-b border-gray-700 bg-gray-850 flex justify-between items-center">
+                  <div>
+                    <h3 class="text-xl font-black text-white">Order #${order.id}</h3>
+                    <span class="text-xs text-indigo-400 font-bold">${order.order_type} ${order.table_no ? '(' + order.table_no + ')' : ''}</span>
                   </div>
-                `).join('')}
-              </div>
+                  <span class="text-xs text-gray-400 font-mono">${order.time || ''}</span>
+                </div>
 
-              <div class="p-3 bg-gray-850 border-t border-gray-700">
-                <button onclick="markDone(${order.id})" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2.5 rounded-xl transition text-sm">
-                  ✓ Ready / Done
-                </button>
+                <div class="p-4 flex-1 space-y-2.5">
+                  ${(order.items || []).map(function(item, idx) {
+                    var isDone = !!checkedMap[order.id + '_' + idx];
+                    return `
+                      <div onclick="toggleItemReady(${order.id},${idx})" class="border-b border-gray-700/50 pb-2 cursor-pointer select-none transition ${isDone ? 'opacity-40' : 'hover:bg-gray-750'}">
+                        <div class="flex items-center gap-2.5 text-sm">
+                          <!-- TICK MARK BOX -->
+                          <div class="w-5 h-5 rounded-md flex items-center justify-center border transition ${isDone ? 'bg-emerald-600 border-emerald-500 text-white' : 'border-gray-500 bg-gray-900'}">
+                            ${isDone ? '✓' : ''}
+                          </div>
+
+                          <!-- QUANTITY AAGE -->
+                          <span class="bg-indigo-900/80 text-indigo-200 font-black px-2 py-0.5 rounded text-xs">x${item.qty}</span>
+
+                          <!-- ITEM NAME -->
+                          <span class="font-bold text-gray-200 ${isDone ? 'line-through text-gray-400' : ''}">${item.name}</span>
+                        </div>
+                        ${item.notes ? `<div class="text-xs text-amber-400 font-semibold mt-0.5 ml-7">↳ ${item.notes}</div>` : ''}
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+
+                <div class="p-3 bg-gray-850 border-t border-gray-700">
+                  <button onclick="markDone(${order.id})" class="w-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-black py-2.5 rounded-xl transition text-sm flex items-center justify-center gap-1.5 shadow-md">
+                    <span>✓ Ready / Done</span>
+                  </button>
+                </div>
               </div>
-            </div>
-          `).join('');
-        });
+            `;
+          }).join('');
+        })
+        .catch(function(){});
     }
 
     function markDone(id) {
+      // Order complete hone par uske individual ticks clean karna
+      var store = getCheckedItemKeys();
+      Object.keys(store).forEach(function(k) {
+        if (k.startsWith(id + '_')) delete store[k];
+      });
+      localStorage.setItem('kot_checked_items', JSON.stringify(store));
+
       fetch('/api/kot/' + id + '/complete', { method: 'POST' })
-        .then(res => res.json())
-        .then(() => loadKOT());
+        .then(function(res) { return res.json(); })
+        .then(function() { loadKOT(); });
     }
 
     loadKOT();
