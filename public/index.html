@@ -244,7 +244,7 @@
       </button>
     </div>
 
-    <!-- ORDER HISTORY SCREEN (Screenshot Layout) -->
+    <!-- ORDER HISTORY SCREEN -->
     <div id="orderHistoryContainer" class="hidden bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-2xs">
       <div class="p-3 border-b border-gray-100 flex flex-wrap justify-between items-center gap-2 bg-gray-50/50">
         <div class="flex items-center gap-2">
@@ -685,6 +685,7 @@
     var activeVirtualInput = null;
     var isShiftActive = false;
     var currentViewMode = 'DASHBOARD'; // 'DASHBOARD', 'HISTORY', 'POS'
+    var previousViewBeforePOS = 'DASHBOARD'; // Tracks where POS opened from
 
     var defaultFloorTables = [
       { id: 'T04', label: 'T04', seats: 2 },
@@ -816,7 +817,7 @@
         var timeFormatted = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) + ' • ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase();
 
         return `
-          <tr class="hover:bg-gray-50/80 transition text-gray-700">
+          <tr class="hover:bg-orange-50/60 transition text-gray-700 cursor-pointer" onclick="openSettledOrderInPOS(${o.id})">
             <td class="p-3 font-mono font-black text-gray-900">
               <div>ORD-${o.id}</div>
               <div class="text-[10px] text-gray-400 font-normal">Token ${o.id.toString().padStart(3, '0')}</div>
@@ -844,14 +845,71 @@
               <div class="font-black text-gray-900 text-xs">₹${o.total}</div>
               <div class="mt-0.5">${modeBadge}</div>
             </td>
-            <td class="p-3 text-center">
-              <button onclick="actionPrintReceiptFromHistory(${o.id})" class="border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 px-2.5 py-1 rounded-lg text-[11px] font-bold shadow-2xs transition">
-                Receipt
-              </button>
+            <td class="p-3 text-center" onclick="event.stopPropagation()">
+              <div class="flex items-center justify-center gap-1.5">
+                <button onclick="openSettledOrderInPOS(${o.id})" class="border border-orange-200 bg-orange-50 hover:bg-orange-100 text-orange-700 px-2 py-1 rounded-lg text-[11px] font-bold shadow-2xs transition">
+                  Edit / Open
+                </button>
+                <button onclick="actionPrintReceiptFromHistory(${o.id})" class="border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 px-2 py-1 rounded-lg text-[11px] font-bold shadow-2xs transition">
+                  Receipt
+                </button>
+              </div>
             </td>
           </tr>
         `;
       }).join('');
+    }
+
+    // ================= OPEN SETTLED ORDER IN POS WITH PERSISTED TOTALS =================
+    function openSettledOrderInPOS(orderId) {
+      var ord = settledHistoryOrders.find(function(o){ return o.id === orderId; });
+      if (!ord) return;
+
+      previousViewBeforePOS = 'HISTORY';
+      currentViewMode = 'POS';
+      currentPOSOrderType = ord.order_type || 'Takeaway';
+      selectedPOSTableId = ord.table_no || 'T01';
+      editingActiveOrderId = ord.id;
+
+      // Preserve previously settled amount completely
+      var paidRecorded = Number(ord.paid_amount) || Number(ord.total) || 0;
+      alreadyPaidAmount = paidRecorded;
+      alreadyPaidMode = ord.payment_mode || 'Cash';
+
+      document.getElementById('posCustPhone').value = ord.customer_phone || '';
+      document.getElementById('posCustName').value = ord.customer_name || '';
+
+      if (alreadyPaidAmount > 0) {
+        document.getElementById('boxAlreadyPaidBanner').classList.remove('hidden');
+        document.getElementById('lblAlreadyPaidAmount').innerText = '₹' + alreadyPaidAmount.toFixed(2);
+        document.getElementById('lblAlreadyPaidMode').innerText = alreadyPaidMode;
+      } else {
+        document.getElementById('boxAlreadyPaidBanner').classList.add('hidden');
+      }
+
+      // Populate Cart Items from settled order
+      if (Array.isArray(ord.items) && ord.items.length > 0) {
+        posCart = ord.items.map(function(item) {
+          return { name: item.name, price: Number(item.price) || 0, qty: Number(item.qty) || 1 };
+        });
+      } else {
+        posCart = [{ name: 'Order #' + ord.id, price: Number(ord.total) || 0, qty: 1 }];
+      }
+
+      setPOSOrderType(currentPOSOrderType);
+      document.getElementById('posDisplayTable').innerText = (selectedPOSTableId ? selectedPOSTableId + ' • ' : '') + currentPOSOrderType;
+
+      document.getElementById('viewFloorDashboard').classList.add('hidden');
+      document.getElementById('viewPOSOrderScreen').classList.remove('hidden');
+
+      document.getElementById('topPageTitle').innerText = 'Edit Order #ORD-' + ord.id;
+      document.getElementById('btnTopBack').classList.remove('hidden');
+      document.getElementById('btnCancelOrderView').classList.remove('hidden');
+      document.getElementById('topOrderActiveBadge').classList.remove('hidden');
+
+      renderPOSCart();
+      renderPOSItems();
+      switchRightTab('SUMMARY');
     }
 
     function actionPrintReceiptFromHistory(orderId) {
@@ -1162,7 +1220,7 @@
     function actionPrintReceipt(orderId) {
       var ord = allActiveOrders.find(function(o) { return o.id === orderId; });
       if (!ord) return;
-      var calc = { subtotal: Number(ord.subtotal) || Number(ord.total), gst: Number(ord.gst) || 0, grandTotal: Number(ord.total) };
+      var calc = { subtotal: Number(ord.subtotal) || Number(ord.total), gst: Number(ord.gst) || 0, grandTotal: Number(ord.total), payableNow: 0 };
       dispatchDirectPrintReceipt(ord.id, ord, calc);
     }
 
@@ -1171,6 +1229,7 @@
       var ord = allActiveOrders.find(function(o) { return o.id === orderId; });
       if (!ord) return;
       
+      previousViewBeforePOS = 'DASHBOARD';
       openPOSOrderView(ord.order_type, ord.table_no || '');
       editingActiveOrderId = ord.id;
       
@@ -1700,6 +1759,7 @@
     }
 
     function openPOSOrderView(orderType, tableId) {
+      previousViewBeforePOS = 'DASHBOARD';
       currentViewMode = 'POS';
       currentPOSOrderType = orderType || 'Dine-In';
       selectedPOSTableId = tableId || 'T01';
@@ -1767,7 +1827,9 @@
       document.getElementById('btnCancelOrderView').classList.add('hidden');
       document.getElementById('topOrderActiveBadge').classList.add('hidden');
 
-      if (currentViewMode === 'POS') {
+      if (previousViewBeforePOS === 'HISTORY') {
+        showOrderHistoryView();
+      } else {
         showActiveOrdersView();
       }
     }
