@@ -642,10 +642,10 @@ app.post('/api/printer/print-daily-summary', async (req, res) => {
   }
 });
 
-// 9. KITCHEN KOT API
+// 9. KITCHEN KOT API (o.created_at INCLUDED FOR KDS LIVE 00:00 TIMER)
 app.get('/api/kot', (req, res) => {
   db.all(
-    `SELECT o.id, o.order_type, o.table_no, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
+    `SELECT o.id, o.order_type, o.table_no, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
      FROM orders o 
      WHERE o.status IN ('PENDING', 'RUNNING_TABLE', 'DUE_PENDING', 'RUNNING', 'KITCHEN_ACTIVE') 
      ORDER BY o.id ASC`,
