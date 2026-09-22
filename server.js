@@ -244,7 +244,7 @@ app.delete('/api/menu/:id', (req, res) => {
   });
 });
 
-// 7. ACTIVE ORDERS (INCLUDES KITCHEN_ACTIVE SO PAID ORDERS REMAIN VISIBLE UNTIL KDS FINISHES)
+// 7. ACTIVE ORDERS
 app.get('/api/orders/active', (req, res) => {
   const query = `
     SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount
@@ -278,6 +278,45 @@ app.get('/api/orders/active', (req, res) => {
       res.json(fullOrders);
     } catch (e) {
       console.error('Items fetch error:', e.message);
+      res.json(orders.map(o => ({ ...o, items: [] })));
+    }
+  });
+});
+
+// DEDICATED SETTLED ORDER HISTORY API (FULL ITEMS EMBEDDED)
+app.get('/api/orders/history', (req, res) => {
+  const { date } = req.query;
+  const filterDate = date ? date : new Date().toISOString().slice(0, 10);
+
+  const query = `
+    SELECT id, order_type, table_no, customer_name, customer_phone, payment_mode, status, subtotal, discount, gst, total, COALESCE(paid_amount, total) as paid_amount, created_at
+    FROM orders 
+    WHERE (DATE(created_at) = DATE(?) OR created_at::date = ?::date)
+      AND (status IN ('COMPLETED', 'CLOSED') OR (COALESCE(paid_amount, 0) >= total AND total > 0))
+      AND status != 'RUNNING_TABLE'
+    ORDER BY id DESC
+    LIMIT 200
+  `;
+
+  db.all(query, [filterDate, filterDate], async (err, orders) => {
+    if (err) {
+      console.error('Order history query error:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+    if (!orders || orders.length === 0) return res.json([]);
+
+    try {
+      const fullOrders = await Promise.all(
+        orders.map(order => {
+          return new Promise((resolve) => {
+            db.all('SELECT name, qty, price FROM order_items WHERE order_id = ?', [order.id], (err2, items) => {
+              resolve({ ...order, items: items || [] });
+            });
+          });
+        })
+      );
+      res.json(fullOrders);
+    } catch (e) {
       res.json(orders.map(o => ({ ...o, items: [] })));
     }
   });
@@ -436,7 +475,7 @@ app.post('/api/orders', async (req, res) => {
   });
 });
 
-// SETTLE ORDER API: Settle hone par status 'KITCHEN_ACTIVE' rahega (KDS par bana rahega!)
+// SETTLE ORDER API
 app.post('/api/tables/:id/settle', (req, res) => {
   const { payment_mode } = req.body;
   db.get("SELECT * FROM orders WHERE id = ?", [req.params.id], (err, order) => {
@@ -633,7 +672,7 @@ app.get('/api/kot', (req, res) => {
   );
 });
 
-// KDS COMPLETE: ONLY HERE the order is completely marked COMPLETED and removed from both screens!
+// KDS COMPLETE
 app.post('/api/kot/:id/complete', (req, res) => {
   db.get("SELECT payment_mode, status FROM orders WHERE id = ?", [req.params.id], (err, row) => {
     if (row && (row.payment_mode === 'DUE' || row.status === 'DUE_PENDING')) {
@@ -669,7 +708,7 @@ app.post('/api/expenses', (req, res) => {
   );
 });
 
-// 10. ADVANCED MULTI-DIMENSIONAL REPORTS API
+// 10. ADVANCED MULTI-DIMENSIONAL REPORTS API WITH FULL ITEMS EMBEDDED
 app.get('/api/reports/analytics', (req, res) => {
   const { startDate, endDate } = req.query;
   const start = startDate ? startDate : new Date().toISOString().slice(0, 10);
@@ -686,7 +725,7 @@ app.get('/api/reports/analytics', (req, res) => {
       COALESCE(SUM(CASE WHEN payment_mode = 'UPI' AND status != 'DUE_PENDING' THEN total ELSE 0 END), 0) AS upi_sales,
       COALESCE(SUM(CASE WHEN payment_mode = 'DUE' OR status = 'DUE_PENDING' THEN total ELSE 0 END), 0) AS due_sales
     FROM orders 
-    WHERE created_at::date BETWEEN ?::date AND ?::date 
+    WHERE (created_at::date BETWEEN ?::date AND ?::date OR DATE(created_at) BETWEEN DATE(?) AND DATE(?))
       AND status != 'RUNNING_TABLE'
   `;
 
@@ -695,14 +734,14 @@ app.get('/api/reports/analytics', (req, res) => {
       COALESCE(SUM(amount), 0) as total_expense,
       COALESCE(SUM(CASE WHEN payment_mode = 'CASH' THEN amount ELSE 0 END), 0) as cash_expense
     FROM expenses 
-    WHERE created_at::date BETWEEN ?::date AND ?::date
+    WHERE (created_at::date BETWEEN ?::date AND ?::date OR DATE(created_at) BETWEEN DATE(?) AND DATE(?))
   `;
 
   const topItemsQuery = `
     SELECT oi.name, SUM(oi.qty) as total_qty, SUM(oi.price * oi.qty) as total_revenue
     FROM order_items oi
     JOIN orders o ON o.id = oi.order_id
-    WHERE o.created_at::date BETWEEN ?::date AND ?::date 
+    WHERE (o.created_at::date BETWEEN ?::date AND ?::date OR DATE(o.created_at) BETWEEN DATE(?) AND DATE(?))
       AND o.status != 'RUNNING_TABLE'
     GROUP BY oi.name
     ORDER BY total_qty DESC
@@ -710,27 +749,40 @@ app.get('/api/reports/analytics', (req, res) => {
   `;
 
   const ordersListQuery = `
-    SELECT id, order_type, table_no, customer_name, customer_phone, payment_mode, status, subtotal, discount, gst, total, created_at
+    SELECT id, order_type, table_no, customer_name, customer_phone, payment_mode, status, subtotal, discount, gst, total, COALESCE(paid_amount, total) as paid_amount, created_at
     FROM orders 
-    WHERE created_at::date BETWEEN ?::date AND ?::date 
+    WHERE (created_at::date BETWEEN ?::date AND ?::date OR DATE(created_at) BETWEEN DATE(?) AND DATE(?))
       AND status != 'RUNNING_TABLE'
     ORDER BY id DESC
   `;
 
-  db.get(summaryQuery, [start, end], (err, summary) => {
+  db.get(summaryQuery, [start, end, start, end], (err, summary) => {
     if (err) return res.status(500).json({ error: err.message });
-    db.get(expenseQuery, [start, end], (err2, exp) => {
+    db.get(expenseQuery, [start, end, start, end], (err2, exp) => {
       const summaryData = summary || {};
       summaryData.total_expense = exp ? exp.total_expense : 0;
       summaryData.cash_expense = exp ? exp.cash_expense : 0;
       summaryData.net_cash_in_hand = (summaryData.cash_sales || 0) - (summaryData.cash_expense || 0);
 
-      db.all(topItemsQuery, [start, end], (err3, topItems) => {
-        db.all(ordersListQuery, [start, end], (err4, ordersList) => {
+      db.all(topItemsQuery, [start, end, start, end], (err3, topItems) => {
+        db.all(ordersListQuery, [start, end, start, end], async (err4, ordersList) => {
+          let fullOrdersList = [];
+          if (ordersList && ordersList.length > 0) {
+            fullOrdersList = await Promise.all(
+              ordersList.map(ord => {
+                return new Promise(resolve => {
+                  db.all("SELECT name, qty, price FROM order_items WHERE order_id = ?", [ord.id], (errIt, items) => {
+                    resolve({ ...ord, items: items || [] });
+                  });
+                });
+              })
+            );
+          }
+
           res.json({
             summary: summaryData,
             topItems: topItems || [],
-            orders: ordersList || [],
+            orders: fullOrdersList,
             range: { start, end }
           });
         });
