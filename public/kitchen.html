@@ -79,6 +79,19 @@
       localStorage.setItem('kot_alert_badges', JSON.stringify(badges));
     }
 
+    // Orders awaiting final dispatch
+    function getReadyForDispatchOrders() {
+      try {
+        return JSON.parse(localStorage.getItem('kot_ready_dispatch') || '{}');
+      } catch (e) {
+        return {};
+      }
+    }
+
+    function saveReadyForDispatchOrders(store) {
+      localStorage.setItem('kot_ready_dispatch', JSON.stringify(store));
+    }
+
     function enableAudioContext() {
       try {
         if (!audioCtx) {
@@ -143,7 +156,67 @@
       renderKOTCards();
     }
 
-    // Live Second-by-Second Timer Updater
+    // Step 1: Mark Food Ready (Changes button to Dispatch without removing KOT)
+    function markReadyStage(id) {
+      var strId = id.toString();
+      var readyStore = getReadyForDispatchOrders();
+      readyStore[strId] = true;
+      saveReadyForDispatchOrders(readyStore);
+
+      // Check all items
+      var checkedMap = getCheckedItemKeys();
+      var targetOrder = liveOrdersData.find(function(o){ return o.id.toString() === strId; });
+      if (targetOrder) {
+        (targetOrder.items || []).forEach(function(item, idx) {
+          checkedMap[strId + '_row_' + idx] = true;
+        });
+        saveCheckedItemKeys(checkedMap);
+      }
+
+      renderKOTCards();
+    }
+
+    // Undo Ready if marked by mistake
+    function undoReadyStage(id) {
+      var strId = id.toString();
+      var readyStore = getReadyForDispatchOrders();
+      delete readyStore[strId];
+      saveReadyForDispatchOrders(readyStore);
+      renderKOTCards();
+    }
+
+    // Step 2: Final Dispatch (Clears KOT from Kitchen Display)
+    function executeDispatch(id) {
+      var strId = id.toString();
+      var snapshots = getStoredSnapshots();
+      var checkedMap = getCheckedItemKeys();
+      var readyStore = getReadyForDispatchOrders();
+
+      if (snapshots[strId]) {
+        snapshots[strId].wasCompletedBefore = true;
+        var rCount = snapshots[strId].rowsCount || 0;
+        for (var i = 0; i < rCount; i++) {
+          checkedMap[strId + '_row_' + i] = true;
+        }
+      }
+
+      var badges = getAlertBadges();
+      Object.keys(badges).forEach(function(k) {
+        if (k.startsWith(strId + '_')) delete badges[k];
+      });
+
+      delete readyStore[strId];
+
+      saveStoredSnapshots(snapshots);
+      saveCheckedItemKeys(checkedMap);
+      saveAlertBadges(badges);
+      saveReadyForDispatchOrders(readyStore);
+
+      fetch('/api/kot/' + id + '/complete', { method: 'POST' })
+        .then(function(res) { return res.json(); })
+        .then(function() { fetchKOT(); });
+    }
+
     function updateLiveTimers() {
       var now = Date.now();
       liveOrdersData.forEach(function(order) {
@@ -159,7 +232,6 @@
 
         timerEl.innerText = formatted;
 
-        // Visual alert agar 10 mins se zyada ho gaye
         if (mins >= 10) {
           timerEl.className = "text-rose-400 font-mono font-black text-xs bg-rose-950/80 px-2 py-0.5 rounded border border-rose-700/60 animate-pulse";
         } else if (mins >= 5) {
@@ -180,6 +252,7 @@
           var snapshots = getStoredSnapshots();
           var persistentBadges = getAlertBadges();
           var checkedMap = getCheckedItemKeys();
+          var readyStore = getReadyForDispatchOrders();
           var shouldPlaySound = false;
 
           liveOrdersData.forEach(function(order) {
@@ -200,6 +273,8 @@
 
               if (currentItems.length > prevRowsCount) {
                 shouldPlaySound = true;
+                // Agar nayi row aayi toh ready stage cancel ho jaye
+                delete readyStore[orderId];
                 for (var idx = prevRowsCount; idx < currentItems.length; idx++) {
                   var itemRowKey = orderId + '_row_' + idx;
                   persistentBadges[itemRowKey] = 'NEW';
@@ -216,6 +291,7 @@
                   var rowKey = orderId + '_row_' + idx;
                   persistentBadges[rowKey] = '+' + diff + ' QTY';
                   delete checkedMap[rowKey];
+                  delete readyStore[orderId];
                   shouldPlaySound = true;
                 }
               });
@@ -235,7 +311,6 @@
             }
           });
 
-          // Clean up completed orders
           var currentOrderIds = new Set(liveOrdersData.map(function(o){ return o.id.toString(); }));
           Object.keys(snapshots).forEach(function(id) {
             if (!currentOrderIds.has(id)) delete snapshots[id];
@@ -244,10 +319,14 @@
             var ordId = key.split('_')[0];
             if (!currentOrderIds.has(ordId)) delete persistentBadges[key];
           });
+          Object.keys(readyStore).forEach(function(id) {
+            if (!currentOrderIds.has(id)) delete readyStore[id];
+          });
 
           saveStoredSnapshots(snapshots);
           saveAlertBadges(persistentBadges);
           saveCheckedItemKeys(checkedMap);
+          saveReadyForDispatchOrders(readyStore);
 
           if (shouldPlaySound) {
             playKOTBeepSound();
@@ -267,13 +346,16 @@
 
       var persistentBadges = getAlertBadges();
       var checkedMap = getCheckedItemKeys();
+      var readyStore = getReadyForDispatchOrders();
 
       grid.innerHTML = liveOrdersData.map(function(order) {
+        var strId = order.id.toString();
+        var isReadyForDispatch = !!readyStore[strId];
+
         var allItemsReady = (order.items || []).every(function(item, idx) {
           return !!checkedMap[order.id + '_row_' + idx];
         });
 
-        // DISTINCT THEME COLORS & EMOJIS FOR DINE-IN, TAKEAWAY, DELIVERY
         var theme = {
           border: 'border-blue-500/30',
           badgeBg: 'bg-blue-950/80 text-blue-300 border-blue-600/50',
@@ -300,8 +382,12 @@
           };
         }
 
+        var cardBorderClass = isReadyForDispatch 
+          ? 'border-emerald-400 bg-emerald-950/20 shadow-emerald-900/50 ring-2 ring-emerald-500/50' 
+          : (allItemsReady ? 'border-emerald-500/80' : theme.border);
+
         return `
-          <div class="bg-gray-800 border-2 ${allItemsReady ? 'border-emerald-500/90 shadow-emerald-950/50' : theme.border} rounded-2xl flex flex-col justify-between overflow-hidden shadow-xl transition">
+          <div class="bg-gray-800 border-2 ${cardBorderClass} rounded-2xl flex flex-col justify-between overflow-hidden shadow-xl transition">
             <!-- HEADER -->
             <div class="p-3.5 border-b border-gray-700/80 ${theme.headerBg} flex justify-between items-center">
               <div>
@@ -324,6 +410,19 @@
                 </span>
               </div>
             </div>
+
+            <!-- READY STATUS BANNER (SHOWS AFTER 1ST CLICK) -->
+            ${isReadyForDispatch ? `
+              <div class="bg-emerald-600/30 border-b border-emerald-500/40 px-3 py-1.5 flex justify-between items-center">
+                <span class="text-xs font-black text-emerald-300 flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                  READY FOR PICKUP
+                </span>
+                <button onclick="undoReadyStage(${order.id})" class="text-[10px] font-bold text-gray-400 hover:text-white underline">
+                  Undo
+                </button>
+              </div>
+            ` : ''}
 
             <!-- ITEMS LIST -->
             <div class="p-4 flex-1 space-y-2.5">
@@ -355,44 +454,27 @@
               }).join('')}
             </div>
 
-            <!-- READY BUTTON -->
+            <!-- TWO-STAGE BUTTON FOOTER -->
             <div class="p-3 bg-gray-850 border-t border-gray-700/80">
-              <button onclick="markDone(${order.id})" class="w-full ${allItemsReady ? 'bg-emerald-600 hover:bg-emerald-500 animate-pulse' : 'bg-gray-700 hover:bg-emerald-600'} text-white font-black py-2.5 rounded-xl transition text-sm flex items-center justify-center gap-1.5 shadow-md">
-                <span>✓ Ready / Done</span>
-              </button>
+              ${isReadyForDispatch ? `
+                <!-- STAGE 2: FINAL DISPATCH -->
+                <button onclick="executeDispatch(${order.id})" class="w-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-black py-2.5 rounded-xl transition text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/60 animate-bounce">
+                  <span>🚀</span>
+                  <span>Dispatch / Handover</span>
+                </button>
+              ` : `
+                <!-- STAGE 1: MARK READY -->
+                <button onclick="markReadyStage(${order.id})" class="w-full ${allItemsReady ? 'bg-amber-600 hover:bg-amber-500' : 'bg-gray-700 hover:bg-emerald-600'} text-white font-black py-2.5 rounded-xl transition text-sm flex items-center justify-center gap-1.5 shadow-md">
+                  <span>✓</span>
+                  <span>Mark Ready</span>
+                </button>
+              `}
             </div>
           </div>
         `;
       }).join('');
 
       updateLiveTimers();
-    }
-
-    function markDone(id) {
-      var strId = id.toString();
-      var snapshots = getStoredSnapshots();
-      var checkedMap = getCheckedItemKeys();
-
-      if (snapshots[strId]) {
-        snapshots[strId].wasCompletedBefore = true;
-        var rCount = snapshots[strId].rowsCount || 0;
-        for (var i = 0; i < rCount; i++) {
-          checkedMap[strId + '_row_' + i] = true;
-        }
-      }
-
-      var badges = getAlertBadges();
-      Object.keys(badges).forEach(function(k) {
-        if (k.startsWith(strId + '_')) delete badges[k];
-      });
-
-      saveStoredSnapshots(snapshots);
-      saveCheckedItemKeys(checkedMap);
-      saveAlertBadges(badges);
-
-      fetch('/api/kot/' + id + '/complete', { method: 'POST' })
-        .then(function(res) { return res.json(); })
-        .then(function() { fetchKOT(); });
     }
 
     window.addEventListener('click', function() {
@@ -403,7 +485,7 @@
 
     fetchKOT();
     setInterval(fetchKOT, 3500);
-    setInterval(updateLiveTimers, 1000); // Har second live stopwatch update
+    setInterval(updateLiveTimers, 1000);
   </script>
 </body>
 </html>
