@@ -684,8 +684,8 @@
 
     var activeVirtualInput = null;
     var isShiftActive = false;
-    var currentViewMode = 'DASHBOARD'; // 'DASHBOARD', 'HISTORY', 'POS'
-    var previousViewBeforePOS = 'DASHBOARD'; // Tracks where POS opened from
+    var currentViewMode = 'DASHBOARD'; 
+    var previousViewBeforePOS = 'DASHBOARD';
 
     var defaultFloorTables = [
       { id: 'T04', label: 'T04', seats: 2 },
@@ -860,7 +860,6 @@
       }).join('');
     }
 
-    // ================= OPEN SETTLED ORDER IN POS WITH PERSISTED TOTALS =================
     function openSettledOrderInPOS(orderId) {
       var ord = settledHistoryOrders.find(function(o){ return o.id === orderId; });
       if (!ord) return;
@@ -871,7 +870,6 @@
       selectedPOSTableId = ord.table_no || 'T01';
       editingActiveOrderId = ord.id;
 
-      // Preserve previously settled amount completely
       var paidRecorded = Number(ord.paid_amount) || Number(ord.total) || 0;
       alreadyPaidAmount = paidRecorded;
       alreadyPaidMode = ord.payment_mode || 'Cash';
@@ -887,13 +885,12 @@
         document.getElementById('boxAlreadyPaidBanner').classList.add('hidden');
       }
 
-      // Populate Cart Items from settled order
       if (Array.isArray(ord.items) && ord.items.length > 0) {
         posCart = ord.items.map(function(item) {
-          return { name: item.name, price: Number(item.price) || 0, qty: Number(item.qty) || 1 };
+          return { id: item.id || null, name: item.name, price: Number(item.price) || 0, qty: Number(item.qty) || 1 };
         });
       } else {
-        posCart = [{ name: 'Order #' + ord.id, price: Number(ord.total) || 0, qty: 1 }];
+        posCart = [{ id: null, name: 'Order #' + ord.id, price: Number(ord.total) || 0, qty: 1 }];
       }
 
       setPOSOrderType(currentPOSOrderType);
@@ -1253,7 +1250,7 @@
       }
 
       posCart = (ord.items || []).map(function(i) {
-        return { name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1 };
+        return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1 };
       });
       renderPOSCart();
     }
@@ -1443,7 +1440,7 @@
       document.getElementById('posCalcPayableNow').innerText = '₹' + payableNow;
 
       document.getElementById('tabSummaryBadge').innerText = posCart.reduce(function(s, i){ return s + i.qty; }, 0);
-      document.getElementById('topOrderActiveText').innerText = 'Order • ' + posCart.reduce(function(s, i){ return s + i.qty; }, 0);
+      document.getElementById('topOrderActiveBadge').innerText = 'Order • ' + posCart.reduce(function(s, i){ return s + i.qty; }, 0);
 
       return { subtotal: subtotal, gst: gst, grandTotal: grandTotal, payableNow: payableNow };
     }
@@ -1796,7 +1793,7 @@
         document.getElementById('posCustPhone').value = running.customer_phone || '';
         document.getElementById('posCustName').value = running.customer_name || '';
         posCart = (running.items || []).map(function(i) {
-          return { name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1 };
+          return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1 };
         });
       } else {
         document.getElementById('posCustPhone').value = '';
@@ -1900,11 +1897,10 @@
       }
 
       grid.innerHTML = filtered.map(function(item) {
-        var inCartItem = posCart.find(function(c) { return c.name === item.name; });
-        var inCartQty = inCartItem ? inCartItem.qty : 0;
+        var totalQty = posCart.filter(function(c) { return c.name === item.name; }).reduce(function(s, c){ return s + c.qty; }, 0);
 
         return `
-          <div onclick="addOrIncrementItem('${item.name.replace(/'/g, "\\'")}', ${item.price})" class="bg-white border rounded-xl p-2.5 cursor-pointer shadow-2xs hover:border-orange-500 transition flex items-center justify-between ${inCartQty > 0 ? 'border-orange-400 bg-orange-50/20' : 'border-gray-200'}">
+          <div onclick="addOrIncrementItem('${item.name.replace(/'/g, "\\'")}', ${item.price})" class="bg-white border rounded-xl p-2.5 cursor-pointer shadow-2xs hover:border-orange-500 transition flex items-center justify-between ${totalQty > 0 ? 'border-orange-400 bg-orange-50/20' : 'border-gray-200'}">
             <div class="flex items-center gap-2.5">
               ${item.image ? `<img src="${item.image}" class="w-12 h-12 rounded-lg object-cover border">` : `<div class="w-12 h-12 rounded-lg bg-gray-50 flex items-center justify-center text-gray-300 text-base">🍔</div>`}
               <div>
@@ -1915,17 +1911,24 @@
             </div>
 
             <div>
-              ${inCartQty > 0 ? `<span class="bg-orange-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shadow-xs">${inCartQty}</span>` : `<span class="text-orange-500 font-bold text-xs bg-orange-50 px-2 py-1 rounded-md">+ Add</span>`}
+              ${totalQty > 0 ? `<span class="bg-orange-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shadow-xs">${totalQty}</span>` : `<span class="text-orange-500 font-bold text-xs bg-orange-50 px-2 py-1 rounded-md">+ Add</span>`}
             </div>
           </div>
         `;
       }).join('');
     }
 
+    // NEW ROW LOGIC: Existing active order me nayi item add hone par separate line row create hogi
     function addOrIncrementItem(name, price) {
-      var exist = posCart.find(function(i) { return i.name === name; });
-      if (exist) exist.qty += 1;
-      else posCart.push({ name: name, price: Number(price), qty: 1 });
+      if (editingActiveOrderId) {
+        // Active/Existing order editing: Create a distinct row for newly punched item
+        posCart.push({ id: null, name: name, price: Number(price), qty: 1 });
+      } else {
+        // Fresh brand new order: Combine row if already in cart
+        var exist = posCart.find(function(i) { return i.name === name; });
+        if (exist) exist.qty += 1;
+        else posCart.push({ id: null, name: name, price: Number(price), qty: 1 });
+      }
       switchRightTab('SUMMARY');
       renderPOSCart();
       renderPOSItems();
