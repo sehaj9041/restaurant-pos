@@ -23,7 +23,6 @@
       <h1 class="text-2xl font-black tracking-wide">Live Kitchen Orders</h1>
     </div>
     <div class="flex items-center gap-3">
-      <!-- AUDIO ALERT TOGGLE BUTTON -->
       <button id="btnAudioToggle" onclick="enableAudioContext()" class="bg-amber-600 hover:bg-amber-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition flex items-center gap-1.5 shadow-sm">
         <span>🔔</span> <span id="lblAudioStatus">Enable Sound Alert</span>
       </button>
@@ -43,7 +42,6 @@
     var audioCtx = null;
     var isAudioAllowed = false;
 
-    // Helper functions for persistent KDS tracking in localStorage
     function getStoredSnapshots() {
       try {
         return JSON.parse(localStorage.getItem('kot_order_snapshots') || '{}');
@@ -80,7 +78,6 @@
       localStorage.setItem('kot_alert_badges', JSON.stringify(badges));
     }
 
-    // Audio Unlock Logic
     function enableAudioContext() {
       try {
         if (!audioCtx) {
@@ -100,7 +97,6 @@
       }
     }
 
-    // Dual-tone high-pitch kitchen bell
     function playKOTBeepSound() {
       try {
         if (!audioCtx) {
@@ -134,13 +130,13 @@
         osc2.start(now + 0.12);
         osc2.stop(now + 0.65);
       } catch (err) {
-        console.warn('Audio awaiting user interaction:', err);
+        console.warn('Audio awaiting interaction:', err);
       }
     }
 
-    function toggleItemReady(orderId, itemName) {
+    function toggleItemReady(orderId, rowIdentifier) {
       var store = getCheckedItemKeys();
-      var key = orderId + '_' + encodeURIComponent(itemName);
+      var key = orderId + '_' + rowIdentifier;
       store[key] = !store[key];
       saveCheckedItemKeys(store);
       loadKOT();
@@ -166,59 +162,42 @@
           orders.forEach(function(order) {
             var orderId = order.id.toString();
             var prevSnapshot = snapshots[orderId];
+            var currentItems = order.items || [];
 
             if (!prevSnapshot) {
-              // 1. Fresh newly placed KOT order
+              // Brand new order in KDS
               shouldPlaySound = true;
-              snapshots[orderId] = { itemsMap: {}, wasCompletedBefore: false };
-              (order.items || []).forEach(function(item) {
-                snapshots[orderId].itemsMap[item.name] = Number(item.qty) || 1;
-              });
+              snapshots[orderId] = {
+                rowsCount: currentItems.length,
+                wasCompletedBefore: false
+              };
             } else {
-              // 2. Order already existed in KDS
-              var currentItemsMap = {};
+              // Existing order: Agar naye rows add hue hain
+              var prevRowsCount = prevSnapshot.rowsCount || 0;
 
-              (order.items || []).forEach(function(item) {
-                var itemName = item.name;
-                var currentQty = Number(item.qty) || 1;
-                currentItemsMap[itemName] = currentQty;
-
-                var prevQty = prevSnapshot.itemsMap[itemName];
-                var itemKey = orderId + '_' + encodeURIComponent(itemName);
-
-                // Case A: Bilkul naya item add hua
-                if (prevQty === undefined) {
-                  persistentBadges[itemKey] = 'NEW';
-                  // Ensure this new item is un-ticked
-                  delete checkedMap[itemKey];
-                  shouldPlaySound = true;
+              if (currentItems.length > prevRowsCount) {
+                shouldPlaySound = true;
+                for (var idx = prevRowsCount; idx < currentItems.length; idx++) {
+                  var itemRowKey = orderId + '_row_' + idx;
+                  persistentBadges[itemRowKey] = 'NEW';
+                  delete checkedMap[itemRowKey]; // Uncheck new row
                 }
-                // Case B: Purane item ki quantity badh gayi
-                else if (currentQty > prevQty) {
-                  var diff = currentQty - prevQty;
-                  persistentBadges[itemKey] = '+' + diff + ' QTY';
-                  // Untick item so chef notices extra qty to prepare
-                  delete checkedMap[itemKey];
-                  shouldPlaySound = true;
-                }
-              });
+              }
 
-              // Agar order pehle complete ho chuka tha aur ab naya item aaya hai
-              if (prevSnapshot.wasCompletedBefore) {
-                // Jo purane items pehle the, unko checked hi rakho
-                Object.keys(prevSnapshot.itemsMap).forEach(function(oldName) {
-                  if (currentItemsMap[oldName] !== undefined && !persistentBadges[orderId + '_' + encodeURIComponent(oldName)]) {
-                    checkedMap[orderId + '_' + encodeURIComponent(oldName)] = true;
-                  }
-                });
+              // Agar pehle order complete mark ho chuka tha aur ab naya row aaya hai
+              if (prevSnapshot.wasCompletedBefore && currentItems.length > prevRowsCount) {
+                // Purani saari rows ko checked hi rakho
+                for (var p = 0; p < prevRowsCount; p++) {
+                  checkedMap[orderId + '_row_' + p] = true;
+                }
                 prevSnapshot.wasCompletedBefore = false;
               }
 
-              snapshots[orderId].itemsMap = currentItemsMap;
+              snapshots[orderId].rowsCount = currentItems.length;
             }
           });
 
-          // Clean up completed orders from snapshots & badges
+          // Clean up completed orders
           var currentOrderIds = new Set(orders.map(function(o){ return o.id.toString(); }));
           Object.keys(snapshots).forEach(function(id) {
             if (!currentOrderIds.has(id)) delete snapshots[id];
@@ -238,8 +217,8 @@
 
           // Render Grid
           grid.innerHTML = orders.map(function(order) {
-            var allItemsReady = (order.items || []).every(function(item) {
-              return !!checkedMap[order.id + '_' + encodeURIComponent(item.name)];
+            var allItemsReady = (order.items || []).every(function(item, idx) {
+              return !!checkedMap[order.id + '_row_' + idx];
             });
 
             return `
@@ -253,13 +232,13 @@
                 </div>
 
                 <div class="p-4 flex-1 space-y-2.5">
-                  ${(order.items || []).map(function(item) {
-                    var itemKey = order.id + '_' + encodeURIComponent(item.name);
-                    var isDone = !!checkedMap[itemKey];
-                    var badgeTag = persistentBadges[itemKey];
+                  ${(order.items || []).map(function(item, idx) {
+                    var rowKey = order.id + '_row_' + idx;
+                    var isDone = !!checkedMap[rowKey];
+                    var badgeTag = persistentBadges[rowKey];
 
                     return `
-                      <div onclick="toggleItemReady(${order.id}, '${item.name.replace(/'/g, "\\'")}')" class="border-b border-gray-700/50 pb-2 cursor-pointer select-none transition ${isDone ? 'opacity-40' : 'hover:bg-gray-750'}">
+                      <div onclick="toggleItemReady(${order.id}, 'row_${idx}')" class="border-b border-gray-700/50 pb-2 cursor-pointer select-none transition ${isDone ? 'opacity-40' : 'hover:bg-gray-750'}">
                         <div class="flex items-center gap-2 text-sm">
                           <!-- TICK MARK BOX -->
                           <div class="w-5 h-5 rounded-md flex items-center justify-center border shrink-0 transition ${isDone ? 'bg-emerald-600 border-emerald-500 text-white' : 'border-gray-500 bg-gray-900'}">
@@ -272,7 +251,7 @@
                           <!-- ITEM NAME -->
                           <span class="font-bold text-gray-200 flex-1 ${isDone ? 'line-through text-gray-400' : ''}">${item.name}</span>
 
-                          <!-- PERSISTENT ALERT BADGE -->
+                          <!-- PERSISTENT NEW BADGE -->
                           ${badgeTag ? `
                             <span class="badge-alert bg-rose-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 shadow-xs border border-rose-400">
                               ${badgeTag}
@@ -302,12 +281,13 @@
       var snapshots = getStoredSnapshots();
       var checkedMap = getCheckedItemKeys();
 
-      // Order ke saare current items ko ready mark kar do snapshot mein
+      // Saare current items ko ready mark kar do
       if (snapshots[strId]) {
         snapshots[strId].wasCompletedBefore = true;
-        Object.keys(snapshots[strId].itemsMap || {}).forEach(function(name) {
-          checkedMap[strId + '_' + encodeURIComponent(name)] = true;
-        });
+        var rCount = snapshots[strId].rowsCount || 0;
+        for (var i = 0; i < rCount; i++) {
+          checkedMap[strId + '_row_' + i] = true;
+        }
       }
 
       // Clear badges
@@ -325,7 +305,6 @@
         .then(function() { loadKOT(); });
     }
 
-    // Auto unlock audio context on first user click
     window.addEventListener('click', function() {
       if (!isAudioAllowed) {
         enableAudioContext();
