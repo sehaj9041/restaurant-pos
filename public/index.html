@@ -188,7 +188,6 @@
       </div>
     </div>
 
-    <!-- EXISTING BUTTONS BAR: Active Orders, Due, AND Order History -->
     <div class="flex justify-between items-center bg-white p-2 rounded-xl border border-gray-200 shadow-2xs">
       <div class="flex items-center gap-2">
         <button onclick="showDashboardView()" class="bg-orange-500 text-white text-xs font-black px-3 py-1.5 rounded-lg shadow-2xs">
@@ -197,7 +196,6 @@
         <button onclick="protectedNav('/customers.html')" class="text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition">
           Due (<span id="filterDueCount">0</span>) • <span id="filterDueTotal">₹0</span>
         </button>
-        <!-- EXISTING ORDER HISTORY BUTTON INTEGRATED -->
         <button onclick="showOrderHistoryView()" id="btnNavOrderHistory" class="text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition">
           Order History
         </button>
@@ -266,12 +264,12 @@
     </div>
   </div>
 
-  <!-- ================= VIEW 1.5: IN-PAGE ORDER HISTORY VIEW ================= -->
+  <!-- ================= VIEW 1.5: RICH IN-PAGE ORDER HISTORY VIEW ================= -->
   <div id="viewOrderHistoryScreen" class="flex-1 overflow-y-auto p-4 space-y-4 hidden bg-white">
     <div class="flex justify-between items-center border-b pb-3">
       <div>
         <h2 class="text-sm font-black text-gray-900 uppercase tracking-wide">📋 Order History & Audit Log</h2>
-        <p class="text-[11px] text-gray-500">Click on any past order to instantly load it into the POS cart for editing/viewing.</p>
+        <p class="text-[11px] text-gray-500">Click on any past order to open it in the POS cart with its paid history intact.</p>
       </div>
       <div class="flex items-center gap-2">
         <input type="date" id="historyFilterDate" onchange="loadInPageOrderHistory()" class="border px-2.5 py-1 rounded-xl text-xs font-bold bg-gray-50">
@@ -283,12 +281,13 @@
       <table class="w-full text-left text-xs border-collapse">
         <thead>
           <tr class="bg-gray-50 text-gray-400 border-b">
-            <th class="p-3 font-bold">ORDER ID</th>
-            <th class="p-3 font-bold">DATE & TIME</th>
+            <th class="p-3 font-bold">ORDER #</th>
             <th class="p-3 font-bold">TYPE / TABLE</th>
-            <th class="p-3 font-bold">GUEST DETAILS</th>
-            <th class="p-3 font-bold">PAYMENT MODE</th>
-            <th class="p-3 font-bold text-right">TOTAL (₹)</th>
+            <th class="p-3 font-bold">ITEMS</th>
+            <th class="p-3 font-bold">CUSTOMER</th>
+            <th class="p-3 font-bold">STATUS</th>
+            <th class="p-3 font-bold">TIME</th>
+            <th class="p-3 font-bold text-right">AMOUNT</th>
           </tr>
         </thead>
         <tbody id="inPageHistoryBody" class="divide-y divide-gray-100"></tbody>
@@ -651,7 +650,7 @@
       }
     }
 
-    // ================= VIEW SWITCHING FOR IN-PAGE ORDER HISTORY =================
+    // ================= VIEW SWITCHING & RICH ORDER HISTORY =================
     function showDashboardView() {
       closeVirtualKeyboards();
       document.getElementById('viewOrderHistoryScreen').classList.add('hidden');
@@ -689,46 +688,61 @@
     function renderInPageHistoryTable(orders) {
       const tbody = document.getElementById('inPageHistoryBody');
       if (!orders.length) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-10 text-gray-400 font-bold italic">No orders found for this date</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-10 text-gray-400 font-bold italic">No orders found for this date</td></tr>';
         return;
       }
 
       tbody.innerHTML = orders.map(o => {
+        const itemsText = (o.items || []).map(i => `${i.name} x${i.qty}`).join(', ') || 'Items logged';
+        const badge = (o.status === 'COMPLETED' || o.paid_amount > 0 || (o.payment_mode && o.payment_mode !== 'DUE' && o.payment_mode !== 'UNPAID'))
+          ? `<span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded text-[10px] font-black">PAID • ${o.payment_mode || 'Cash'}</span>`
+          : `<span class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded text-[10px] font-black">${o.payment_mode || 'Unpaid'}</span>`;
+
         return `
-          <tr onclick="selectHistoryOrderToPOS(${o.id}, '${encodeURIComponent(JSON.stringify(o))}')" class="hover:bg-orange-50/70 cursor-pointer transition">
-            <td class="p-3 font-mono font-black text-gray-900">#${o.id}</td>
-            <td class="p-3 text-[11px] text-gray-500">${new Date(o.created_at).toLocaleString('en-IN')}</td>
+          <tr onclick="selectHistoryOrderToPOS(${o.id})" class="hover:bg-orange-50/70 cursor-pointer transition">
+            <td class="p-3 font-mono font-black text-gray-900">ORD-${o.id}</td>
             <td class="p-3 font-semibold text-gray-700">${o.order_type} ${o.table_no ? '(' + o.table_no + ')' : ''}</td>
+            <td class="p-3 text-gray-600 font-medium max-w-xs truncate">${itemsText}</td>
             <td class="p-3">${o.customer_name ? `<span class="font-bold text-gray-800">${o.customer_name}</span> <span class="text-gray-400 font-mono text-[10px]">(${o.customer_phone})</span>` : '<span class="text-gray-400">-</span>'}</td>
-            <td class="p-3 font-bold text-emerald-700">${o.payment_mode || 'PAID'}</td>
+            <td class="p-3">${badge}</td>
+            <td class="p-3 text-[11px] text-gray-500">${new Date(o.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</td>
             <td class="p-3 font-black text-right text-gray-900 text-sm">₹${o.total}</td>
           </tr>
         `;
       }).join('');
     }
 
-    function selectHistoryOrderToPOS(orderId, encodedOrder) {
-      try {
-        const ord = JSON.parse(decodeURIComponent(encodedOrder));
-        openPOSOrderView(ord.order_type || 'Takeaway', ord.table_no || '');
-        editingActiveOrderId = ord.id;
-        document.getElementById('posCustPhone').value = ord.customer_phone || '';
-        document.getElementById('posCustName').value = ord.customer_name || '';
-        
-        // Fetch full items for this order if available
-        fetch('/api/orders/active')
-          .then(r => r.json())
-          .then(activeList => {
-            const foundActive = activeList.find(a => a.id === orderId);
-            if (foundActive && foundActive.items) {
-              posCart = foundActive.items.map(i => ({ name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1 }));
-            } else {
-              posCart = [{ name: 'Order #' + orderId, price: Number(ord.total) || 0, qty: 1 }];
-            }
-            renderPOSCart();
-            switchRightTab('SUMMARY');
-          });
-      } catch(e) {}
+    function selectHistoryOrderToPOS(orderId) {
+      fetch('/api/reports/analytics?startDate=2020-01-01&endDate=2030-12-31')
+        .then(r => r.json())
+        .then(data => {
+          const ord = (data.orders || []).find(o => o.id === orderId);
+          if (!ord) return;
+
+          openPOSOrderView(ord.order_type || 'Takeaway', ord.table_no || '');
+          editingActiveOrderId = ord.id;
+          document.getElementById('posCustPhone').value = ord.customer_phone || '';
+          document.getElementById('posCustName').value = ord.customer_name || '';
+
+          // PRESERVE PREVIOUSLY PAID AMOUNT PERMANENTLY
+          alreadyPaidAmount = Number(ord.paid_amount) || Number(ord.total) || 0;
+          alreadyPaidMode = ord.payment_mode || 'Paid';
+
+          if (alreadyPaidAmount > 0) {
+            document.getElementById('boxAlreadyPaidBanner').classList.remove('hidden');
+            document.getElementById('lblAlreadyPaidAmount').innerText = '₹' + alreadyPaidAmount.toFixed(2);
+            document.getElementById('lblAlreadyPaidMode').innerText = alreadyPaidMode;
+          }
+
+          if (ord.items && ord.items.length > 0) {
+            posCart = ord.items.map(i => ({ name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1 }));
+          } else {
+            posCart = [{ name: 'Order #' + orderId, price: Number(ord.total) || 0, qty: 1 }];
+          }
+
+          renderPOSCart();
+          switchRightTab('SUMMARY');
+        });
     }
 
     // ================= DYNAMIC POSITIONING VIRTUAL KEYBOARD =================
