@@ -126,33 +126,40 @@
           <span class="w-3.5 h-3.5 rounded-full bg-emerald-500"></span>
           <div>
             <div class="text-[11px] font-black uppercase text-gray-500 tracking-wider">Active</div>
+            <div class="text-[10px] text-gray-400 font-medium">Right now</div>
           </div>
         </div>
         <div id="metricActiveCount" class="text-xl font-black text-gray-800">0</div>
       </div>
+
       <div class="bg-white border border-gray-200 rounded-xl p-3 flex justify-between items-center shadow-2xs">
         <div class="flex items-center gap-2.5">
           <span class="w-4 h-4 rounded bg-emerald-600 text-white flex items-center justify-center text-[10px] font-black">✓</span>
           <div>
             <div class="text-[11px] font-black uppercase text-gray-500 tracking-wider">Completed Today</div>
+            <div class="text-[10px] text-gray-400 font-medium">Billed & closed</div>
           </div>
         </div>
         <div id="metricCompletedCount" class="text-xl font-black text-gray-800">0</div>
       </div>
+
       <div class="bg-white border border-gray-200 rounded-xl p-3 flex justify-between items-center shadow-2xs">
         <div class="flex items-center gap-2.5">
           <span class="text-base">🛵</span>
           <div>
             <div class="text-[11px] font-black uppercase text-gray-500 tracking-wider">Delivery</div>
+            <div class="text-[10px] text-gray-400 font-medium">In progress</div>
           </div>
         </div>
         <div id="metricDeliveryCount" class="text-xl font-black text-gray-800">0</div>
       </div>
+
       <div class="bg-white border border-gray-200 rounded-xl p-3 flex justify-between items-center shadow-2xs">
         <div class="flex items-center gap-2.5">
           <span class="text-red-500 font-black text-base">✕</span>
           <div>
             <div class="text-[11px] font-black uppercase text-gray-500 tracking-wider">Voided Today</div>
+            <div class="text-[10px] text-gray-400 font-medium">No voids</div>
           </div>
         </div>
         <div class="text-xl font-black text-gray-800">0</div>
@@ -177,35 +184,67 @@
       </button>
     </div>
 
+    <!-- RESTORED DINING ROOM FLOOR PLAN -->
     <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-2xs">
       <div class="p-2.5 border-b border-gray-100 flex justify-between items-center text-xs">
-        <span class="font-bold text-gray-700">Dining Room Floor Plan</span>
+        <div class="flex items-center gap-3">
+          <span class="font-bold text-gray-700">Dining Room</span>
+          <div class="flex bg-gray-100 p-0.5 rounded-lg">
+            <button class="bg-white text-gray-800 font-bold px-2 py-0.5 rounded shadow-xs text-[11px]">Floor Plan</button>
+            <button class="text-gray-500 hover:text-gray-800 font-bold px-2 py-0.5 rounded text-[11px]">Table Numbers</button>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3 text-[10px] font-bold text-gray-500">
+          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-100 border border-emerald-400"></span> Free</span>
+          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-orange-100 border border-orange-400"></span> Occupied</span>
+          <button onclick="promptAddCustomTable()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-2 py-1 rounded border border-gray-200 text-[11px] ml-2">
+            ✏️ Edit Layout
+          </button>
+        </div>
       </div>
+
       <div class="floor-dots py-6 px-4 flex flex-col items-center justify-center min-h-[310px]">
+        <div class="bg-gray-100 text-gray-500 text-[10px] font-black px-4 py-1 rounded-md border border-gray-200 mb-5 tracking-wide">
+          Billing/POS
+        </div>
         <div id="floorTablesGrid" class="grid grid-cols-2 gap-x-12 gap-y-3.5 max-w-sm w-full"></div>
       </div>
     </div>
 
+    <div id="kioskUnassignedBox" class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs space-y-2 hidden">
+      <div class="flex justify-between items-center text-xs font-bold text-gray-700 border-b pb-2">
+        <span class="flex items-center gap-1.5"><span>🪑</span> Dine-in - needs a table</span>
+        <span id="kioskUnassignedCount" class="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
+      </div>
+      <div id="kioskUnassignedList" class="space-y-2"></div>
+    </div>
+
+    <!-- RESTORED TAKEAWAY & DELIVERY QUEUES -->
     <div class="grid grid-cols-2 gap-3">
       <div class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs flex flex-col">
         <div class="flex justify-between items-center text-xs font-black text-gray-800 border-b pb-2 mb-2">
-          <span>🛍 Takeaway Queue</span>
+          <span class="flex items-center gap-1.5">🛍 Takeaway Queue</span>
           <span id="takeawayQueueBadge" class="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
         </div>
-        <div id="takeawayQueueList" class="space-y-2 flex-1 overflow-y-auto max-h-[420px] pr-1"></div>
+        <div id="takeawayQueueList" class="space-y-2 flex-1 overflow-y-auto max-h-[420px] pr-1">
+          <p class="text-xs text-gray-400 italic text-center py-6">No takeaway orders in queue</p>
+        </div>
       </div>
 
       <div class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs flex flex-col">
         <div class="flex justify-between items-center text-xs font-black text-gray-800 border-b pb-2 mb-2">
-          <span>🛵 Delivery</span>
+          <span class="flex items-center gap-1.5">🛵 Delivery</span>
           <span id="deliveryQueueBadge" class="bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
         </div>
-        <div id="deliveryQueueList" class="space-y-2 flex-1 overflow-y-auto max-h-[420px] pr-1"></div>
+        <div id="deliveryQueueList" class="space-y-2 flex-1 overflow-y-auto max-h-[420px] pr-1">
+          <p class="text-xs text-gray-400 italic text-center py-6">No delivery orders in queue</p>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- ORDER HISTORY VIEW WITH FULL ITEM DETAILS -->
+  <!-- ORDER HISTORY VIEW -->
   <div id="viewOrderHistoryScreen" class="flex-1 overflow-y-auto p-4 space-y-4 hidden bg-white">
     <div class="flex justify-between items-center border-b pb-3">
       <div>
@@ -256,14 +295,14 @@
     <div class="w-80 flex flex-col bg-white shrink-0 justify-between">
       <div>
         <div class="grid grid-cols-2 p-1.5 bg-gray-100 border-b text-xs font-bold">
-          <button id="tabBtnCustomer" onclick="switchRightTab('CUSTOMER')" class="py-1.5 rounded-lg transition bg-white text-orange-600 shadow-2xs font-black">Order Type & Customer</button>
-          <button id="tabBtnSummary" onclick="switchRightTab('SUMMARY')" class="py-1.5 rounded-lg transition text-gray-500 hover:text-gray-900 flex items-center justify-center gap-1">
+          <button id="tabBtnCustomer" onclick="switchRightTab('CUSTOMER')" class="py-1.5 rounded-lg transition text-gray-500 hover:text-gray-900 font-bold">Order Type & Customer</button>
+          <button id="tabBtnSummary" onclick="switchRightTab('SUMMARY')" class="py-1.5 rounded-lg transition bg-white text-orange-600 shadow-2xs font-black flex items-center justify-center gap-1">
             <span>Order Summary</span>
             <span id="tabSummaryBadge" class="bg-orange-500 text-white text-[9px] font-black px-1.5 py-0.2 rounded-full">0</span>
           </button>
         </div>
 
-        <div id="tabContentCustomer" class="p-3.5 space-y-3">
+        <div id="tabContentCustomer" class="p-3.5 space-y-3 hidden">
           <div class="bg-gray-50 border border-gray-200 rounded-xl p-2.5 flex justify-between items-center text-xs">
             <div>
               <span class="text-[10px] font-bold text-gray-400 block uppercase">Selected Table</span>
@@ -290,7 +329,7 @@
           </div>
         </div>
 
-        <div id="tabContentSummary" class="p-3 hidden space-y-2">
+        <div id="tabContentSummary" class="p-3 space-y-2">
           <div id="posCartItemList" class="space-y-1.5 max-h-[35vh] overflow-y-auto pr-1 text-xs divide-y divide-gray-100">
             <p class="text-gray-400 text-center py-10 italic text-xs">Cart is empty</p>
           </div>
@@ -338,30 +377,6 @@
     </div>
   </div>
 
-  <!-- VIRTUAL KEYBOARDS -->
-  <div id="vKeypadNum" class="fixed bottom-4 w-72 bg-[#f1f3f5] border border-gray-300 rounded-2xl shadow-2xl p-3 z-50 hidden select-none transition-all">
-    <div class="flex justify-between items-center mb-2 pb-1 border-b border-gray-200 text-gray-500 text-xs">
-      <span class="font-bold">⌨</span>
-      <span id="numPadDisplayLabel" class="font-mono font-bold text-gray-700 truncate max-w-[150px]">Enter digits...</span>
-      <button onclick="closeVirtualKeyboards()" class="font-black text-gray-400 hover:text-black text-sm px-1.5">✕</button>
-    </div>
-    <div class="grid grid-cols-3 gap-2">
-      <button onclick="keypadPress('1')" class="bg-white py-3 rounded-xl font-bold">1</button>
-      <button onclick="keypadPress('2')" class="bg-white py-3 rounded-xl font-bold">2</button>
-      <button onclick="keypadPress('3')" class="bg-white py-3 rounded-xl font-bold">3</button>
-      <button onclick="keypadPress('4')" class="bg-white py-3 rounded-xl font-bold">4</button>
-      <button onclick="keypadPress('5')" class="bg-white py-3 rounded-xl font-bold">5</button>
-      <button onclick="keypadPress('6')" class="bg-white py-3 rounded-xl font-bold">6</button>
-      <button onclick="keypadPress('7')" class="bg-white py-3 rounded-xl font-bold">7</button>
-      <button onclick="keypadPress('8')" class="bg-white py-3 rounded-xl font-bold">8</button>
-      <button onclick="keypadPress('9')" class="bg-white py-3 rounded-xl font-bold">9</button>
-      <button onclick="keypadPress('.')" class="bg-white py-3 rounded-xl font-bold">.</button>
-      <button onclick="keypadPress('0')" class="bg-white py-3 rounded-xl font-bold">0</button>
-      <button onclick="keypadBackspace()" class="bg-white py-3 rounded-xl font-bold">⌫</button>
-    </div>
-    <button onclick="closeVirtualKeyboards()" class="w-full mt-2.5 bg-orange-500 text-white font-black text-sm py-2.5 rounded-xl">✓ Done</button>
-  </div>
-
   <script>
     var allActiveOrders = [];
     var allMenuItems = [];
@@ -377,6 +392,16 @@
 
     var alreadyPaidAmount = 0;
     var alreadyPaidMode = '';
+    var defaultFloorTables = [
+      { id: 'T04', label: 'T04', seats: 2 },
+      { id: 'T08', label: 'T08', seats: 2 },
+      { id: 'T03', label: 'T03', seats: 2 },
+      { id: 'T07', label: 'T07', seats: 2 },
+      { id: 'T02', label: 'T02', seats: 2 },
+      { id: 'T06', label: 'T06', seats: 2 },
+      { id: 'T01', label: 'T01', seats: 2 },
+      { id: 'T05', label: 'T05', seats: 2 }
+    ];
 
     function initializePOS() {
       fetchMenu();
@@ -474,39 +499,17 @@
         });
     }
 
-    function openVirtualKeyboard(inputEl, mode) {
-      activeVirtualInput = inputEl;
-      document.getElementById('vKeypadNum').classList.remove('hidden');
-      document.getElementById('numPadDisplayLabel').innerText = inputEl.placeholder || 'Enter...';
-    }
-
-    function closeVirtualKeyboards() {
-      document.getElementById('vKeypadNum').classList.add('hidden');
-      if (activeVirtualInput && activeVirtualInput.id === 'inputCashReceivedAmount') calculateChangeReturn();
-    }
-
-    function keypadPress(val) {
-      if (!activeVirtualInput) return;
-      activeVirtualInput.value += val;
-      triggerInputEvent(activeVirtualInput);
-    }
-
-    function keypadBackspace() {
-      if (!activeVirtualInput) return;
-      activeVirtualInput.value = activeVirtualInput.value.slice(0, -1);
-      triggerInputEvent(activeVirtualInput);
-    }
-
-    function triggerInputEvent(el) {
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-
     function fetchMenu() {
       fetch('/api/menu').then(r => r.json()).then(items => { allMenuItems = items || []; renderPOSItems(); });
     }
 
     function fetchActiveOrders() {
-      fetch('/api/orders/active').then(r => r.json()).then(orders => { allActiveOrders = orders || []; renderDashboardMetrics(); renderAllQueues(); });
+      fetch('/api/orders/active').then(r => r.json()).then(orders => {
+        allActiveOrders = orders || [];
+        renderDashboardMetrics();
+        renderFloorTablesGrid();
+        renderAllQueues();
+      });
     }
 
     function renderDashboardMetrics() {
@@ -516,6 +519,24 @@
       const due = allActiveOrders.filter(o => o.payment_mode === 'DUE' || o.status === 'DUE_PENDING');
       document.getElementById('filterDueCount').innerText = due.length;
       document.getElementById('filterDueTotal').innerText = '₹' + due.reduce((s, o) => s + (Number(o.total) || 0), 0);
+    }
+
+    function renderFloorTablesGrid() {
+      var grid = document.getElementById('floorTablesGrid');
+      if (!grid) return;
+      grid.innerHTML = defaultFloorTables.map(function(t) {
+        var busy = allActiveOrders.find(function(o) {
+          return o.order_type === 'Dine-In' && o.table_no && (o.table_no.toUpperCase() === t.id || o.table_no === t.label);
+        });
+        var isBusy = !!busy;
+        return `
+          <div onclick="openPOSOrderView('Dine-In', '${t.id}')" class="cursor-pointer border-2 rounded-2xl p-3 flex flex-col items-center justify-center transition-all shadow-xs ${isBusy ? 'bg-orange-50 border-orange-400 text-orange-950' : 'bg-emerald-50 border-emerald-300 text-emerald-950'}">
+            <span class="font-black text-sm">${t.label}</span>
+            <span class="text-[10px] font-bold opacity-75">${t.seats} seats</span>
+            ${isBusy ? `<span class="text-xs font-black text-orange-700 mt-1">₹${busy.total}</span>` : `<span class="text-[9px] text-emerald-600 font-bold mt-1">Free</span>`}
+          </div>
+        `;
+      }).join('');
     }
 
     function renderAllQueues() {
@@ -553,9 +574,7 @@
       box.innerHTML = posCart.map(function(item, idx) {
         return `
           <div class="py-2 flex items-center justify-between text-xs">
-            <div class="flex items-center gap-2">
-              <span class="font-bold text-gray-800">${item.name} x${item.qty}</span>
-            </div>
+            <span class="font-bold text-gray-800">${item.name} x${item.qty}</span>
             <span class="font-black text-gray-900">₹${item.price * item.qty}</span>
           </div>
         `;
@@ -618,7 +637,24 @@
       document.getElementById('viewPOSOrderScreen').classList.remove('hidden');
     }
 
-    function switchRightTab(tab) {}
+    function switchRightTab(tab) {
+      const cust = document.getElementById('tabContentCustomer');
+      const sum = document.getElementById('tabContentSummary');
+      const btnC = document.getElementById('tabBtnCustomer');
+      const btnS = document.getElementById('tabBtnSummary');
+      if (tab === 'CUSTOMER') {
+        cust.classList.remove('hidden');
+        sum.classList.add('hidden');
+        btnC.className = "py-1.5 rounded-lg transition bg-white text-orange-600 shadow-2xs font-black";
+        btnS.className = "py-1.5 rounded-lg transition text-gray-500 hover:text-gray-900 font-bold";
+      } else {
+        cust.classList.add('hidden');
+        sum.classList.remove('hidden');
+        btnS.className = "py-1.5 rounded-lg transition bg-white text-orange-600 shadow-2xs font-black";
+        btnC.className = "py-1.5 rounded-lg transition text-gray-500 hover:text-gray-900 font-bold";
+      }
+    }
+
     function openCashDrawer() {}
     function protectedNav(url) { window.location.href = url; }
     function toggleSidebarMenu(show) {}
