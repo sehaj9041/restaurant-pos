@@ -244,14 +244,14 @@ app.delete('/api/menu/:id', (req, res) => {
   });
 });
 
-// 7. ACTIVE ORDERS (FILTERS OUT UNPAID DUE ORDERS SO QUEUES STAY CLEAN)
+// 7. ACTIVE ORDERS (INCLUDES ALL LIVE KITCHEN & ACTIVE PENDING ORDERS SO COUNTER QUEUES STAY ACCURATE)
 app.get('/api/orders/active', (req, res) => {
   const query = `
     SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount
     FROM orders 
-    WHERE status IN ('RUNNING_TABLE', 'PENDING', 'RUNNING')
-       OR (status = 'KOT_READY' AND payment_mode != 'DUE' AND status != 'DUE_PENDING')
-       OR (order_type = 'Online' AND status NOT IN ('COMPLETED', 'DUE_PENDING'))
+    WHERE status IN ('RUNNING_TABLE', 'PENDING', 'DUE_PENDING', 'RUNNING')
+       OR (status = 'KOT_READY' AND status != 'COMPLETED')
+       OR order_type = 'Online'
     ORDER BY id DESC
   `;
 
@@ -291,14 +291,18 @@ app.get('/api/due/orders', (req, res) => {
     SELECT 
       id, order_type, table_no, customer_name, customer_phone, 
       total, COALESCE(paid_amount, 0) as paid_amount,
-      (total - COALESCE(paid_amount, 0)) as due_amount,
+      MAX(0, total - COALESCE(paid_amount, 0)) as due_amount,
       payment_mode, status, created_at,
       ROUND((JULIANDAY('now', 'localtime') - JULIANDAY(created_at))) as due_days,
       ROUND((JULIANDAY('now', 'localtime') - JULIANDAY(created_at)) * 24) as due_hours
     FROM orders
-    WHERE (payment_mode = 'DUE' OR status IN ('DUE_PENDING', 'KOT_READY') OR (payment_mode LIKE 'PARTIAL%' AND (total - COALESCE(paid_amount, 0)) > 0))
-      AND (total - COALESCE(paid_amount, 0)) > 0
-      AND status != 'COMPLETED'
+    WHERE (
+      payment_mode = 'DUE' 
+      OR status IN ('DUE_PENDING', 'KOT_READY') 
+      OR (payment_mode LIKE 'PARTIAL%' AND (total - COALESCE(paid_amount, 0)) > 0)
+    )
+    AND (total - COALESCE(paid_amount, 0)) > 0
+    AND status != 'COMPLETED'
     ORDER BY id DESC
   `;
 
@@ -308,7 +312,7 @@ app.get('/api/due/orders', (req, res) => {
       ...r,
       due_days: Math.max(0, Number(r.due_days) || 0),
       due_hours: Math.max(0, Number(r.due_hours) || 0),
-      due_amount: Math.max(0, Number(r.due_amount) || 0)
+      due_amount: (Number(r.due_amount) > 0) ? Number(r.due_amount) : Number(r.total)
     }));
     res.json(formatted);
   });
@@ -318,17 +322,21 @@ app.get('/api/due/orders', (req, res) => {
 app.get('/api/due/customers', (req, res) => {
   const query = `
     SELECT 
-      COALESCE(customer_phone, 'WALK-IN') as phone,
-      COALESCE(MAX(customer_name), 'Valued Guest') as name,
+      COALESCE(NULLIF(customer_phone, ''), 'WALK-IN') as phone,
+      COALESCE(NULLIF(MAX(customer_name), ''), 'Valued Guest') as name,
       COUNT(id) as total_orders,
-      SUM(total - COALESCE(paid_amount, 0)) as total_due,
+      SUM(MAX(0, total - COALESCE(paid_amount, 0))) as total_due,
       MAX(ROUND((JULIANDAY('now', 'localtime') - JULIANDAY(created_at)))) as oldest_days,
       GROUP_CONCAT(id) as order_ids
     FROM orders
-    WHERE (payment_mode = 'DUE' OR status IN ('DUE_PENDING', 'KOT_READY') OR (payment_mode LIKE 'PARTIAL%' AND (total - COALESCE(paid_amount, 0)) > 0))
-      AND (total - COALESCE(paid_amount, 0)) > 0
-      AND status != 'COMPLETED'
-    GROUP BY customer_phone
+    WHERE (
+      payment_mode = 'DUE' 
+      OR status IN ('DUE_PENDING', 'KOT_READY') 
+      OR (payment_mode LIKE 'PARTIAL%' AND (total - COALESCE(paid_amount, 0)) > 0)
+    )
+    AND (total - COALESCE(paid_amount, 0)) > 0
+    AND status != 'COMPLETED'
+    GROUP BY COALESCE(NULLIF(customer_phone, ''), 'WALK-IN')
     HAVING total_due > 0
     ORDER BY total_due DESC
   `;
@@ -339,7 +347,7 @@ app.get('/api/due/customers', (req, res) => {
       phone: r.phone,
       name: r.name,
       total_orders: Number(r.total_orders) || 0,
-      total_due: Math.max(0, Number(r.total_due) || 0),
+      total_due: Number(r.total_due) || 0,
       oldest_days: Math.max(0, Number(r.oldest_days) || 0),
       order_ids: r.order_ids ? r.order_ids.split(',').map(s => s.trim()) : []
     }));
