@@ -18,10 +18,19 @@
       cursor: pointer;
     }
 
-    /* CARD-ONLY ZOOM ENGINE (Does NOT touch header or screen layout) */
+    /* DYNAMIC CARD SCALING & AUTO-FLOW GRID ENGINE */
     :root {
       --kot-scale: 1;
+      --kot-card-min-width: 290px;
     }
+
+    #kotGrid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(var(--kot-card-min-width), 1fr));
+      gap: calc(16px * var(--kot-scale));
+      align-items: start;
+    }
+
     .kot-card-box {
       font-size: calc(14px * var(--kot-scale));
     }
@@ -45,11 +54,15 @@
     .kot-card-box .kot-notes {
       font-size: calc(12px * var(--kot-scale));
     }
+    .kot-card-box .kot-check-box {
+      width: calc(20px * var(--kot-scale));
+      height: calc(20px * var(--kot-scale));
+    }
   </style>
 </head>
 <body class="bg-gray-900 min-h-screen p-6 font-sans text-white select-none">
 
-  <!-- TOP HEADER (LOCKED & FIXED - NEVER SHRINKS OR SHIFTS) -->
+  <!-- TOP HEADER (LOCKED & FIXED) -->
   <div class="flex justify-between items-center mb-6 border-b border-gray-800 pb-4 flex-wrap gap-4">
     <div class="flex items-center gap-3">
       <span class="inline-block w-3 h-3 bg-emerald-500 rounded-full animate-pulse"></span>
@@ -57,7 +70,7 @@
     </div>
     
     <div class="flex items-center gap-3 flex-wrap">
-      <!-- CARD SIZE SCROLLER / SLIDER (ONLY ZOOMS CARDS) -->
+      <!-- CARD SIZE SCROLLER -->
       <div class="flex items-center gap-2 bg-gray-800/90 border border-gray-700 px-3 py-1.5 rounded-lg shadow-sm">
         <span class="text-xs font-bold text-gray-300 flex items-center gap-1">
           <span>🔍</span> <span>Card Size:</span>
@@ -65,7 +78,7 @@
         <input 
           type="range" 
           id="kotSizeSlider" 
-          min="75" 
+          min="65" 
           max="140" 
           value="100" 
           step="5"
@@ -93,8 +106,8 @@
     </div>
   </div>
 
-  <!-- KOT GRID: Native CSS Grid (Screen does NOT move) -->
-  <div id="kotGrid" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 items-start">
+  <!-- AUTO-FLOW RESPONSIVE GRID (Card count per row scales dynamically) -->
+  <div id="kotGrid">
     <div class="col-span-full text-center py-20 text-gray-500 font-bold">No active orders right now.</div>
   </div>
 
@@ -103,25 +116,29 @@
     var isAudioAllowed = false;
     var liveOrdersData = [];
 
-    // ================= CARD-ONLY SCALING ENGINE =================
+    // ================= DYNAMIC CARD & BOX SCALING =================
     function initCardScale() {
       var savedScale = localStorage.getItem('kot_display_scale') || '100';
       var slider = document.getElementById('kotSizeSlider');
       if (slider) slider.value = savedScale;
-      applyScaleOnlyToCards(savedScale);
+      applyDynamicCardWidthAndScale(savedScale);
     }
 
     function changeKOTCardScale(val) {
-      applyScaleOnlyToCards(val);
+      applyDynamicCardWidthAndScale(val);
       localStorage.setItem('kot_display_scale', val);
     }
 
-    function applyScaleOnlyToCards(val) {
+    function applyDynamicCardWidthAndScale(val) {
       var label = document.getElementById('lblSizePercent');
       if (label) label.innerText = val + '%';
+      
       var numericScale = Number(val) / 100;
-      // Change CSS custom property so only .kot-card-box scales!
+      // Base minimum card width is 300px at 100% scale
+      var calculatedWidth = Math.round(300 * numericScale);
+
       document.documentElement.style.setProperty('--kot-scale', numericScale);
+      document.documentElement.style.setProperty('--kot-card-min-width', calculatedWidth + 'px');
     }
 
     function resetKOTCardScale() {
@@ -495,7 +512,7 @@
           : (allItemsReady ? 'border-emerald-500/80' : theme.border);
 
         return `
-          <!-- COMPACT KOT CARD (SCALES INDEPENDENTLY VIA .kot-card-box) -->
+          <!-- FULLY SCALABLE CARD BOX -->
           <div class="kot-card-box bg-gray-800 border-2 ${cardBorderClass} rounded-2xl flex flex-col justify-between overflow-hidden shadow-xl transition self-start w-full">
             <!-- HEADER -->
             <div class="p-3 border-b border-gray-700/80 ${theme.headerBg} flex justify-between items-center">
@@ -543,7 +560,7 @@
                 return `
                   <div onclick="toggleItemReady(${order.id}, 'row_${idx}')" class="border-b border-gray-700/50 pb-1.5 cursor-pointer select-none transition ${isDone ? 'opacity-35' : 'hover:bg-gray-750'}">
                     <div class="flex items-center gap-2">
-                      <div class="w-5 h-5 rounded-md flex items-center justify-center border shrink-0 transition ${isDone ? 'bg-emerald-600 border-emerald-500 text-white' : 'border-gray-500 bg-gray-900'}">
+                      <div class="kot-check-box rounded-md flex items-center justify-center border shrink-0 transition ${isDone ? 'bg-emerald-600 border-emerald-500 text-white' : 'border-gray-500 bg-gray-900'}">
                         ${isDone ? '✓' : ''}
                       </div>
 
