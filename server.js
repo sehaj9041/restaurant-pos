@@ -244,13 +244,12 @@ app.delete('/api/menu/:id', (req, res) => {
   });
 });
 
-// 7. ACTIVE ORDERS (INCLUDES ALL LIVE KITCHEN & ACTIVE PENDING ORDERS SO COUNTER QUEUES STAY ACCURATE)
+// 7. ACTIVE ORDERS (KITCHEN MEIN ACTIVE AUR DISPATCHED READY ORDERS DONO AAYENGE)
 app.get('/api/orders/active', (req, res) => {
   const query = `
     SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount
     FROM orders 
-    WHERE status IN ('RUNNING_TABLE', 'PENDING', 'DUE_PENDING', 'RUNNING')
-       OR (status = 'KOT_READY' AND status != 'COMPLETED')
+    WHERE status IN ('RUNNING_TABLE', 'PENDING', 'DUE_PENDING', 'RUNNING', 'KOT_READY')
        OR order_type = 'Online'
     ORDER BY id DESC
   `;
@@ -296,13 +295,14 @@ app.get('/api/due/orders', (req, res) => {
       ROUND((JULIANDAY('now', 'localtime') - JULIANDAY(created_at))) as due_days,
       ROUND((JULIANDAY('now', 'localtime') - JULIANDAY(created_at)) * 24) as due_hours
     FROM orders
-    WHERE (
-      payment_mode = 'DUE' 
-      OR status IN ('DUE_PENDING', 'KOT_READY') 
-      OR (payment_mode LIKE 'PARTIAL%' AND (total - COALESCE(paid_amount, 0)) > 0)
-    )
-    AND (total - COALESCE(paid_amount, 0)) > 0
-    AND status != 'COMPLETED'
+    WHERE status != 'COMPLETED'
+      AND (
+        UPPER(payment_mode) = 'DUE' 
+        OR status = 'DUE_PENDING'
+        OR (status = 'KOT_READY' AND UPPER(payment_mode) = 'DUE')
+        OR (UPPER(payment_mode) LIKE '%PARTIAL%' AND (total - COALESCE(paid_amount, 0)) > 0)
+        OR (UPPER(payment_mode) = 'UNPAID' AND (total - COALESCE(paid_amount, 0)) > 0)
+      )
     ORDER BY id DESC
   `;
 
@@ -329,13 +329,14 @@ app.get('/api/due/customers', (req, res) => {
       MAX(ROUND((JULIANDAY('now', 'localtime') - JULIANDAY(created_at)))) as oldest_days,
       GROUP_CONCAT(id) as order_ids
     FROM orders
-    WHERE (
-      payment_mode = 'DUE' 
-      OR status IN ('DUE_PENDING', 'KOT_READY') 
-      OR (payment_mode LIKE 'PARTIAL%' AND (total - COALESCE(paid_amount, 0)) > 0)
-    )
-    AND (total - COALESCE(paid_amount, 0)) > 0
-    AND status != 'COMPLETED'
+    WHERE status != 'COMPLETED'
+      AND (
+        UPPER(payment_mode) = 'DUE' 
+        OR status = 'DUE_PENDING'
+        OR (status = 'KOT_READY' AND UPPER(payment_mode) = 'DUE')
+        OR (UPPER(payment_mode) LIKE '%PARTIAL%' AND (total - COALESCE(paid_amount, 0)) > 0)
+        OR (UPPER(payment_mode) = 'UNPAID' AND (total - COALESCE(paid_amount, 0)) > 0)
+      )
     GROUP BY COALESCE(NULLIF(customer_phone, ''), 'WALK-IN')
     HAVING total_due > 0
     ORDER BY total_due DESC
@@ -366,8 +367,8 @@ app.post('/api/due/settle-customer', (req, res) => {
     `UPDATE orders 
      SET status = 'COMPLETED', payment_mode = ?, paid_amount = total 
      WHERE customer_phone = ? 
-       AND (payment_mode = 'DUE' OR status IN ('DUE_PENDING', 'KOT_READY') OR (total - COALESCE(paid_amount, 0)) > 0) 
-       AND status != 'COMPLETED'`,
+       AND status != 'COMPLETED'
+       AND (UPPER(payment_mode) = 'DUE' OR status IN ('DUE_PENDING', 'KOT_READY') OR (total - COALESCE(paid_amount, 0)) > 0)`,
     [mode, phone],
     function (err) {
       if (err) return res.status(500).json({ error: err.message });
