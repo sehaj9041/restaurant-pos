@@ -757,7 +757,7 @@
     </div>
     <div class="flex gap-1.5">
       <button onclick="keypadPress(' ')" class="flex-1 bg-white active:bg-gray-200 text-gray-400 font-bold text-xs py-2.5 rounded-lg shadow-2xs">space</button>
-      <button onclick="closeVirtualKeyboards()" class="w-24 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-black text-xs py-2.5 rounded-lg shadow-2xs">return</button>
+      <button onclick="closeVirtualKeyboards()" class="w-24 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-black text-sm py-2.5 rounded-lg shadow-2xs">return</button>
     </div>
   </div>
 
@@ -1562,7 +1562,6 @@
         `;
       }
 
-      // Takeaway Queue: Jab tak kitchen se ready/dispatched nahi hota, counter par visible rahega
       var takeawayOrders = allActiveOrders.filter(function(o) { 
         var isDispatched = (o.status === 'KOT_READY' || o.status === 'COMPLETED');
         return o.order_type === 'Takeaway' && !isDispatched; 
@@ -1573,7 +1572,6 @@
       if (!takeawayOrders.length) tList.innerHTML = '<p class="text-xs text-gray-400 italic text-center py-6">No takeaway orders in queue</p>';
       else tList.innerHTML = takeawayOrders.map(buildOrderActionCard).join('');
 
-      // Delivery Queue: Jab tak kitchen se ready/dispatched nahi hota, counter par visible rahega
       var deliveryOrders = allActiveOrders.filter(function(o) { 
         var isDispatched = (o.status === 'KOT_READY' || o.status === 'COMPLETED');
         return o.order_type === 'Delivery' && !isDispatched; 
