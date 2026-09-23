@@ -38,7 +38,12 @@
       font-size: calc(20px * var(--kot-scale));
     }
     .kot-card-box .kot-item-title {
-      font-size: calc(14px * var(--kot-scale));
+      font-size: calc(15px * var(--kot-scale));
+    }
+    /* BIGGER & PROMINENT QUANTITY FONT */
+    .kot-card-box .kot-qty-badge {
+      font-size: calc(18px * var(--kot-scale));
+      line-height: 1;
     }
     .kot-card-box .kot-btn {
       font-size: calc(14px * var(--kot-scale));
@@ -55,8 +60,8 @@
       font-size: calc(12px * var(--kot-scale));
     }
     .kot-card-box .kot-check-box {
-      width: calc(20px * var(--kot-scale));
-      height: calc(20px * var(--kot-scale));
+      width: calc(22px * var(--kot-scale));
+      height: calc(22px * var(--kot-scale));
     }
   </style>
 </head>
@@ -113,12 +118,11 @@
 
   <script>
     var audioCtx = null;
-    var isAudioAllowed = true; // Default allowed
+    var isAudioAllowed = true;
     var liveOrdersData = [];
 
     // ================= SOUND PERSISTENCE & AUDIO UNLOCK =================
     function initPersistentAudio() {
-      // Browser memory me check karo, default true rahega
       var savedSoundState = localStorage.getItem('kot_sound_enabled');
       if (savedSoundState === null || savedSoundState === 'true') {
         isAudioAllowed = true;
@@ -508,7 +512,6 @@
           return !!checkedMap[order.id + '_row_' + idx];
         });
 
-        // VIBRANT THEMES FOR WHITE/LIGHT BACKGROUND
         var theme = {
           border: 'border-blue-200',
           badgeBg: 'bg-blue-50 text-blue-700 border-blue-200',
@@ -587,12 +590,15 @@
 
                 return `
                   <div onclick="toggleItemReady(${order.id}, 'row_${idx}')" class="border-b border-slate-100 pb-1.5 cursor-pointer select-none transition ${isDone ? 'opacity-35' : 'hover:bg-slate-50'}">
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-2.5">
                       <div class="kot-check-box rounded-md flex items-center justify-center border shrink-0 transition ${isDone ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-slate-300 bg-white'}">
                         ${isDone ? '✓' : ''}
                       </div>
 
-                      <span class="kot-badge bg-slate-100 text-slate-800 border border-slate-200 font-black px-1.5 py-0.5 rounded shrink-0">x${item.qty}</span>
+                      <!-- BIGGER & BOLDER QUANTITY BADGE -->
+                      <span class="kot-qty-badge font-black text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2 py-1 rounded-md shrink-0 shadow-2xs">
+                        x${item.qty}
+                      </span>
 
                       <span class="kot-item-title font-bold text-slate-800 flex-1 ${isDone ? 'line-through text-slate-400' : ''}">${item.name}</span>
 
@@ -602,7 +608,7 @@
                         </span>
                       ` : ''}
                     </div>
-                    ${item.notes ? `<div class="kot-notes text-amber-600 font-semibold mt-0.5 ml-7">↳ ${item.notes}</div>` : ''}
+                    ${item.notes ? `<div class="kot-notes text-amber-600 font-semibold mt-0.5 ml-8">↳ ${item.notes}</div>` : ''}
                   </div>
                 `;
               }).join('')}
@@ -629,7 +635,6 @@
       updateLiveTimers();
     }
 
-    // Unlocks browser audio policy on first screen touch/click
     window.addEventListener('click', function() {
       if (isAudioAllowed) {
         unlockAudioEngine();
