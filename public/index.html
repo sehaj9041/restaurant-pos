@@ -521,7 +521,7 @@
               <span>Method 1</span>
             </div>
             <div class="grid grid-cols-4 gap-1">
-              <button onclick="setSplitMethodType(1, 'Cash')" id="splitM1_Cash" class="border border-orange-400 bg-orange-50 text-orange-700 font-bold py-1 rounded-text-[10px]">Cash</button>
+              <button onclick="setSplitMethodType(1, 'Cash')" id="splitM1_Cash" class="border border-orange-400 bg-orange-50 text-orange-700 font-bold py-1 rounded text-[10px]">Cash</button>
               <button onclick="setSplitMethodType(1, 'UPI')" id="splitM1_UPI" class="border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold py-1 rounded text-[10px]">UPI</button>
               <button onclick="setSplitMethodType(1, 'Card')" id="splitM1_Card" class="border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold py-1 rounded text-[10px]">Card</button>
               <button onclick="setSplitMethodType(1, 'DUE')" id="splitM1_DUE" class="border border-gray-200 hover:bg-gray-50 text-rose-600 font-bold py-1 rounded text-[10px]">Due</button>
@@ -812,7 +812,12 @@
     function initializePOS() {
       fetchMenu();
       fetchActiveOrders();
-      setInterval(fetchActiveOrders, 4000);
+      loadDueOrdersData();
+
+      setInterval(function() {
+        fetchActiveOrders();
+        loadDueOrdersData();
+      }, 4000);
 
       var today = new Date().toISOString().slice(0, 10);
       var df = document.getElementById('histDateFilter');
@@ -845,6 +850,7 @@
       document.getElementById('btnCancelOrderView').classList.add('hidden');
       document.getElementById('topOrderActiveBadge').classList.add('hidden');
       fetchActiveOrders();
+      loadDueOrdersData();
     }
 
     function showOrderHistoryView() {
@@ -924,22 +930,27 @@
         .then(function(r){ return r.json(); })
         .then(function(orders){
           dueOrdersList = orders || [];
+          var totalDueSum = dueOrdersList.reduce(function(s, o) { return s + (Number(o.due_amount) || 0); }, 0);
+          
+          document.getElementById('filterDueCount').innerText = dueOrdersList.length;
+          document.getElementById('filterDueTotal').innerText = '₹' + totalDueSum.toLocaleString();
+          document.getElementById('dueHeaderTotalLabel').innerText = '₹' + totalDueSum.toLocaleString();
+
           renderDueOrdersList();
-        });
+        })
+        .catch(function(){});
 
       fetch('/api/due/customers')
         .then(function(r){ return r.json(); })
         .then(function(customers){
           dueCustomersList = customers || [];
           renderDueCustomersList();
-        });
+        })
+        .catch(function(){});
     }
 
     function renderDueOrdersList() {
       var container = document.getElementById('dueOrderList');
-      var totalSum = dueOrdersList.reduce(function(s, o){ return s + (Number(o.due_amount) || 0); }, 0);
-      document.getElementById('dueHeaderTotalLabel').innerText = '₹' + totalSum.toLocaleString();
-
       if (!dueOrdersList || dueOrdersList.length === 0) {
         container.innerHTML = '<p class="text-center py-16 text-gray-400 font-bold italic text-xs">No pending due orders found</p>';
         return;
@@ -1084,7 +1095,7 @@
         closeSingleOrderSettleModal();
         if (targetSingleSettleMode === 'CASH') openCashDrawer();
         fetchActiveOrders();
-        if (typeof loadDueOrdersData === 'function') loadDueOrdersData();
+        loadDueOrdersData();
         if (typeof loadSettledOrderHistory === 'function') loadSettledOrderHistory();
       });
     }
@@ -1416,15 +1427,6 @@
 
       var deliveryCount = allActiveOrders.filter(function(o) { return o.order_type === 'Delivery'; }).length;
       document.getElementById('metricDeliveryCount').innerText = deliveryCount;
-
-      fetch('/api/due/orders')
-        .then(function(r){ return r.json(); })
-        .then(function(dues){
-          var dueCount = (dues || []).length;
-          var dueSum = (dues || []).reduce(function(s, o) { return s + (Number(o.due_amount) || 0); }, 0);
-          document.getElementById('filterDueCount').innerText = dueCount;
-          document.getElementById('filterDueTotal').innerText = '₹' + dueSum.toLocaleString();
-        }).catch(function(){});
 
       fetch('/api/orders/today-stats')
         .then(function(r){ return r.json(); })
@@ -2016,7 +2018,6 @@
           ${itemsRows}
           <div class="divider"></div>
           <div class="row"><span>Subtotal:</span><span>₹${calc.subtotal.toFixed(2)}</span></div>
-          <div class="row"><span>GST (5%):</span><span>₹${calc.gst.toFixed(2)}</span></div>
           <div class="row" style="font-size:16px; font-weight:900;"><span>TOTAL BILL:</span><span>₹${calc.grandTotal.toFixed(2)}</span></div>
           ${diffSection}
           ${cashSection}
@@ -2103,7 +2104,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ payment_mode: mode })
-      }).then(function(){ fetchActiveOrders(); });
+      }).then(function(){ fetchActiveOrders(); loadDueOrdersData(); });
     }
 
     function promptAddCustomTable() {
