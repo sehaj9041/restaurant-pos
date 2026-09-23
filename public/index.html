@@ -747,7 +747,7 @@
       <div class="grid grid-cols-7 gap-1 flex-1">
         <button onclick="keypadPressLetter('z')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">z</button>
         <button onclick="keypadPressLetter('x')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">x</button>
-        <button onclick="keypadPressLetter('c')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">c</button>
+        <button onclick="keypadPressLetter('c')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg software font-bold text-sm py-2.5 rounded-lg shadow-2xs">c</button>
         <button onclick="keypadPressLetter('v')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">v</button>
         <button onclick="keypadPressLetter('b')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">b</button>
         <button onclick="keypadPressLetter('n')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">n</button>
@@ -886,7 +886,7 @@
       var btnActive = document.getElementById('btnNavActiveOrders');
       var btnHist = document.getElementById('btnNavOrderHistory');
       var btnDue = document.getElementById('btnNavDueOrders');
-      if (btnDue) btnDue.className = "bg-orange-500 text-white text-xs font-black px-3 py-1.5 rounded-lg shadow-2xs transition";
+      if (btnDue) btnDue.className = "bg-orange-500 text-white text-xs font-black px-4 py-1.5 rounded-lg text-xs shadow-2xs transition";
       if (btnActive) btnActive.className = "text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition";
       if (btnHist) btnHist.className = "text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition";
 
@@ -1475,20 +1475,64 @@
         document.getElementById('kioskUnassignedCount').innerText = unassignedKiosk.length;
         kioskList.innerHTML = unassignedKiosk.map(function(o) {
           var itemsText = (o.items || []).map(function(i){ return i.name + ' x' + i.qty; }).join(', ');
+          var totalAmount = Number(o.total) || 0;
+          var paidAmount = Number(o.paid_amount) || Number(o.already_paid) || 0;
+
+          if (paidAmount === 0 && o.payment_mode && o.payment_mode !== 'UNPAID' && o.payment_mode !== 'DUE' && o.status !== 'RUNNING_TABLE') {
+            paidAmount = totalAmount;
+          }
+
+          var remainingDue = Math.max(0, totalAmount - paidAmount);
+          var isFullyPaid = paidAmount >= totalAmount && totalAmount > 0;
+          var isPartiallyPaid = paidAmount > 0 && remainingDue > 0;
+
+          var statusTag = '';
+          var tagBg = '';
+          if (isFullyPaid) {
+            statusTag = o.payment_mode || 'Paid';
+            tagBg = 'bg-emerald-100 text-emerald-800';
+          } else if (isPartiallyPaid) {
+            statusTag = `Partially Paid (Due: ₹${remainingDue})`;
+            tagBg = 'bg-amber-100 text-amber-900';
+          } else {
+            statusTag = (o.payment_mode === 'DUE' || o.status === 'DUE_PENDING') ? 'Due' : 'Unpaid';
+            tagBg = 'bg-amber-100 text-amber-900';
+          }
+
           return `
-            <div class="bg-gray-50 border border-gray-200 rounded-xl p-2.5 flex justify-between items-center text-xs">
-              <div>
-                <div class="flex items-center gap-2">
-                  <span class="bg-pink-100 text-pink-700 font-black px-1.5 py-0.5 rounded text-[10px]">Kiosk</span>
-                  <span class="font-black text-gray-800">ORD-${o.id}</span>
-                  <span class="text-gray-400 font-mono text-[10px]">${o.time || ''}</span>
-                  <span class="font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">₹${o.total} (${o.payment_mode || 'PAID'})</span>
+            <div class="border border-orange-200/70 bg-[#fffdfa] rounded-xl p-3 text-xs shadow-2xs hover:border-orange-300 transition space-y-2">
+              <div class="flex justify-between items-start">
+                <div>
+                  <div class="flex items-center gap-1.5">
+                    <span class="bg-pink-100 text-pink-700 font-black px-1.5 py-0.5 rounded text-[10px]">Kiosk / Unassigned</span>
+                    <span class="text-gray-500 font-bold text-[10px]">Token ${o.id.toString().padStart(3, '0')}</span>
+                    <span class="font-black text-gray-800 text-xs">ORD-${o.id}</span>
+                  </div>
+                  <div class="text-[11px] text-gray-600 mt-0.5 line-clamp-1">${itemsText || 'Order placed'}</div>
+                  <div class="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
+                    <span>👤 ${o.customer_name || 'Valued Guest'}</span>
+                    ${o.customer_phone ? `<span class="ml-1 text-gray-500 font-mono">(${o.customer_phone})</span>` : ''}
+                  </div>
                 </div>
-                <div class="text-gray-600 font-medium text-[11px] mt-1 line-clamp-1">${itemsText}</div>
-                <div class="flex gap-1.5 mt-2">
-                  <button onclick="promptAssignTable(${o.id})" class="bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 font-bold px-2 py-0.5 rounded text-[10px]">Assign table</button>
-                  <button onclick="settleActiveOrder(${o.id}, 'CASH')" class="bg-emerald-600 text-white font-bold px-2 py-0.5 rounded text-[10px]">✓ Mark complete</button>
+
+                <div class="text-right">
+                  <div class="flex items-center justify-end gap-1 mb-0.5">
+                    <span class="font-black text-gray-900 text-sm">₹${o.total}</span>
+                    <span class="text-[10px] font-black px-1.5 py-0.5 rounded ${tagBg}">${statusTag}</span>
+                  </div>
+                  <div class="text-[9px] text-gray-400">${o.time || ''}</div>
                 </div>
+              </div>
+
+              <div class="flex flex-wrap gap-1.5 pt-1.5 border-t border-gray-100 text-[10px] font-bold">
+                <button onclick="promptAssignTable(${o.id})" class="px-2 py-1 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded border border-orange-200 font-black shadow-2xs"><span>🪑</span> Assign table</button>
+                <button onclick="actionViewOrder(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>👁</span> View</button>
+                <button onclick="actionAddPhone(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-orange-700 rounded border border-orange-200 flex items-center gap-1 shadow-2xs"><span>📞</span> Add phone</button>
+                <button onclick="actionPrintKOT(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🍳</span> KOT</button>
+                <button onclick="actionPrintReceipt(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🖨</span> Print Receipt</button>
+                <button onclick="actionEditAddItems(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>+</span> Add Item</button>
+                <button onclick="actionSettlePopup(${o.id})" class="px-2.5 py-1 bg-orange-100 hover:bg-orange-200 text-orange-800 rounded border border-orange-300 font-black shadow-2xs">Settle</button>
+                <button onclick="actionMarkDue(${o.id})" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded border border-rose-300 font-black shadow-2xs">Mark Due</button>
               </div>
             </div>
           `;
@@ -1552,7 +1596,7 @@
             <div class="flex flex-wrap gap-1.5 pt-1.5 border-t border-gray-100 text-[10px] font-bold">
               <button onclick="actionViewOrder(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>👁</span> View</button>
               <button onclick="actionAddPhone(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-orange-700 rounded border border-orange-200 flex items-center gap-1 shadow-2xs"><span>📞</span> Add phone</button>
-              <button onclick="actionPrintKOT(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🍳</span> KOT •</button>
+              <button onclick="actionPrintKOT(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🍳</span> KOT</button>
               <button onclick="actionPrintReceipt(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🖨</span> Print Receipt</button>
               <button onclick="actionEditAddItems(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>+</span> Add Item</button>
               <button onclick="actionSettlePopup(${o.id})" class="px-2.5 py-1 bg-orange-100 hover:bg-orange-200 text-orange-800 rounded border border-orange-300 font-black shadow-2xs">Settle</button>
@@ -2088,7 +2132,7 @@
           </style>
         </head>
         <body>
-          <div class="center" style="font-size:16px;">*** KOT (KITCHEN) ***</div>
+          <div class="center" style="font-size:16px;">*** KITCHEN TICKET (KOT) ***</div>
           <div class="line"></div>
           <div><b>${currentPOSOrderType.toUpperCase()}</b> | Table: ${selectedPOSTableId || 'None'}</div>
           <div class="line"></div>
@@ -2236,7 +2280,7 @@
 
       document.getElementById('topPageTitle').innerText = 'New Order';
       document.getElementById('btnTopBack').classList.remove('hidden');
-      document.getElementById('btnCancelOrderView').classList.add('hidden'); // Fix: keep hidden or as needed
+      document.getElementById('btnCancelOrderView').classList.add('hidden');
       document.getElementById('topOrderActiveBadge').classList.remove('hidden');
 
       renderPOSCart();
