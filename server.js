@@ -585,17 +585,22 @@ app.post('/api/orders', async (req, res) => {
   });
 });
 
-// SETTLE ORDER API: Settle hone par status COMPLETED hoga aur khata balance update hoga
+// SETTLE ORDER API: DUE ORDER SETTLE HONE PAR KHATA MINUS HOGA AUR STATUS COMPLETED HOGA
 app.post('/api/tables/:id/settle', (req, res) => {
   const { payment_mode } = req.body;
   const orderId = req.params.id;
   const mode = (payment_mode || 'Cash').toUpperCase();
 
-  db.get("SELECT total, customer_phone, payment_mode FROM orders WHERE id = ?", [orderId], (err, order) => {
+  db.get("SELECT total, customer_phone, payment_mode, paid_amount FROM orders WHERE id = ?", [orderId], (err, order) => {
     if (err || !order) return res.status(404).json({ error: 'Order not found' });
     
-    if (order.payment_mode === 'DUE' && order.customer_phone && order.customer_phone.length >= 10) {
-      db.run("UPDATE customers SET due_balance = MAX(0, due_balance - ?) WHERE phone = ?", [order.total, order.customer_phone]);
+    // Khata balance minus karein agr customer phone available hai
+    const total = Number(order.total) || 0;
+    const paid = Number(order.paid_amount) || 0;
+    const remainingDue = Math.max(0, total - paid);
+
+    if (order.customer_phone && order.customer_phone.length >= 10) {
+      db.run("UPDATE customers SET due_balance = MAX(0, due_balance - ?), total_spent = total_spent + ? WHERE phone = ?", [remainingDue > 0 ? remainingDue : total, total, order.customer_phone]);
     }
 
     db.run(
@@ -603,7 +608,7 @@ app.post('/api/tables/:id/settle', (req, res) => {
       [mode, orderId],
       (err2) => {
         if (err2) return res.status(500).json({ error: err2.message });
-        console.log(`[ORDER SETTLED] Order #${orderId} paid via ${mode} and closed.`);
+        console.log(`[ORDER SETTLED & CLOSED] Order #${orderId} paid via ${mode} and closed.`);
         res.json({ success: true });
       }
     );
@@ -635,6 +640,7 @@ app.post('/api/orders/:id/mark-due', (req, res) => {
 app.post('/api/customers/:phone/clear-due', (req, res) => {
   const { amount_paid, payment_mode } = req.body;
   const phone = req.params.phone;
+  const mode = (payment_mode || 'CASH').toUpperCase();
 
   db.get("SELECT due_balance, name FROM customers WHERE phone = ?", [phone], (err, cust) => {
     if (err || !cust) return res.status(404).json({ error: 'Customer not found' });
@@ -645,10 +651,15 @@ app.post('/api/customers/:phone/clear-due', (req, res) => {
     db.run("UPDATE customers SET due_balance = ? WHERE phone = ?", [newDue, phone], (err2) => {
       if (err2) return res.status(500).json({ error: err2.message });
 
-      if (newDue === 0) {
-        db.run("UPDATE orders SET status = 'COMPLETED' WHERE customer_phone = ? AND status != 'COMPLETED'", [phone]);
-      }
-      console.log(`[KHATA CLEAR] Customer ${cust.name} paid Rs ${payAmt} via ${payment_mode || 'CASH'}. Remaining Due: Rs ${newDue}`);
+      db.run(
+        "UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE customer_phone = ? AND status != 'COMPLETED'",
+        [mode, phone],
+        (errOrd) => {
+          if (errOrd) console.error('Bulk order complete error:', errOrd.message);
+        }
+      );
+
+      console.log(`[KHATA CLEAR] Customer ${cust.name} paid Rs ${payAmt} via ${mode}. Remaining Due: Rs ${newDue}`);
       res.json({ success: true, remainingDue: newDue });
     });
   });
