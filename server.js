@@ -283,6 +283,93 @@ app.get('/api/orders/active', (req, res) => {
   });
 });
 
+// ================= DEDICATED DUE (KHATA) APIS FOR DUAL-VIEW =================
+
+// A. Due Orders ("By order" View)
+app.get('/api/due/orders', (req, res) => {
+  const query = `
+    SELECT 
+      id, order_type, table_no, customer_name, customer_phone, 
+      total, COALESCE(paid_amount, 0) as paid_amount,
+      (total - COALESCE(paid_amount, 0)) as due_amount,
+      payment_mode, status, created_at,
+      ROUND((JULIANDAY('now', 'localtime') - JULIANDAY(created_at))) as due_days,
+      ROUND((JULIANDAY('now', 'localtime') - JULIANDAY(created_at)) * 24) as due_hours
+    FROM orders
+    WHERE (payment_mode = 'DUE' OR status = 'DUE_PENDING' OR (payment_mode LIKE 'PARTIAL%' AND (total - COALESCE(paid_amount, 0)) > 0))
+      AND status != 'COMPLETED'
+    ORDER BY id DESC
+  `;
+
+  db.all(query, [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    const formatted = (rows || []).map(r => ({
+      ...r,
+      due_days: Math.max(0, Number(r.due_days) || 0),
+      due_hours: Math.max(0, Number(r.due_hours) || 0),
+      due_amount: Math.max(0, Number(r.due_amount) || 0)
+    }));
+    res.json(formatted);
+  });
+});
+
+// B. Due Customers Aggregated ("By customer" View)
+app.get('/api/due/customers', (req, res) => {
+  const query = `
+    SELECT 
+      COALESCE(customer_phone, 'WALK-IN') as phone,
+      COALESCE(MAX(customer_name), 'Valued Guest') as name,
+      COUNT(id) as total_orders,
+      SUM(total - COALESCE(paid_amount, 0)) as total_due,
+      MAX(ROUND((JULIANDAY('now', 'localtime') - JULIANDAY(created_at)))) as oldest_days,
+      GROUP_CONCAT(id) as order_ids
+    FROM orders
+    WHERE (payment_mode = 'DUE' OR status = 'DUE_PENDING' OR (payment_mode LIKE 'PARTIAL%' AND (total - COALESCE(paid_amount, 0)) > 0))
+      AND status != 'COMPLETED'
+    GROUP BY customer_phone
+    HAVING total_due > 0
+    ORDER BY total_due DESC
+  `;
+
+  db.all(query, [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    const formatted = (rows || []).map(r => ({
+      phone: r.phone,
+      name: r.name,
+      total_orders: Number(r.total_orders) || 0,
+      total_due: Math.max(0, Number(r.total_due) || 0),
+      oldest_days: Math.max(0, Number(r.oldest_days) || 0),
+      order_ids: r.order_ids ? r.order_ids.split(',').map(s => s.trim()) : []
+    }));
+    res.json(formatted);
+  });
+});
+
+// C. One-Click Customer Full Settlement (Settles all pending bills for a single customer)
+app.post('/api/due/settle-customer', (req, res) => {
+  const { phone, payment_mode } = req.body;
+  if (!phone) return res.status(400).json({ error: 'Customer phone required' });
+
+  const mode = payment_mode || 'CASH';
+
+  // Mark all pending orders for this customer as COMPLETED & fully paid
+  db.run(
+    `UPDATE orders 
+     SET status = 'COMPLETED', payment_mode = ?, paid_amount = total 
+     WHERE customer_phone = ? AND (payment_mode = 'DUE' OR status = 'DUE_PENDING' OR (total - COALESCE(paid_amount, 0)) > 0) AND status != 'COMPLETED'`,
+    [mode, phone],
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      
+      // Update customer table khata balance to 0
+      db.run("UPDATE customers SET due_balance = 0 WHERE phone = ?", [phone], () => {
+        console.log(`[FULL SETTLEMENT SUCCESS] Customer ${phone} all due bills closed via ${mode}`);
+        res.json({ success: true, message: `All bills cleared successfully via ${mode}` });
+      });
+    }
+  );
+});
+
 // DEDICATED SETTLED ORDER HISTORY API (STRICT: ONLY PROPERLY PAID / CLOSED ORDERS)
 app.get('/api/orders/history', (req, res) => {
   const { date } = req.query;
@@ -351,13 +438,7 @@ app.put('/api/orders/:id', (req, res) => {
 
     // FIX: Agar balance zero ho gaya (order settle ho gaya)
     if (finalRemaining === 0 && finalPaid > 0) {
-      // Agar kitchen se pehle hi ready tha ya order history se khola tha -> COMPLETED rakho taaki KDS par dobara na jaye
-      if (prevStatus === 'KOT_READY' || prevStatus === 'COMPLETED' || prevStatus === 'CLOSED') {
-        status = 'COMPLETED';
-      } else {
-        // Agar counter par pehli baar settle hua aur kitchen me abhi ban raha tha
-        status = 'COMPLETED';
-      }
+      status = 'COMPLETED';
     } else if (finalPaid > 0) {
       status = (prevStatus === 'KOT_READY') ? 'KOT_READY' : 'RUNNING_TABLE';
       finalMode = `PARTIAL (Paid: ₹${finalPaid}, Due: ₹${finalRemaining})`;
