@@ -290,7 +290,7 @@ app.get('/api/due/orders', (req, res) => {
     SELECT 
       id, order_type, table_no, customer_name, customer_phone, 
       total, COALESCE(paid_amount, 0) as paid_amount,
-      MAX(0, total - COALESCE(paid_amount, 0)) as due_amount,
+      GREATEST(0, total - COALESCE(paid_amount, 0)) as due_amount,
       payment_mode, status, created_at
     FROM orders
     WHERE status != 'COMPLETED'
@@ -334,7 +334,7 @@ app.get('/api/due/customers', (req, res) => {
     SELECT 
       COALESCE(NULLIF(customer_phone, ''), 'WALK-IN') as phone,
       COALESCE(NULLIF(MAX(customer_name), ''), 'Valued Guest') as name,
-      SUM(MAX(0, total - COALESCE(paid_amount, 0))) as total_due,
+      SUM(GREATEST(0, total - COALESCE(paid_amount, 0))) as total_due,
       COUNT(id) as total_orders,
       GROUP_CONCAT(id) as order_ids,
       MIN(created_at) as oldest_order_date
@@ -907,7 +907,7 @@ app.post('/api/settings', (req, res) => {
 app.get('/api/system/backup', (req, res) => res.download(path.join(__dirname, 'restaurant.db'), `POS_Backup_${new Date().toISOString().slice(0, 10)}.db`));
 
 app.post('/api/system/reset-orders', (req, res) => {
-  db.run(`DELETE FROM order_items WHERE order_id IN (
+  db.run(`sDELETE FROM order_items WHERE order_id IN (
     SELECT id FROM orders WHERE status = 'COMPLETED' AND payment_mode != 'DUE'
   )`, [], () => {
     db.run(`DELETE FROM orders WHERE status = 'COMPLETED' AND payment_mode != 'DUE'`, [], () => {
