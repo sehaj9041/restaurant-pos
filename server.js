@@ -244,12 +244,12 @@ app.delete('/api/menu/:id', (req, res) => {
   });
 });
 
-// 7. ACTIVE ORDERS (KITCHEN PREPARING AUR RUNNING ORDERS POS QUEUES MEIN DIKHENGE)
+// 7. ACTIVE ORDERS (RETAINS ALL NON-COMPLETED ORDERS ACROSS WORKFLOW STATES)
 app.get('/api/orders/active', (req, res) => {
   const query = `
     SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount
     FROM orders 
-    WHERE status IN ('RUNNING_TABLE', 'PENDING', 'DUE_PENDING', 'RUNNING', 'KOT_READY')
+    WHERE status != 'COMPLETED'
        OR order_type = 'Online'
     ORDER BY id DESC
   `;
@@ -291,9 +291,7 @@ app.get('/api/due/orders', (req, res) => {
       id, order_type, table_no, customer_name, customer_phone, 
       total, COALESCE(paid_amount, 0) as paid_amount,
       MAX(0, total - COALESCE(paid_amount, 0)) as due_amount,
-      payment_mode, status, created_at,
-      ROUND((JULIANDAY('now', 'localtime') - JULIANDAY(created_at))) as due_days,
-      ROUND((JULIANDAY('now', 'localtime') - JULIANDAY(created_at)) * 24) as due_hours
+      payment_mode, status, created_at
     FROM orders
     WHERE status != 'COMPLETED'
       AND (
@@ -308,50 +306,61 @@ app.get('/api/due/orders', (req, res) => {
 
   db.all(query, [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
-    const formatted = (rows || []).map(r => ({
-      ...r,
-      due_days: Math.max(0, Number(r.due_days) || 0),
-      due_hours: Math.max(0, Number(r.due_hours) || 0),
-      due_amount: (Number(r.due_amount) > 0) ? Number(r.due_amount) : Number(r.total)
-    }));
+    const now = new Date();
+    const formatted = (rows || []).map(r => {
+      const orderDate = r.created_at ? new Date(r.created_at) : now;
+      const diffMs = Math.max(0, now - orderDate);
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffDays = Math.floor(diffHours / 24);
+      const remainingDue = Math.max(0, Number(r.total) - Number(r.paid_amount || 0));
+
+      return {
+        ...r,
+        due_days: diffDays,
+        due_hours: diffHours,
+        due_amount: remainingDue > 0 ? remainingDue : Number(r.total)
+      };
+    });
     res.json(formatted);
   });
 });
 
-// B. Due Customers Aggregated ("By customer" View)
+// B. Due Customers Aggregated ("By customer" View - Direct Synced from customers table)
 app.get('/api/due/customers', (req, res) => {
   const query = `
     SELECT 
-      COALESCE(NULLIF(customer_phone, ''), 'WALK-IN') as phone,
-      COALESCE(NULLIF(MAX(customer_name), ''), 'Valued Guest') as name,
-      COUNT(id) as total_orders,
-      SUM(MAX(0, total - COALESCE(paid_amount, 0))) as total_due,
-      MAX(ROUND((JULIANDAY('now', 'localtime') - JULIANDAY(created_at)))) as oldest_days,
-      GROUP_CONCAT(id) as order_ids
-    FROM orders
-    WHERE status != 'COMPLETED'
-      AND (
-        UPPER(payment_mode) = 'DUE' 
-        OR status = 'DUE_PENDING'
-        OR (status = 'KOT_READY' AND UPPER(payment_mode) = 'DUE')
-        OR (UPPER(payment_mode) LIKE '%PARTIAL%' AND (total - COALESCE(paid_amount, 0)) > 0)
-        OR (UPPER(payment_mode) = 'UNPAID' AND (total - COALESCE(paid_amount, 0)) > 0)
-      )
-    GROUP BY COALESCE(NULLIF(customer_phone, ''), 'WALK-IN')
-    HAVING total_due > 0
-    ORDER BY total_due DESC
+      COALESCE(NULLIF(c.phone, ''), 'WALK-IN') as phone,
+      COALESCE(NULLIF(c.name, ''), 'Valued Guest') as name,
+      c.due_balance as total_due,
+      COUNT(o.id) as total_orders,
+      GROUP_CONCAT(o.id) as order_ids,
+      MIN(o.created_at) as oldest_order_date
+    FROM customers c
+    LEFT JOIN orders o ON o.customer_phone = c.phone AND o.status != 'COMPLETED'
+    WHERE c.due_balance > 0
+    GROUP BY c.phone
+    ORDER BY c.due_balance DESC
   `;
 
   db.all(query, [], (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    const formatted = (rows || []).map(r => ({
-      phone: r.phone,
-      name: r.name,
-      total_orders: Number(r.total_orders) || 0,
-      total_due: Number(r.total_due) || 0,
-      oldest_days: Math.max(0, Number(r.oldest_days) || 0),
-      order_ids: r.order_ids ? r.order_ids.split(',').map(s => s.trim()) : []
-    }));
+    if (err) {
+      console.error('Due customers fetch error:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+    const now = new Date();
+    const formatted = (rows || []).map(r => {
+      const oldestDate = r.oldest_order_date ? new Date(r.oldest_order_date) : now;
+      const diffDays = Math.floor(Math.max(0, now - oldestDate) / (1000 * 60 * 60 * 24));
+
+      return {
+        phone: r.phone,
+        name: r.name,
+        total_orders: Number(r.total_orders) || 1,
+        total_due: Number(r.total_due) || 0,
+        oldest_days: diffDays,
+        order_ids: r.order_ids ? r.order_ids.split(',').map(s => s.trim()) : []
+      };
+    });
     res.json(formatted);
   });
 });
@@ -361,20 +370,19 @@ app.post('/api/due/settle-customer', (req, res) => {
   const { phone, payment_mode } = req.body;
   if (!phone) return res.status(400).json({ error: 'Customer phone required' });
 
-  const mode = payment_mode || 'CASH';
+  const mode = (payment_mode || 'CASH').toUpperCase();
 
   db.run(
     `UPDATE orders 
      SET status = 'COMPLETED', payment_mode = ?, paid_amount = total 
      WHERE customer_phone = ? 
-       AND status != 'COMPLETED'
-       AND (UPPER(payment_mode) = 'DUE' OR status IN ('DUE_PENDING', 'KOT_READY') OR (total - COALESCE(paid_amount, 0)) > 0)`,
+       AND status != 'COMPLETED'`,
     [mode, phone],
     function (err) {
       if (err) return res.status(500).json({ error: err.message });
       
       db.run("UPDATE customers SET due_balance = 0 WHERE phone = ?", [phone], () => {
-        console.log(`[FULL SETTLEMENT SUCCESS] Customer ${phone} all due bills closed via ${mode}`);
+        console.log(`[FULL SETTLEMENT SUCCESS] Customer ${phone} balance cleared via ${mode}`);
         res.json({ success: true, message: `All bills cleared successfully via ${mode}` });
       });
     }
@@ -395,7 +403,7 @@ app.get('/api/orders/history', (req, res) => {
         OR (COALESCE(paid_amount, 0) >= total AND total > 0)
       )
       AND status NOT IN ('RUNNING_TABLE', 'PENDING', 'KOT_READY')
-      AND payment_mode != 'UNPAID'
+      AND UPPER(payment_mode) != 'UNPAID'
     ORDER BY id DESC
     LIMIT 200
   `;
@@ -424,7 +432,7 @@ app.get('/api/orders/history', (req, res) => {
   });
 });
 
-// Update Existing Order In-Place (LOCKED PAID AMOUNT PROTECTION & FIX KDS POPUP ON SETTLE)
+// Update Existing Order In-Place
 app.put('/api/orders/:id', (req, res) => {
   const orderId = req.params.id;
   const { order_type, table_no, customer_name, customer_phone, items, subtotal, discount, gst, total, payment_mode, paid_amount } = req.body;
@@ -581,35 +589,45 @@ app.post('/api/orders', async (req, res) => {
 app.post('/api/tables/:id/settle', (req, res) => {
   const { payment_mode } = req.body;
   const orderId = req.params.id;
+  const mode = (payment_mode || 'Cash').toUpperCase();
 
-  db.get("SELECT * FROM orders WHERE id = ?", [orderId], (err, order) => {
+  db.get("SELECT total, customer_phone, payment_mode FROM orders WHERE id = ?", [orderId], (err, order) => {
     if (err || !order) return res.status(404).json({ error: 'Order not found' });
     
-    if (payment_mode === 'DUE') {
-      const remainingDue = Math.max(0, Number(order.total) - (Number(order.paid_amount) || 0));
-      if (order.customer_phone && order.customer_phone.length >= 10) {
-        db.run("UPDATE customers SET due_balance = due_balance + ? WHERE phone = ?", [remainingDue, order.customer_phone]);
-      }
-      db.run("UPDATE orders SET status = 'DUE_PENDING', payment_mode = 'DUE' WHERE id = ?", [orderId], (err2) => {
-        if (err2) return res.status(500).json({ error: err2.message });
-        res.json({ success: true, duePending: true });
-      });
-    } else {
-      // PROPER SETTLEMENT (Cash / UPI / Card)
-      const remainingDue = Math.max(0, Number(order.total) - (Number(order.paid_amount) || 0));
-      if (order.payment_mode === 'DUE' && order.customer_phone && order.customer_phone.length >= 10) {
-        db.run("UPDATE customers SET due_balance = MAX(0, due_balance - ?) WHERE phone = ?", [remainingDue, order.customer_phone]);
-      }
-
-      db.run(
-        "UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE id = ?",
-        [payment_mode || 'Cash', orderId],
-        (err2) => {
-          if (err2) return res.status(500).json({ error: err2.message });
-          res.json({ success: true });
-        }
-      );
+    if (order.payment_mode === 'DUE' && order.customer_phone && order.customer_phone.length >= 10) {
+      db.run("UPDATE customers SET due_balance = MAX(0, due_balance - ?) WHERE phone = ?", [order.total, order.customer_phone]);
     }
+
+    db.run(
+      "UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE id = ?",
+      [mode, orderId],
+      (err2) => {
+        if (err2) return res.status(500).json({ error: err2.message });
+        console.log(`[ORDER SETTLED] Order #${orderId} paid via ${mode} and closed.`);
+        res.json({ success: true });
+      }
+    );
+  });
+});
+
+// Explicit Mark-Due route for manual queue shifts
+app.post('/api/orders/:id/mark-due', (req, res) => {
+  const orderId = req.params.id;
+  db.get("SELECT total, customer_phone FROM orders WHERE id = ?", [orderId], (err, order) => {
+    if (err || !order) return res.status(404).json({ error: 'Order not found' });
+
+    if (order.customer_phone && order.customer_phone.length >= 10) {
+      db.run("UPDATE customers SET due_balance = due_balance + ? WHERE phone = ?", [order.total, order.customer_phone]);
+    }
+
+    db.run(
+      "UPDATE orders SET status = 'DUE_PENDING', payment_mode = 'DUE' WHERE id = ?",
+      [orderId],
+      (err2) => {
+        if (err2) return res.status(500).json({ error: err2.message });
+        res.json({ success: true });
+      }
+    );
   });
 });
 
@@ -628,7 +646,7 @@ app.post('/api/customers/:phone/clear-due', (req, res) => {
       if (err2) return res.status(500).json({ error: err2.message });
 
       if (newDue === 0) {
-        db.run("UPDATE orders SET status = 'COMPLETED' WHERE customer_phone = ? AND status IN ('DUE_PENDING', 'KOT_READY')", [phone]);
+        db.run("UPDATE orders SET status = 'COMPLETED' WHERE customer_phone = ? AND status != 'COMPLETED'", [phone]);
       }
       console.log(`[KHATA CLEAR] Customer ${cust.name} paid Rs ${payAmt} via ${payment_mode || 'CASH'}. Remaining Due: Rs ${newDue}`);
       res.json({ success: true, remainingDue: newDue });
@@ -752,8 +770,7 @@ app.post('/api/printer/print-daily-summary', async (req, res) => {
   }
 });
 
-// 9. KITCHEN KOT API (o.created_at INCLUDED FOR KDS LIVE 00:00 TIMER)
-// 'KOT_READY' & 'COMPLETED' excluded so dispatched orders never reappear on KDS!
+// 9. KITCHEN KOT API
 app.get('/api/kot', (req, res) => {
   db.all(
     `SELECT o.id, o.order_type, o.table_no, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
@@ -797,14 +814,9 @@ app.post('/api/kot/:id/complete', (req, res) => {
     const paid = Number(order.paid_amount) || 0;
     const isFullyPaid = (paid >= total && total > 0);
 
-    // 1. Agar payment pehle se completely receive ho chuki hai
     if (isFullyPaid) {
       db.run("UPDATE orders SET status = 'COMPLETED' WHERE id = ?", [orderId], () => res.json({ success: true }));
-    } 
-    // 2. Agar order DUE hai ya PARTIAL / UNPAID hai:
-    // Kitchen display se hatane ke liye 'KOT_READY' banega
-    // Isse KDS se gayab ho jayega par POS Active screen aur Due Khata screen par bilkul safe rahega!
-    else {
+    } else {
       db.run("UPDATE orders SET status = 'KOT_READY' WHERE id = ?", [orderId], () => res.json({ success: true }));
     }
   });
@@ -835,7 +847,7 @@ app.post('/api/expenses', (req, res) => {
   );
 });
 
-// 10. ADVANCED MULTI-DIMENSIONAL REPORTS API WITH FULL ITEMS EMBEDDED
+// 10. REPORTS ANALYTICS
 app.get('/api/reports/analytics', (req, res) => {
   const { startDate, endDate } = req.query;
   const start = startDate ? startDate : new Date().toISOString().slice(0, 10);
