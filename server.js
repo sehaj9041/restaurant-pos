@@ -244,7 +244,7 @@ app.delete('/api/menu/:id', (req, res) => {
   });
 });
 
-// 7. ACTIVE ORDERS (RETAINS ALL NON-COMPLETED ORDERS ACROSS WORKFLOW STATES)
+// 7. ACTIVE ORDERS
 app.get('/api/orders/active', (req, res) => {
   const query = `
     SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount
@@ -282,7 +282,7 @@ app.get('/api/orders/active', (req, res) => {
   });
 });
 
-// ================= DEDICATED DUE (KHATA) APIS FOR DUAL-VIEW =================
+// ================= DEDICATED DUE (KHATA) APIS (DIRECT FROM ORDERS TABLE) =================
 
 // A. Due Orders ("By order" View)
 app.get('/api/due/orders', (req, res) => {
@@ -305,7 +305,10 @@ app.get('/api/due/orders', (req, res) => {
   `;
 
   db.all(query, [], (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
+    if (err) {
+      console.error('Due orders fetch error:', err.message);
+      return res.json([]);
+    }
     const now = new Date();
     const formatted = (rows || []).map(r => {
       const orderDate = r.created_at ? new Date(r.created_at) : now;
@@ -325,27 +328,34 @@ app.get('/api/due/orders', (req, res) => {
   });
 });
 
-// B. Due Customers Aggregated ("By customer" View - Direct Synced from customers table)
+// B. Due Customers Aggregated ("By customer" View - Direct from Orders table)
 app.get('/api/due/customers', (req, res) => {
   const query = `
     SELECT 
-      COALESCE(NULLIF(c.phone, ''), 'WALK-IN') as phone,
-      COALESCE(NULLIF(c.name, ''), 'Valued Guest') as name,
-      c.due_balance as total_due,
-      COUNT(o.id) as total_orders,
-      GROUP_CONCAT(o.id) as order_ids,
-      MIN(o.created_at) as oldest_order_date
-    FROM customers c
-    LEFT JOIN orders o ON o.customer_phone = c.phone AND o.status != 'COMPLETED'
-    WHERE c.due_balance > 0
-    GROUP BY c.phone
-    ORDER BY c.due_balance DESC
+      COALESCE(NULLIF(customer_phone, ''), 'WALK-IN') as phone,
+      COALESCE(NULLIF(MAX(customer_name), ''), 'Valued Guest') as name,
+      SUM(MAX(0, total - COALESCE(paid_amount, 0))) as total_due,
+      COUNT(id) as total_orders,
+      GROUP_CONCAT(id) as order_ids,
+      MIN(created_at) as oldest_order_date
+    FROM orders
+    WHERE status != 'COMPLETED'
+      AND (
+        UPPER(payment_mode) = 'DUE' 
+        OR status = 'DUE_PENDING'
+        OR (status = 'KOT_READY' AND UPPER(payment_mode) = 'DUE')
+        OR (UPPER(payment_mode) LIKE '%PARTIAL%' AND (total - COALESCE(paid_amount, 0)) > 0)
+        OR (UPPER(payment_mode) = 'UNPAID' AND (total - COALESCE(paid_amount, 0)) > 0)
+      )
+    GROUP BY COALESCE(NULLIF(customer_phone, ''), 'WALK-IN')
+    HAVING total_due > 0
+    ORDER BY total_due DESC
   `;
 
   db.all(query, [], (err, rows) => {
     if (err) {
       console.error('Due customers fetch error:', err.message);
-      return res.status(500).json({ error: err.message });
+      return res.json([]);
     }
     const now = new Date();
     const formatted = (rows || []).map(r => {
@@ -380,11 +390,8 @@ app.post('/api/due/settle-customer', (req, res) => {
     [mode, phone],
     function (err) {
       if (err) return res.status(500).json({ error: err.message });
-      
-      db.run("UPDATE customers SET due_balance = 0 WHERE phone = ?", [phone], () => {
-        console.log(`[FULL SETTLEMENT SUCCESS] Customer ${phone} balance cleared via ${mode}`);
-        res.json({ success: true, message: `All bills cleared successfully via ${mode}` });
-      });
+      console.log(`[FULL SETTLEMENT SUCCESS] Customer ${phone} bills cleared via ${mode}`);
+      res.json({ success: true, message: `All bills cleared successfully via ${mode}` });
     }
   );
 });
@@ -555,24 +562,6 @@ app.post('/api/orders', async (req, res) => {
         }
       }
 
-      if (customer_phone) {
-        const dueIncrement = (payment_mode === 'DUE') ? total : 0;
-        await new Promise((resolve) => {
-          db.run(
-            `INSERT INTO customers (phone, name, total_spent, due_balance, orders_count, last_visit)
-             VALUES (?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
-             ON CONFLICT (phone) DO UPDATE SET
-               name = COALESCE(EXCLUDED.name, customers.name),
-               total_spent = customers.total_spent + EXCLUDED.total_spent,
-               due_balance = customers.due_balance + ?,
-               orders_count = customers.orders_count + 1,
-               last_visit = CURRENT_TIMESTAMP`,
-            [customer_phone, customer_name || 'Valued Guest', total, dueIncrement, dueIncrement],
-            () => resolve()
-          );
-        });
-      }
-
       res.json({ success: true, orderId: orderId, paid_amount: initialPaid });
     } catch (itemErr) {
       console.error('Order items insert error:', itemErr.message);
@@ -592,10 +581,6 @@ app.post('/api/tables/:id/settle', (req, res) => {
     
     const total = Number(order.total) || 0;
 
-    if (order.customer_phone && order.customer_phone.length >= 10) {
-      db.run("UPDATE customers SET due_balance = MAX(0, due_balance - ?), total_spent = total_spent + ? WHERE phone = ?", [total, total, order.customer_phone]);
-    }
-
     db.run(
       "UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = ? WHERE id = ?",
       [mode, total, orderId],
@@ -614,51 +599,14 @@ app.post('/api/tables/:id/settle', (req, res) => {
 // Explicit Mark-Due route for manual queue shifts
 app.post('/api/orders/:id/mark-due', (req, res) => {
   const orderId = req.params.id;
-  db.get("SELECT total, customer_phone FROM orders WHERE id = ?", [orderId], (err, order) => {
-    if (err || !order) return res.status(404).json({ error: 'Order not found' });
-
-    if (order.customer_phone && order.customer_phone.length >= 10) {
-      db.run("UPDATE customers SET due_balance = due_balance + ? WHERE phone = ?", [order.total, order.customer_phone]);
-    }
-
-    db.run(
-      "UPDATE orders SET status = 'DUE_PENDING', payment_mode = 'DUE' WHERE id = ?",
-      [orderId],
-      (err2) => {
-        if (err2) return res.status(500).json({ error: err2.message });
-        res.json({ success: true });
-      }
-    );
-  });
-});
-
-// Clear Customer Due from Directory
-app.post('/api/customers/:phone/clear-due', (req, res) => {
-  const { amount_paid, payment_mode } = req.body;
-  const phone = req.params.phone;
-  const mode = (payment_mode || 'CASH').toUpperCase();
-
-  db.get("SELECT due_balance, name FROM customers WHERE phone = ?", [phone], (err, cust) => {
-    if (err || !cust) return res.status(404).json({ error: 'Customer not found' });
-
-    const payAmt = Number(amount_paid) || cust.due_balance;
-    const newDue = Math.max(0, cust.due_balance - payAmt);
-
-    db.run("UPDATE customers SET due_balance = ? WHERE phone = ?", [newDue, phone], (err2) => {
+  db.run(
+    "UPDATE orders SET status = 'DUE_PENDING', payment_mode = 'DUE' WHERE id = ?",
+    [orderId],
+    (err2) => {
       if (err2) return res.status(500).json({ error: err2.message });
-
-      db.run(
-        "UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE customer_phone = ? AND status != 'COMPLETED'",
-        [mode, phone],
-        (errOrd) => {
-          if (errOrd) console.error('Bulk order complete error:', errOrd.message);
-        }
-      );
-
-      console.log(`[KHATA CLEAR] Customer ${cust.name} paid Rs ${payAmt} via ${mode}. Remaining Due: Rs ${newDue}`);
-      res.json({ success: true, remainingDue: newDue });
-    });
-  });
+      res.json({ success: true });
+    }
+  );
 });
 
 // 8. ROBUST THERMAL PRINTER AUTOMATION & VIRTUAL SIMULATOR
@@ -937,7 +885,7 @@ app.get('/api/reports/analytics', (req, res) => {
   });
 });
 
-app.post('/api/verify-pin', (req, res) => {
+app.post('/api/verify-pin',, (req, res) => {
   db.get("SELECT admin_pin FROM settings WHERE id = 1", [], (err, row) => {
     res.json({ valid: req.body.pin === ((row && row.admin_pin) ? row.admin_pin : '1234') });
   });
@@ -966,7 +914,7 @@ app.post('/api/system/reset-orders', (req, res) => {
       db.run("DELETE FROM expenses", [], () => {
         db.run("DELETE FROM customers WHERE due_balance <= 0", [], () => {
           console.log("[SAFE RESET] Sales reset completed. Due orders preserved.");
-          res.json({ success: true, message: "Settled sales deleted. All Due orders preserved." });
+          res.json({ success: { status: true }, message: "Settled sales deleted. All Due orders preserved." });
         });
       });
     });
