@@ -389,7 +389,7 @@ app.post('/api/due/settle-customer', (req, res) => {
   );
 });
 
-// DEDICATED SETTLED ORDER HISTORY API (STRICT: ONLY PROPERLY PAID / CLOSED ORDERS)
+// DEDICATED SETTLED ORDER HISTORY API (FOOLPROOF: RELAXED FILTER)
 app.get('/api/orders/history', (req, res) => {
   const { date } = req.query;
   const filterDate = date ? date : new Date().toISOString().slice(0, 10);
@@ -397,18 +397,14 @@ app.get('/api/orders/history', (req, res) => {
   const query = `
     SELECT id, order_type, table_no, customer_name, customer_phone, payment_mode, status, subtotal, discount, gst, total, COALESCE(paid_amount, total) as paid_amount, created_at
     FROM orders 
-    WHERE (DATE(created_at) = DATE(?) OR created_at::date = ?::date)
-      AND (
-        status IN ('COMPLETED', 'CLOSED') 
-        OR (COALESCE(paid_amount, 0) >= total AND total > 0)
-      )
-      AND status NOT IN ('RUNNING_TABLE', 'PENDING', 'KOT_READY')
-      AND UPPER(payment_mode) != 'UNPAID'
+    WHERE status = 'COMPLETED' 
+       OR UPPER(payment_mode) IN ('CASH', 'UPI', 'CARD', 'PAID')
+       OR COALESCE(paid_amount, 0) >= total
     ORDER BY id DESC
     LIMIT 200
   `;
 
-  db.all(query, [filterDate, filterDate], async (err, orders) => {
+  db.all(query, [], async (err, orders) => {
     if (err) {
       console.error('Order history query error:', err.message);
       return res.status(500).json({ error: err.message });
@@ -585,30 +581,30 @@ app.post('/api/orders', async (req, res) => {
   });
 });
 
-// SETTLE ORDER API: DUE ORDER SETTLE HONE PAR KHATA MINUS HOGA AUR STATUS COMPLETED HOGA
+// SETTLE ORDER API: FOOLPROOF SETTLEMENT LOGIC
 app.post('/api/tables/:id/settle', (req, res) => {
   const { payment_mode } = req.body;
   const orderId = req.params.id;
   const mode = (payment_mode || 'Cash').toUpperCase();
 
-  db.get("SELECT total, customer_phone, payment_mode, paid_amount FROM orders WHERE id = ?", [orderId], (err, order) => {
+  db.get("SELECT * FROM orders WHERE id = ?", [orderId], (err, order) => {
     if (err || !order) return res.status(404).json({ error: 'Order not found' });
     
-    // Khata balance minus karein agr customer phone available hai
     const total = Number(order.total) || 0;
-    const paid = Number(order.paid_amount) || 0;
-    const remainingDue = Math.max(0, total - paid);
 
     if (order.customer_phone && order.customer_phone.length >= 10) {
-      db.run("UPDATE customers SET due_balance = MAX(0, due_balance - ?), total_spent = total_spent + ? WHERE phone = ?", [remainingDue > 0 ? remainingDue : total, total, order.customer_phone]);
+      db.run("UPDATE customers SET due_balance = MAX(0, due_balance - ?), total_spent = total_spent + ? WHERE phone = ?", [total, total, order.customer_phone]);
     }
 
     db.run(
-      "UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE id = ?",
-      [mode, orderId],
+      "UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = ? WHERE id = ?",
+      [mode, total, orderId],
       (err2) => {
-        if (err2) return res.status(500).json({ error: err2.message });
-        console.log(`[ORDER SETTLED & CLOSED] Order #${orderId} paid via ${mode} and closed.`);
+        if (err2) {
+          console.error('[SETTLE ERROR]:', err2.message);
+          return res.status(500).json({ error: err2.message });
+        }
+        console.log(`[SUCCESSFULLY SETTLED] Order #${orderId} marked COMPLETED via ${mode}.`);
         res.json({ success: true });
       }
     );
