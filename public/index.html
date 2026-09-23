@@ -521,7 +521,7 @@
               <span>Method 1</span>
             </div>
             <div class="grid grid-cols-4 gap-1">
-              <button onclick="setSplitMethodType(1, 'Cash')" id="splitM1_Cash" class="border border-orange-400 bg-orange-50 text-orange-700 font-bold py-1 rounded text-[10px]">Cash</button>
+              <button onclick="setSplitMethodType(1, 'Cash')" id="splitM1_Cash" class="border border-orange-400 bg-orange-50 text-orange-700 font-bold py-1 rounded-text-[10px]">Cash</button>
               <button onclick="setSplitMethodType(1, 'UPI')" id="splitM1_UPI" class="border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold py-1 rounded text-[10px]">UPI</button>
               <button onclick="setSplitMethodType(1, 'Card')" id="splitM1_Card" class="border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold py-1 rounded text-[10px]">Card</button>
               <button onclick="setSplitMethodType(1, 'DUE')" id="splitM1_DUE" class="border border-gray-200 hover:bg-gray-50 text-rose-600 font-bold py-1 rounded text-[10px]">Due</button>
@@ -1554,10 +1554,10 @@
         `;
       }
 
+      // Takeaway Queue: Jab tak kitchen se dispatch nahi hota (status !== 'KOT_READY' & status !== 'COMPLETED'), tab tak counter par dikhega!
       var takeawayOrders = allActiveOrders.filter(function(o) { 
-        var isDue = (o.payment_mode === 'DUE' || o.status === 'DUE_PENDING');
-        var isDispatched = (o.status === 'KOT_READY');
-        return o.order_type === 'Takeaway' && !isDue && !isDispatched; 
+        var isDispatched = (o.status === 'KOT_READY' || o.status === 'COMPLETED');
+        return o.order_type === 'Takeaway' && !isDispatched; 
       });
 
       document.getElementById('takeawayQueueBadge').innerText = takeawayOrders.length;
@@ -1565,10 +1565,10 @@
       if (!takeawayOrders.length) tList.innerHTML = '<p class="text-xs text-gray-400 italic text-center py-6">No takeaway orders in queue</p>';
       else tList.innerHTML = takeawayOrders.map(buildOrderActionCard).join('');
 
+      // Delivery Queue: Jab tak kitchen se dispatch nahi hota tab tak counter par dikhega!
       var deliveryOrders = allActiveOrders.filter(function(o) { 
-        var isDue = (o.payment_mode === 'DUE' || o.status === 'DUE_PENDING');
-        var isDispatched = (o.status === 'KOT_READY');
-        return o.order_type === 'Delivery' && !isDue && !isDispatched; 
+        var isDispatched = (o.status === 'KOT_READY' || o.status === 'COMPLETED');
+        return o.order_type === 'Delivery' && !isDispatched; 
       });
 
       document.getElementById('deliveryQueueBadge').innerText = deliveryOrders.length;
