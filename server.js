@@ -249,7 +249,7 @@ app.get('/api/orders/active', (req, res) => {
   const query = `
     SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount
     FROM orders 
-    WHERE status IN ('RUNNING_TABLE', 'PENDING', 'DUE_PENDING', 'RUNNING', 'KITCHEN_ACTIVE', 'KOT_READY') 
+    WHERE status IN ('RUNNING_TABLE', 'PENDING', 'DUE_PENDING', 'RUNNING', 'KOT_READY') 
        OR order_type = 'Online' 
        OR payment_mode = 'Due'
     ORDER BY id DESC
@@ -326,13 +326,15 @@ app.get('/api/orders/history', (req, res) => {
   });
 });
 
-// Update Existing Order In-Place (LOCKED PAID AMOUNT PROTECTION & KITCHEN SYNC)
+// Update Existing Order In-Place (LOCKED PAID AMOUNT PROTECTION & FIX KDS POPUP ON SETTLE)
 app.put('/api/orders/:id', (req, res) => {
   const orderId = req.params.id;
   const { order_type, table_no, customer_name, customer_phone, items, subtotal, discount, gst, total, payment_mode, paid_amount } = req.body;
 
   db.get("SELECT total, paid_amount, payment_mode, status FROM orders WHERE id = ?", [orderId], (errGet, currentOrder) => {
     let prevPaid = 0;
+    let prevStatus = currentOrder ? currentOrder.status : 'RUNNING_TABLE';
+
     if (currentOrder) {
       prevPaid = Number(currentOrder.paid_amount) || 0;
       if (prevPaid === 0 && currentOrder.payment_mode && currentOrder.payment_mode !== 'UNPAID' && currentOrder.payment_mode !== 'DUE' && !currentOrder.payment_mode.includes('PARTIAL')) {
@@ -347,10 +349,17 @@ app.put('/api/orders/:id', (req, res) => {
     let status = 'RUNNING_TABLE';
     let finalMode = payment_mode;
 
+    // FIX: Agar balance zero ho gaya (order settle ho gaya)
     if (finalRemaining === 0 && finalPaid > 0) {
-      status = 'KITCHEN_ACTIVE';
+      // Agar kitchen se pehle hi ready tha ya order history se khola tha -> COMPLETED rakho taaki KDS par dobara na jaye
+      if (prevStatus === 'KOT_READY' || prevStatus === 'COMPLETED' || prevStatus === 'CLOSED') {
+        status = 'COMPLETED';
+      } else {
+        // Agar counter par pehli baar settle hua aur kitchen me abhi ban raha tha
+        status = 'COMPLETED';
+      }
     } else if (finalPaid > 0) {
-      status = 'RUNNING_TABLE';
+      status = (prevStatus === 'KOT_READY') ? 'KOT_READY' : 'RUNNING_TABLE';
       finalMode = `PARTIAL (Paid: ₹${finalPaid}, Due: ₹${finalRemaining})`;
     } else if (payment_mode === 'DUE') {
       status = 'DUE_PENDING';
@@ -395,8 +404,6 @@ app.post('/api/orders', async (req, res) => {
     status = 'RUNNING_TABLE';
   } else if (payment_mode === 'DUE') {
     status = 'DUE_PENDING';
-  } else if (initialPaid >= Number(total) && Number(total) > 0) {
-    status = 'KITCHEN_ACTIVE';
   }
 
   const insertOrderQuery = `
@@ -479,7 +486,7 @@ app.post('/api/orders', async (req, res) => {
   });
 });
 
-// SETTLE ORDER API: Settle hone par status COMPLETED hoga taaki KDS par dobara na jaye
+// SETTLE ORDER API: Settle hone par direct status COMPLETED hoga
 app.post('/api/tables/:id/settle', (req, res) => {
   const { payment_mode } = req.body;
   db.get("SELECT * FROM orders WHERE id = ?", [req.params.id], (err, order) => {
@@ -644,11 +651,12 @@ app.post('/api/printer/print-daily-summary', async (req, res) => {
 });
 
 // 9. KITCHEN KOT API (o.created_at INCLUDED FOR KDS LIVE 00:00 TIMER)
+// Strict: 'KITCHEN_ACTIVE' removed so settled orders never pop back up!
 app.get('/api/kot', (req, res) => {
   db.all(
     `SELECT o.id, o.order_type, o.table_no, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
      FROM orders o 
-     WHERE o.status IN ('PENDING', 'RUNNING_TABLE', 'DUE_PENDING', 'RUNNING', 'KITCHEN_ACTIVE') 
+     WHERE o.status IN ('PENDING', 'RUNNING_TABLE', 'DUE_PENDING', 'RUNNING') 
      ORDER BY o.id ASC`,
     [],
     async (err, orders) => {
