@@ -570,6 +570,42 @@
     </div>
   </div>
 
+  <!-- ================= SINGLE ORDER QUICK SETTLE MODAL ================= -->
+  <div id="modalSingleOrderSettle" class="fixed inset-0 bg-black/40 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-4 space-y-3.5 border border-gray-200 animate-in fade-in zoom-in duration-150">
+      <div class="flex justify-between items-center border-b border-gray-100 pb-2">
+        <span class="font-black text-gray-800 text-xs flex items-center gap-1.5"><span>⚡</span> Quick Settle Order</span>
+        <button onclick="closeSingleOrderSettleModal()" class="text-gray-400 hover:text-gray-600 font-black text-sm">✕</button>
+      </div>
+
+      <div class="bg-orange-50/60 border border-orange-200 rounded-xl p-3 space-y-1">
+        <div class="text-[11px] font-bold text-gray-500">Order: <b id="lblSingleSettleOrderId" class="text-gray-900 font-black">---</b></div>
+        <div class="text-[10px] text-gray-400">Customer: <span id="lblSingleSettleCustomer" class="font-bold text-gray-700">---</span></div>
+        <div class="text-xs font-bold text-gray-700 pt-1 flex justify-between border-t border-orange-200/60 mt-1">
+          <span>Amount to Settle:</span>
+          <span id="lblSingleSettleAmount" class="font-black text-emerald-700 text-base">₹0.00</span>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-[10px] font-black uppercase text-gray-400 mb-1.5">PAYMENT MODE</label>
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" onclick="setSingleOrderSettleMode('CASH')" id="btnSingleSettleCash" class="border-2 border-emerald-500 bg-emerald-50 text-emerald-800 font-black py-2 rounded-xl text-xs flex items-center justify-center gap-1 shadow-2xs">
+            💵 Cash
+          </button>
+          <button type="button" onclick="setSingleOrderSettleMode('UPI')" id="btnSingleSettleUPI" class="border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1 shadow-2xs">
+            📲 UPI / QR
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 pt-2">
+        <button onclick="closeSingleOrderSettleModal()" class="border border-gray-300 hover:bg-gray-100 text-gray-700 py-2.5 rounded-xl text-xs font-black transition">Cancel</button>
+        <button onclick="confirmSingleOrderSettleExecute()" class="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white py-2.5 rounded-xl text-xs font-black transition shadow-sm">Settle & Close</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ================= ONE-CLICK CUSTOMER SETTLE DUE MODAL ================= -->
   <div id="modalSettleCustomerDue" class="fixed inset-0 bg-black/40 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-4 space-y-3.5 border border-gray-200 animate-in fade-in zoom-in duration-150">
@@ -751,6 +787,9 @@
     var splitMethod1 = 'Cash';
     var splitMethod2 = 'UPI';
 
+    var targetSingleSettleOrderId = null;
+    var targetSingleSettleMode = 'CASH';
+
     var targetCustomerSettlePhone = '';
     var targetCustomerSettleMode = 'CASH';
 
@@ -881,7 +920,6 @@
     }
 
     function loadDueOrdersData() {
-      // 1. Load by order
       fetch('/api/due/orders')
         .then(function(r){ return r.json(); })
         .then(function(orders){
@@ -889,7 +927,6 @@
           renderDueOrdersList();
         });
 
-      // 2. Load by customer
       fetch('/api/due/customers')
         .then(function(r){ return r.json(); })
         .then(function(customers){
@@ -980,7 +1017,6 @@
               <button onclick="promptWhatsAppReminder('${c.phone}', '${c.name}', ${c.total_due})" class="border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-2xs flex items-center gap-1">
                 <span>💬</span> Remind
               </button>
-              <!-- ONE-CLICK COMPLETE SETTLEMENT BUTTON -->
               <button onclick="openCustomerSettleModal('${c.phone}', '${c.name.replace(/'/g, "\\'")}', ${c.total_due})" class="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4 py-1.5 rounded-lg text-xs transition shadow-2xs flex items-center gap-1">
                 <span>✓</span> Settle All Due
               </button>
@@ -997,6 +1033,63 @@
       window.open(`https://wa.me/91${cleanPhone.slice(-10)}?text=${text}`, '_blank');
     }
 
+    // ================= SINGLE ORDER QUICK SETTLE LOGIC =================
+    function actionSettlePopup(orderId) {
+      var ord = allActiveOrders.find(function(o) { return o.id === orderId; }) || 
+                dueOrdersList.find(function(o) { return o.id === orderId; });
+      if (!ord) return;
+
+      targetSingleSettleOrderId = orderId;
+      targetSingleSettleMode = 'CASH';
+
+      var total = Number(ord.total) || 0;
+      var paid = Number(ord.paid_amount) || Number(ord.already_paid) || 0;
+      var payable = (ord.due_amount !== undefined) ? Number(ord.due_amount) : Math.max(0, total - paid);
+
+      document.getElementById('lblSingleSettleOrderId').innerText = 'ORD-' + orderId;
+      document.getElementById('lblSingleSettleCustomer').innerText = ord.customer_name || 'Walk-in';
+      document.getElementById('lblSingleSettleAmount').innerText = '₹' + payable.toLocaleString();
+
+      setSingleOrderSettleMode('CASH');
+      document.getElementById('modalSingleOrderSettle').classList.remove('hidden');
+    }
+
+    function closeSingleOrderSettleModal() {
+      document.getElementById('modalSingleOrderSettle').classList.add('hidden');
+    }
+
+    function setSingleOrderSettleMode(mode) {
+      targetSingleSettleMode = mode;
+      var btnCash = document.getElementById('btnSingleSettleCash');
+      var btnUPI = document.getElementById('btnSingleSettleUPI');
+      if (mode === 'CASH') {
+        btnCash.className = "border-2 border-emerald-500 bg-emerald-50 text-emerald-800 font-black py-2 rounded-xl text-xs flex items-center justify-center gap-1 shadow-2xs";
+        btnUPI.className = "border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1 shadow-2xs";
+      } else {
+        btnUPI.className = "border-2 border-blue-500 bg-blue-50 text-blue-800 font-black py-2 rounded-xl text-xs flex items-center justify-center gap-1 shadow-2xs";
+        btnCash.className = "border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1 shadow-2xs";
+      }
+    }
+
+    function confirmSingleOrderSettleExecute() {
+      if (!targetSingleSettleOrderId) return;
+
+      fetch('/api/tables/' + targetSingleSettleOrderId + '/settle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payment_mode: targetSingleSettleMode })
+      })
+      .then(function(r){ return r.json(); })
+      .then(function(res){
+        closeSingleOrderSettleModal();
+        if (targetSingleSettleMode === 'CASH') openCashDrawer();
+        fetchActiveOrders();
+        if (typeof loadDueOrdersData === 'function') loadDueOrdersData();
+        if (typeof loadSettledOrderHistory === 'function') loadSettledOrderHistory();
+      });
+    }
+
+    // ================= CUSTOMER FULL KHATA SETTLE MODAL =================
     function openCustomerSettleModal(phone, name, amount) {
       targetCustomerSettlePhone = phone;
       targetCustomerSettleMode = 'CASH';
@@ -1324,10 +1417,14 @@
       var deliveryCount = allActiveOrders.filter(function(o) { return o.order_type === 'Delivery'; }).length;
       document.getElementById('metricDeliveryCount').innerText = deliveryCount;
 
-      var dueOrders = allActiveOrders.filter(function(o) { return o.payment_mode === 'DUE' || o.status === 'DUE_PENDING'; });
-      document.getElementById('filterDueCount').innerText = dueOrders.length;
-      var dueSum = dueOrders.reduce(function(s, o) { return s + (Number(o.total) || 0); }, 0);
-      document.getElementById('filterDueTotal').innerText = '₹' + dueSum;
+      fetch('/api/due/orders')
+        .then(function(r){ return r.json(); })
+        .then(function(dues){
+          var dueCount = (dues || []).length;
+          var dueSum = (dues || []).reduce(function(s, o) { return s + (Number(o.due_amount) || 0); }, 0);
+          document.getElementById('filterDueCount').innerText = dueCount;
+          document.getElementById('filterDueTotal').innerText = '₹' + dueSum.toLocaleString();
+        }).catch(function(){});
 
       fetch('/api/orders/today-stats')
         .then(function(r){ return r.json(); })
@@ -1457,13 +1554,23 @@
         `;
       }
 
-      var takeawayOrders = allActiveOrders.filter(function(o) { return o.order_type === 'Takeaway'; });
+      var takeawayOrders = allActiveOrders.filter(function(o) { 
+        var isDue = (o.payment_mode === 'DUE' || o.status === 'DUE_PENDING');
+        var isDispatched = (o.status === 'KOT_READY');
+        return o.order_type === 'Takeaway' && !isDue && !isDispatched; 
+      });
+
       document.getElementById('takeawayQueueBadge').innerText = takeawayOrders.length;
       var tList = document.getElementById('takeawayQueueList');
       if (!takeawayOrders.length) tList.innerHTML = '<p class="text-xs text-gray-400 italic text-center py-6">No takeaway orders in queue</p>';
       else tList.innerHTML = takeawayOrders.map(buildOrderActionCard).join('');
 
-      var deliveryOrders = allActiveOrders.filter(function(o) { return o.order_type === 'Delivery'; });
+      var deliveryOrders = allActiveOrders.filter(function(o) { 
+        var isDue = (o.payment_mode === 'DUE' || o.status === 'DUE_PENDING');
+        var isDispatched = (o.status === 'KOT_READY');
+        return o.order_type === 'Delivery' && !isDue && !isDispatched; 
+      });
+
       document.getElementById('deliveryQueueBadge').innerText = deliveryOrders.length;
       var dList = document.getElementById('deliveryQueueList');
       if (!deliveryOrders.length) dList.innerHTML = '<p class="text-xs text-gray-400 italic text-center py-6">No delivery orders in queue</p>';
@@ -1535,11 +1642,6 @@
         return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1 };
       });
       renderPOSCart();
-    }
-
-    function actionSettlePopup(orderId) {
-      actionEditAddItems(orderId);
-      switchRightTab('SUMMARY');
     }
 
     function actionMarkDue(orderId) {
