@@ -932,9 +932,13 @@
           dueOrdersList = orders || [];
           var totalDueSum = dueOrdersList.reduce(function(s, o) { return s + (Number(o.due_amount) || 0); }, 0);
           
-          document.getElementById('filterDueCount').innerText = dueOrdersList.length;
-          document.getElementById('filterDueTotal').innerText = '₹' + totalDueSum.toLocaleString();
-          document.getElementById('dueHeaderTotalLabel').innerText = '₹' + totalDueSum.toLocaleString();
+          var filterDueCountEl = document.getElementById('filterDueCount');
+          var filterDueTotalEl = document.getElementById('filterDueTotal');
+          var dueHeaderTotalLabelEl = document.getElementById('dueHeaderTotalLabel');
+
+          if (filterDueCountEl) filterDueCountEl.innerText = dueOrdersList.length;
+          if (filterDueTotalEl) filterDueTotalEl.innerText = '₹' + totalDueSum.toLocaleString();
+          if (dueHeaderTotalLabelEl) dueHeaderTotalLabelEl.innerText = '₹' + totalDueSum.toLocaleString();
 
           renderDueOrdersList();
         })
@@ -951,6 +955,7 @@
 
     function renderDueOrdersList() {
       var container = document.getElementById('dueOrderList');
+      if (!container) return;
       if (!dueOrdersList || dueOrdersList.length === 0) {
         container.innerHTML = '<p class="text-center py-16 text-gray-400 font-bold italic text-xs">No pending due orders found</p>';
         return;
@@ -994,6 +999,7 @@
 
     function renderDueCustomersList() {
       var container = document.getElementById('dueCustomerList');
+      if (!container) return;
       if (!dueCustomersList || dueCustomersList.length === 0) {
         container.innerHTML = '<p class="text-center py-16 text-gray-400 font-bold italic text-xs">No pending customer dues found</p>';
         return;
@@ -1513,7 +1519,7 @@
           statusTag = `Partially Paid (Due: ₹${remainingDue})`;
           tagBg = 'bg-amber-100 text-amber-900';
         } else {
-          statusTag = (o.payment_mode === 'DUE') ? 'Due' : 'Unpaid';
+          statusTag = (o.payment_mode === 'DUE' || o.status === 'DUE_PENDING') ? 'Due' : 'Unpaid';
           tagBg = 'bg-amber-100 text-amber-900';
         }
 
@@ -1556,7 +1562,7 @@
         `;
       }
 
-      // Takeaway Queue: Jab tak kitchen se dispatch nahi hota (status !== 'KOT_READY' & status !== 'COMPLETED'), tab tak counter par dikhega!
+      // Takeaway Queue: Jab tak kitchen se ready/dispatched nahi hota, counter par visible rahega
       var takeawayOrders = allActiveOrders.filter(function(o) { 
         var isDispatched = (o.status === 'KOT_READY' || o.status === 'COMPLETED');
         return o.order_type === 'Takeaway' && !isDispatched; 
@@ -1567,7 +1573,7 @@
       if (!takeawayOrders.length) tList.innerHTML = '<p class="text-xs text-gray-400 italic text-center py-6">No takeaway orders in queue</p>';
       else tList.innerHTML = takeawayOrders.map(buildOrderActionCard).join('');
 
-      // Delivery Queue: Jab tak kitchen se dispatch nahi hota tab tak counter par dikhega!
+      // Delivery Queue: Jab tak kitchen se ready/dispatched nahi hota, counter par visible rahega
       var deliveryOrders = allActiveOrders.filter(function(o) { 
         var isDispatched = (o.status === 'KOT_READY' || o.status === 'COMPLETED');
         return o.order_type === 'Delivery' && !isDispatched; 
@@ -1647,9 +1653,29 @@
     }
 
     function actionMarkDue(orderId) {
-      actionEditAddItems(orderId);
-      selectPaymentMode('DUE');
-      switchRightTab('SUMMARY');
+      if (!confirm("Kya aap is order ko Due (Khata) mein dalna chahte hain?")) return;
+
+      fetch('/api/orders/' + orderId + '/mark-due', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      .then(function(r){ return r.json(); })
+      .then(function(res){
+        fetchActiveOrders();
+        loadDueOrdersData();
+        alert("Order successfully Due (Khata) section mein chala gaya!");
+      })
+      .catch(function(){
+        // Fallback agar backend endpoint alag handle ho
+        fetch('/api/tables/' + orderId + '/settle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ payment_mode: 'DUE' })
+        }).then(function(){
+          fetchActiveOrders();
+          loadDueOrdersData();
+        });
+      });
     }
 
     // ================= PAYMENT MODE SELECTION & CASH MODAL =================
