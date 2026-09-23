@@ -244,14 +244,14 @@ app.delete('/api/menu/:id', (req, res) => {
   });
 });
 
-// 7. ACTIVE ORDERS (INCLUDES 'KOT_READY' SO UNPAID READY ORDERS STAY ON POS SCREEN)
+// 7. ACTIVE ORDERS (FILTERS OUT UNPAID DUE ORDERS SO QUEUES STAY CLEAN)
 app.get('/api/orders/active', (req, res) => {
   const query = `
     SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount
     FROM orders 
-    WHERE status IN ('RUNNING_TABLE', 'PENDING', 'DUE_PENDING', 'RUNNING', 'KOT_READY') 
-       OR order_type = 'Online' 
-       OR payment_mode = 'Due'
+    WHERE status IN ('RUNNING_TABLE', 'PENDING', 'RUNNING')
+       OR (status = 'KOT_READY' AND payment_mode != 'DUE' AND status != 'DUE_PENDING')
+       OR (order_type = 'Online' AND status NOT IN ('COMPLETED', 'DUE_PENDING'))
     ORDER BY id DESC
   `;
 
@@ -568,10 +568,12 @@ app.post('/api/orders', async (req, res) => {
   });
 });
 
-// SETTLE ORDER API: Settle hone par direct status COMPLETED hoga
+// SETTLE ORDER API: Settle hone par status COMPLETED hoga aur khata balance update hoga
 app.post('/api/tables/:id/settle', (req, res) => {
   const { payment_mode } = req.body;
-  db.get("SELECT * FROM orders WHERE id = ?", [req.params.id], (err, order) => {
+  const orderId = req.params.id;
+
+  db.get("SELECT * FROM orders WHERE id = ?", [orderId], (err, order) => {
     if (err || !order) return res.status(404).json({ error: 'Order not found' });
     
     if (payment_mode === 'DUE') {
@@ -579,15 +581,25 @@ app.post('/api/tables/:id/settle', (req, res) => {
       if (order.customer_phone && order.customer_phone.length >= 10) {
         db.run("UPDATE customers SET due_balance = due_balance + ? WHERE phone = ?", [remainingDue, order.customer_phone]);
       }
-      db.run("UPDATE orders SET status = 'DUE_PENDING', payment_mode = 'DUE' WHERE id = ?", [req.params.id], (err2) => {
+      db.run("UPDATE orders SET status = 'DUE_PENDING', payment_mode = 'DUE' WHERE id = ?", [orderId], (err2) => {
         if (err2) return res.status(500).json({ error: err2.message });
         res.json({ success: true, duePending: true });
       });
     } else {
-      db.run("UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE id = ?", [payment_mode, req.params.id], (err2) => {
-        if (err2) return res.status(500).json({ error: err2.message });
-        res.json({ success: true });
-      });
+      // PROPER SETTLEMENT (Cash / UPI / Card)
+      const remainingDue = Math.max(0, Number(order.total) - (Number(order.paid_amount) || 0));
+      if (order.payment_mode === 'DUE' && order.customer_phone && order.customer_phone.length >= 10) {
+        db.run("UPDATE customers SET due_balance = MAX(0, due_balance - ?) WHERE phone = ?", [remainingDue, order.customer_phone]);
+      }
+
+      db.run(
+        "UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE id = ?",
+        [payment_mode || 'Cash', orderId],
+        (err2) => {
+          if (err2) return res.status(500).json({ error: err2.message });
+          res.json({ success: true });
+        }
+      );
     }
   });
 });
