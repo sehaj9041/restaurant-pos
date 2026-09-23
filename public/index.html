@@ -82,6 +82,9 @@
             <button onclick="toggleSidebarMenu(false); showOrderHistoryView();" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
               <span class="text-sm">🧾</span> Order History
             </button>
+            <button onclick="toggleSidebarMenu(false); showDueOrdersView();" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="text-sm">📒</span> Due / Khata
+            </button>
             <button onclick="protectedNav('/report.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
               <span class="text-sm">💸</span> Expenses
             </button>
@@ -231,7 +234,7 @@
         <button id="btnNavActiveOrders" onclick="showActiveOrdersView()" class="bg-orange-500 text-white text-xs font-black px-3 py-1.5 rounded-lg shadow-2xs transition">
           Active Orders (<span id="filterActiveBadge">0</span>)
         </button>
-        <button onclick="protectedNav('/customers.html')" class="text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition">
+        <button id="btnNavDueOrders" onclick="showDueOrdersView()" class="text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition">
           Due (<span id="filterDueCount">0</span>) • <span id="filterDueTotal">₹0</span>
         </button>
         <button id="btnNavOrderHistory" onclick="showOrderHistoryView()" class="text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition">
@@ -242,6 +245,38 @@
       <button onclick="openPOSOrderView('Takeaway', '')" class="bg-orange-500 hover:bg-orange-600 text-white px-3.5 py-1 rounded-lg text-xs font-black shadow-2xs">
         + New Order
       </button>
+    </div>
+
+    <!-- ================= DUE / KHATA DUAL-VIEW CONTAINER ================= -->
+    <div id="dueOrdersContainer" class="hidden bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-2xs p-3 space-y-3">
+      <!-- Toggle: By Order / By Customer -->
+      <div class="flex items-center justify-between border-b pb-3">
+        <div class="flex bg-gray-100 p-1 rounded-xl">
+          <button id="btnDueByOrder" onclick="switchDueTab('BY_ORDER')" class="bg-orange-500 text-white font-black px-4 py-1.5 rounded-lg text-xs shadow-2xs transition">
+            By order
+          </button>
+          <button id="btnDueByCustomer" onclick="switchDueTab('BY_CUSTOMER')" class="text-gray-600 hover:text-black font-bold px-4 py-1.5 rounded-lg text-xs transition">
+            By customer
+          </button>
+        </div>
+        <div class="text-xs font-bold text-gray-500">
+          Total Due: <span id="dueHeaderTotalLabel" class="text-rose-600 font-black text-sm">₹0</span>
+        </div>
+      </div>
+
+      <!-- VIEW A: DUE BY ORDER -->
+      <div id="dueByOrderSection" class="space-y-2">
+        <div id="dueOrderList" class="divide-y divide-gray-100">
+          <p class="text-center py-10 text-gray-400 font-bold italic text-xs">Loading due orders...</p>
+        </div>
+      </div>
+
+      <!-- VIEW B: DUE BY CUSTOMER -->
+      <div id="dueByCustomerSection" class="hidden space-y-2">
+        <div id="dueCustomerList" class="divide-y divide-gray-100">
+          <p class="text-center py-10 text-gray-400 font-bold italic text-xs">Loading customer dues...</p>
+        </div>
+      </div>
     </div>
 
     <!-- ORDER HISTORY SCREEN -->
@@ -377,9 +412,8 @@
       <div id="posItemsGrid" class="flex-1 overflow-y-auto p-3 grid grid-cols-2 gap-2.5 content-start"></div>
     </div>
 
-    <!-- COLUMN 3: ORDER SUMMARY & PAYMENT (FLEX FULL-HEIGHT LAYOUT) -->
+    <!-- COLUMN 3: ORDER SUMMARY & PAYMENT -->
     <div class="w-80 flex flex-col bg-white shrink-0 h-full border-l border-gray-200">
-      <!-- TOP TABS -->
       <div class="grid grid-cols-2 p-1.5 bg-gray-100 border-b text-xs font-bold shrink-0">
         <button id="tabBtnCustomer" onclick="switchRightTab('CUSTOMER')" class="py-1.5 rounded-lg transition bg-white text-orange-600 shadow-2xs font-black">Order Type & Customer</button>
         <button id="tabBtnSummary" onclick="switchRightTab('SUMMARY')" class="py-1.5 rounded-lg transition text-gray-500 hover:text-gray-900 flex items-center justify-center gap-1">
@@ -388,9 +422,7 @@
         </button>
       </div>
 
-      <!-- MIDDLE CONTENT: FULL-EXPANDING CONTAINER -->
       <div class="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <!-- TAB 1: CUSTOMER DETAILS -->
         <div id="tabContentCustomer" class="p-3.5 space-y-3 overflow-y-auto flex-1">
           <div class="bg-gray-50 border border-gray-200 rounded-xl p-2.5 flex justify-between items-center text-xs">
             <div>
@@ -427,7 +459,6 @@
           </div>
         </div>
 
-        <!-- TAB 2: CART ITEMS LIST (EXPANDS TO FILL ENTIRE SCREEN HEIGHT) -->
         <div id="tabContentSummary" class="p-3 hidden flex-1 flex flex-col min-h-0 overflow-hidden">
           <div id="posCartItemList" class="flex-1 overflow-y-auto pr-1 text-xs divide-y divide-gray-100 space-y-1">
             <p class="text-gray-400 text-center py-10 italic text-xs">Cart is empty</p>
@@ -435,7 +466,7 @@
         </div>
       </div>
 
-      <!-- BILLING & CONTROLS (BOTTOM FIXED) -->
+      <!-- BILLING & CONTROLS -->
       <div class="border-t border-gray-200 p-3 bg-white space-y-2 shrink-0 overflow-y-auto max-h-[50vh]">
         <div class="flex justify-between items-center text-xs font-bold text-gray-500">
           <span class="flex items-center gap-1 text-orange-600 cursor-pointer">🏷 Offers</span>
@@ -449,7 +480,6 @@
           </div>
         </div>
 
-        <!-- RUNNING PAID ORDER BANNER -->
         <div id="boxAlreadyPaidBanner" class="hidden bg-emerald-50 border border-emerald-200 rounded-xl p-2 text-xs flex justify-between items-center">
           <div>
             <span class="text-[10px] font-black uppercase text-emerald-600 block">Already Received</span>
@@ -472,7 +502,6 @@
           <span id="posCalcPayableNow" class="text-2xl font-black text-gray-900">₹0</span>
         </div>
 
-        <!-- 5 PAYMENT BUTTONS -->
         <div class="grid grid-cols-5 gap-1 pt-1">
           <button onclick="handlePaymentModeClick('Cash')" id="payBtnCash" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5">💵 Cash</button>
           <button onclick="handlePaymentModeClick('UPI')" id="payBtnUPI" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5">📲 UPI</button>
@@ -481,14 +510,12 @@
           <button onclick="handlePaymentModeClick('DUE')" id="payBtnDUE" class="border border-rose-200 hover:bg-rose-50 text-rose-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5">📒 Due</button>
         </div>
 
-        <!-- SPLIT PAYMENT PANEL -->
         <div id="splitPaymentPanel" class="hidden border border-blue-100 bg-blue-50/20 rounded-xl p-2.5 space-y-2.5 text-xs mt-2">
           <div class="flex justify-between items-center border-b border-blue-100 pb-1.5">
             <span class="font-bold text-gray-600 text-[11px]">Total to split</span>
             <span id="splitTotalDisplay" class="font-black text-gray-900 text-sm">₹0.00</span>
           </div>
 
-          <!-- Method 1 -->
           <div class="bg-white border border-gray-200 rounded-lg p-2 space-y-1.5 shadow-2xs">
             <div class="flex justify-between items-center text-[10px] font-bold text-gray-400 uppercase">
               <span>Method 1</span>
@@ -508,7 +535,6 @@
             </div>
           </div>
 
-          <!-- Method 2 -->
           <div class="bg-white border border-gray-200 rounded-lg p-2 space-y-1.5 shadow-2xs">
             <div class="flex justify-between items-center text-[10px] font-bold text-gray-400 uppercase">
               <span>Method 2</span>
@@ -534,13 +560,48 @@
           </div>
         </div>
 
-        <!-- PLACE ORDER BUTTON -->
         <div class="flex gap-1.5 pt-1">
           <button id="btnPOSPlaceOrder" onclick="executePlaceOrder()" class="flex-1 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5">
             <span>✓ Place Order</span>
           </button>
           <button onclick="triggerManualKOTDirect()" title="Print KOT Slip" class="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3 rounded-xl font-black text-xs">🍳</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= ONE-CLICK CUSTOMER SETTLE DUE MODAL ================= -->
+  <div id="modalSettleCustomerDue" class="fixed inset-0 bg-black/40 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-4 space-y-3.5 border border-gray-200 animate-in fade-in zoom-in duration-150">
+      <div class="flex justify-between items-center border-b border-gray-100 pb-2">
+        <span class="font-black text-gray-800 text-xs flex items-center gap-1.5"><span>📒</span> Settle All Customer Dues</span>
+        <button onclick="closeCustomerSettleModal()" class="text-gray-400 hover:text-gray-600 font-black text-sm">✕</button>
+      </div>
+
+      <div class="bg-orange-50/60 border border-orange-200 rounded-xl p-3 space-y-1">
+        <div class="text-[11px] font-bold text-gray-500">Customer: <b id="lblSettleCustomerName" class="text-gray-900 font-black">---</b></div>
+        <div class="text-[10px] text-gray-400 font-mono">Phone: <span id="lblSettleCustomerPhone">---</span></div>
+        <div class="text-xs font-bold text-gray-700 pt-1 flex justify-between border-t border-orange-200/60 mt-1">
+          <span>Total Balance to Clear:</span>
+          <span id="lblSettleCustomerAmount" class="font-black text-rose-600 text-base">₹0.00</span>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-[10px] font-black uppercase text-gray-400 mb-1.5">SELECT PAYMENT MODE</label>
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" onclick="setCustomerSettleMode('CASH')" id="btnCustSettleCash" class="border-2 border-emerald-500 bg-emerald-50 text-emerald-800 font-black py-2 rounded-xl text-xs flex items-center justify-center gap-1 shadow-2xs">
+            💵 Cash
+          </button>
+          <button type="button" onclick="setCustomerSettleMode('UPI')" id="btnCustSettleUPI" class="border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1 shadow-2xs">
+            📲 UPI / QR
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 pt-2">
+        <button onclick="closeCustomerSettleModal()" class="border border-gray-300 hover:bg-gray-100 text-gray-700 py-2.5 rounded-xl text-xs font-black transition">Cancel</button>
+        <button onclick="confirmCustomerSettleAllExecute()" class="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white py-2.5 rounded-xl text-xs font-black transition shadow-sm">Confirm & Clear</button>
       </div>
     </div>
   </div>
@@ -670,6 +731,10 @@
     var allCategories = [];
     var posCart = [];
     var settledHistoryOrders = [];
+    var dueOrdersList = [];
+    var dueCustomersList = [];
+    var currentDueTab = 'BY_ORDER';
+
     var selectedCategory = 'ALL';
     var selectedPriceFilter = 'ALL';
     var currentPOSOrderType = 'Dine-In';
@@ -685,6 +750,9 @@
     var currentCashChange = 0;
     var splitMethod1 = 'Cash';
     var splitMethod2 = 'UPI';
+
+    var targetCustomerSettlePhone = '';
+    var targetCustomerSettleMode = 'CASH';
 
     var activeVirtualInput = null;
     var isShiftActive = false;
@@ -723,12 +791,15 @@
       document.getElementById('viewFloorDashboard').classList.remove('hidden');
 
       document.getElementById('orderHistoryContainer').classList.add('hidden');
+      document.getElementById('dueOrdersContainer').classList.add('hidden');
       document.getElementById('mainFloorDashboardContent').classList.remove('hidden');
 
       var btnActive = document.getElementById('btnNavActiveOrders');
       var btnHist = document.getElementById('btnNavOrderHistory');
+      var btnDue = document.getElementById('btnNavDueOrders');
       if (btnActive) btnActive.className = "bg-orange-500 text-white text-xs font-black px-3 py-1.5 rounded-lg shadow-2xs transition";
       if (btnHist) btnHist.className = "text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition";
+      if (btnDue) btnDue.className = "text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition";
 
       document.getElementById('topPageTitle').innerText = 'Orders';
       document.getElementById('btnTopBack').classList.add('hidden');
@@ -743,16 +814,41 @@
       document.getElementById('viewFloorDashboard').classList.remove('hidden');
 
       document.getElementById('mainFloorDashboardContent').classList.add('hidden');
+      document.getElementById('dueOrdersContainer').classList.add('hidden');
       document.getElementById('orderHistoryContainer').classList.remove('hidden');
 
       var btnActive = document.getElementById('btnNavActiveOrders');
       var btnHist = document.getElementById('btnNavOrderHistory');
+      var btnDue = document.getElementById('btnNavDueOrders');
       if (btnHist) btnHist.className = "bg-orange-500 text-white text-xs font-black px-3 py-1.5 rounded-lg shadow-2xs transition";
       if (btnActive) btnActive.className = "text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition";
+      if (btnDue) btnDue.className = "text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition";
 
       document.getElementById('topPageTitle').innerText = 'Order History';
       document.getElementById('btnTopBack').classList.remove('hidden');
       loadSettledOrderHistory();
+    }
+
+    function showDueOrdersView() {
+      currentViewMode = 'DUE';
+      document.getElementById('viewPOSOrderScreen').classList.add('hidden');
+      document.getElementById('viewFloorDashboard').classList.remove('hidden');
+
+      document.getElementById('mainFloorDashboardContent').classList.add('hidden');
+      document.getElementById('orderHistoryContainer').classList.add('hidden');
+      document.getElementById('dueOrdersContainer').classList.remove('hidden');
+
+      var btnActive = document.getElementById('btnNavActiveOrders');
+      var btnHist = document.getElementById('btnNavOrderHistory');
+      var btnDue = document.getElementById('btnNavDueOrders');
+      if (btnDue) btnDue.className = "bg-orange-500 text-white text-xs font-black px-3 py-1.5 rounded-lg shadow-2xs transition";
+      if (btnActive) btnActive.className = "text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition";
+      if (btnHist) btnHist.className = "text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition";
+
+      document.getElementById('topPageTitle').innerText = 'Due (Khata) Orders';
+      document.getElementById('btnTopBack').classList.remove('hidden');
+
+      loadDueOrdersData();
     }
 
     function handleGlobalBackNavigation() {
@@ -761,6 +857,188 @@
       } else {
         showActiveOrdersView();
       }
+    }
+
+    // ================= DUE (KHATA) MODULE LOGIC =================
+    function switchDueTab(tab) {
+      currentDueTab = tab;
+      var btnOrder = document.getElementById('btnDueByOrder');
+      var btnCust = document.getElementById('btnDueByCustomer');
+      var secOrder = document.getElementById('dueByOrderSection');
+      var secCust = document.getElementById('dueByCustomerSection');
+
+      if (tab === 'BY_ORDER') {
+        btnOrder.className = "bg-orange-500 text-white font-black px-4 py-1.5 rounded-lg text-xs shadow-2xs transition";
+        btnCust.className = "text-gray-600 hover:text-black font-bold px-4 py-1.5 rounded-lg text-xs transition";
+        secOrder.classList.remove('hidden');
+        secCust.classList.add('hidden');
+      } else {
+        btnCust.className = "bg-orange-500 text-white font-black px-4 py-1.5 rounded-lg text-xs shadow-2xs transition";
+        btnOrder.className = "text-gray-600 hover:text-black font-bold px-4 py-1.5 rounded-lg text-xs transition";
+        secCust.classList.remove('hidden');
+        secOrder.classList.add('hidden');
+      }
+    }
+
+    function loadDueOrdersData() {
+      // 1. Load by order
+      fetch('/api/due/orders')
+        .then(function(r){ return r.json(); })
+        .then(function(orders){
+          dueOrdersList = orders || [];
+          renderDueOrdersList();
+        });
+
+      // 2. Load by customer
+      fetch('/api/due/customers')
+        .then(function(r){ return r.json(); })
+        .then(function(customers){
+          dueCustomersList = customers || [];
+          renderDueCustomersList();
+        });
+    }
+
+    function renderDueOrdersList() {
+      var container = document.getElementById('dueOrderList');
+      var totalSum = dueOrdersList.reduce(function(s, o){ return s + (Number(o.due_amount) || 0); }, 0);
+      document.getElementById('dueHeaderTotalLabel').innerText = '₹' + totalSum.toLocaleString();
+
+      if (!dueOrdersList || dueOrdersList.length === 0) {
+        container.innerHTML = '<p class="text-center py-16 text-gray-400 font-bold italic text-xs">No pending due orders found</p>';
+        return;
+      }
+
+      container.innerHTML = dueOrdersList.map(function(o){
+        var dueBadge = o.due_days > 0 ? `${o.due_days}d` : `${o.due_hours}h`;
+
+        return `
+          <div class="py-3 flex justify-between items-center text-xs hover:bg-orange-50/40 px-2 rounded-xl transition">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="font-black text-gray-900 text-sm">ORD-${o.id}</span>
+                <span class="bg-gray-100 text-gray-600 font-bold px-1.5 py-0.5 rounded text-[10px]">Token ${o.id.toString().padStart(3, '0')}</span>
+              </div>
+              <div class="text-[11px] font-bold text-gray-600 mt-0.5">
+                ${o.customer_name || 'Walk-in'} • <span class="font-mono text-gray-500">${o.customer_phone || '-'}</span>
+              </div>
+            </div>
+
+            <div class="text-center">
+              <div class="font-black text-rose-600 text-sm">₹${o.due_amount} due</div>
+              <div class="text-[10px] text-gray-400 font-medium">Due • ${dueBadge}</div>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button onclick="actionViewOrder(${o.id})" class="border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-2xs">
+                View
+              </button>
+              <button onclick="actionEditAddItems(${o.id})" class="border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-2xs">
+                Return to Active
+              </button>
+              <button onclick="actionSettlePopup(${o.id})" class="bg-orange-500 hover:bg-orange-600 text-white font-black px-4 py-1.5 rounded-lg text-xs transition shadow-2xs">
+                Settle
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderDueCustomersList() {
+      var container = document.getElementById('dueCustomerList');
+      if (!dueCustomersList || dueCustomersList.length === 0) {
+        container.innerHTML = '<p class="text-center py-16 text-gray-400 font-bold italic text-xs">No pending customer dues found</p>';
+        return;
+      }
+
+      container.innerHTML = dueCustomersList.map(function(c){
+        var chips = (c.order_ids || []).slice(0, 3).map(function(id){
+          return `<span class="bg-gray-100 text-gray-600 font-bold px-1.5 py-0.2 rounded text-[10px]">ORD-${id}</span>`;
+        }).join(' ');
+
+        var moreCount = (c.order_ids || []).length > 3 ? `+${c.order_ids.length - 3} more` : '';
+
+        return `
+          <div class="py-3 flex justify-between items-center text-xs hover:bg-orange-50/40 px-2 rounded-xl transition">
+            <div class="space-y-1">
+              <div class="flex items-center gap-2">
+                <span class="font-black text-gray-900 text-sm">${c.name}</span>
+                <span class="bg-gray-100 text-gray-600 font-bold px-1.5 py-0.5 rounded text-[10px]">${c.total_orders} orders</span>
+              </div>
+              <div class="text-[11px] font-mono text-gray-500">${c.phone}</div>
+              <div class="flex items-center gap-1.5 text-[10px] text-gray-400">
+                ${chips} ${moreCount ? `<span class="italic text-[10px] text-gray-400">${moreCount}</span>` : ''}
+              </div>
+            </div>
+
+            <div class="text-center">
+              <div class="font-black text-rose-600 text-sm">₹${c.total_due} due</div>
+              <div class="text-[10px] text-gray-400 font-medium">Oldest • ${c.oldest_days || 0}d</div>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button onclick="promptWhatsAppReminder('${c.phone}', '${c.name}', ${c.total_due})" class="border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-2xs flex items-center gap-1">
+                <span>💬</span> Remind
+              </button>
+              <!-- ONE-CLICK COMPLETE SETTLEMENT BUTTON -->
+              <button onclick="openCustomerSettleModal('${c.phone}', '${c.name.replace(/'/g, "\\'")}', ${c.total_due})" class="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4 py-1.5 rounded-lg text-xs transition shadow-2xs flex items-center gap-1">
+                <span>✓</span> Settle All Due
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function promptWhatsAppReminder(phone, name, amount) {
+      var cleanPhone = phone.replace(/[^0-9]/g, '');
+      if (cleanPhone.length < 10) return alert('Customer phone number invalid hai!');
+      var text = encodeURIComponent(`Namaste ${name}, aapka Vishal Foodiez par ₹${amount} ka balance due hai. Kripya samay par bhuqtan karein. Dhanyawad!`);
+      window.open(`https://wa.me/91${cleanPhone.slice(-10)}?text=${text}`, '_blank');
+    }
+
+    function openCustomerSettleModal(phone, name, amount) {
+      targetCustomerSettlePhone = phone;
+      targetCustomerSettleMode = 'CASH';
+      document.getElementById('lblSettleCustomerName').innerText = name;
+      document.getElementById('lblSettleCustomerPhone').innerText = phone;
+      document.getElementById('lblSettleCustomerAmount').innerText = '₹' + amount.toLocaleString();
+      setCustomerSettleMode('CASH');
+      document.getElementById('modalSettleCustomerDue').classList.remove('hidden');
+    }
+
+    function closeCustomerSettleModal() {
+      document.getElementById('modalSettleCustomerDue').classList.add('hidden');
+    }
+
+    function setCustomerSettleMode(mode) {
+      targetCustomerSettleMode = mode;
+      var btnCash = document.getElementById('btnCustSettleCash');
+      var btnUPI = document.getElementById('btnCustSettleUPI');
+      if (mode === 'CASH') {
+        btnCash.className = "border-2 border-emerald-500 bg-emerald-50 text-emerald-800 font-black py-2 rounded-xl text-xs flex items-center justify-center gap-1 shadow-2xs";
+        btnUPI.className = "border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1 shadow-2xs";
+      } else {
+        btnUPI.className = "border-2 border-blue-500 bg-blue-50 text-blue-800 font-black py-2 rounded-xl text-xs flex items-center justify-center gap-1 shadow-2xs";
+        btnCash.className = "border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1 shadow-2xs";
+      }
+    }
+
+    function confirmCustomerSettleAllExecute() {
+      if (!targetCustomerSettlePhone) return;
+
+      fetch('/api/due/settle-customer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: targetCustomerSettlePhone, payment_mode: targetCustomerSettleMode })
+      })
+      .then(function(r){ return r.json(); })
+      .then(function(res){
+        closeCustomerSettleModal();
+        if (targetCustomerSettleMode === 'CASH') openCashDrawer();
+        loadDueOrdersData();
+        fetchActiveOrders();
+      });
     }
 
     // ================= LOAD & RENDER ORDER HISTORY =================
@@ -1193,10 +1471,10 @@
     }
 
     function actionViewOrder(orderId) {
-      var ord = allActiveOrders.find(function(o) { return o.id === orderId; });
+      var ord = allActiveOrders.find(function(o) { return o.id === orderId; }) || dueOrdersList.find(function(o) { return o.id === orderId; });
       if (!ord) return;
       var items = (ord.items || []).map(function(i) { return `• ${i.name} x${i.qty} = ₹${i.price * i.qty}`; }).join('\n');
-      alert(`Order #ORD-${orderId} (${ord.order_type})\nTotal: ₹${ord.total} | Paid: ₹${ord.paid_amount || ord.already_paid || 0}\n\nItems:\n${items}`);
+      alert(`Order #ORD-${orderId} (${ord.order_type})\nTotal: ₹${ord.total} | Paid: ₹${ord.paid_amount || ord.already_paid || 0}\n\nItems:\n${items || 'Details logged'}`);
     }
 
     function actionAddPhone(orderId) {
@@ -1227,10 +1505,10 @@
 
     // ================= PERSISTENT DIFFERENTIAL DETECTION =================
     function actionEditAddItems(orderId) {
-      var ord = allActiveOrders.find(function(o) { return o.id === orderId; });
+      var ord = allActiveOrders.find(function(o) { return o.id === orderId; }) || dueOrdersList.find(function(o) { return o.id === orderId; });
       if (!ord) return;
       
-      previousViewBeforePOS = 'DASHBOARD';
+      previousViewBeforePOS = (currentViewMode === 'DUE') ? 'DUE' : 'DASHBOARD';
       openPOSOrderView(ord.order_type, ord.table_no || '');
       editingActiveOrderId = ord.id;
       
@@ -1487,7 +1765,7 @@
       calculatePOSBillTotals();
     }
 
-    // ================= ROBUST PLACE ORDER (PRESERVES PAID AMOUNTS) =================
+    // ================= ROBUST PLACE ORDER =================
     function executePlaceOrder() {
       if (!posCart.length) return alert('Kripya cart mein item add karein!');
 
@@ -1760,7 +2038,7 @@
     }
 
     function openPOSOrderView(orderType, tableId) {
-      previousViewBeforePOS = 'DASHBOARD';
+      previousViewBeforePOS = (currentViewMode === 'DUE') ? 'DUE' : 'DASHBOARD';
       currentViewMode = 'POS';
       currentPOSOrderType = orderType || 'Dine-In';
       selectedPOSTableId = tableId || 'T01';
@@ -1830,6 +2108,8 @@
 
       if (previousViewBeforePOS === 'HISTORY') {
         showOrderHistoryView();
+      } else if (previousViewBeforePOS === 'DUE') {
+        showDueOrdersView();
       } else {
         showActiveOrdersView();
       }
