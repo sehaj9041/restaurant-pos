@@ -13,27 +13,54 @@
     .badge-alert {
       animation: pulse-ring 1.5s infinite;
     }
-    /* Custom style for Zoom Slider */
     input[type=range]::-webkit-slider-thumb {
       background: #ea580c;
       cursor: pointer;
+    }
+
+    /* CARD-ONLY ZOOM ENGINE (Does NOT touch header or screen layout) */
+    :root {
+      --kot-scale: 1;
+    }
+    .kot-card-box {
+      font-size: calc(14px * var(--kot-scale));
+    }
+    .kot-card-box h3 {
+      font-size: calc(20px * var(--kot-scale));
+    }
+    .kot-card-box .kot-item-title {
+      font-size: calc(14px * var(--kot-scale));
+    }
+    .kot-card-box .kot-btn {
+      font-size: calc(14px * var(--kot-scale));
+      padding-top: calc(10px * var(--kot-scale));
+      padding-bottom: calc(10px * var(--kot-scale));
+    }
+    .kot-card-box .kot-timer {
+      font-size: calc(12px * var(--kot-scale));
+    }
+    .kot-card-box .kot-badge {
+      font-size: calc(11px * var(--kot-scale));
+    }
+    .kot-card-box .kot-notes {
+      font-size: calc(12px * var(--kot-scale));
     }
   </style>
 </head>
 <body class="bg-gray-900 min-h-screen p-6 font-sans text-white select-none">
 
-  <!-- TOP HEADER -->
+  <!-- TOP HEADER (LOCKED & FIXED - NEVER SHRINKS OR SHIFTS) -->
   <div class="flex justify-between items-center mb-6 border-b border-gray-800 pb-4 flex-wrap gap-4">
     <div class="flex items-center gap-3">
       <span class="inline-block w-3 h-3 bg-emerald-500 rounded-full animate-pulse"></span>
       <h1 class="text-2xl font-black tracking-wide">Live Kitchen Orders</h1>
     </div>
     
-    <div class="flex items-center gap-4 flex-wrap">
-      <!-- CARD SIZE SCROLLER / ZOOM SLIDER -->
+    <div class="flex items-center gap-3 flex-wrap">
+      <!-- CARD SIZE SCROLLER / SLIDER (ONLY ZOOMS CARDS) -->
       <div class="flex items-center gap-2 bg-gray-800/90 border border-gray-700 px-3 py-1.5 rounded-lg shadow-sm">
         <span class="text-xs font-bold text-gray-300 flex items-center gap-1">
-          <span>🔍</span> <span>Size:</span>
+          <span>🔍</span> <span>Card Size:</span>
         </span>
         <input 
           type="range" 
@@ -66,12 +93,9 @@
     </div>
   </div>
 
-  <!-- SCALABLE CONTAINER WRAPPER FOR DYNAMIC ZOOMING -->
-  <div id="kotScalableContainer" class="transition-transform duration-100 origin-top">
-    <!-- KOT GRID: items-start keeps cards at natural height -->
-    <div id="kotGrid" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 items-start">
-      <div class="col-span-full text-center py-20 text-gray-500 font-bold">No active orders right now.</div>
-    </div>
+  <!-- KOT GRID: Native CSS Grid (Screen does NOT move) -->
+  <div id="kotGrid" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 items-start">
+    <div class="col-span-full text-center py-20 text-gray-500 font-bold">No active orders right now.</div>
   </div>
 
   <script>
@@ -79,29 +103,25 @@
     var isAudioAllowed = false;
     var liveOrdersData = [];
 
-    // ================= DYNAMIC CARD SCALING / ZOOM SCROLLER =================
+    // ================= CARD-ONLY SCALING ENGINE =================
     function initCardScale() {
       var savedScale = localStorage.getItem('kot_display_scale') || '100';
       var slider = document.getElementById('kotSizeSlider');
       if (slider) slider.value = savedScale;
-      applyScaleTransform(savedScale);
+      applyScaleOnlyToCards(savedScale);
     }
 
     function changeKOTCardScale(val) {
-      applyScaleTransform(val);
+      applyScaleOnlyToCards(val);
       localStorage.setItem('kot_display_scale', val);
     }
 
-    function applyScaleTransform(val) {
-      var container = document.getElementById('kotScalableContainer');
+    function applyScaleOnlyToCards(val) {
       var label = document.getElementById('lblSizePercent');
       if (label) label.innerText = val + '%';
-      if (container) {
-        var scale = Number(val) / 100;
-        container.style.transform = 'scale(' + scale + ')';
-        // Width adjustment so grid adjusts properly when zoomed
-        container.style.width = (100 / scale) + '%';
-      }
+      var numericScale = Number(val) / 100;
+      // Change CSS custom property so only .kot-card-box scales!
+      document.documentElement.style.setProperty('--kot-scale', numericScale);
     }
 
     function resetKOTCardScale() {
@@ -322,11 +342,11 @@
         timerEl.innerText = formatted;
 
         if (mins >= 10) {
-          timerEl.className = "text-rose-400 font-mono font-black text-xs bg-rose-950/80 px-2 py-0.5 rounded border border-rose-700/60 animate-pulse";
+          timerEl.className = "kot-timer text-rose-400 font-mono font-black bg-rose-950/80 px-2 py-0.5 rounded border border-rose-700/60 animate-pulse";
         } else if (mins >= 5) {
-          timerEl.className = "text-amber-300 font-mono font-black text-xs bg-amber-950/80 px-2 py-0.5 rounded border border-amber-700/60";
+          timerEl.className = "kot-timer text-amber-300 font-mono font-black bg-amber-950/80 px-2 py-0.5 rounded border border-amber-700/60";
         } else {
-          timerEl.className = "text-gray-300 font-mono font-bold text-xs bg-gray-900/80 px-2 py-0.5 rounded border border-gray-700/60";
+          timerEl.className = "kot-timer text-gray-300 font-mono font-bold bg-gray-900/80 px-2 py-0.5 rounded border border-gray-700/60";
         }
       });
     }
@@ -475,26 +495,26 @@
           : (allItemsReady ? 'border-emerald-500/80' : theme.border);
 
         return `
-          <!-- COMPACT CARD: Only occupies required height -->
-          <div class="bg-gray-800 border-2 ${cardBorderClass} rounded-2xl flex flex-col justify-between overflow-hidden shadow-xl transition self-start w-full">
+          <!-- COMPACT KOT CARD (SCALES INDEPENDENTLY VIA .kot-card-box) -->
+          <div class="kot-card-box bg-gray-800 border-2 ${cardBorderClass} rounded-2xl flex flex-col justify-between overflow-hidden shadow-xl transition self-start w-full">
             <!-- HEADER -->
-            <div class="p-3.5 border-b border-gray-700/80 ${theme.headerBg} flex justify-between items-center">
+            <div class="p-3 border-b border-gray-700/80 ${theme.headerBg} flex justify-between items-center">
               <div>
                 <div class="flex items-center gap-2">
-                  <h3 class="text-xl font-black text-white">#${order.id}</h3>
-                  <span class="text-xs font-black px-2 py-0.5 rounded-md border ${theme.badgeBg} flex items-center gap-1">
+                  <h3 class="font-black text-white">#${order.id}</h3>
+                  <span class="kot-badge font-black px-2 py-0.5 rounded-md border ${theme.badgeBg} flex items-center gap-1">
                     <span>${theme.emoji}</span>
                     <span>${theme.label}</span>
                     ${order.table_no ? `<span>• ${order.table_no}</span>` : ''}
                   </span>
                 </div>
-                <div class="text-[10px] text-gray-400 font-mono mt-0.5">Order Time: ${order.time || ''}</div>
+                <div class="kot-notes text-gray-400 font-mono mt-0.5">Time: ${order.time || ''}</div>
               </div>
 
               <!-- LIVE 00:00 TIMER -->
               <div class="flex flex-col items-end">
-                <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Elapsed</span>
-                <span id="kotTimer_${order.id}" class="text-gray-300 font-mono font-bold text-xs bg-gray-900/80 px-2 py-0.5 rounded border border-gray-700/60">
+                <span class="kot-notes font-bold text-gray-400 uppercase tracking-wider mb-0.5">Elapsed</span>
+                <span id="kotTimer_${order.id}" class="kot-timer text-gray-300 font-mono font-bold bg-gray-900/80 px-2 py-0.5 rounded border border-gray-700/60">
                   00:00
                 </span>
               </div>
@@ -503,17 +523,17 @@
             <!-- READY STATUS BANNER -->
             ${isReadyForDispatch ? `
               <div class="bg-emerald-600/30 border-b border-emerald-500/40 px-3 py-1.5 flex justify-between items-center">
-                <span class="text-xs font-black text-emerald-300 flex items-center gap-1.5">
+                <span class="kot-badge font-black text-emerald-300 flex items-center gap-1.5">
                   <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
                   READY FOR PICKUP
                 </span>
-                <button onclick="undoReadyStage(${order.id})" class="text-[10px] font-bold text-gray-400 hover:text-white underline">
+                <button onclick="undoReadyStage(${order.id})" class="kot-notes font-bold text-gray-400 hover:text-white underline">
                   Undo
                 </button>
               </div>
             ` : ''}
 
-            <!-- ITEMS LIST (COMPACT, NO FORCED MIN-HEIGHT) -->
+            <!-- ITEMS LIST -->
             <div class="p-3.5 space-y-2">
               ${(order.items || []).map(function(item, idx) {
                 var rowKey = order.id + '_row_' + idx;
@@ -522,22 +542,22 @@
 
                 return `
                   <div onclick="toggleItemReady(${order.id}, 'row_${idx}')" class="border-b border-gray-700/50 pb-1.5 cursor-pointer select-none transition ${isDone ? 'opacity-35' : 'hover:bg-gray-750'}">
-                    <div class="flex items-center gap-2 text-sm">
+                    <div class="flex items-center gap-2">
                       <div class="w-5 h-5 rounded-md flex items-center justify-center border shrink-0 transition ${isDone ? 'bg-emerald-600 border-emerald-500 text-white' : 'border-gray-500 bg-gray-900'}">
                         ${isDone ? '✓' : ''}
                       </div>
 
-                      <span class="bg-indigo-900/80 text-indigo-200 font-black px-2 py-0.5 rounded text-xs shrink-0">x${item.qty}</span>
+                      <span class="kot-badge bg-indigo-900/80 text-indigo-200 font-black px-1.5 py-0.5 rounded shrink-0">x${item.qty}</span>
 
-                      <span class="font-bold text-gray-200 flex-1 ${isDone ? 'line-through text-gray-400' : ''}">${item.name}</span>
+                      <span class="kot-item-title font-bold text-gray-200 flex-1 ${isDone ? 'line-through text-gray-400' : ''}">${item.name}</span>
 
                       ${badgeTag ? `
-                        <span class="badge-alert bg-rose-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 shadow-xs border border-rose-400">
+                        <span class="badge-alert kot-badge bg-rose-600 text-white font-black px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 shadow-xs border border-rose-400">
                           ${badgeTag}
                         </span>
                       ` : ''}
                     </div>
-                    ${item.notes ? `<div class="text-xs text-amber-400 font-semibold mt-0.5 ml-7">↳ ${item.notes}</div>` : ''}
+                    ${item.notes ? `<div class="kot-notes text-amber-400 font-semibold mt-0.5 ml-7">↳ ${item.notes}</div>` : ''}
                   </div>
                 `;
               }).join('')}
@@ -546,12 +566,12 @@
             <!-- TWO-STAGE BUTTON FOOTER -->
             <div class="p-3 bg-gray-850 border-t border-gray-700/80">
               ${isReadyForDispatch ? `
-                <button onclick="executeDispatch(${order.id})" class="w-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-black py-2.5 rounded-xl transition text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/60 animate-bounce">
+                <button onclick="executeDispatch(${order.id})" class="kot-btn w-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-black rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/60 animate-bounce">
                   <span>🚀</span>
                   <span>Dispatch / Handover</span>
                 </button>
               ` : `
-                <button onclick="markReadyStage(${order.id})" class="w-full ${allItemsReady ? 'bg-amber-600 hover:bg-amber-500' : 'bg-gray-700 hover:bg-emerald-600'} text-white font-black py-2.5 rounded-xl transition text-sm flex items-center justify-center gap-1.5 shadow-md">
+                <button onclick="markReadyStage(${order.id})" class="kot-btn w-full ${allItemsReady ? 'bg-amber-600 hover:bg-amber-500' : 'bg-gray-700 hover:bg-emerald-600'} text-white font-black rounded-xl transition flex items-center justify-center gap-1.5 shadow-md">
                   <span>✓</span>
                   <span>Mark Ready</span>
                 </button>
