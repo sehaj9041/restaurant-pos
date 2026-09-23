@@ -929,7 +929,7 @@
       fetch('/api/due/orders')
         .then(function(r){ return r.json(); })
         .then(function(orders){
-          dueOrdersList = orders || [];
+          dueOrdersList = Array.isArray(orders) ? orders : [];
           var totalDueSum = dueOrdersList.reduce(function(s, o) { return s + (Number(o.due_amount) || 0); }, 0);
           
           var filterDueCountEl = document.getElementById('filterDueCount');
@@ -947,7 +947,7 @@
       fetch('/api/due/customers')
         .then(function(r){ return r.json(); })
         .then(function(customers){
-          dueCustomersList = customers || [];
+          dueCustomersList = Array.isArray(customers) ? customers : [];
           renderDueCustomersList();
         })
         .catch(function(){});
@@ -1206,7 +1206,7 @@
 
         var modeBadge = `<span class="bg-emerald-50 text-emerald-800 font-bold px-1.5 py-0.5 rounded text-[10px]">PAID • ${o.payment_mode || 'Cash'}</span>`;
         var d = new Date(o.created_at);
-        var timeFormatted = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) + ' • ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase();
+        var timeFormatted = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) + ' • ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }).toLowerCase();
 
         return `
           <tr class="hover:bg-orange-50/60 transition text-gray-700 cursor-pointer" onclick="openSettledOrderInPOS(${o.id})">
@@ -1666,7 +1666,6 @@
         alert("Order successfully Due (Khata) section mein chala gaya!");
       })
       .catch(function(){
-        // Fallback agar backend endpoint alag handle ho
         fetch('/api/tables/' + orderId + '/settle', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
