@@ -244,7 +244,7 @@ app.delete('/api/menu/:id', (req, res) => {
   });
 });
 
-// 7. ACTIVE ORDERS (KITCHEN MEIN ACTIVE AUR DISPATCHED READY ORDERS DONO AAYENGE)
+// 7. ACTIVE ORDERS (KITCHEN PREPARING AUR RUNNING ORDERS POS QUEUES MEIN DIKHENGE)
 app.get('/api/orders/active', (req, res) => {
   const query = `
     SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount
