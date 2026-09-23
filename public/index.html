@@ -174,7 +174,7 @@
         <span>💵</span> Open Drawer
       </button>
 
-      <button onclick="openPOSOrderView('Takeaway', '')" class="bg-orange-500 hover:bg-orange-600 text-white px-3.5 py-1.5 rounded-lg text-xs font-black shadow-sm flex items-center gap-1 transition">
+      <button onclick="openPOSOrderView('', '')" class="bg-orange-500 hover:bg-orange-600 text-white px-3.5 py-1.5 rounded-lg text-xs font-black shadow-sm flex items-center gap-1 transition">
         <span>+</span> New Order
       </button>
     </div>
@@ -242,7 +242,7 @@
         </button>
       </div>
 
-      <button onclick="openPOSOrderView('Takeaway', '')" class="bg-orange-500 hover:bg-orange-600 text-white px-3.5 py-1 rounded-lg text-xs font-black shadow-2xs">
+      <button onclick="openPOSOrderView('', '')" class="bg-orange-500 hover:bg-orange-600 text-white px-3.5 py-1 rounded-lg text-xs font-black shadow-2xs">
         + New Order
       </button>
     </div>
@@ -427,21 +427,21 @@
           <div class="bg-gray-50 border border-gray-200 rounded-xl p-2.5 flex justify-between items-center text-xs">
             <div>
               <span class="text-[10px] font-bold text-gray-400 block uppercase">Selected Table</span>
-              <span id="posDisplayTable" class="font-black text-gray-800 text-sm">T08 • cap. 2</span>
+              <span id="posDisplayTable" class="font-black text-gray-800 text-sm">Select Order Type</span>
             </div>
             <button onclick="closePOSOrderView()" class="text-orange-600 font-bold text-xs underline">Change</button>
           </div>
 
           <div class="grid grid-cols-3 gap-1.5">
-            <button id="posBtnDineIn" onclick="setPOSOrderType('Dine-In')" class="border-2 border-orange-500 bg-orange-50/50 rounded-xl py-3 flex flex-col items-center justify-center text-orange-700 shadow-2xs">
+            <button id="posBtnDineIn" onclick="setPOSOrderType('Dine-In')" class="border border-gray-200 hover:bg-gray-50 rounded-xl py-3 flex flex-col items-center justify-center text-gray-600 font-bold">
               <span class="text-base mb-0.5">🍽</span>
-              <span class="text-[11px] font-black">Dine-In</span>
+              <span class="text-[11px] font-bold">Dine-In</span>
             </button>
-            <button id="posBtnTakeaway" onclick="setPOSOrderType('Takeaway')" class="border border-gray-200 hover:bg-gray-50 rounded-xl py-3 flex flex-col items-center justify-center text-gray-600">
+            <button id="posBtnTakeaway" onclick="setPOSOrderType('Takeaway')" class="border border-gray-200 hover:bg-gray-50 rounded-xl py-3 flex flex-col items-center justify-center text-gray-600 font-bold">
               <span class="text-base mb-0.5">🛍</span>
               <span class="text-[11px] font-bold">Takeaway</span>
             </button>
-            <button id="posBtnDelivery" onclick="setPOSOrderType('Delivery')" class="border border-gray-200 hover:bg-gray-50 rounded-xl py-3 flex flex-col items-center justify-center text-gray-600">
+            <button id="posBtnDelivery" onclick="setPOSOrderType('Delivery')" class="border border-gray-200 hover:bg-gray-50 rounded-xl py-3 flex flex-col items-center justify-center text-gray-600 font-bold">
               <span class="text-base mb-0.5">🛵</span>
               <span class="text-[11px] font-bold">Delivery</span>
             </button>
@@ -757,7 +757,7 @@
     </div>
     <div class="flex gap-1.5">
       <button onclick="keypadPress(' ')" class="flex-1 bg-white active:bg-gray-200 text-gray-400 font-bold text-xs py-2.5 rounded-lg shadow-2xs">space</button>
-      <button onclick="closeVirtualKeyboards()" class="w-24 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-black text-sm py-2.5 rounded-lg shadow-2xs">return</button>
+      <button onclick="closeVirtualKeyboards()" class="w-24 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-black text-xs py-2.5 rounded-lg shadow-2xs">return</button>
     </div>
   </div>
 
@@ -773,8 +773,8 @@
 
     var selectedCategory = 'ALL';
     var selectedPriceFilter = 'ALL';
-    var currentPOSOrderType = 'Dine-In';
-    var selectedPOSTableId = 'T01';
+    var currentPOSOrderType = '';
+    var selectedPOSTableId = '';
     var selectedPaymentMode = null; 
     var currentGuestCount = 1;
     var editingActiveOrderId = null;
@@ -1895,6 +1895,7 @@
     // ================= ROBUST PLACE ORDER =================
     function executePlaceOrder() {
       if (!posCart.length) return alert('Kripya cart mein item add karein!');
+      if (!currentPOSOrderType) return alert('Kripya pehle Order Type (Dine-In, Takeaway, Delivery) select karein!');
 
       var calc = calculatePOSBillTotals();
       var custPhone = document.getElementById('posCustPhone').value.trim();
@@ -2065,6 +2066,7 @@
 
     function triggerManualKOTDirect() {
       if (!posCart.length) return alert('Cart khali hai!');
+      if (!currentPOSOrderType) return alert('Kripya pehle Order Type select karein!');
       var itemsRows = posCart.map(function(i) {
         return `
           <tr>
@@ -2088,7 +2090,7 @@
         <body>
           <div class="center" style="font-size:16px;">*** KOT (KITCHEN) ***</div>
           <div class="line"></div>
-          <div><b>${currentPOSOrderType.toUpperCase()}</b> | Table: ${selectedPOSTableId}</div>
+          <div><b>${currentPOSOrderType.toUpperCase()}</b> | Table: ${selectedPOSTableId || 'None'}</div>
           <div class="line"></div>
           <table>${itemsRows}</table>
           <div class="line"></div>
@@ -2166,8 +2168,15 @@
     function openPOSOrderView(orderType, tableId) {
       previousViewBeforePOS = (currentViewMode === 'DUE') ? 'DUE' : 'DASHBOARD';
       currentViewMode = 'POS';
-      currentPOSOrderType = orderType || 'Dine-In';
-      selectedPOSTableId = tableId || 'T01';
+      
+      if (!orderType && !tableId) {
+        currentPOSOrderType = '';
+        selectedPOSTableId = '';
+      } else {
+        currentPOSOrderType = orderType || 'Dine-In';
+        selectedPOSTableId = tableId || '';
+      }
+
       editingActiveOrderId = null;
       alreadyPaidAmount = 0;
       alreadyPaidMode = '';
@@ -2192,9 +2201,12 @@
           : "border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5";
       });
 
-      var running = allActiveOrders.find(function(o) {
-        return o.order_type === 'Dine-In' && o.table_no && o.table_no.toUpperCase() === selectedPOSTableId.toUpperCase();
-      });
+      var running = null;
+      if (selectedPOSTableId) {
+        running = allActiveOrders.find(function(o) {
+          return o.order_type === 'Dine-In' && o.table_no && o.table_no.toUpperCase() === selectedPOSTableId.toUpperCase();
+        });
+      }
 
       if (running) {
         editingActiveOrderId = running.id;
@@ -2208,15 +2220,23 @@
         document.getElementById('posCustName').value = '';
       }
 
-      setPOSOrderType(currentPOSOrderType);
-      document.getElementById('posDisplayTable').innerText = selectedPOSTableId + ' • cap. 2';
+      if (currentPOSOrderType) {
+        setPOSOrderType(currentPOSOrderType);
+        document.getElementById('posDisplayTable').innerText = (selectedPOSTableId ? selectedPOSTableId + ' • ' : '') + currentPOSOrderType;
+      } else {
+        ['DineIn', 'Takeaway', 'Delivery'].forEach(function(t) {
+          var btn = document.getElementById('posBtn' + t);
+          if (btn) btn.className = "border border-gray-200 hover:bg-gray-50 rounded-xl py-3 flex flex-col items-center justify-center text-gray-600 font-bold";
+        });
+        document.getElementById('posDisplayTable').innerText = 'Select Order Type';
+      }
 
       document.getElementById('viewFloorDashboard').classList.add('hidden');
       document.getElementById('viewPOSOrderScreen').classList.remove('hidden');
 
       document.getElementById('topPageTitle').innerText = 'New Order';
       document.getElementById('btnTopBack').classList.remove('hidden');
-      document.getElementById('btnCancelOrderView').classList.remove('hidden');
+      document.getElementById('btnCancelOrderView').classList.add('hidden'); // Fix: keep hidden or as needed
       document.getElementById('topOrderActiveBadge').classList.remove('hidden');
 
       renderPOSCart();
@@ -2388,6 +2408,7 @@
           }
         }
       });
+      document.getElementById('posDisplayTable').innerText = (selectedPOSTableId ? selectedPOSTableId + ' • ' : '') + currentPOSOrderType;
     }
 
     function changeGuestCount(delta) {
