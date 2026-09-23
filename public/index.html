@@ -747,7 +747,7 @@
       <div class="grid grid-cols-7 gap-1 flex-1">
         <button onclick="keypadPressLetter('z')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">z</button>
         <button onclick="keypadPressLetter('x')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">x</button>
-        <button onclick="keypadPressLetter('c')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg software font-bold text-sm py-2.5 rounded-lg shadow-2xs">c</button>
+        <button onclick="keypadPressLetter('c')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">c</button>
         <button onclick="keypadPressLetter('v')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">v</button>
         <button onclick="keypadPressLetter('b')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">b</button>
         <button onclick="keypadPressLetter('n')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">n</button>
@@ -886,7 +886,7 @@
       var btnActive = document.getElementById('btnNavActiveOrders');
       var btnHist = document.getElementById('btnNavOrderHistory');
       var btnDue = document.getElementById('btnNavDueOrders');
-      if (btnDue) btnDue.className = "bg-orange-500 text-white text-xs font-black px-4 py-1.5 rounded-lg text-xs shadow-2xs transition";
+      if (btnDue) btnDue.className = "bg-orange-500 text-white font-black px-4 py-1.5 rounded-lg text-xs shadow-2xs transition";
       if (btnActive) btnActive.className = "text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition";
       if (btnHist) btnHist.className = "text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition";
 
@@ -1052,23 +1052,8 @@
 
     // ================= SINGLE ORDER QUICK SETTLE LOGIC =================
     function actionSettlePopup(orderId) {
-      var ord = allActiveOrders.find(function(o) { return o.id === orderId; }) || 
-                dueOrdersList.find(function(o) { return o.id === orderId; });
-      if (!ord) return;
-
-      targetSingleSettleOrderId = orderId;
-      targetSingleSettleMode = 'CASH';
-
-      var total = Number(ord.total) || 0;
-      var paid = Number(ord.paid_amount) || Number(ord.already_paid) || 0;
-      var payable = (ord.due_amount !== undefined) ? Number(ord.due_amount) : Math.max(0, total - paid);
-
-      document.getElementById('lblSingleSettleOrderId').innerText = 'ORD-' + orderId;
-      document.getElementById('lblSingleSettleCustomer').innerText = ord.customer_name || 'Walk-in';
-      document.getElementById('lblSingleSettleAmount').innerText = '₹' + payable.toLocaleString();
-
-      setSingleOrderSettleMode('CASH');
-      document.getElementById('modalSingleOrderSettle').classList.remove('hidden');
+      // View aur Settle dono ab seedha order ko POS/Cart screen par open karenge
+      actionEditAddItems(orderId);
     }
 
     function closeSingleOrderSettleModal() {
@@ -1306,6 +1291,11 @@
       if (!ord) return;
       var calc = { subtotal: Number(ord.subtotal) || Number(ord.total), gst: Number(ord.gst) || 0, grandTotal: Number(ord.total), payableNow: 0 };
       dispatchDirectPrintReceipt(ord.id, ord, calc);
+    }
+
+    function actionViewOrder(orderId) {
+      // View button ab order ko POS/Cart screen par khol dega
+      actionEditAddItems(orderId);
     }
 
     // ================= DYNAMIC POSITIONING VIRTUAL KEYBOARD =================
@@ -1625,13 +1615,6 @@
       var dList = document.getElementById('deliveryQueueList');
       if (!deliveryOrders.length) dList.innerHTML = '<p class="text-xs text-gray-400 italic text-center py-6">No delivery orders in queue</p>';
       else dList.innerHTML = deliveryOrders.map(buildOrderActionCard).join('');
-    }
-
-    function actionViewOrder(orderId) {
-      var ord = allActiveOrders.find(function(o) { return o.id === orderId; }) || dueOrdersList.find(function(o) { return o.id === orderId; });
-      if (!ord) return;
-      var items = (ord.items || []).map(function(i) { return `• ${i.name} x${i.qty} = ₹${i.price * i.qty}`; }).join('\n');
-      alert(`Order #ORD-${orderId} (${ord.order_type})\nTotal: ₹${ord.total} | Paid: ₹${ord.paid_amount || ord.already_paid || 0}\n\nItems:\n${items || 'Details logged'}`);
     }
 
     function actionAddPhone(orderId) {
