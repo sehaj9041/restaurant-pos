@@ -17,12 +17,19 @@
 </head>
 <body class="bg-gray-900 min-h-screen p-6 font-sans text-white select-none">
 
+  <!-- TOP HEADER -->
   <div class="flex justify-between items-center mb-6 border-b border-gray-800 pb-4">
     <div class="flex items-center gap-3">
       <span class="inline-block w-3 h-3 bg-emerald-500 rounded-full animate-pulse"></span>
       <h1 class="text-2xl font-black tracking-wide">Live Kitchen Orders</h1>
     </div>
     <div class="flex items-center gap-3">
+      <!-- FULLSCREEN TOGGLE BUTTON -->
+      <button id="btnFullScreen" onclick="toggleFullScreen()" class="bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 font-bold px-3 py-1.5 rounded-lg text-xs transition flex items-center gap-1.5 shadow-sm">
+        <span id="fullScreenIcon">⛶</span> <span id="fullScreenText">Fullscreen</span>
+      </button>
+
+      <!-- AUDIO ALERT TOGGLE -->
       <button id="btnAudioToggle" onclick="enableAudioContext()" class="bg-amber-600 hover:bg-amber-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition flex items-center gap-1.5 shadow-sm">
         <span>🔔</span> <span id="lblAudioStatus">Enable Sound Alert</span>
       </button>
@@ -34,7 +41,8 @@
     </div>
   </div>
 
-  <div id="kotGrid" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+  <!-- KOT GRID: items-start added so cards only take their natural height -->
+  <div id="kotGrid" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 items-start">
     <div class="col-span-full text-center py-20 text-gray-500 font-bold">No active orders right now.</div>
   </div>
 
@@ -43,6 +51,32 @@
     var isAudioAllowed = false;
     var liveOrdersData = [];
 
+    // ================= FULLSCREEN TOGGLE LOGIC =================
+    function toggleFullScreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(function(err) {
+          console.warn("Fullscreen error:", err.message);
+        });
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        }
+      }
+    }
+
+    document.addEventListener('fullscreenchange', function() {
+      var icon = document.getElementById('fullScreenIcon');
+      var txt = document.getElementById('fullScreenText');
+      if (document.fullscreenElement) {
+        icon.innerText = "⛷";
+        txt.innerText = "Exit Fullscreen";
+      } else {
+        icon.innerText = "⛶";
+        txt.innerText = "Fullscreen";
+      }
+    });
+
+    // ================= LOCAL STORAGE PERSISTENCE =================
     function getStoredSnapshots() {
       try {
         return JSON.parse(localStorage.getItem('kot_order_snapshots') || '{}');
@@ -79,7 +113,6 @@
       localStorage.setItem('kot_alert_badges', JSON.stringify(badges));
     }
 
-    // Orders awaiting final dispatch
     function getReadyForDispatchOrders() {
       try {
         return JSON.parse(localStorage.getItem('kot_ready_dispatch') || '{}');
@@ -92,6 +125,7 @@
       localStorage.setItem('kot_ready_dispatch', JSON.stringify(store));
     }
 
+    // ================= AUDIO CHIME LOGIC =================
     function enableAudioContext() {
       try {
         if (!audioCtx) {
@@ -156,14 +190,12 @@
       renderKOTCards();
     }
 
-    // Step 1: Mark Food Ready (Changes button to Dispatch without removing KOT)
     function markReadyStage(id) {
       var strId = id.toString();
       var readyStore = getReadyForDispatchOrders();
       readyStore[strId] = true;
       saveReadyForDispatchOrders(readyStore);
 
-      // Check all items
       var checkedMap = getCheckedItemKeys();
       var targetOrder = liveOrdersData.find(function(o){ return o.id.toString() === strId; });
       if (targetOrder) {
@@ -176,7 +208,6 @@
       renderKOTCards();
     }
 
-    // Undo Ready if marked by mistake
     function undoReadyStage(id) {
       var strId = id.toString();
       var readyStore = getReadyForDispatchOrders();
@@ -185,7 +216,6 @@
       renderKOTCards();
     }
 
-    // Step 2: Final Dispatch (Clears KOT from Kitchen Display)
     function executeDispatch(id) {
       var strId = id.toString();
       var snapshots = getStoredSnapshots();
@@ -273,7 +303,6 @@
 
               if (currentItems.length > prevRowsCount) {
                 shouldPlaySound = true;
-                // Agar nayi row aayi toh ready stage cancel ho jaye
                 delete readyStore[orderId];
                 for (var idx = prevRowsCount; idx < currentItems.length; idx++) {
                   var itemRowKey = orderId + '_row_' + idx;
@@ -387,7 +416,8 @@
           : (allItemsReady ? 'border-emerald-500/80' : theme.border);
 
         return `
-          <div class="bg-gray-800 border-2 ${cardBorderClass} rounded-2xl flex flex-col justify-between overflow-hidden shadow-xl transition">
+          <!-- COMPACT CARD: Only occupies required height -->
+          <div class="bg-gray-800 border-2 ${cardBorderClass} rounded-2xl flex flex-col justify-between overflow-hidden shadow-xl transition self-start w-full">
             <!-- HEADER -->
             <div class="p-3.5 border-b border-gray-700/80 ${theme.headerBg} flex justify-between items-center">
               <div>
@@ -411,7 +441,7 @@
               </div>
             </div>
 
-            <!-- READY STATUS BANNER (SHOWS AFTER 1ST CLICK) -->
+            <!-- READY STATUS BANNER -->
             ${isReadyForDispatch ? `
               <div class="bg-emerald-600/30 border-b border-emerald-500/40 px-3 py-1.5 flex justify-between items-center">
                 <span class="text-xs font-black text-emerald-300 flex items-center gap-1.5">
@@ -424,15 +454,15 @@
               </div>
             ` : ''}
 
-            <!-- ITEMS LIST -->
-            <div class="p-4 flex-1 space-y-2.5">
+            <!-- ITEMS LIST (COMPACT, NO FORCED MIN-HEIGHT) -->
+            <div class="p-3.5 space-y-2">
               ${(order.items || []).map(function(item, idx) {
                 var rowKey = order.id + '_row_' + idx;
                 var isDone = !!checkedMap[rowKey];
                 var badgeTag = persistentBadges[rowKey];
 
                 return `
-                  <div onclick="toggleItemReady(${order.id}, 'row_${idx}')" class="border-b border-gray-700/50 pb-2 cursor-pointer select-none transition ${isDone ? 'opacity-35' : 'hover:bg-gray-750'}">
+                  <div onclick="toggleItemReady(${order.id}, 'row_${idx}')" class="border-b border-gray-700/50 pb-1.5 cursor-pointer select-none transition ${isDone ? 'opacity-35' : 'hover:bg-gray-750'}">
                     <div class="flex items-center gap-2 text-sm">
                       <div class="w-5 h-5 rounded-md flex items-center justify-center border shrink-0 transition ${isDone ? 'bg-emerald-600 border-emerald-500 text-white' : 'border-gray-500 bg-gray-900'}">
                         ${isDone ? '✓' : ''}
@@ -457,13 +487,11 @@
             <!-- TWO-STAGE BUTTON FOOTER -->
             <div class="p-3 bg-gray-850 border-t border-gray-700/80">
               ${isReadyForDispatch ? `
-                <!-- STAGE 2: FINAL DISPATCH -->
                 <button onclick="executeDispatch(${order.id})" class="w-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-black py-2.5 rounded-xl transition text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/60 animate-bounce">
                   <span>🚀</span>
                   <span>Dispatch / Handover</span>
                 </button>
               ` : `
-                <!-- STAGE 1: MARK READY -->
                 <button onclick="markReadyStage(${order.id})" class="w-full ${allItemsReady ? 'bg-amber-600 hover:bg-amber-500' : 'bg-gray-700 hover:bg-emerald-600'} text-white font-black py-2.5 rounded-xl transition text-sm flex items-center justify-center gap-1.5 shadow-md">
                   <span>✓</span>
                   <span>Mark Ready</span>
