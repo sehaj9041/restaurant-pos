@@ -296,7 +296,8 @@ app.get('/api/due/orders', (req, res) => {
       ROUND((JULIANDAY('now', 'localtime') - JULIANDAY(created_at))) as due_days,
       ROUND((JULIANDAY('now', 'localtime') - JULIANDAY(created_at)) * 24) as due_hours
     FROM orders
-    WHERE (payment_mode = 'DUE' OR status = 'DUE_PENDING' OR (payment_mode LIKE 'PARTIAL%' AND (total - COALESCE(paid_amount, 0)) > 0))
+    WHERE (payment_mode = 'DUE' OR status IN ('DUE_PENDING', 'KOT_READY') OR (payment_mode LIKE 'PARTIAL%' AND (total - COALESCE(paid_amount, 0)) > 0))
+      AND (total - COALESCE(paid_amount, 0)) > 0
       AND status != 'COMPLETED'
     ORDER BY id DESC
   `;
@@ -324,7 +325,8 @@ app.get('/api/due/customers', (req, res) => {
       MAX(ROUND((JULIANDAY('now', 'localtime') - JULIANDAY(created_at)))) as oldest_days,
       GROUP_CONCAT(id) as order_ids
     FROM orders
-    WHERE (payment_mode = 'DUE' OR status = 'DUE_PENDING' OR (payment_mode LIKE 'PARTIAL%' AND (total - COALESCE(paid_amount, 0)) > 0))
+    WHERE (payment_mode = 'DUE' OR status IN ('DUE_PENDING', 'KOT_READY') OR (payment_mode LIKE 'PARTIAL%' AND (total - COALESCE(paid_amount, 0)) > 0))
+      AND (total - COALESCE(paid_amount, 0)) > 0
       AND status != 'COMPLETED'
     GROUP BY customer_phone
     HAVING total_due > 0
@@ -352,16 +354,16 @@ app.post('/api/due/settle-customer', (req, res) => {
 
   const mode = payment_mode || 'CASH';
 
-  // Mark all pending orders for this customer as COMPLETED & fully paid
   db.run(
     `UPDATE orders 
      SET status = 'COMPLETED', payment_mode = ?, paid_amount = total 
-     WHERE customer_phone = ? AND (payment_mode = 'DUE' OR status = 'DUE_PENDING' OR (total - COALESCE(paid_amount, 0)) > 0) AND status != 'COMPLETED'`,
+     WHERE customer_phone = ? 
+       AND (payment_mode = 'DUE' OR status IN ('DUE_PENDING', 'KOT_READY') OR (total - COALESCE(paid_amount, 0)) > 0) 
+       AND status != 'COMPLETED'`,
     [mode, phone],
     function (err) {
       if (err) return res.status(500).json({ error: err.message });
       
-      // Update customer table khata balance to 0
       db.run("UPDATE customers SET due_balance = 0 WHERE phone = ?", [phone], () => {
         console.log(`[FULL SETTLEMENT SUCCESS] Customer ${phone} all due bills closed via ${mode}`);
         res.json({ success: true, message: `All bills cleared successfully via ${mode}` });
@@ -436,14 +438,13 @@ app.put('/api/orders/:id', (req, res) => {
     let status = 'RUNNING_TABLE';
     let finalMode = payment_mode;
 
-    // FIX: Agar balance zero ho gaya (order settle ho gaya)
     if (finalRemaining === 0 && finalPaid > 0) {
       status = 'COMPLETED';
     } else if (finalPaid > 0) {
       status = (prevStatus === 'KOT_READY') ? 'KOT_READY' : 'RUNNING_TABLE';
       finalMode = `PARTIAL (Paid: ₹${finalPaid}, Due: ₹${finalRemaining})`;
     } else if (payment_mode === 'DUE') {
-      status = 'DUE_PENDING';
+      status = (prevStatus === 'KOT_READY') ? 'KOT_READY' : 'DUE_PENDING';
     }
 
     db.run(
@@ -583,7 +584,6 @@ app.post('/api/tables/:id/settle', (req, res) => {
         res.json({ success: true, duePending: true });
       });
     } else {
-      // SETTLED: Set to COMPLETED so it never returns to Kitchen Display
       db.run("UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE id = ?", [payment_mode, req.params.id], (err2) => {
         if (err2) return res.status(500).json({ error: err2.message });
         res.json({ success: true });
@@ -607,7 +607,7 @@ app.post('/api/customers/:phone/clear-due', (req, res) => {
       if (err2) return res.status(500).json({ error: err2.message });
 
       if (newDue === 0) {
-        db.run("UPDATE orders SET status = 'COMPLETED' WHERE customer_phone = ? AND status = 'DUE_PENDING'", [phone]);
+        db.run("UPDATE orders SET status = 'COMPLETED' WHERE customer_phone = ? AND status IN ('DUE_PENDING', 'KOT_READY')", [phone]);
       }
       console.log(`[KHATA CLEAR] Customer ${cust.name} paid Rs ${payAmt} via ${payment_mode || 'CASH'}. Remaining Due: Rs ${newDue}`);
       res.json({ success: true, remainingDue: newDue });
@@ -732,7 +732,7 @@ app.post('/api/printer/print-daily-summary', async (req, res) => {
 });
 
 // 9. KITCHEN KOT API (o.created_at INCLUDED FOR KDS LIVE 00:00 TIMER)
-// Strict: 'KITCHEN_ACTIVE' removed so settled orders never pop back up!
+// 'KOT_READY' & 'COMPLETED' excluded so dispatched orders never reappear on KDS!
 app.get('/api/kot', (req, res) => {
   db.all(
     `SELECT o.id, o.order_type, o.table_no, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
@@ -766,7 +766,7 @@ app.get('/api/kot', (req, res) => {
   );
 });
 
-// KDS COMPLETE: UNPAID ORDERS WILL NOT BE MARKED COMPLETED OR SETTLED!
+// KDS COMPLETE: DISPATCH CLEARS KDS DISPLAY WITHOUT LOSING UNPAID/DUE STATUS!
 app.post('/api/kot/:id/complete', (req, res) => {
   const orderId = req.params.id;
   db.get("SELECT total, COALESCE(paid_amount, 0) as paid_amount, payment_mode, status FROM orders WHERE id = ?", [orderId], (err, order) => {
@@ -776,15 +776,13 @@ app.post('/api/kot/:id/complete', (req, res) => {
     const paid = Number(order.paid_amount) || 0;
     const isFullyPaid = (paid >= total && total > 0);
 
-    // 1. Agar Khata / DUE hai
-    if (order.payment_mode === 'DUE' || order.status === 'DUE_PENDING') {
-      db.run("UPDATE orders SET status = 'DUE_PENDING' WHERE id = ?", [orderId], () => res.json({ success: true }));
-    } 
-    // 2. Agar payment pehle se completely receive ho chuki hai
-    else if (isFullyPaid) {
+    // 1. Agar payment pehle se completely receive ho chuki hai
+    if (isFullyPaid) {
       db.run("UPDATE orders SET status = 'COMPLETED' WHERE id = ?", [orderId], () => res.json({ success: true }));
     } 
-    // 3. Agar order UNPAID ya PARTIAL hai -> KOT_READY (Kitchen se hatega, POS active rahega, Order History mein NAHI aayega)
+    // 2. Agar order DUE hai ya PARTIAL / UNPAID hai:
+    // Kitchen display se hatane ke liye 'KOT_READY' banega
+    // Isse KDS se gayab ho jayega par POS Active screen aur Due Khata screen par bilkul safe rahega!
     else {
       db.run("UPDATE orders SET status = 'KOT_READY' WHERE id = ?", [orderId], () => res.json({ success: true }));
     }
