@@ -479,7 +479,7 @@ app.post('/api/orders', async (req, res) => {
   });
 });
 
-// SETTLE ORDER API: Settle hone par hi status COMPLETED hoga
+// SETTLE ORDER API: Settle hone par status COMPLETED hoga taaki KDS par dobara na jaye
 app.post('/api/tables/:id/settle', (req, res) => {
   const { payment_mode } = req.body;
   db.get("SELECT * FROM orders WHERE id = ?", [req.params.id], (err, order) => {
@@ -495,6 +495,7 @@ app.post('/api/tables/:id/settle', (req, res) => {
         res.json({ success: true, duePending: true });
       });
     } else {
+      // SETTLED: Set to COMPLETED so it never returns to Kitchen Display
       db.run("UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE id = ?", [payment_mode, req.params.id], (err2) => {
         if (err2) return res.status(500).json({ error: err2.message });
         res.json({ success: true });
