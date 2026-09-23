@@ -885,7 +885,7 @@ app.get('/api/reports/analytics', (req, res) => {
   });
 });
 
-app.post('/api/verify-pin',, (req, res) => {
+app.post('/api/verify-pin', (req, res) => {
   db.get("SELECT admin_pin FROM settings WHERE id = 1", [], (err, row) => {
     res.json({ valid: req.body.pin === ((row && row.admin_pin) ? row.admin_pin : '1234') });
   });
