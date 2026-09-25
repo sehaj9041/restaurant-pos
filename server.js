@@ -26,8 +26,10 @@ app.get('/', (req, res) => {
 app.get('/pos', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
+
+// Static directories setup for public and uploads
 app.use(express.static(path.join(__dirname, 'public')));
-app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
+app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
 
 // Real-time Live Cart Storage for Customer Facing Display
 let liveCustomerCart = {
@@ -304,9 +306,8 @@ app.get('/api/orders/active', (req, res) => {
   });
 });
 
-// ================= DEDICATED DUE (KHATA) APIS (POSTGRESQL COMPATIBLE) =================
+// ================= DEDICATED DUE (KHATA) APIS =================
 
-// A. Due Orders ("By order" View)
 app.get('/api/due/orders', (req, res) => {
   const query = `
     SELECT 
@@ -350,7 +351,6 @@ app.get('/api/due/orders', (req, res) => {
   });
 });
 
-// B. Due Customers Aggregated ("By customer" View - PostgreSQL STRING_AGG)
 app.get('/api/due/customers', (req, res) => {
   const query = `
     SELECT 
@@ -397,7 +397,6 @@ app.get('/api/due/customers', (req, res) => {
   });
 });
 
-// C. One-Click Customer Full Settlement (Settles all pending bills for a single customer)
 app.post('/api/due/settle-customer', (req, res) => {
   const { phone, payment_mode } = req.body;
   if (!phone) return res.status(400).json({ error: 'Customer phone required' });
@@ -418,7 +417,6 @@ app.post('/api/due/settle-customer', (req, res) => {
   );
 });
 
-// DEDICATED SETTLED ORDER HISTORY API
 app.get('/api/orders/history', (req, res) => {
   const { date } = req.query;
   const filterDate = date ? date : new Date().toISOString().slice(0, 10);
@@ -457,7 +455,6 @@ app.get('/api/orders/history', (req, res) => {
   });
 });
 
-// Update Existing Order In-Place
 app.put('/api/orders/:id', (req, res) => {
   const orderId = req.params.id;
   const { order_type, table_no, customer_name, customer_phone, items, subtotal, discount, gst, total, payment_mode, paid_amount } = req.body;
@@ -514,7 +511,6 @@ app.put('/api/orders/:id', (req, res) => {
   });
 });
 
-// Punch Order: Starts in 'PENDING' so it actively shows on KDS
 app.post('/api/orders', async (req, res) => {
   const { order_type, table_no, customer_name, customer_phone, items, payment_mode, subtotal, discount, gst, total, is_hold, paid_amount } = req.body;
 
@@ -592,7 +588,6 @@ app.post('/api/orders', async (req, res) => {
   });
 });
 
-// SETTLE ORDER API: FOOLPROOF SETTLEMENT LOGIC
 app.post('/api/tables/:id/settle', (req, res) => {
   const { payment_mode } = req.body;
   const orderId = req.params.id;
@@ -618,7 +613,6 @@ app.post('/api/tables/:id/settle', (req, res) => {
   });
 });
 
-// Explicit Mark-Due route for manual queue shifts
 app.post('/api/orders/:id/mark-due', (req, res) => {
   const orderId = req.params.id;
   db.run(
@@ -631,7 +625,7 @@ app.post('/api/orders/:id/mark-due', (req, res) => {
   );
 });
 
-// 8. ROBUST THERMAL PRINTER AUTOMATION & VIRTUAL SIMULATOR
+// Printer setup
 let ThermalPrinterClass = null;
 let PrinterTypesObj = null;
 
@@ -747,7 +741,6 @@ app.post('/api/printer/print-daily-summary', async (req, res) => {
   }
 });
 
-// 9. KITCHEN KOT API
 app.get('/api/kot', (req, res) => {
   db.all(
     `SELECT o.id, o.order_type, o.table_no, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
@@ -781,7 +774,6 @@ app.get('/api/kot', (req, res) => {
   );
 });
 
-// KDS COMPLETE: DISPATCH CLEARS KDS DISPLAY WITHOUT LOSING UNPAID/DUE STATUS!
 app.post('/api/kot/:id/complete', (req, res) => {
   const orderId = req.params.id;
   db.get("SELECT total, COALESCE(paid_amount, 0) as paid_amount, payment_mode, status FROM orders WHERE id = ?", [orderId], (err, order) => {
@@ -824,7 +816,6 @@ app.post('/api/expenses', (req, res) => {
   );
 });
 
-// 10. REPORTS ANALYTICS
 app.get('/api/reports/analytics', (req, res) => {
   const { startDate, endDate } = req.query;
   const start = startDate ? startDate : new Date().toISOString().slice(0, 10);
