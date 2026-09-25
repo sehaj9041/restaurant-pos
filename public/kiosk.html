@@ -14,7 +14,7 @@
     ::-webkit-scrollbar { width: 0px; height: 0px; }
     body { -webkit-tap-highlight-color: transparent; user-select: none; }
 
-    /* Clean & Robust Container-Bound Fly Animation */
+    /* Clean Container-Bound Fly Animation */
     .fly-item {
       position: absolute;
       z-index: 99999;
@@ -283,16 +283,6 @@
       return '🍽';
     }
 
-    // Helper to resolve image properly
-    function resolveImgPath(imgPath) {
-      if (!imgPath || imgPath === 'null' || imgPath === 'undefined' || imgPath.trim() === '') return '';
-      const clean = imgPath.trim();
-      if (clean.startsWith('http://') || clean.startsWith('https://') || clean.startsWith('/')) {
-        return clean;
-      }
-      return '/uploads/' + clean;
-    }
-
     function renderCategoryItems() {
       document.getElementById('activeCategoryHeading').innerText = activeCategory;
       const filtered = menuItems.filter(i => i.category === activeCategory);
@@ -303,14 +293,10 @@
         let vars = [];
         try { vars = JSON.parse(item.variations || '[]'); } catch(e) {}
         const priceTag = vars.length ? `From ₹${Number(vars[0].price)}` : `₹${Number(item.price)}`;
-        
-        const rawImg = item.image || item.image_url || item.img || '';
-        const itemImg = resolveImgPath(rawImg);
 
         return `
           <div onclick='openCustomizer(${JSON.stringify(item).replace(/'/g, "&apos;")})' class="bg-white rounded-2xl p-2.5 shadow-sm border border-gray-100 flex flex-col justify-between active:scale-95 transition cursor-pointer">
-            ${itemImg !== '' ? `<img src="${itemImg}" class="w-full h-24 object-cover rounded-xl mb-1.5" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">` : ''}
-            <div class="w-full h-20 bg-amber-50 rounded-xl mb-1.5 items-center justify-center text-amber-500 text-2xl font-black ${itemImg !== '' ? 'hidden' : 'flex'}">🍔</div>
+            ${item.image ? `<img src="${item.image}" class="w-full h-24 object-cover rounded-xl mb-1.5">` : `<div class="w-full h-20 bg-amber-50 rounded-xl mb-1.5 flex items-center justify-center text-amber-500 text-2xl font-black">🍔</div>`}
             <div>
               <h3 class="font-black text-gray-900 text-[11px] leading-tight line-clamp-2">${item.name}</h3>
             </div>
@@ -329,10 +315,8 @@
       document.getElementById('custItemTitle').innerText = item.name;
       document.getElementById('custItemCategory').innerText = item.category;
 
-      const rawImg = item.image || item.image_url || item.img || '';
-      const itemImg = resolveImgPath(rawImg);
       const imgBox = document.getElementById('custImgContainer');
-      imgBox.innerHTML = itemImg !== '' ? `<img src="${itemImg}" class="w-10 h-10 rounded-lg object-cover" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center text-lg\'>🍔</div>';">` : `<div class="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center text-lg">🍔</div>`;
+      imgBox.innerHTML = item.image ? `<img src="${item.image}" class="w-10 h-10 rounded-lg object-cover">` : `<div class="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center text-lg">🍔</div>`;
 
       let variations = [];
       try { variations = JSON.parse(item.variations || '[]'); } catch(e) {}
