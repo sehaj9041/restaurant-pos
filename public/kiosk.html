@@ -14,12 +14,12 @@
     ::-webkit-scrollbar { width: 0px; height: 0px; }
     body { -webkit-tap-highlight-color: transparent; user-select: none; }
 
-    /* Clean Container-Bound Fly Animation */
+    /* Dynamic Fly-to-Cart Animation from clicked card position */
     .fly-item {
-      position: absolute;
+      position: fixed;
       z-index: 99999;
       pointer-events: none;
-      transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: all 0.7s cubic-bezier(0.16, 1, 0.3, 1);
     }
   </style>
 </head>
@@ -232,6 +232,7 @@
     let selectedMenuItem = null;
     let selectedVariation = null;
     let selectedGroupAddons = {};
+    let lastClickedCardRect = null;
 
     fetch('/api/settings').then(res => res.json()).then(s => {
       const name = s.restaurant_name || 'VISHAL FOODIEZ';
@@ -293,10 +294,11 @@
         let vars = [];
         try { vars = JSON.parse(item.variations || '[]'); } catch(e) {}
         const priceTag = vars.length ? `From ₹${Number(vars[0].price)}` : `₹${Number(item.price)}`;
+        const itemImg = item.image || '';
 
         return `
-          <div onclick='openCustomizer(${JSON.stringify(item).replace(/'/g, "&apos;")})' class="bg-white rounded-2xl p-2.5 shadow-sm border border-gray-100 flex flex-col justify-between active:scale-95 transition cursor-pointer">
-            ${item.image ? `<img src="${item.image}" class="w-full h-24 object-cover rounded-xl mb-1.5">` : `<div class="w-full h-20 bg-amber-50 rounded-xl mb-1.5 flex items-center justify-center text-amber-500 text-2xl font-black">🍔</div>`}
+          <div onclick='openCustomizer(event, ${JSON.stringify(item).replace(/'/g, "&apos;")})' class="bg-white rounded-2xl p-2.5 shadow-sm border border-gray-100 flex flex-col justify-between active:scale-95 transition cursor-pointer">
+            ${itemImg ? `<img src="${itemImg}" class="w-full h-24 object-cover rounded-xl mb-1.5">` : `<div class="w-full h-20 bg-amber-50 rounded-xl mb-1.5 flex items-center justify-center text-amber-500 text-2xl font-black">🍔</div>`}
             <div>
               <h3 class="font-black text-gray-900 text-[11px] leading-tight line-clamp-2">${item.name}</h3>
             </div>
@@ -309,7 +311,11 @@
       }).join('');
     }
 
-    function openCustomizer(item) {
+    function openCustomizer(event, item) {
+      // Capture the exact card position where user clicked
+      const cardElement = event.currentTarget;
+      lastClickedCardRect = cardElement.getBoundingClientRect();
+
       selectedMenuItem = item;
       selectedGroupAddons = {};
       document.getElementById('custItemTitle').innerText = item.name;
@@ -433,40 +439,44 @@
       selectedGroupAddons = {};
     }
 
-    // FLY TO CART ANIMATION WITH EXACT PRODUCT IMAGE
+    // FLY TO CART ANIMATION FROM EXACT CLICKED ITEM CARD POSITION
     function triggerFlyToCartAnimation(itemImgUrl) {
-      const container = document.getElementById('kioskFrameContainer');
       const cartIcon = document.getElementById('cartIconBox');
-      if (!container || !cartIcon) return;
+      if (!cartIcon) return;
+
+      const cartRect = cartIcon.getBoundingClientRect();
+      
+      const startX = lastClickedCardRect ? (lastClickedCardRect.left + lastClickedCardRect.width / 2 - 20) : window.innerWidth / 2;
+      const startY = lastClickedCardRect ? (lastClickedCardRect.top + lastClickedCardRect.height / 2 - 20) : window.innerHeight / 2;
 
       const flyer = document.createElement('div');
       flyer.className = 'fly-item';
       
       if (itemImgUrl && itemImgUrl.trim() !== '') {
-        flyer.innerHTML = `<img src="${itemImgUrl}" class="w-12 h-12 rounded-xl object-cover shadow-lg border-2 border-white">`;
+        flyer.innerHTML = `<img src="${itemImgUrl}" class="w-12 h-12 rounded-xl object-cover shadow-2xl border-2 border-white">`;
       } else {
         flyer.innerHTML = '🍔';
         flyer.style.fontSize = '30px';
       }
       
-      flyer.style.left = '50%';
-      flyer.style.top = '60%';
-      flyer.style.transform = 'translate(-50%, -50%) scale(1)';
+      flyer.style.left = startX + 'px';
+      flyer.style.top = startY + 'px';
+      flyer.style.transform = 'scale(1) rotate(0deg)';
 
-      container.appendChild(flyer);
+      document.body.appendChild(flyer);
 
       setTimeout(() => {
-        flyer.style.left = '35px';
-        flyer.style.top = 'calc(100% - 40px)';
-        flyer.style.transform = 'scale(0.3) rotate(360deg)';
-        flyer.style.opacity = '0.2';
-      }, 50);
+        flyer.style.left = (cartRect.left + cartRect.width / 2 - 20) + 'px';
+        flyer.style.top = (cartRect.top + cartRect.height / 2 - 20) + 'px';
+        flyer.style.transform = 'scale(0.25) rotate(360deg)';
+        flyer.style.opacity = '0.3';
+      }, 30);
 
       setTimeout(() => {
         flyer.remove();
         cartIcon.classList.add('scale-125', 'transition-transform');
         setTimeout(() => cartIcon.classList.remove('scale-125'), 250);
-      }, 850);
+      }, 750);
     }
 
     function confirmKioskItemAdd() {
