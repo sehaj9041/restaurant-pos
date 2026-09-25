@@ -284,7 +284,7 @@
       grid.innerHTML = filtered.map(item => {
         let vars = [];
         try { vars = JSON.parse(item.variations || '[]'); } catch(e) {}
-        const priceTag = vars.length ? `From ₹${vars[0].price}` : `₹${item.price}`;
+        const priceTag = vars.length ? `From ₹${Number(vars[0].price)}` : `₹${Number(item.price)}`;
 
         return `
           <div onclick='openCustomizer(${JSON.stringify(item).replace(/'/g, "&apos;")})' class="bg-white rounded-2xl p-2.5 shadow-sm border border-gray-100 flex flex-col justify-between active:scale-95 transition cursor-pointer">
@@ -316,7 +316,7 @@
       const varGrid = document.getElementById('modalVarGrid');
 
       if (variations.length > 0) {
-        selectedVariation = variations[0];
+        selectedVariation = { ...variations[0], price: Number(variations[0].price) };
         varSec.classList.remove('hidden');
         varGrid.innerHTML = variations.map((v, idx) => `
           <label class="flex items-center justify-between p-2 rounded-xl border border-amber-200 cursor-pointer bg-white">
@@ -324,7 +324,7 @@
               <input type="radio" name="kioskVarRadio" ${idx === 0 ? 'checked' : ''} onchange='selectKioskVariation(${JSON.stringify(v)})' class="text-red-600">
               <span class="text-[11px] font-black text-gray-800">${v.name}</span>
             </div>
-            <span class="text-[11px] font-black text-emerald-600">₹${v.price}</span>
+            <span class="text-[11px] font-black text-emerald-600">₹${Number(v.price)}</span>
           </label>
         `).join('');
       } else {
@@ -338,7 +338,7 @@
     }
 
     function selectKioskVariation(v) {
-      selectedVariation = v;
+      selectedVariation = { ...v, price: Number(v.price) };
       renderKioskAddonGroups();
       updateCustomizerTotal();
     }
@@ -374,15 +374,18 @@
               </span>
             </div>
             <div class="space-y-1">
-              ${items.map(addon => `
+              ${items.map(addon => {
+                const parsedAddon = { ...addon, price: Number(addon.price) };
+                return `
                 <label class="flex items-center justify-between p-2 rounded-lg bg-white border border-gray-100 cursor-pointer">
                   <div class="flex items-center gap-1.5">
-                    <input type="checkbox" onchange='toggleKioskAddon(${g.id}, ${g.max_selection}, ${JSON.stringify(addon)}, this)' class="rounded text-red-600">
-                    <span class="text-[11px] font-bold text-gray-700">${addon.name}</span>
+                    <input type="checkbox" onchange='toggleKioskAddon(${g.id}, ${g.max_selection},${JSON.stringify(parsedAddon)}, this)' class="rounded text-red-600">
+                    <span class="text-[11px] font-bold text-gray-700">${parsedAddon.name}</span>
                   </div>
-                  <span class="text-[10px] font-black text-emerald-600">+₹${addon.price}</span>
+                  <span class="text-[10px] font-black text-emerald-600">+₹${parsedAddon.price}</span>
                 </label>
-              `).join('')}
+              `;
+              }).join('')}
             </div>
           </div>
         `;
@@ -392,24 +395,25 @@
     function toggleKioskAddon(groupId, maxLimit, addon, cb) {
       if (!selectedGroupAddons[groupId]) selectedGroupAddons[groupId] = [];
       const list = selectedGroupAddons[groupId];
+      const normalizedAddon = { ...addon, price: Number(addon.price) };
 
       if (cb.checked) {
         if (list.length >= maxLimit) {
           cb.checked = false;
           return alert(`Max limit: ${maxLimit}`);
         }
-        list.push(addon);
+        list.push(normalizedAddon);
       } else {
-        selectedGroupAddons[groupId] = list.filter(a => a.name !== addon.name);
+        selectedGroupAddons[groupId] = list.filter(a => a.name !== normalizedAddon.name);
       }
       updateCustomizerTotal();
     }
 
     function updateCustomizerTotal() {
-      const base = selectedVariation ? selectedVariation.price : selectedMenuItem.price;
+      const base = selectedVariation ? Number(selectedVariation.price) : Number(selectedMenuItem.price);
       let addonSum = 0;
       Object.values(selectedGroupAddons).forEach(list => {
-        addonSum += list.reduce((s, a) => s + a.price, 0);
+        addonSum += list.reduce((s, a) => s + Number(a.price), 0);
       });
       document.getElementById('modalItemRunningTotal').innerText = '₹' + (base + addonSum);
     }
@@ -438,7 +442,7 @@
         }
       }
 
-      const basePrice = selectedVariation ? selectedVariation.price : selectedMenuItem.price;
+      const basePrice = selectedVariation ? Number(selectedVariation.price) : Number(selectedMenuItem.price);
       let addonExtra = 0;
       let notes = [];
 
@@ -446,8 +450,8 @@
 
       Object.values(selectedGroupAddons).forEach(list => {
         list.forEach(a => {
-          addonExtra += a.price;
-          notes.push(`${a.name} (+₹${a.price})`);
+          addonExtra += Number(a.price);
+          notes.push(`${a.name} (+₹${Number(a.price)})`);
         });
       });
 
@@ -462,7 +466,7 @@
           cartId: Date.now(),
           menu_id: selectedMenuItem.id,
           name: displayName,
-          price: finalPrice,
+          price: Number(finalPrice),
           notes: noteText,
           qty: 1
         });
@@ -474,7 +478,7 @@
 
     function updateTrayUI() {
       const count = kioskTray.reduce((s, i) => s + i.qty, 0);
-      const total = kioskTray.reduce((s, i) => s + (i.price * i.qty), 0);
+      const total = kioskTray.reduce((s, i) => s + (Number(i.price) * i.qty), 0);
 
       document.getElementById('trayCountBadge').innerText = count;
       document.getElementById('trayTotalDisplay').innerText = '₹' + total;
@@ -495,7 +499,7 @@
           <div>
             <h4 class="font-bold text-gray-800 text-[11px]">${item.name}</h4>
             ${item.notes ? `<p class="text-[9px] text-amber-700">↳ ${item.notes}</p>` : ''}
-            <p class="text-[10px] font-black text-emerald-600">₹${item.price}</p>
+            <p class="text-[10px] font-black text-emerald-600">₹${Number(item.price)}</p>
           </div>
           <div class="flex items-center gap-2">
             <div class="flex items-center border rounded-lg bg-white">
@@ -503,7 +507,7 @@
               <span class="px-1.5 font-bold text-[10px]">${item.qty}</span>
               <button onclick="changeTrayQty(${idx}, 1)" class="px-2 py-0.5 font-bold text-gray-600 text-xs">+</button>
             </div>
-            <span class="font-black text-[11px] text-gray-900 w-10 text-right">₹${item.price * item.qty}</span>
+            <span class="font-black text-[11px] text-gray-900 w-10 text-right">₹${Number(item.price) * item.qty}</span>
           </div>
         </div>
       `).join('');
@@ -529,13 +533,13 @@
 
     function submitKioskOrder(payMethod) {
       closePaymentModal();
-      const total = kioskTray.reduce((s, i) => s + (i.price * i.qty), 0);
+      const total = kioskTray.reduce((s, i) => s + (Number(i.price) * i.qty), 0);
 
       fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          order_type: kioskOrderType,
+          order_type: 'Online',
           table_no: kioskOrderType === 'Dine-In' ? 'KIOSK' : 'TAKEAWAY',
           customer_name: 'Kiosk Guest',
           customer_phone: '',
