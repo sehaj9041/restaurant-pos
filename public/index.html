@@ -322,6 +322,15 @@
 
     <!-- MAIN FLOOR CONTENT (Floor Plan & Queues) -->
     <div id="mainFloorDashboardContent" class="space-y-3">
+      <!-- ================= ONLINE ORDERS QUEUE SECTION ================= -->
+      <div id="onlineOrdersBox" class="bg-white rounded-xl border border-orange-300 p-3 shadow-2xs space-y-2 mb-3 hidden">
+        <div class="flex justify-between items-center text-xs font-bold text-gray-700 border-b pb-2">
+          <span class="flex items-center gap-1.5"><span>🌐</span> Online Orders</span>
+          <span id="onlineOrdersCountBadge" class="bg-orange-500 text-white px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
+        </div>
+        <div id="onlineOrdersList" class="space-y-2"></div>
+      </div>
+
       <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-2xs">
         <div class="p-2.5 border-b border-gray-100 flex justify-between items-center text-xs">
           <div class="flex items-center gap-3">
@@ -1052,7 +1061,6 @@
 
     // ================= SINGLE ORDER QUICK SETTLE LOGIC =================
     function actionSettlePopup(orderId) {
-      // View aur Settle dono ab seedha order ko POS/Cart screen par open karenge
       actionEditAddItems(orderId);
     }
 
@@ -1294,7 +1302,6 @@
     }
 
     function actionViewOrder(orderId) {
-      // View button ab order ko POS/Cart screen par khol dega
       actionEditAddItems(orderId);
     }
 
@@ -1453,9 +1460,33 @@
       }).join('');
     }
 
+    // ================= INTEGRATED QUEUES & ONLINE ORDERS RENDER =================
     function renderAllQueues() {
+      // 1. Online Orders Filter
+      var onlineOrders = allActiveOrders.filter(function(o) {
+        var type = (o.order_type || '').toLowerCase();
+        var isCompleted = (o.status === 'COMPLETED');
+        return (type === 'online' || type === 'delivery-online') && !isCompleted;
+      });
+
+      var onlineBox = document.getElementById('onlineOrdersBox');
+      var onlineList = document.getElementById('onlineOrdersList');
+      var onlineBadge = document.getElementById('onlineOrdersCountBadge');
+
+      if (onlineOrders.length > 0) {
+        if (onlineBox) onlineBox.classList.remove('hidden');
+        if (onlineBadge) onlineBadge.innerText = onlineOrders.length;
+        if (onlineList) {
+          onlineList.innerHTML = onlineOrders.map(buildOrderActionCard).join('');
+        }
+      } else {
+        if (onlineBox) onlineBox.classList.add('hidden');
+      }
+
+      // 2. Unassigned Kiosk Orders
       var unassignedKiosk = allActiveOrders.filter(function(o) {
-        return o.order_type === 'Dine-In' && (!o.table_no || o.table_no.trim() === '' || o.table_no === 'Direct');
+        var type = (o.order_type || '').toLowerCase();
+        return type === 'dine-in' && (!o.table_no || o.table_no.trim() === '' || o.table_no === 'Direct');
       });
 
       var kioskBox = document.getElementById('kioskUnassignedBox');
@@ -1567,19 +1598,18 @@
                 </div>
                 <div class="text-[11px] text-gray-600 mt-0.5 line-clamp-1">${itemsText || 'Order placed'}</div>
                 <div class="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
-                  <span>👤 ${o.customer_name || 'Sehaj'}</span>
-                  <span class="bg-gray-100 text-gray-500 font-bold px-1 rounded text-[9px]">You</span>
+                  <span>👤 ${o.customer_name || 'Guest'}</span>
                   ${o.customer_phone ? `<span class="ml-1 text-gray-500 font-mono">(${o.customer_phone})</span>` : ''}
                 </div>
               </div>
 
               <div class="text-right">
                 <div class="flex items-center justify-end gap-1 mb-0.5">
-                  <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100/70 text-orange-800">Preparing</span>
+                  <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100/70 text-orange-800">${o.order_type || 'Online'}</span>
                   <span class="font-black text-gray-900 text-sm">₹${o.total}</span>
                   <span class="text-[10px] font-black px-1.5 py-0.5 rounded ${tagBg}">${statusTag}</span>
                 </div>
-                <div class="text-[9px] text-gray-400">${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short' })} • ${new Date().toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' })}</div>
+                <div class="text-[9px] text-gray-400">Live Order</div>
               </div>
             </div>
 
@@ -1598,23 +1628,29 @@
 
       var takeawayOrders = allActiveOrders.filter(function(o) { 
         var isDispatched = (o.status === 'KOT_READY' || o.status === 'COMPLETED');
-        return o.order_type === 'Takeaway' && !isDispatched; 
+        var type = (o.order_type || '').toLowerCase();
+        return type === 'takeaway' && !isDispatched; 
       });
 
-      document.getElementById('takeawayQueueBadge').innerText = takeawayOrders.length;
       var tList = document.getElementById('takeawayQueueList');
-      if (!takeawayOrders.length) tList.innerHTML = '<p class="text-xs text-gray-400 italic text-center py-6">No takeaway orders in queue</p>';
-      else tList.innerHTML = takeawayOrders.map(buildOrderActionCard).join('');
+      if (tList) {
+        document.getElementById('takeawayQueueBadge').innerText = takeawayOrders.length;
+        if (!takeawayOrders.length) tList.innerHTML = '<p class="text-xs text-gray-400 italic text-center py-6">No takeaway orders in queue</p>';
+        else tList.innerHTML = takeawayOrders.map(buildOrderActionCard).join('');
+      }
 
       var deliveryOrders = allActiveOrders.filter(function(o) { 
         var isDispatched = (o.status === 'KOT_READY' || o.status === 'COMPLETED');
-        return o.order_type === 'Delivery' && !isDispatched; 
+        var type = (o.order_type || '').toLowerCase();
+        return (type === 'delivery' && type !== 'online') && !isDispatched; 
       });
 
-      document.getElementById('deliveryQueueBadge').innerText = deliveryOrders.length;
       var dList = document.getElementById('deliveryQueueList');
-      if (!deliveryOrders.length) dList.innerHTML = '<p class="text-xs text-gray-400 italic text-center py-6">No delivery orders in queue</p>';
-      else dList.innerHTML = deliveryOrders.map(buildOrderActionCard).join('');
+      if (dList) {
+        document.getElementById('deliveryQueueBadge').innerText = deliveryOrders.length;
+        if (!deliveryOrders.length) dList.innerHTML = '<p class="text-xs text-gray-400 italic text-center py-6">No delivery orders in queue</p>';
+        else dList.innerHTML = deliveryOrders.map(buildOrderActionCard).join('');
+      }
     }
 
     function actionAddPhone(orderId) {
