@@ -14,26 +14,26 @@
     ::-webkit-scrollbar { width: 0px; height: 0px; }
     body { -webkit-tap-highlight-color: transparent; user-select: none; }
 
-    /* Flying item animation for tray drop effect */
+    /* Smoother and slower flying item animation for tray drop effect */
     @keyframes flyToCart {
       0% {
         opacity: 1;
-        transform: translate(0, 0) scale(1);
+        transform: translate(0, 0) scale(1) rotate(0deg);
       }
       50% {
-        opacity: 0.8;
-        transform: translate(var(--dx), var(--dy)) scale(0.5);
+        opacity: 0.9;
+        transform: translate(calc(var(--dx) * 0.5), calc(var(--dy) * 0.5 - 40px)) scale(0.8) rotate(180deg);
       }
       100% {
         opacity: 0;
-        transform: translate(var(--dx), var(--dy)) scale(0.2);
+        transform: translate(var(--dx), var(--dy)) scale(0.3) rotate(360deg);
       }
     }
     .fly-item {
       position: fixed;
       z-index: 999;
       pointer-events: none;
-      animation: flyToCart 0.6s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+      animation: flyToCart 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
   </style>
 </head>
@@ -310,7 +310,7 @@
 
         return `
           <div onclick='openCustomizer(${JSON.stringify(item).replace(/'/g, "&apos;")})' class="bg-white rounded-2xl p-2.5 shadow-sm border border-gray-100 flex flex-col justify-between active:scale-95 transition cursor-pointer">
-            ${item.image ? `<img src="${item.image}" class="w-full h-24 object-cover rounded-xl mb-1.5">` : `<div class="w-full h-20 bg-amber-50 rounded-xl mb-1.5 flex items-center justify-center text-amber-500 text-2xl font-black">🍔</div>`}
+            ${item.image && item.image.trim() !== '' ? `<img src="${item.image}" class="w-full h-24 object-cover rounded-xl mb-1.5">` : `<div class="w-full h-20 bg-amber-50 rounded-xl mb-1.5 flex items-center justify-center text-amber-500 text-2xl font-black">🍔</div>`}
             <div>
               <h3 class="font-black text-gray-900 text-[11px] leading-tight line-clamp-2">${item.name}</h3>
             </div>
@@ -330,7 +330,7 @@
       document.getElementById('custItemCategory').innerText = item.category;
 
       const imgBox = document.getElementById('custImgContainer');
-      imgBox.innerHTML = item.image ? `<img src="${item.image}" class="w-10 h-10 rounded-lg object-cover">` : `<div class="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center text-lg">🍔</div>`;
+      imgBox.innerHTML = item.image && item.image.trim() !== '' ? `<img src="${item.image}" class="w-10 h-10 rounded-lg object-cover">` : `<div class="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center text-lg">🍔</div>`;
 
       let variations = [];
       try { variations = JSON.parse(item.variations || '[]'); } catch(e) {}
@@ -447,7 +447,7 @@
       selectedGroupAddons = {};
     }
 
-    // FLY TO CART ANIMATION FUNCTION
+    // SMOOTH & SLOWER FLY TO CART ANIMATION FUNCTION
     function triggerFlyToCartAnimation() {
       const btn = document.getElementById('addToTrayBtn');
       const cartIcon = document.getElementById('cartIconBox');
@@ -459,9 +459,9 @@
       const flyer = document.createElement('div');
       flyer.className = 'fly-item';
       flyer.innerHTML = '🍔';
-      flyer.style.fontSize = '24px';
-      flyer.style.left = (btnRect.left + btnRect.width / 2 - 12) + 'px';
-      flyer.style.top = (btnRect.top + btnRect.height / 2 - 12) + 'px';
+      flyer.style.fontSize = '28px';
+      flyer.style.left = (btnRect.left + btnRect.width / 2 - 14) + 'px';
+      flyer.style.top = (btnRect.top + btnRect.height / 2 - 14) + 'px';
 
       const dx = (cartRect.left + cartRect.width / 2) - (btnRect.left + btnRect.width / 2);
       const dy = (cartRect.top + cartRect.height / 2) - (btnRect.top + btnRect.height / 2);
@@ -475,8 +475,8 @@
         flyer.remove();
         // Cart icon bounce effect
         cartIcon.classList.add('scale-125', 'transition-transform');
-        setTimeout(() => cartIcon.classList.remove('scale-125'), 200);
-      }, 600);
+        setTimeout(() => cartIcon.classList.remove('scale-125'), 250);
+      }, 1000);
     }
 
     function confirmKioskItemAdd() {
