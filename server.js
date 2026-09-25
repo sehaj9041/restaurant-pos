@@ -244,6 +244,28 @@ app.delete('/api/menu/:id', (req, res) => {
   });
 });
 
+// TODAY STATS API FOR POS DASHBOARD
+app.get('/api/orders/today-stats', (req, res) => {
+  const query = `
+    SELECT 
+      COUNT(*) AS total_orders,
+      COALESCE(SUM(total), 0) AS total_sales,
+      COALESCE(SUM(CASE WHEN UPPER(status) = 'COMPLETED' THEN 1 ELSE 0 END), 0) as completed_today,
+      COALESCE(SUM(CASE WHEN UPPER(order_type) LIKE '%DELIVERY%' THEN 1 ELSE 0 END), 0) as delivery_count,
+      COALESCE(SUM(CASE WHEN UPPER(status) LIKE '%VOID%' THEN 1 ELSE 0 END), 0) as void_count
+    FROM orders 
+    WHERE created_at::date = CURRENT_DATE OR DATE(created_at) = CURRENT_DATE
+  `;
+
+  db.get(query, [], (err, row) => {
+    if (err) {
+      console.error('Today stats error:', err.message);
+      return res.json({ total_orders: 0, total_sales: 0, completed_today: 0, delivery_count: 0, void_count: 0 });
+    }
+    res.json(row || { total_orders: 0, total_sales: 0, completed_today: 0, delivery_count: 0, void_count: 0 });
+  });
+});
+
 // 7. ACTIVE ORDERS
 app.get('/api/orders/active', (req, res) => {
   const query = `
