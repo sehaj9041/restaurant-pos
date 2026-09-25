@@ -266,13 +266,13 @@ app.get('/api/orders/today-stats', (req, res) => {
   });
 });
 
-// 7. ACTIVE ORDERS
+// 7. ACTIVE ORDERS (Robust fetch for online & active orders)
 app.get('/api/orders/active', (req, res) => {
   const query = `
     SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount
     FROM orders 
-    WHERE status != 'COMPLETED'
-       OR order_type = 'Online'
+    WHERE UPPER(status) != 'COMPLETED'
+       OR UPPER(order_type) = 'ONLINE'
     ORDER BY id DESC
   `;
 
