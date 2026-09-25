@@ -14,32 +14,27 @@
     ::-webkit-scrollbar { width: 0px; height: 0px; }
     body { -webkit-tap-highlight-color: transparent; user-select: none; }
 
-    /* Smooth and slow flying item animation for tray drop effect */
+    /* Simple & Visible Flying Item Animation */
     @keyframes flyToCart {
       0% {
         opacity: 1;
-        transform: translate(0, 0) scale(1) rotate(0deg);
-      }
-      50% {
-        opacity: 0.9;
-        transform: translate(calc(var(--dx) * 0.5), calc(var(--dy) * 0.5 - 40px)) scale(0.8) rotate(180deg);
+        transform: translate(0, 0) scale(1);
       }
       100% {
-        opacity: 0;
-        transform: translate(var(--dx), var(--dy)) scale(0.3) rotate(360deg);
+        opacity: 0.2;
+        transform: translate(var(--fly-x), var(--fly-y)) scale(0.3);
       }
     }
     .fly-item {
-      position: absolute;
-      z-index: 9999;
+      position: fixed;
+      z-index: 99999;
       pointer-events: none;
-      animation: flyToCart 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      animation: flyToCart 0.8s ease-in-out forwards;
     }
   </style>
 </head>
 <body class="bg-neutral-900 flex justify-center items-center h-screen w-screen overflow-hidden">
 
-  <!-- KIOSK FRAME CONTAINER -->
   <div id="kioskFrameContainer" class="kiosk-aspect-frame w-full bg-white relative flex flex-col justify-between shadow-[0_0_50px_rgba(0,0,0,0.8)] border-x border-neutral-800 overflow-hidden">
 
     <!-- 1. SCREENSAVER -->
@@ -298,14 +293,14 @@
       return '🍽';
     }
 
-    // Helper to format image path correctly if only filename is saved
+    // Helper to resolve image correctly whether it's full URL or relative filename
     function resolveImgPath(imgPath) {
       if (!imgPath || imgPath.trim() === '') return '';
-      const cleanPath = imgPath.trim();
-      if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://') || cleanPath.startsWith('/')) {
-        return cleanPath;
+      const clean = imgPath.trim();
+      if (clean.startsWith('http://') || clean.startsWith('https://') || clean.startsWith('/')) {
+        return clean;
       }
-      return '/uploads/' + cleanPath;
+      return '/uploads/' + clean;
     }
 
     function renderCategoryItems() {
@@ -319,12 +314,13 @@
         try { vars = JSON.parse(item.variations || '[]'); } catch(e) {}
         const priceTag = vars.length ? `From ₹${Number(vars[0].price)}` : `₹${Number(item.price)}`;
         
-        const rawImg = item.image || item.image_url || item.img;
+        const rawImg = item.image || item.image_url || item.img || '';
         const itemImg = resolveImgPath(rawImg);
 
         return `
           <div onclick='openCustomizer(${JSON.stringify(item).replace(/'/g, "&apos;")})' class="bg-white rounded-2xl p-2.5 shadow-sm border border-gray-100 flex flex-col justify-between active:scale-95 transition cursor-pointer">
-            ${itemImg !== '' ? `<img src="${itemImg}" class="w-full h-24 object-cover rounded-xl mb-1.5" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'w-full h-20 bg-amber-50 rounded-xl mb-1.5 flex items-center justify-center text-amber-500 text-2xl font-black\'>🍔</div>';">` : `<div class="w-full h-20 bg-amber-50 rounded-xl mb-1.5 flex items-center justify-center text-amber-500 text-2xl font-black">🍔</div>`}
+            ${itemImg !== '' ? `<img src="${itemImg}" class="w-full h-24 object-cover rounded-xl mb-1.5" onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';">` : ''}
+            <div class="w-full h-20 bg-amber-50 rounded-xl mb-1.5 items-center justify-center text-amber-500 text-2xl font-black ${itemImg !== '' ? 'hidden flex' : 'flex'}">🍔</div>
             <div>
               <h3 class="font-black text-gray-900 text-[11px] leading-tight line-clamp-2">${item.name}</h3>
             </div>
@@ -343,10 +339,10 @@
       document.getElementById('custItemTitle').innerText = item.name;
       document.getElementById('custItemCategory').innerText = item.category;
 
-      const rawImg = item.image || item.image_url || item.img;
+      const rawImg = item.image || item.image_url || item.img || '';
       const itemImg = resolveImgPath(rawImg);
       const imgBox = document.getElementById('custImgContainer');
-      imgBox.innerHTML = itemImg !== '' ? `<img src="${itemImg}" class="w-10 h-10 rounded-lg object-cover">` : `<div class="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center text-lg">🍔</div>`;
+      imgBox.innerHTML = itemImg !== '' ? `<img src="${itemImg}" class="w-10 h-10 rounded-lg object-cover" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center text-lg\'>🍔</div>';">` : `<div class="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center text-lg">🍔</div>`;
 
       let variations = [];
       try { variations = JSON.parse(item.variations || '[]'); } catch(e) {}
@@ -463,7 +459,7 @@
       selectedGroupAddons = {};
     }
 
-    // ACCURATE FLY TO CART ANIMATION FUNCTION WITHIN FRAME CONTAINER
+    // ROBUST & VISIBLE FLY TO CART ANIMATION FUNCTION
     function triggerFlyToCartAnimation() {
       const btn = document.getElementById('addToTrayBtn');
       const cartIcon = document.getElementById('cartIconBox');
@@ -472,30 +468,28 @@
 
       const btnRect = btn.getBoundingClientRect();
       const cartRect = cartIcon.getBoundingClientRect();
-      const containerRect = container.getBoundingClientRect();
 
       const flyer = document.createElement('div');
       flyer.className = 'fly-item';
       flyer.innerHTML = '🍔';
-      flyer.style.fontSize = '28px';
+      flyer.style.fontSize = '32px';
       
-      // Position relative to container frame
-      flyer.style.left = (btnRect.left - containerRect.left + btnRect.width / 2 - 14) + 'px';
-      flyer.style.top = (btnRect.top - containerRect.top + btnRect.height / 2 - 14) + 'px';
+      flyer.style.left = btnRect.left + 'px';
+      flyer.style.top = btnRect.top + 'px';
 
-      const dx = (cartRect.left + cartRect.width / 2) - (btnRect.left + btnRect.width / 2);
-      const dy = (cartRect.top + cartRect.height / 2) - (btnRect.top + btnRect.height / 2);
+      const dx = cartRect.left - btnRect.left;
+      const dy = cartRect.top - btnRect.top;
 
-      flyer.style.setProperty('--dx', dx + 'px');
-      flyer.style.setProperty('--dy', dy + 'px');
+      flyer.style.setProperty('--fly-x', dx + 'px');
+      flyer.style.setProperty('--fly-y', dy + 'px');
 
-      container.appendChild(flyer);
+      document.body.appendChild(flyer);
 
       setTimeout(() => {
         flyer.remove();
         cartIcon.classList.add('scale-125', 'transition-transform');
         setTimeout(() => cartIcon.classList.remove('scale-125'), 250);
-      }, 1000);
+      }, 800);
     }
 
     function confirmKioskItemAdd() {
