@@ -272,7 +272,19 @@
       });
     }
 
-    // Robust absolute path image upload helper
+    // Robust image path resolver to prevent broken images in Admin panel
+    function resolveImgPath(imgPath) {
+      if (!imgPath || imgPath.trim() === '') return '';
+      const clean = imgPath.trim();
+      if (clean.startsWith('http://') || clean.startsWith('https://')) {
+        return clean;
+      }
+      if (clean.startsWith('/')) {
+        return window.location.origin + clean;
+      }
+      return window.location.origin + '/uploads/' + clean;
+    }
+
     async function uploadFileHelper(fileInput) {
       if (!fileInput.files || !fileInput.files[0]) return '';
       const fd = new FormData();
@@ -312,10 +324,13 @@
           try { vars = JSON.parse(i.variations || '[]'); } catch(e) {}
           try { grps = JSON.parse(i.assigned_addon_groups || '[]'); } catch(e) {}
 
+          const rawImg = i.image || i.image_url || i.img || '';
+          const itemImg = resolveImgPath(rawImg);
+
           return `
             <tr class="hover:bg-gray-50">
               <td class="p-3">
-                ${i.image ? `<img src="${i.image}" class="w-10 h-10 object-cover rounded-lg border">` : `<div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs">No Img</div>`}
+                ${itemImg ? `<img src="${itemImg}" class="w-10 h-10 object-cover rounded-lg border" onerror="this.onerror=null; this.style.display='none';">` : `<div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs">No Img</div>`}
               </td>
               <td class="p-3 font-bold text-gray-800">${i.name}</td>
               <td class="p-3 text-gray-500">${i.category}</td>
@@ -373,7 +388,7 @@
     function renderTempGroupItems() {
       document.getElementById('tempGroupItemsList').innerHTML = tempGroupItems.map((item, idx) => `
         <span class="inline-flex items-center gap-1.5 bg-white border border-indigo-200 px-2.5 py-1 rounded-lg text-xs shadow-sm">
-          ${item.image ? `<img src="${item.image}" class="w-4 h-4 rounded object-cover">` : ''}
+          ${item.image ? `<img src="${resolveImgPath(item.image)}" class="w-4 h-4 rounded object-cover">` : ''}
           <span class="font-bold text-gray-700">${item.name} (+₹${item.price})</span>
           <button type="button" onclick="tempGroupItems.splice(${idx}, 1); renderTempGroupItems();" class="text-red-500 font-bold ml-1">✕</button>
         </span>
@@ -439,7 +454,7 @@
     function renderTempVariationOptions() {
       document.getElementById('tempVarOptionsList').innerHTML = tempVariationOptions.map((opt, idx) => `
         <span class="inline-flex items-center gap-1.5 bg-white border border-amber-200 px-2.5 py-1 rounded-lg text-xs shadow-sm">
-          ${opt.image ? `<img src="${opt.image}" class="w-4 h-4 rounded object-cover">` : ''}
+          ${opt.image ? `<img src="${resolveImgPath(opt.image)}" class="w-4 h-4 rounded object-cover">` : ''}
           <span class="font-bold text-gray-700">${opt.name}: ₹${opt.price}</span>
           <button type="button" onclick="tempVariationOptions.splice(${idx}, 1); renderTempVariationOptions();" class="text-red-500 font-bold ml-1">✕</button>
         </span>
@@ -526,10 +541,11 @@
     function renderEditVariations() {
       document.getElementById('editVariationsList').innerHTML = currentEditVariations.map((v, idx) => {
         const count = (v.addon_groups || []).length;
+        const vImg = resolveImgPath(v.image);
         return `
           <div class="flex justify-between items-center bg-white border border-amber-200 p-2 rounded-xl text-xs">
             <div class="flex items-center gap-2">
-              ${v.image ? `<img src="${v.image}" class="w-6 h-6 object-cover rounded">` : ''}
+              ${vImg ? `<img src="${vImg}" class="w-6 h-6 object-cover rounded">` : ''}
               <div>
                 <span class="font-bold text-gray-800">${v.name}</span>
                 <span class="font-black text-emerald-600 ml-2">₹${v.price}</span>
