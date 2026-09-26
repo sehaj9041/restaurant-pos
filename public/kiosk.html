@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Self-Order Kiosk (9:16)</title>
+  <title>Self-Order Kiosk - Vishal Foodiez</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     .kiosk-aspect-frame {
@@ -12,9 +12,9 @@
       max-width: calc(100vh * (9 / 16));
     }
     ::-webkit-scrollbar { width: 0px; height: 0px; }
-    body { -webkit-tap-highlight-color: transparent; user-select: none; }
+    body { -webkit-tap-highlight-color: transparent; user-select: none; font-family: system-ui, -apple-system, sans-serif; }
 
-    /* Ultra-slow, buttery-smooth fly-to-cart animation */
+    /* Ultra-smooth butter fly animation */
     .fly-item {
       position: fixed;
       z-index: 99999;
@@ -25,199 +25,210 @@
 </head>
 <body class="bg-neutral-900 flex justify-center items-center h-screen w-screen overflow-hidden">
 
-  <div id="kioskFrameContainer" class="kiosk-aspect-frame w-full bg-white relative flex flex-col justify-between shadow-[0_0_50px_rgba(0,0,0,0.8)] border-x border-neutral-800 overflow-hidden">
+  <div id="kioskFrameContainer" class="kiosk-aspect-frame w-full bg-neutral-50 relative flex flex-col justify-between shadow-[0_0_60px_rgba(0,0,0,0.9)] border-x border-neutral-800 overflow-hidden">
 
-    <!-- 1. SCREENSAVER -->
     <div id="idleScreensaver" onclick="startKioskOrder()" class="absolute inset-0 bg-gradient-to-b from-red-600 via-red-700 to-amber-600 z-50 flex flex-col items-center justify-between p-8 text-white text-center cursor-pointer">
-      <div class="mt-6">
-        <div class="w-20 h-20 bg-white rounded-3xl flex items-center justify-center mx-auto shadow-2xl mb-3">
-          <span class="text-4xl">🍔</span>
+      <div class="mt-8">
+        <div class="w-24 h-24 bg-white rounded-full flex items-center justify-center mx-auto shadow-2xl mb-4 border-4 border-amber-300">
+          <span class="text-5xl">🍔</span>
         </div>
-        <h1 id="screenStoreName" class="text-3xl font-black tracking-wider uppercase drop-shadow-md">VISHAL FOODIEZ</h1>
-        <p class="text-xs font-semibold text-amber-100 mt-1">Fresh Fast Food • Self Service</p>
+        <h1 id="screenStoreName" class="text-3xl font-black tracking-widest uppercase drop-shadow-md">VISHAL FOODIEZ</h1>
+        <p class="text-xs font-bold text-amber-100 tracking-wider mt-1">TOUCH TO START ORDERING</p>
       </div>
 
-      <div class="space-y-4">
-        <div class="w-36 h-36 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center mx-auto animate-bounce border-4 border-white/40 shadow-2xl">
-          <span class="text-5xl">👆</span>
+      <div class="w-full space-y-6 my-auto">
+        <div class="w-40 h-40 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center mx-auto animate-bounce border-4 border-white/50 shadow-2xl">
+          <span class="text-6xl">👆</span>
         </div>
-        <div>
-          <h2 class="text-2xl font-black tracking-wide">TAP TO START</h2>
-          <p class="text-[11px] uppercase tracking-widest text-white/80 mt-0.5">Touch anywhere to order</p>
+        <div class="bg-black/30 backdrop-blur-sm py-3 px-6 rounded-2xl inline-block border border-white/20">
+          <h2 class="text-lg font-black tracking-wide">START ORDER</h2>
+          <p class="text-[10px] uppercase tracking-widest text-white/80">Dine In & Takeaway Available</p>
         </div>
       </div>
 
-      <div class="grid grid-cols-2 gap-3 w-full pb-4">
-        <div class="bg-white text-gray-900 p-4 rounded-2xl font-black text-center shadow-xl border-2 border-amber-300">
-          <span class="text-2xl block mb-1">🍽</span>
-          <span class="text-xs uppercase">Dine In</span>
+      <div class="grid grid-cols-2 gap-3 w-full pb-6">
+        <div class="bg-white text-gray-900 p-4 rounded-2xl font-black text-center shadow-xl border-2 border-amber-300 flex flex-col items-center">
+          <span class="text-2xl mb-1">🍽</span>
+          <span class="text-xs uppercase">Eat In</span>
         </div>
-        <div class="bg-white text-gray-900 p-4 rounded-2xl font-black text-center shadow-xl border-2 border-amber-300">
-          <span class="text-2xl block mb-1">🛍</span>
+        <div class="bg-white text-gray-900 p-4 rounded-2xl font-black text-center shadow-xl border-2 border-amber-300 flex flex-col items-center">
+          <span class="text-2xl mb-1">🛍</span>
           <span class="text-xs uppercase">Takeaway</span>
         </div>
       </div>
     </div>
 
-    <!-- 2. HEADER -->
-    <header class="bg-white px-4 py-3 shadow-sm border-b border-gray-200 flex justify-between items-center z-10">
-      <div class="flex items-center gap-2">
-        <div class="w-9 h-9 bg-red-600 rounded-xl flex items-center justify-center text-white text-lg font-black">
+    <header class="bg-neutral-900 text-white px-4 py-3 shadow-md flex justify-between items-center z-10">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 bg-amber-400 rounded-xl flex items-center justify-center text-neutral-900 text-lg font-black shadow">
           🍟
         </div>
         <div>
-          <h1 id="kioskStoreName" class="text-sm font-black text-gray-900 tracking-tight leading-none truncate max-w-[130px]">VISHAL FOODIEZ</h1>
-          <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Self Kiosk</span>
+          <h1 id="kioskStoreName" class="text-xs font-black tracking-tight leading-none truncate max-w-[130px]">VISHAL FOODIEZ</h1>
+          <span class="text-[8px] font-bold text-amber-400 uppercase tracking-widest">Self Service Kiosk</span>
         </div>
       </div>
 
-      <div class="flex bg-gray-100 p-1 rounded-xl border border-gray-200">
-        <button id="pillDine" onclick="switchKioskMode('Dine-In')" class="px-3 py-1.5 rounded-lg font-black text-[10px] transition bg-red-600 text-white shadow-sm flex items-center gap-1">
-          <span>🍽</span> Dine In
+      <div class="flex bg-neutral-800 p-1 rounded-xl border border-neutral-700">
+        <button id="pillDine" onclick="switchKioskMode('Dine-In')" class="px-3 py-1.5 rounded-lg font-black text-[10px] transition bg-red-600 text-white shadow flex items-center gap-1">
+          <span>🍽</span> Eat In
         </button>
-        <button id="pillTake" onclick="switchKioskMode('Takeaway')" class="px-3 py-1.5 rounded-lg font-black text-[10px] transition text-gray-500 hover:text-gray-900 flex items-center gap-1">
+        <button id="pillTake" onclick="switchKioskMode('Takeaway')" class="px-3 py-1.5 rounded-lg font-black text-[10px] transition text-neutral-400 hover:text-white flex items-center gap-1">
           <span>🛍</span> Takeaway
         </button>
       </div>
     </header>
 
-    <!-- 3. MIDDLE AREA -->
-    <main class="flex-1 flex overflow-hidden">
-      <aside id="categorySidebar" class="w-20 bg-white border-r border-gray-200 flex flex-col py-2 gap-1.5 overflow-y-auto shrink-0 shadow-sm"></aside>
-      <section class="flex-1 bg-gray-50 p-3 overflow-y-auto">
-        <div class="flex justify-between items-center mb-2">
-          <h2 id="activeCategoryHeading" class="text-sm font-black text-gray-800 tracking-tight">Burgers</h2>
-          <span id="categoryItemCount" class="text-[10px] font-bold text-gray-400">0 items</span>
+    <main class="flex-1 flex overflow-hidden bg-neutral-100">
+      <aside id="categorySidebar" class="w-20 bg-white border-r border-neutral-200 flex flex-col py-3 gap-2 overflow-y-auto shrink-0 shadow-sm"></aside>
+      <section class="flex-1 p-3.5 overflow-y-auto">
+        <div class="flex justify-between items-center mb-3">
+          <h2 id="activeCategoryHeading" class="text-sm font-black text-neutral-800 tracking-tight uppercase">Menu</h2>
+          <span id="categoryItemCount" class="text-[10px] font-bold text-neutral-400 bg-neutral-200 px-2 py-0.5 rounded-full">0 items</span>
         </div>
-        <div id="itemsGrid" class="grid grid-cols-2 gap-2.5 pb-4"></div>
+        <div id="itemsGrid" class="grid grid-cols-2 gap-3 pb-6"></div>
       </section>
     </main>
 
-    <!-- 4. BOTTOM TRAY -->
-    <footer class="bg-white border-t border-gray-200 px-4 py-3 shadow-2xl z-20 flex justify-between items-center">
-      <div onclick="openTrayReviewModal()" class="flex items-center gap-2.5 cursor-pointer">
+    <footer class="bg-white border-t border-neutral-200 px-4 py-3 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] z-20 flex justify-between items-center">
+      <div onclick="openTrayReviewModal()" class="flex items-center gap-3 cursor-pointer">
         <div class="relative">
-          <div id="cartIconBox" class="w-11 h-11 bg-red-600 rounded-xl flex items-center justify-center text-white text-xl shadow-md">
-            🛒
+          <div id="cartIconBox" class="w-12 h-12 bg-red-600 rounded-2xl flex items-center justify-center text-white text-xl shadow-lg">
+            🛍️
           </div>
-          <span id="trayCountBadge" class="absolute -top-1.5 -right-1.5 bg-amber-400 text-gray-900 text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-white">0</span>
+          <span id="trayCountBadge" class="absolute -top-1.5 -right-1.5 bg-amber-400 text-neutral-900 text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-white shadow">0</span>
         </div>
         <div>
-          <p class="text-[9px] font-bold text-gray-400 uppercase tracking-wide">Tray View</p>
-          <p id="trayTotalDisplay" class="text-lg font-black text-gray-900 leading-none">₹0</p>
+          <p class="text-[9px] font-bold text-neutral-400 uppercase tracking-wider">My Bag</p>
+          <p id="trayTotalDisplay" class="text-xl font-black text-neutral-900 leading-none">₹0</p>
         </div>
       </div>
 
       <div class="flex gap-2">
-        <button onclick="resetKioskSession()" class="px-2.5 py-2 font-black text-[11px] text-gray-400 hover:text-red-600 transition">
+        <button onclick="resetKioskSession()" class="px-3 py-2 font-black text-[11px] text-neutral-400 hover:text-red-600 transition uppercase">
           Cancel
         </button>
-        <button onclick="openPaymentChoice()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-5 py-2.5 rounded-xl text-xs shadow-md transition flex items-center gap-1.5">
+        <button onclick="openPaymentChoice()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-6 py-3 rounded-2xl text-xs shadow-lg transition flex items-center gap-2">
           <span>Checkout</span>
-          <span>→</span>
+          <span class="text-sm">→</span>
         </button>
       </div>
     </footer>
 
-    <!-- 5. PRODUCT CUSTOMIZER MODAL -->
-    <div id="customizerModal" class="hidden absolute inset-0 bg-black/70 z-40 flex items-end justify-center">
-      <div class="bg-white w-full max-h-[85%] rounded-t-3xl p-4 shadow-2xl flex flex-col justify-between overflow-hidden">
+    <div id="customizerModal" class="hidden absolute inset-0 bg-black/70 backdrop-blur-sm z-40 flex items-end justify-center">
+      <div class="bg-white w-full max-h-[88%] rounded-t-3xl p-5 shadow-2xl flex flex-col justify-between overflow-hidden animate-in slide-in-from-bottom duration-300">
         
-        <div class="flex justify-between items-start border-b border-gray-100 pb-2.5">
-          <div class="flex items-center gap-2.5">
+        <div class="flex justify-between items-start border-b border-neutral-100 pb-3">
+          <div class="flex items-center gap-3">
             <div id="custImgContainer"></div>
             <div>
-              <h3 id="custItemTitle" class="text-sm font-black text-gray-900 leading-tight">Burger</h3>
-              <p id="custItemCategory" class="text-[10px] font-bold text-red-600 uppercase"></p>
+              <h3 id="custItemTitle" class="text-base font-black text-neutral-900 leading-tight">Burger</h3>
+              <p id="custItemCategory" class="text-[10px] font-bold text-red-600 uppercase tracking-widest mt-0.5"></p>
             </div>
           </div>
-          <button onclick="closeCustomizerModal()" class="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center text-gray-500 font-black text-xs">✕</button>
+          <button onclick="closeCustomizerModal()" class="w-8 h-8 bg-neutral-100 rounded-full flex items-center justify-center text-neutral-500 font-black text-xs hover:bg-neutral-200">✕</button>
         </div>
 
-        <div class="flex-1 overflow-y-auto py-3 space-y-3 pr-1">
+        <div class="flex-1 overflow-y-auto py-3 space-y-4 pr-1">
+          <div class="bg-amber-50 border border-amber-200 p-3.5 rounded-2xl flex items-center justify-between">
+            <div>
+              <h4 class="text-xs font-black text-amber-900">Make it a Meal? 🍟🥤</h4>
+              <p class="text-[10px] text-amber-700">Add Fries & Drink for best combo</p>
+            </div>
+            <span class="text-xs font-black text-amber-600 bg-white px-2.5 py-1 rounded-xl border border-amber-300 shadow-sm">Popular</span>
+          </div>
+
           <div id="modalVarSection" class="hidden">
-            <label class="block text-[10px] font-black text-gray-800 uppercase tracking-wide mb-1.5">1. Select Size</label>
-            <div id="modalVarGrid" class="grid grid-cols-2 gap-2"></div>
+            <label class="block text-[11px] font-black text-neutral-800 uppercase tracking-wider mb-2">Select Size / Meal Option</label>
+            <div id="modalVarGrid" class="grid grid-cols-2 gap-2.5"></div>
           </div>
-          <div id="modalAddonGroups" class="space-y-2.5"></div>
+          <div id="modalAddonGroups" class="space-y-3"></div>
         </div>
 
-        <div class="pt-2.5 border-t border-gray-200 flex justify-between items-center">
+        <div class="pt-3 border-t border-neutral-200 flex justify-between items-center">
           <div>
-            <span class="text-[9px] font-bold text-gray-400 uppercase">Item Total</span>
-            <div id="modalItemRunningTotal" class="text-lg font-black text-emerald-600 leading-none">₹0</div>
+            <span class="text-[9px] font-bold text-neutral-400 uppercase tracking-wider">Total Amount</span>
+            <div id="modalItemRunningTotal" class="text-2xl font-black text-emerald-600 leading-none mt-0.5">₹0</div>
           </div>
-          <button id="addToTrayBtn" onclick="confirmKioskItemAdd()" class="bg-red-600 hover:bg-red-700 text-white font-black px-6 py-2.5 rounded-xl text-xs shadow-lg transition">
-            Add To Tray
+          <button id="addToTrayBtn" onclick="confirmKioskItemAdd()" class="bg-red-600 hover:bg-red-700 text-white font-black px-8 py-3.5 rounded-2xl text-xs shadow-xl transition uppercase tracking-wider">
+            Add To Bag
           </button>
         </div>
 
       </div>
     </div>
 
-    <!-- 6. TRAY REVIEW SLIDE-UP -->
-    <div id="trayReviewModal" class="hidden absolute inset-0 bg-black/70 z-40 flex items-end justify-center">
-      <div class="bg-white w-full max-h-[80%] rounded-t-3xl p-4 shadow-2xl flex flex-col justify-between">
-        <div class="flex justify-between items-center border-b pb-2 mb-2">
-          <h3 class="text-sm font-black text-gray-900">Your Tray Items</h3>
-          <button onclick="closeTrayReviewModal()" class="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center text-gray-500 font-bold text-xs">✕</button>
+    <div id="trayReviewModal" class="hidden absolute inset-0 bg-black/70 backdrop-blur-sm z-40 flex items-end justify-center">
+      <div class="bg-white w-full max-h-[80%] rounded-t-3xl p-5 shadow-2xl flex flex-col justify-between">
+        <div class="flex justify-between items-center border-b pb-3 mb-2">
+          <h3 class="text-base font-black text-neutral-900">Review Your Bag</h3>
+          <button onclick="closeTrayReviewModal()" class="w-8 h-8 bg-neutral-100 rounded-full flex items-center justify-center text-neutral-500 font-bold text-xs">✕</button>
         </div>
 
-        <div id="trayItemsList" class="flex-1 overflow-y-auto space-y-2 pr-1"></div>
+        <div id="trayItemsList" class="flex-1 overflow-y-auto space-y-2.5 pr-1"></div>
 
-        <div class="pt-3 border-t border-gray-200 space-y-2">
-          <div class="flex justify-between items-center text-sm font-black text-gray-900">
+        <div class="pt-4 border-t border-neutral-200 space-y-3">
+          <div class="flex justify-between items-center text-base font-black text-neutral-900">
             <span>Grand Total:</span>
-            <span id="reviewTrayTotal" class="text-lg text-emerald-600">₹0</span>
+            <span id="reviewTrayTotal" class="text-xl text-emerald-600">₹0</span>
           </div>
-          <button onclick="closeTrayReviewModal(); openPaymentChoice();" class="w-full bg-emerald-600 text-white font-black py-3 rounded-xl text-xs shadow-md">
-            Proceed To Payment
+          <button onclick="closeTrayReviewModal(); openPaymentChoice();" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3.5 rounded-2xl text-xs shadow-lg uppercase tracking-wider">
+            Proceed To Checkout
           </button>
         </div>
       </div>
     </div>
 
-    <!-- 7. PAYMENT CHOICE MODAL -->
-    <div id="paymentModal" class="hidden absolute inset-0 bg-black/75 z-50 flex items-center justify-center p-4">
-      <div class="bg-white rounded-3xl p-5 max-w-xs w-full text-center shadow-2xl space-y-4">
-        <div class="flex justify-between items-center">
-          <h3 class="text-sm font-black text-gray-900">Select Payment</h3>
-          <button onclick="closePaymentModal()" class="text-gray-400 hover:text-gray-800 font-bold text-sm">✕</button>
+    <div id="paymentModal" class="hidden absolute inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-3xl p-6 max-w-xs w-full text-center shadow-2xl space-y-5">
+        <div class="flex justify-between items-center border-b pb-2">
+          <h3 class="text-sm font-black text-neutral-900 uppercase">Select Payment</h3>
+          <button onclick="closePaymentModal()" class="text-neutral-400 hover:text-neutral-800 font-bold text-base">✕</button>
         </div>
 
-        <div class="space-y-2.5">
-          <button onclick="submitKioskOrder('UPI_QR')" class="w-full bg-indigo-50 border border-indigo-200 hover:border-indigo-600 p-3 rounded-2xl flex items-center gap-3 transition">
-            <span class="text-2xl">📱</span>
-            <div class="text-left">
-              <h4 class="font-black text-xs text-gray-900">UPI / QR Scan</h4>
-              <p class="text-[9px] text-gray-500">Scan & Pay on POS</p>
+        <div class="space-y-3">
+          <button onclick="submitKioskOrder('UPI_QR')" class="w-full bg-indigo-50 border-2 border-indigo-200 hover:border-indigo-600 p-4 rounded-2xl flex items-center gap-3.5 transition text-left">
+            <span class="text-3xl">📱</span>
+            <div>
+              <h4 class="font-black text-xs text-neutral-900">Scan & Pay (UPI)</h4>
+              <p class="text-[10px] text-neutral-500">Fast digital payment</p>
             </div>
           </button>
 
-          <button onclick="submitKioskOrder('PAY_COUNTER')" class="w-full bg-amber-50 border border-amber-200 hover:border-amber-600 p-3 rounded-2xl flex items-center gap-3 transition">
-            <span class="text-2xl">💵</span>
-            <div class="text-left">
-              <h4 class="font-black text-xs text-gray-900">Pay At Counter</h4>
-              <p class="text-[9px] text-gray-500">Cash / Card with Cashier</p>
+          <button onclick="submitKioskOrder('PAY_COUNTER')" class="w-full bg-amber-50 border-2 border-amber-200 hover:border-amber-600 p-4 rounded-2xl flex items-center gap-3.5 transition text-left">
+            <span class="text-3xl">💵</span>
+            <div>
+              <h4 class="font-black text-xs text-neutral-900">Pay at Counter</h4>
+              <p class="text-[10px] text-neutral-500">Cash / Card with cashier</p>
             </div>
           </button>
         </div>
       </div>
     </div>
 
-    <!-- 8. ORDER TOKEN SUCCESS SCREEN -->
+    <div id="tableServiceModal" class="hidden absolute inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-3xl p-6 max-w-xs w-full text-center shadow-2xl space-y-4">
+        <h3 class="text-base font-black text-neutral-900">Table Service</h3>
+        <p class="text-xs text-neutral-500">Enter your Tent Card Number (Table No):</p>
+        <input type="text" id="tentCardInput" placeholder="e.g. 12" class="w-full border-2 border-neutral-300 p-3 rounded-2xl text-center text-xl font-black outline-none focus:border-amber-500">
+        <button onclick="finalizeOrderWithTable()" class="w-full bg-amber-500 hover:bg-amber-600 text-neutral-900 font-black py-3.5 rounded-2xl text-xs uppercase tracking-wider shadow-lg">
+          Confirm Order
+        </button>
+      </div>
+    </div>
+
     <div id="tokenSuccessModal" class="hidden absolute inset-0 bg-gradient-to-b from-emerald-600 to-teal-800 z-50 flex flex-col items-center justify-center p-6 text-white text-center">
-      <div class="w-16 h-16 bg-white text-emerald-600 rounded-full flex items-center justify-center text-3xl shadow-2xl mb-3 font-black">✓</div>
-      <h2 class="text-2xl font-black">Order Placed!</h2>
-      <p class="text-xs text-emerald-100 mt-0.5">Please take your order token:</p>
+      <div class="w-20 h-20 bg-white text-emerald-600 rounded-full flex items-center justify-center text-4xl shadow-2xl mb-4 font-black animate-bounce">✓</div>
+      <h2 class="text-3xl font-black">Order Placed!</h2>
+      <p class="text-xs text-emerald-100 mt-1">Please take your order token & receipt:</p>
 
-      <div class="bg-white text-gray-900 p-6 rounded-3xl shadow-2xl border-4 border-amber-400 my-5 w-full max-w-[220px]">
-        <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Token No</span>
-        <div id="kioskTokenDisplay" class="text-5xl font-black text-red-600 my-1">#0</div>
-        <p id="kioskModeNote" class="text-[10px] font-bold text-gray-500 uppercase">Dine In</p>
+      <div class="bg-white text-neutral-900 p-6 rounded-3xl shadow-2xl border-4 border-amber-400 my-6 w-full max-w-[240px]">
+        <span class="text-[10px] font-black text-neutral-400 uppercase tracking-widest">Order Token</span>
+        <div id="kioskTokenDisplay" class="text-6xl font-black text-red-600 my-2">#0</div>
+        <p id="kioskModeNote" class="text-[11px] font-black text-neutral-600 uppercase tracking-wider">Dine In</p>
       </div>
 
-      <p class="text-[11px] text-white/80">Order sent to Kitchen. Resets in a moment...</p>
+      <p class="text-xs text-white/80">Kitchen is preparing your fresh meal...</p>
     </div>
 
   </div>
@@ -233,6 +244,7 @@
     let selectedVariation = null;
     let selectedGroupAddons = {};
     let lastClickedCardRect = null;
+    let pendingPaymentMode = '';
 
     fetch('/api/settings').then(res => res.json()).then(s => {
       const name = s.restaurant_name || 'VISHAL FOODIEZ';
@@ -252,12 +264,8 @@
     function resolveImgPath(imgPath) {
       if (!imgPath || imgPath.trim() === '') return '';
       const clean = imgPath.trim();
-      if (clean.startsWith('http://') || clean.startsWith('https://')) {
-        return clean;
-      }
-      if (clean.startsWith('/')) {
-        return window.location.origin + clean;
-      }
+      if (clean.startsWith('http://') || clean.startsWith('https://')) return clean;
+      if (clean.startsWith('/')) return window.location.origin + clean;
       return window.location.origin + '/uploads/' + clean;
     }
 
@@ -271,9 +279,9 @@
         const icon = getCategoryIcon(cat);
 
         return `
-          <button onclick="selectCategory('${cat}')" class="flex flex-col items-center justify-center py-2 px-1 rounded-xl mx-1.5 transition ${isActive ? 'bg-red-600 text-white shadow font-black' : 'text-gray-600 hover:bg-gray-100 font-bold'}">
-            <span class="text-xl mb-0.5">${icon}</span>
-            <span class="text-[9px] leading-tight text-center truncate w-full px-0.5">${cat}</span>
+          <button onclick="selectCategory('${cat}')" class="flex flex-col items-center justify-center py-3 px-1 rounded-2xl mx-1.5 transition ${isActive ? 'bg-red-600 text-white shadow-lg font-black scale-105' : 'text-neutral-500 hover:bg-neutral-100 font-bold'}">
+            <span class="text-2xl mb-1">${icon}</span>
+            <span class="text-[9px] leading-tight text-center truncate w-full px-0.5 uppercase">${cat}</span>
           </button>
         `;
       }).join('');
@@ -310,14 +318,14 @@
         const itemImg = resolveImgPath(rawImg);
 
         return `
-          <div onclick='openCustomizer(event, ${JSON.stringify(item).replace(/'/g, "&apos;")})' class="bg-white rounded-2xl p-2.5 shadow-sm border border-gray-100 flex flex-col justify-between active:scale-95 transition cursor-pointer">
-            ${itemImg ? `<img src="${itemImg}" class="w-full h-24 object-cover rounded-xl mb-1.5" onerror="this.onerror=null; this.style.display='none';">` : `<div class="w-full h-20 bg-amber-50 rounded-xl mb-1.5 flex items-center justify-center text-amber-500 text-2xl font-black">🍔</div>`}
+          <div onclick='openCustomizer(event, ${JSON.stringify(item).replace(/'/g, "&apos;")})' class="bg-white rounded-3xl p-3 shadow-sm border border-neutral-200/80 flex flex-col justify-between active:scale-95 transition cursor-pointer hover:shadow-md">
+            ${itemImg ? `<img src="${itemImg}" class="w-full h-28 object-cover rounded-2xl mb-2" onerror="this.onerror=null; this.style.display='none';">` : `<div class="w-full h-28 bg-amber-50 rounded-2xl mb-2 flex items-center justify-center text-amber-500 text-3xl font-black">🍔</div>`}
             <div>
-              <h3 class="font-black text-gray-900 text-[11px] leading-tight line-clamp-2">${item.name}</h3>
+              <h3 class="font-black text-neutral-900 text-xs leading-tight line-clamp-2">${item.name}</h3>
             </div>
-            <div class="flex justify-between items-center mt-2 pt-1.5 border-t border-gray-100">
+            <div class="flex justify-between items-center mt-2.5 pt-2 border-t border-neutral-100">
               <span class="font-black text-emerald-600 text-xs">${priceTag}</span>
-              <span class="w-5 h-5 bg-red-50 text-red-600 rounded-full flex items-center justify-center font-black text-xs">+</span>
+              <span class="w-6 h-6 bg-red-50 text-red-600 rounded-full flex items-center justify-center font-black text-xs shadow-sm">+</span>
             </div>
           </div>
         `;
@@ -336,7 +344,7 @@
       const rawImg = item.image || item.image_url || item.img || '';
       const itemImg = resolveImgPath(rawImg);
       const imgBox = document.getElementById('custImgContainer');
-      imgBox.innerHTML = itemImg ? `<img src="${itemImg}" class="w-10 h-10 rounded-lg object-cover">` : `<div class="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center text-lg">🍔</div>`;
+      imgBox.innerHTML = itemImg ? `<img src="${itemImg}" class="w-12 h-12 rounded-xl object-cover border shadow">` : `<div class="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center text-xl">🍔</div>`;
 
       let variations = [];
       try { variations = JSON.parse(item.variations || '[]'); } catch(e) {}
@@ -347,12 +355,12 @@
         selectedVariation = { ...variations[0], price: Number(variations[0].price) };
         varSec.classList.remove('hidden');
         varGrid.innerHTML = variations.map((v, idx) => `
-          <label class="flex items-center justify-between p-2 rounded-xl border border-amber-200 cursor-pointer bg-white">
-            <div class="flex items-center gap-1.5">
-              <input type="radio" name="kioskVarRadio" ${idx === 0 ? 'checked' : ''} onchange='selectKioskVariation(${JSON.stringify(v)})' class="text-red-600">
-              <span class="text-[11px] font-black text-gray-800">${v.name}</span>
+          <label class="flex items-center justify-between p-3 rounded-2xl border-2 border-amber-200 cursor-pointer bg-white hover:bg-amber-50/40">
+            <div class="flex items-center gap-2">
+              <input type="radio" name="kioskVarRadio" ${idx === 0 ? 'checked' : ''} onchange='selectKioskVariation(${JSON.stringify(v)})' class="text-red-600 w-4 h-4">
+              <span class="text-xs font-black text-neutral-800">${v.name}</span>
             </div>
-            <span class="text-[11px] font-black text-emerald-600">₹${Number(v.price)}</span>
+            <span class="text-xs font-black text-emerald-600">₹${Number(v.price)}</span>
           </label>
         `).join('');
       } else {
@@ -394,23 +402,23 @@
         selectedGroupAddons[g.id] = [];
 
         return `
-          <div class="bg-gray-50 p-2.5 rounded-xl border border-gray-200">
-            <div class="flex justify-between items-center mb-1.5">
-              <span class="text-[10px] font-black text-gray-800 uppercase">${g.name}</span>
-              <span class="text-[9px] font-bold ${g.is_mandatory ? 'text-red-600' : 'text-gray-500'}">
-                ${g.is_mandatory ? 'Req (Min ' + g.min_selection + ')' : 'Max ' + g.max_selection}
+          <div class="bg-neutral-50 p-3.5 rounded-2xl border border-neutral-200">
+            <div class="flex justify-between items-center mb-2">
+              <span class="text-xs font-black text-neutral-800 uppercase">${g.name}</span>
+              <span class="text-[10px] font-bold ${g.is_mandatory ? 'text-red-600 bg-red-50 px-2 py-0.5 rounded-full' : 'text-neutral-500'}">
+                ${g.is_mandatory ? 'Required (Min ' + g.min_selection + ')' : 'Optional'}
               </span>
             </div>
-            <div class="space-y-1">
+            <div class="space-y-1.5">
               ${items.map(addon => {
                 const parsedAddon = { ...addon, price: Number(addon.price) };
                 return `
-                <label class="flex items-center justify-between p-2 rounded-lg bg-white border border-gray-100 cursor-pointer">
-                  <div class="flex items-center gap-1.5">
-                    <input type="checkbox" onchange='toggleKioskAddon(${g.id}, ${g.max_selection},${JSON.stringify(parsedAddon)}, this)' class="rounded text-red-600">
-                    <span class="text-[11px] font-bold text-gray-700">${parsedAddon.name}</span>
+                <label class="flex items-center justify-between p-2.5 rounded-xl bg-white border border-neutral-200 cursor-pointer shadow-xs">
+                  <div class="flex items-center gap-2">
+                    <input type="checkbox" onchange='toggleKioskAddon(${g.id}, ${g.max_selection},${JSON.stringify(parsedAddon)}, this)' class="rounded text-red-600 w-4 h-4">
+                    <span class="text-xs font-bold text-neutral-700">${parsedAddon.name}</span>
                   </div>
-                  <span class="text-[10px] font-black text-emerald-600">+₹${parsedAddon.price}</span>
+                  <span class="text-xs font-black text-emerald-600">+₹${parsedAddon.price}</span>
                 </label>
               `;
               }).join('')}
@@ -453,35 +461,35 @@
       selectedGroupAddons = {};
     }
 
-    // ULTRA-SLOW, BUTTERY-SMOOTH FLY TO CART ANIMATION (1.6s)
+    // ULTRA-SLOW & BUTTERY-SMOOTH FLY ANIMATION (1.6s)
     function triggerFlyToCartAnimation(itemImgUrl) {
       const cartIcon = document.getElementById('cartIconBox');
       if (!cartIcon) return;
 
       const cartRect = cartIcon.getBoundingClientRect();
       
-      const startX = lastClickedCardRect ? (lastClickedCardRect.left + lastClickedCardRect.width / 2 - 24) : window.innerWidth / 2;
-      const startY = lastClickedCardRect ? (lastClickedCardRect.top + lastClickedCardRect.height / 2 - 24) : window.innerHeight / 2;
+      const startX = lastClickedCardRect ? (lastClickedCardRect.left + lastClickedCardRect.width / 2 - 28) : window.innerWidth / 2;
+      const startY = lastClickedCardRect ? (lastClickedCardRect.top + lastClickedCardRect.height / 2 - 28) : window.innerHeight / 2;
 
       const flyer = document.createElement('div');
       flyer.className = 'fly-item';
       
       if (itemImgUrl && itemImgUrl.trim() !== '') {
-        flyer.innerHTML = `<img src="${itemImgUrl}" class="w-14 h-14 rounded-2xl object-cover shadow-2xl border-2 border-white">`;
+        flyer.innerHTML = `<img src="${itemImgUrl}" class="w-16 h-16 rounded-2xl object-cover shadow-2xl border-4 border-white">`;
       } else {
         flyer.innerHTML = '🍔';
-        flyer.style.fontSize = '35px';
+        flyer.style.fontSize = '40px';
       }
       
       flyer.style.left = startX + 'px';
       flyer.style.top = startY + 'px';
-      flyer.style.transform = 'scale(1.1) rotate(0deg)';
+      flyer.style.transform = 'scale(1.2) rotate(0deg)';
 
       document.body.appendChild(flyer);
 
       setTimeout(() => {
-        flyer.style.left = (cartRect.left + cartRect.width / 2 - 20) + 'px';
-        flyer.style.top = (cartRect.top + cartRect.height / 2 - 20) + 'px';
+        flyer.style.left = (cartRect.left + cartRect.width / 2 - 24) + 'px';
+        flyer.style.top = (cartRect.top + cartRect.height / 2 - 24) + 'px';
         flyer.style.transform = 'scale(0.25) rotate(360deg)';
         flyer.style.opacity = '0.2';
       }, 50);
@@ -562,24 +570,24 @@
     function renderTrayReviewList() {
       const container = document.getElementById('trayItemsList');
       if (!kioskTray.length) {
-        container.innerHTML = '<p class="text-gray-400 text-center py-8 text-xs">Tray is empty.</p>';
+        container.innerHTML = '<p class="text-neutral-400 text-center py-8 text-xs font-bold">Your bag is empty.</p>';
         return;
       }
 
       container.innerHTML = kioskTray.map((item, idx) => `
-        <div class="flex justify-between items-center bg-gray-50 p-2.5 rounded-xl border">
+        <div class="flex justify-between items-center bg-neutral-50 p-3 rounded-2xl border border-neutral-200">
           <div>
-            <h4 class="font-bold text-gray-800 text-[11px]">${item.name}</h4>
-            ${item.notes ? `<p class="text-[9px] text-amber-700">↳ ${item.notes}</p>` : ''}
-            <p class="text-[10px] font-black text-emerald-600">₹${Number(item.price)}</p>
+            <h4 class="font-black text-neutral-800 text-xs">${item.name}</h4>
+            ${item.notes ? `<p class="text-[10px] text-amber-700 font-semibold mt-0.5">↳ ${item.notes}</p>` : ''}
+            <p class="text-xs font-black text-emerald-600 mt-1">₹${Number(item.price)}</p>
           </div>
-          <div class="flex items-center gap-2">
-            <div class="flex items-center border rounded-lg bg-white">
-              <button onclick="changeTrayQty(${idx}, -1)" class="px-2 py-0.5 font-bold text-gray-600 text-xs">-</button>
-              <span class="px-1.5 font-bold text-[10px]">${item.qty}</span>
-              <button onclick="changeTrayQty(${idx}, 1)" class="px-2 py-0.5 font-bold text-gray-600 text-xs">+</button>
+          <div class="flex items-center gap-2.5">
+            <div class="flex items-center border border-neutral-300 rounded-xl bg-white shadow-xs">
+              <button onclick="changeTrayQty(${idx}, -1)" class="px-2.5 py-1 font-black text-neutral-600 text-xs">-</button>
+              <span class="px-2 font-black text-xs">${item.qty}</span>
+              <button onclick="changeTrayQty(${idx}, 1)" class="px-2.5 py-1 font-black text-neutral-600 text-xs">+</button>
             </div>
-            <span class="font-black text-[11px] text-gray-900 w-10 text-right">₹${Number(item.price) * item.qty}</span>
+            <span class="font-black text-xs text-neutral-900 w-12 text-right">₹${Number(item.price) * item.qty}</span>
           </div>
         </div>
       `).join('');
@@ -592,7 +600,7 @@
     }
 
     function openTrayReviewModal() {
-      if (!kioskTray.length) return alert('Tray khali hai!');
+      if (!kioskTray.length) return alert('Bag is empty!');
       document.getElementById('trayReviewModal').classList.remove('hidden');
     }
 
@@ -605,6 +613,15 @@
 
     function submitKioskOrder(payMethod) {
       closePaymentModal();
+      pendingPaymentMode = payMethod;
+      // Show Table Service / Tent Card Modal like McDonald's
+      document.getElementById('tableServiceModal').classList.remove('hidden');
+    }
+
+    function finalizeOrderWithTable() {
+      const tentCard = document.getElementById('tentCardInput').value.trim() || 'KIOSK';
+      document.getElementById('tableServiceModal').classList.add('hidden');
+
       const total = kioskTray.reduce((s, i) => s + (Number(i.price) * i.qty), 0);
 
       fetch('/api/orders', {
@@ -612,11 +629,11 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           order_type: 'Online',
-          table_no: kioskOrderType === 'Dine-In' ? 'KIOSK' : 'TAKEAWAY',
-          customer_name: 'Kiosk Guest',
+          table_no: kioskOrderType === 'Dine-In' ? `Table ${tentCard}` : 'TAKEAWAY',
+          customer_name: 'Self Kiosk Guest',
           customer_phone: '',
           items: kioskTray,
-          payment_mode: payMethod,
+          payment_mode: pendingPaymentMode,
           subtotal: total,
           discount: 0,
           gst: 0,
@@ -627,7 +644,7 @@
       .then(res => res.json())
       .then(data => {
         document.getElementById('kioskTokenDisplay').innerText = '#' + data.orderId;
-        document.getElementById('kioskModeNote').innerText = kioskOrderType;
+        document.getElementById('kioskModeNote').innerText = kioskOrderType + ' • Table ' + tentCard;
         document.getElementById('tokenSuccessModal').classList.remove('hidden');
 
         setTimeout(() => {
@@ -642,11 +659,11 @@
       const pTake = document.getElementById('pillTake');
 
       if (mode === 'Dine-In') {
-        pDine.className = "px-3 py-1.5 rounded-lg font-black text-[10px] transition bg-red-600 text-white shadow-sm flex items-center gap-1";
-        pTake.className = "px-3 py-1.5 rounded-lg font-black text-[10px] transition text-gray-500 hover:text-gray-900 flex items-center gap-1";
+        pDine.className = "px-3 py-1.5 rounded-lg font-black text-[10px] transition bg-red-600 text-white shadow flex items-center gap-1";
+        pTake.className = "px-3 py-1.5 rounded-lg font-black text-[10px] transition text-neutral-400 hover:text-white flex items-center gap-1";
       } else {
-        pTake.className = "px-3 py-1.5 rounded-lg font-black text-[10px] transition bg-red-600 text-white shadow-sm flex items-center gap-1";
-        pDine.className = "px-3 py-1.5 rounded-lg font-black text-[10px] transition text-gray-500 hover:text-gray-900 flex items-center gap-1";
+        pTake.className = "px-3 py-1.5 rounded-lg font-black text-[10px] transition bg-red-600 text-white shadow flex items-center gap-1";
+        pDine.className = "px-3 py-1.5 rounded-lg font-black text-[10px] transition text-neutral-400 hover:text-white flex items-center gap-1";
       }
     }
 
@@ -655,9 +672,11 @@
     function resetKioskSession() {
       kioskTray = [];
       updateTrayUI();
+      document.getElementById('tentCardInput').value = '';
       document.getElementById('tokenSuccessModal').classList.add('hidden');
       document.getElementById('trayReviewModal').classList.add('hidden');
       document.getElementById('paymentModal').classList.add('hidden');
+      document.getElementById('tableServiceModal').classList.add('hidden');
       document.getElementById('customizerModal').classList.add('hidden');
       document.getElementById('idleScreensaver').classList.remove('hidden');
     }
