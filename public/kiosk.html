@@ -14,12 +14,12 @@
     ::-webkit-scrollbar { width: 0px; height: 0px; }
     body { -webkit-tap-highlight-color: transparent; user-select: none; }
 
-    /* Dynamic Fly-to-Cart Animation from clicked card position */
+    /* Ultra-slow, buttery-smooth fly-to-cart animation */
     .fly-item {
       position: fixed;
       z-index: 99999;
       pointer-events: none;
-      transition: all 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: all 1.6s cubic-bezier(0.22, 1, 0.36, 1);
     }
   </style>
 </head>
@@ -249,6 +249,18 @@
       });
     }
 
+    function resolveImgPath(imgPath) {
+      if (!imgPath || imgPath.trim() === '') return '';
+      const clean = imgPath.trim();
+      if (clean.startsWith('http://') || clean.startsWith('https://')) {
+        return clean;
+      }
+      if (clean.startsWith('/')) {
+        return window.location.origin + clean;
+      }
+      return window.location.origin + '/uploads/' + clean;
+    }
+
     function renderCategories() {
       const cats = [...new Set(menuItems.map(i => i.category))];
       if (!activeCategory && cats.length) activeCategory = cats[0];
@@ -294,11 +306,12 @@
         let vars = [];
         try { vars = JSON.parse(item.variations || '[]'); } catch(e) {}
         const priceTag = vars.length ? `From ₹${Number(vars[0].price)}` : `₹${Number(item.price)}`;
-        const itemImg = item.image || '';
+        const rawImg = item.image || item.image_url || item.img || '';
+        const itemImg = resolveImgPath(rawImg);
 
         return `
           <div onclick='openCustomizer(event, ${JSON.stringify(item).replace(/'/g, "&apos;")})' class="bg-white rounded-2xl p-2.5 shadow-sm border border-gray-100 flex flex-col justify-between active:scale-95 transition cursor-pointer">
-            ${itemImg ? `<img src="${itemImg}" class="w-full h-24 object-cover rounded-xl mb-1.5">` : `<div class="w-full h-20 bg-amber-50 rounded-xl mb-1.5 flex items-center justify-center text-amber-500 text-2xl font-black">🍔</div>`}
+            ${itemImg ? `<img src="${itemImg}" class="w-full h-24 object-cover rounded-xl mb-1.5" onerror="this.onerror=null; this.style.display='none';">` : `<div class="w-full h-20 bg-amber-50 rounded-xl mb-1.5 flex items-center justify-center text-amber-500 text-2xl font-black">🍔</div>`}
             <div>
               <h3 class="font-black text-gray-900 text-[11px] leading-tight line-clamp-2">${item.name}</h3>
             </div>
@@ -312,7 +325,6 @@
     }
 
     function openCustomizer(event, item) {
-      // Capture the exact card position where user clicked
       const cardElement = event.currentTarget;
       lastClickedCardRect = cardElement.getBoundingClientRect();
 
@@ -321,8 +333,10 @@
       document.getElementById('custItemTitle').innerText = item.name;
       document.getElementById('custItemCategory').innerText = item.category;
 
+      const rawImg = item.image || item.image_url || item.img || '';
+      const itemImg = resolveImgPath(rawImg);
       const imgBox = document.getElementById('custImgContainer');
-      imgBox.innerHTML = item.image ? `<img src="${item.image}" class="w-10 h-10 rounded-lg object-cover">` : `<div class="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center text-lg">🍔</div>`;
+      imgBox.innerHTML = itemImg ? `<img src="${itemImg}" class="w-10 h-10 rounded-lg object-cover">` : `<div class="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center text-lg">🍔</div>`;
 
       let variations = [];
       try { variations = JSON.parse(item.variations || '[]'); } catch(e) {}
@@ -439,29 +453,29 @@
       selectedGroupAddons = {};
     }
 
-    // FLY TO CART ANIMATION FROM EXACT CLICKED ITEM CARD POSITION
+    // ULTRA-SLOW, BUTTERY-SMOOTH FLY TO CART ANIMATION (1.6s)
     function triggerFlyToCartAnimation(itemImgUrl) {
       const cartIcon = document.getElementById('cartIconBox');
       if (!cartIcon) return;
 
       const cartRect = cartIcon.getBoundingClientRect();
       
-      const startX = lastClickedCardRect ? (lastClickedCardRect.left + lastClickedCardRect.width / 2 - 20) : window.innerWidth / 2;
-      const startY = lastClickedCardRect ? (lastClickedCardRect.top + lastClickedCardRect.height / 2 - 20) : window.innerHeight / 2;
+      const startX = lastClickedCardRect ? (lastClickedCardRect.left + lastClickedCardRect.width / 2 - 24) : window.innerWidth / 2;
+      const startY = lastClickedCardRect ? (lastClickedCardRect.top + lastClickedCardRect.height / 2 - 24) : window.innerHeight / 2;
 
       const flyer = document.createElement('div');
       flyer.className = 'fly-item';
       
       if (itemImgUrl && itemImgUrl.trim() !== '') {
-        flyer.innerHTML = `<img src="${itemImgUrl}" class="w-12 h-12 rounded-xl object-cover shadow-2xl border-2 border-white">`;
+        flyer.innerHTML = `<img src="${itemImgUrl}" class="w-14 h-14 rounded-2xl object-cover shadow-2xl border-2 border-white">`;
       } else {
         flyer.innerHTML = '🍔';
-        flyer.style.fontSize = '30px';
+        flyer.style.fontSize = '35px';
       }
       
       flyer.style.left = startX + 'px';
       flyer.style.top = startY + 'px';
-      flyer.style.transform = 'scale(1) rotate(0deg)';
+      flyer.style.transform = 'scale(1.1) rotate(0deg)';
 
       document.body.appendChild(flyer);
 
@@ -469,14 +483,14 @@
         flyer.style.left = (cartRect.left + cartRect.width / 2 - 20) + 'px';
         flyer.style.top = (cartRect.top + cartRect.height / 2 - 20) + 'px';
         flyer.style.transform = 'scale(0.25) rotate(360deg)';
-        flyer.style.opacity = '0.3';
-      }, 30);
+        flyer.style.opacity = '0.2';
+      }, 50);
 
       setTimeout(() => {
         flyer.remove();
         cartIcon.classList.add('scale-125', 'transition-transform');
-        setTimeout(() => cartIcon.classList.remove('scale-125'), 250);
-      }, 750);
+        setTimeout(() => cartIcon.classList.remove('scale-125'), 300);
+      }, 1600);
     }
 
     function confirmKioskItemAdd() {
@@ -526,7 +540,8 @@
         });
       }
 
-      const itemImgUrl = selectedMenuItem.image || '';
+      const rawImg = selectedMenuItem.image || selectedMenuItem.image_url || selectedMenuItem.img || '';
+      const itemImgUrl = resolveImgPath(rawImg);
 
       closeCustomizerModal();
       triggerFlyToCartAnimation(itemImgUrl);
