@@ -38,7 +38,10 @@ let isWhatsAppConnected = false;
 
 const waClient = new Client({
   authStrategy: new LocalAuth(),
-  puppeteer: { headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] }
+  puppeteer: {
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+  }
 });
 
 waClient.on('qr', (qr) => {
