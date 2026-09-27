@@ -29,6 +29,9 @@
       <button onclick="switchTab('variations')" id="tabBtnVariations" class="py-2.5 px-4 font-bold text-sm text-gray-500 hover:text-gray-800 border-b-2 border-transparent transition">
         📐 Variation Sets Master
       </button>
+      <button onclick="switchTab('whatsapp')" id="tabBtnWhatsapp" class="py-2.5 px-4 font-bold text-sm text-gray-500 hover:text-gray-800 border-b-2 border-transparent transition">
+        📱 WhatsApp Integration
+      </button>
     </div>
 
     <!-- TAB 1: MENU ITEMS -->
@@ -161,6 +164,27 @@
       <div id="globalVariationsGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
     </div>
 
+    <!-- TAB 4: WHATSAPP INTEGRATION -->
+    <div id="tabWhatsapp" class="hidden space-y-6">
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+        <div class="flex justify-between items-center mb-4">
+          <div>
+            <h2 class="text-lg font-bold text-gray-800">📱 WhatsApp Direct Integration</h2>
+            <p class="text-xs text-gray-500">Apne WhatsApp number ko yahan se connect karein taaki automatic messages bheje ja sakein.</p>
+          </div>
+          <div id="waStatusBadge" class="px-3 py-1 rounded-full text-xs font-black bg-gray-100 text-gray-600">
+            Checking Status...
+          </div>
+        </div>
+
+        <div id="waConnectionBox" class="flex flex-col items-center justify-center p-6 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+          <div id="waQrContainer" class="text-center">
+            <p class="text-xs text-gray-500 mb-2">QR Code load ho raha hai...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <!-- Edit Item Modal with Variation-wise Addons Linking -->
@@ -259,7 +283,7 @@
     let currentActiveVarIdx = null;
 
     function switchTab(tab) {
-      ['items', 'addons', 'variations'].forEach(t => {
+      ['items', 'addons', 'variations', 'whatsapp'].forEach(t => {
         const view = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
         const btn = document.getElementById('tabBtn' + t.charAt(0).toUpperCase() + t.slice(1));
         if (t === tab) {
@@ -625,6 +649,37 @@
       if (!confirm('Delete this item?')) return;
       fetch('/api/menu/' + id, { method: 'DELETE' }).then(() => loadData());
     }
+
+    // Check WhatsApp Status & Fetch QR Code periodically
+    function checkWhatsAppStatus() {
+      fetch('/api/whatsapp/status')
+        .then(res => res.json())
+        .then(data => {
+          const badge = document.getElementById('waStatusBadge');
+          const container = document.getElementById('waQrContainer');
+
+          if (data.connected) {
+            badge.className = "px-3 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-700";
+            badge.innerText = "Connected ✅";
+            container.innerHTML = `<p class="text-sm font-bold text-emerald-600">Aapka WhatsApp successfully connected hai!</p>`;
+          } else {
+            badge.className = "px-3 py-1 rounded-full text-xs font-black bg-amber-100 text-amber-700";
+            badge.innerText = "Disconnected ❌";
+
+            if (data.qr) {
+              container.innerHTML = `
+                <p class="text-xs font-bold text-gray-700 mb-2">Apने phone के WhatsApp से yeh QR code scan karein:</p>
+                <div class="p-3 bg-white border rounded-lg inline-block text-[10px] font-mono break-all max-w-sm shadow-sm">${data.qr}</div>
+              `;
+            } else {
+              container.innerHTML = `<p class="text-xs text-gray-500">QR code generate ho raha hai, thodi der wait karein...</p>`;
+            }
+          }
+        });
+    }
+
+    setInterval(checkWhatsAppStatus, 5000);
+    checkWhatsAppStatus();
 
     loadData();
   </script>
