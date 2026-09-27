@@ -667,9 +667,12 @@
             badge.innerText = "Disconnected ❌";
 
             if (data.qr) {
+              const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(data.qr)}`;
               container.innerHTML = `
-                <p class="text-xs font-bold text-gray-700 mb-2">Apने phone के WhatsApp से yeh QR code scan karein:</p>
-                <div class="p-3 bg-white border rounded-lg inline-block text-[10px] font-mono break-all max-w-sm shadow-sm">${data.qr}</div>
+                <p class="text-xs font-bold text-gray-700 mb-2">Apne phone ke WhatsApp se yeh QR code scan karein:</p>
+                <div class="p-3 bg-white border rounded-xl inline-block shadow-sm">
+                  <img src="${qrImgUrl}" alt="WhatsApp QR Code" class="w-52 h-52 object-contain mx-auto">
+                </div>
               `;
             } else {
               container.innerHTML = `<p class="text-xs text-gray-500">QR code generate ho raha hai, thodi der wait karein...</p>`;
