@@ -6,7 +6,6 @@ const fs = require('fs');
 const { exec } = require('child_process');
 const db = require('./database');
 const { Client, LocalAuth } = require('whatsapp-web.js');
-const puppeteer = require('puppeteer');
 
 const app = express();
 app.use(cors());
@@ -41,7 +40,6 @@ const waClient = new Client({
   authStrategy: new LocalAuth(),
   puppeteer: {
     headless: true,
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || puppeteer.executablePath(),
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
   }
 });
@@ -932,7 +930,7 @@ app.get('/api/reports/analytics', (req, res) => {
   `;
 
   db.get(summaryQuery, [start, end, start, end], (err, summary) => {
-    if (err) return res.status(500).json({ error: err.message });
+    if (err) return res.status(500).json({ error: err.image });
     db.get(expenseQuery, [start, end, start, end], (err2, exp) => {
       const summaryData = summary || {};
       summaryData.total_expense = exp ? exp.total_expense : 0;
