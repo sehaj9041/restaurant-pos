@@ -5,6 +5,7 @@ const multer = require('multer');
 const fs = require('fs');
 const { exec } = require('child_process');
 const db = require('./database');
+const { Client, LocalAuth } = require('whatsapp-web.js');
 
 const app = express();
 app.use(cors());
@@ -30,6 +31,68 @@ app.get('/pos', (req, res) => {
 // Static directories setup for public and uploads
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
+
+// ================= WHATSAPP INTEGRATION ENGINE (IN-DASHBOARD QR) =================
+let qrCodeData = null;
+let isWhatsAppConnected = false;
+
+const waClient = new Client({
+  authStrategy: new LocalAuth(),
+  puppeteer: { headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] }
+});
+
+waClient.on('qr', (qr) => {
+  qrCodeData = qr;
+  isWhatsAppConnected = false;
+  console.log('[WHATSAPP] QR Code Generated! Scan it from Admin Dashboard.');
+});
+
+waClient.on('ready', () => {
+  isWhatsAppConnected = true;
+  qrCodeData = null;
+  console.log('[WHATSAPP] Client successfully connected!');
+});
+
+waClient.on('disconnected', () => {
+  isWhatsAppConnected = false;
+  console.log('[WHATSAPP] Client disconnected!');
+});
+
+waClient.initialize();
+
+// WhatsApp Status & QR API for Admin Panel
+app.get('/api/whatsapp/status', (req, res) => {
+  res.json({
+    connected: isWhatsAppConnected,
+    qr: qrCodeData
+  });
+});
+
+// Send Automated WhatsApp Message API
+app.post('/api/send-whatsapp', async (req, res) => {
+  const { phone, message } = req.body;
+  if (!isWhatsAppConnected) {
+    return res.status(400).json({ success: false, error: 'WhatsApp connected nahi hai! Pehle Admin panel se QR scan karein.' });
+  }
+  if (!phone || !message) {
+    return res.status(400).json({ success: false, error: 'Phone number aur message zaroori hain!' });
+  }
+
+  try {
+    let formattedPhone = phone.toString().replace(/\D/g, '');
+    if (formattedPhone.length === 10) {
+      formattedPhone = '91' + formattedPhone;
+    }
+    const chatId = `${formattedPhone}@c.us`;
+
+    await waClient.sendMessage(chatId, message);
+    res.json({ success: true, message: 'WhatsApp message successfully bhej diya gaya hai!' });
+  } catch (err) {
+    console.error('WhatsApp send error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+// ==============================================================================
 
 // Real-time Live Cart Storage for Customer Facing Display
 let liveCustomerCart = {
