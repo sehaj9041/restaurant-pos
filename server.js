@@ -47,20 +47,31 @@ const waClient = new Client({
 });
 
 waClient.on('qr', (qr) => {
-  qrCodeData = qr;
+  if (!isWhatsAppConnected) {
+    qrCodeData = qr;
+    console.log('[WHATSAPP] QR Code Generated! Scan it from Admin Dashboard.');
+  }
+});
+
+waClient.on('authenticated', () => {
+  console.log('[WHATSAPP] Authenticated successfully!');
+});
+
+waClient.on('auth_failure', (msg) => {
   isWhatsAppConnected = false;
-  console.log('[WHATSAPP] QR Code Generated! Scan it from Admin Dashboard.');
+  console.error('[WHATSAPP] Authentication failure:', msg);
 });
 
 waClient.on('ready', () => {
   isWhatsAppConnected = true;
   qrCodeData = null;
-  console.log('[WHATSAPP] Client successfully connected!');
+  console.log('[WHATSAPP] Client successfully connected and ready!');
 });
 
-waClient.on('disconnected', () => {
+waClient.on('disconnected', (reason) => {
   isWhatsAppConnected = false;
-  console.log('[WHATSAPP] Client disconnected!');
+  qrCodeData = null;
+  console.log('[WHATSAPP] Client disconnected:', reason);
 });
 
 waClient.initialize();
