@@ -73,7 +73,7 @@ app.post('/api/menu/import-excel', uploadExcel.single('menuFile'), async (req, r
     const catSheet = workbook.Sheets['Categories'];
     const categories = catSheet ? XLSX.utils.sheet_to_json(catSheet) : [];
     for (const cat of categories) {
-      const catName = cat['Category Name'];
+      const catName = cat['Category Name'] || cat['category'];
       if (!catName) continue;
       await new Promise(resolve => {
         db.run("INSERT INTO categories (name) VALUES (?) ON CONFLICT(name) DO NOTHING", [catName], () => resolve());
@@ -84,24 +84,27 @@ app.post('/api/menu/import-excel', uploadExcel.single('menuFile'), async (req, r
     const itemSheet = workbook.Sheets['Menu Items'];
     const items = itemSheet ? XLSX.utils.sheet_to_json(itemSheet) : [];
     for (const item of items) {
-      const itemName = item['Item Name'];
-      const category = item['Category'];
-      const price = Number(item['Base Price (₹)']) || 0;
-      const image = item['Image URL'] || '';
+      const itemName = item['Item Name'] || item['item_name'];
+      const category = item['Category'] || 'General';
+      const price = Number(item['Base Price (₹)'] || item['price']) || 0;
+      const image = item['Image URL'] || item['image'] || '';
+      const status = item['Availability'] || 'available';
+      const stock = status === 'available' ? 50 : 0;
+
       if (!itemName) continue;
       
       await new Promise(resolve => {
         db.run(
-          `INSERT INTO menu (name, category, price, stock, image) VALUES (?, ?, ?, 50, ?)
-           ON CONFLICT(name) DO UPDATE SET category = excluded.category, price = excluded.price, image = excluded.image`,
-          [itemName, category || 'General', price, image],
+          `INSERT INTO menu (name, category, price, stock, image) VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(name) DO UPDATE SET category = excluded.category, price = excluded.price, image = excluded.image, stock = excluded.stock`,
+          [itemName, category, price, stock, image],
           () => resolve()
         );
       });
     }
 
     try { fs.unlinkSync(req.file.path); } catch(e) {}
-    console.log(`[MENU IMPORT SUCCESS] Imported ${items.length} items from Excel.`);
+    console.log(`[MENU IMPORT SUCCESS] Successfully imported ${items.length} items from Excel.`);
     res.json({ success: true, message: `Successfully imported ${items.length} menu items!` });
   } catch (err) {
     try { fs.unlinkSync(req.file.path); } catch(e) {}
