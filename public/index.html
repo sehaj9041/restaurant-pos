@@ -396,9 +396,15 @@
         <span class="text-orange-500 font-black text-lg">🍽</span>
         <h2 class="text-base font-black tracking-tight text-gray-800">Menu Management Dashboard</h2>
       </div>
-      <button onclick="showActiveOrdersView()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold transition">
-        ← Back to POS Billing
-      </button>
+      <div class="flex items-center gap-2">
+        <!-- Excel Import Button Added -->
+        <button onclick="openExcelImportModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs">
+          <span>📥</span> Import Excel Menu
+        </button>
+        <button onclick="showActiveOrdersView()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold transition">
+          ← Back to POS Billing
+        </button>
+      </div>
     </div>
 
     <!-- Summary Cards -->
@@ -441,6 +447,29 @@
       </div>
       <div id="menuManagementContainer" class="space-y-3">
         <p class="text-center py-10 text-gray-400 italic text-xs">Loading menu items...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= EXCEL IMPORT MODAL ================= -->
+  <div id="modalExcelImport" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl p-5 space-y-4 border border-gray-200">
+      <div class="flex justify-between items-center border-b pb-2">
+        <span class="font-black text-gray-800 text-sm flex items-center gap-1.5"><span>📊</span> Import Menu from Excel</span>
+        <button onclick="closeExcelImportModal()" class="text-gray-400 hover:text-gray-600 font-black text-base">✕</button>
+      </div>
+
+      <div class="space-y-2 text-xs">
+        <p class="text-gray-600">Apni Excel file select karein (<code class="bg-gray-100 px-1 py-0.5 rounded font-mono">menu_vishal_foodiez.xlsx</code>):</p>
+        
+        <div class="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center bg-gray-50 hover:bg-gray-100 transition cursor-pointer">
+          <input type="file" id="excelFileInput" accept=".xlsx, .xls" class="w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-black file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100">
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 pt-2">
+        <button onclick="closeExcelImportModal()" class="border border-gray-300 hover:bg-gray-100 text-gray-700 py-2 rounded-xl text-xs font-bold transition">Cancel</button>
+        <button onclick="uploadExcelMenuFile()" class="bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-xl text-xs font-black transition shadow-sm">Upload & Sync</button>
       </div>
     </div>
   </div>
@@ -1014,6 +1043,55 @@
       loadMenuManagementData();
     }
 
+    // ================= EXCEL IMPORT MODAL FUNCTIONS =================
+    function openExcelImportModal() {
+      document.getElementById('modalExcelImport').classList.remove('hidden');
+    }
+
+    function closeExcelImportModal() {
+      document.getElementById('excelFileInput').value = '';
+      document.getElementById('modalExcelImport').classList.add('hidden');
+    }
+
+    async function uploadExcelMenuFile() {
+      const fileInput = document.getElementById('excelFileInput');
+      if (!fileInput.files || fileInput.files.length === 0) {
+        return alert('Kripya pehle ek Excel file select karein!');
+      }
+
+      const formData = new FormData();
+      formData.append('menuFile', fileInput.files[0]);
+
+      try {
+        const btn = event.currentTarget;
+        const oldText = btn.innerText;
+        btn.innerText = 'Syncing...';
+        btn.disabled = true;
+
+        const res = await fetch('/api/menu/import-excel', {
+          method: 'POST',
+          body: formData
+        });
+        const result = await res.json();
+
+        if (result.success) {
+          alert(result.message || 'Menu successfully import ho gaya!');
+          closeExcelImportModal();
+          loadMenuManagementData();
+          fetchMenu();
+        } else {
+          alert('Import fail ho gaya: ' + (result.error || 'Unknown error'));
+        }
+        btn.innerText = oldText;
+        btn.disabled = false;
+      } catch (err) {
+        console.error('Upload error:', err);
+        alert('Server error during upload!');
+        event.currentTarget.innerText = 'Upload & Sync';
+        event.currentTarget.disabled = false;
+      }
+    }
+
     async function loadMenuManagementData() {
       try {
         const res = await fetch('/api/menu');
@@ -1073,7 +1151,6 @@
       document.getElementById('editItemId').value = item.id;
       document.getElementById('editItemName').value = item.name;
       
-      // Populate Category Dropdown dynamically from allCategories array
       var catSelect = document.getElementById('editItemCategory');
       catSelect.innerHTML = allCategories.map(function(cat) {
         var selected = (cat === item.category) ? 'selected' : '';
