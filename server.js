@@ -4,6 +4,7 @@ const path = require('path');
 const multer = require('multer');
 const fs = require('fs');
 const { exec } = require('child_process');
+const XLSX = require('xlsx');
 const db = require('./database');
 
 const app = express();
@@ -55,10 +56,58 @@ const storage = multer.diskStorage({
   }
 });
 const upload = multer({ storage: storage });
+const uploadExcel = multer({ dest: 'uploads/' });
 
 app.post('/api/upload', upload.single('image'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   res.json({ imageUrl: '/uploads/' + req.file.filename });
+});
+
+// ================= EXCEL MENU IMPORT API =================
+app.post('/api/menu/import-excel', uploadExcel.single('menuFile'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
+  try {
+    const workbook = XLSX.readFile(req.file.path);
+    
+    // 1. Categories Import
+    const catSheet = workbook.Sheets['Categories'];
+    const categories = catSheet ? XLSX.utils.sheet_to_json(catSheet) : [];
+    for (const cat of categories) {
+      const catName = cat['Category Name'];
+      if (!catName) continue;
+      await new Promise(resolve => {
+        db.run("INSERT INTO categories (name) VALUES (?) ON CONFLICT(name) DO NOTHING", [catName], () => resolve());
+      });
+    }
+
+    // 2. Menu Items Import
+    const itemSheet = workbook.Sheets['Menu Items'];
+    const items = itemSheet ? XLSX.utils.sheet_to_json(itemSheet) : [];
+    for (const item of items) {
+      const itemName = item['Item Name'];
+      const category = item['Category'];
+      const price = Number(item['Base Price (₹)']) || 0;
+      const image = item['Image URL'] || '';
+      if (!itemName) continue;
+      
+      await new Promise(resolve => {
+        db.run(
+          `INSERT INTO menu (name, category, price, stock, image) VALUES (?, ?, ?, 50, ?)
+           ON CONFLICT(name) DO UPDATE SET category = excluded.category, price = excluded.price, image = excluded.image`,
+          [itemName, category || 'General', price, image],
+          () => resolve()
+        );
+      });
+    }
+
+    try { fs.unlinkSync(req.file.path); } catch(e) {}
+    console.log(`[MENU IMPORT SUCCESS] Imported ${items.length} items from Excel.`);
+    res.json({ success: true, message: `Successfully imported ${items.length} menu items!` });
+  } catch (err) {
+    try { fs.unlinkSync(req.file.path); } catch(e) {}
+    console.error('Import error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // 1. CUSTOMER DISPLAY SYNC APIS
