@@ -6,6 +6,7 @@ const fs = require('fs');
 const { exec } = require('child_process');
 const db = require('./database');
 const { Client, LocalAuth } = require('whatsapp-web.js');
+const puppeteer = require('puppeteer');
 
 const app = express();
 app.use(cors());
@@ -40,6 +41,7 @@ const waClient = new Client({
   authStrategy: new LocalAuth(),
   puppeteer: {
     headless: true,
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || puppeteer.executablePath(),
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
   }
 });
