@@ -485,7 +485,9 @@
           </div>
           <div>
             <label class="block font-black text-gray-500 uppercase text-[10px] mb-1">Category *</label>
-            <input type="text" id="editItemCategory" class="w-full border border-gray-300 rounded-lg p-2 font-bold text-gray-800 outline-none focus:border-orange-500">
+            <select id="editItemCategory" class="w-full border border-gray-300 rounded-lg p-2 font-bold text-gray-800 outline-none focus:border-orange-500 bg-white">
+              <!-- Dynamically populated categories -->
+            </select>
           </div>
           <div class="grid grid-cols-2 gap-3">
             <div>
@@ -1070,7 +1072,17 @@
     function openItemEditModal(item) {
       document.getElementById('editItemId').value = item.id;
       document.getElementById('editItemName').value = item.name;
-      document.getElementById('editItemCategory').value = item.category;
+      
+      // Populate Category Dropdown dynamically from allCategories array
+      var catSelect = document.getElementById('editItemCategory');
+      catSelect.innerHTML = allCategories.map(function(cat) {
+        var selected = (cat === item.category) ? 'selected' : '';
+        return `<option value="${cat}" ${selected}>${cat}</option>`;
+      }).join('');
+      if (!allCategories.includes(item.category)) {
+        catSelect.innerHTML += `<option value="${item.category}" selected>${item.category}</option>`;
+      }
+
       document.getElementById('editItemPrice').value = item.price;
       document.getElementById('editItemStock').value = item.stock || 50;
       if(document.getElementById('editItemStatus')) document.getElementById('editItemStatus').value = item.status || 'Available';
