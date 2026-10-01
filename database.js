@@ -52,7 +52,7 @@ dbWrapper = {
   }
 };
 
-// Create tables and ensure unique index on menu name
+// Create tables and ensure columns exist
 pool.query(`
   CREATE TABLE IF NOT EXISTS categories (
     id SERIAL PRIMARY KEY,
@@ -102,9 +102,9 @@ pool.query(`
   CREATE TABLE IF NOT EXISTS addon_groups (
     id SERIAL PRIMARY KEY,
     name TEXT,
-    min_selection INTEGER,
-    max_selection INTEGER,
-    is_mandatory INTEGER,
+    min_selection INTEGER DEFAULT 0,
+    max_selection INTEGER DEFAULT 5,
+    is_mandatory INTEGER DEFAULT 0,
     items TEXT
   );
   CREATE TABLE IF NOT EXISTS variation_masters (
@@ -137,7 +137,12 @@ pool.query(`
     admin_pin TEXT
   );
 `).then(async () => {
-  // Ensure unique constraint on menu name safely
+  // Safe column migrations if table already existed without them
+  await pool.query(`ALTER TABLE addon_groups ADD COLUMN IF NOT EXISTS is_mandatory INTEGER DEFAULT 0;`).catch(() => {});
+  await pool.query(`ALTER TABLE addon_groups ADD COLUMN IF NOT EXISTS min_selection INTEGER DEFAULT 0;`).catch(() => {});
+  await pool.query(`ALTER TABLE addon_groups ADD COLUMN IF NOT EXISTS max_selection INTEGER DEFAULT 5;`).catch(() => {});
+  await pool.query(`ALTER TABLE addon_groups ADD COLUMN IF NOT EXISTS items TEXT;`).catch(() => {});
+  
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS menu_name_idx ON menu (name);`).catch(() => {});
   console.log('Postgres Cloud DB tables ready.');
 
