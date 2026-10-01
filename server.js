@@ -214,7 +214,7 @@ app.delete('/api/categories/:id', (req, res) => {
   });
 });
 
-// 4. GLOBAL ADD-ON GROUPS APIS
+// ================= GLOBAL ADD-ON GROUPS APIS (SAFE VERSION) =================
 app.get('/api/addon-groups', (req, res) => {
   db.all("SELECT * FROM addon_groups ORDER BY id DESC", [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -223,14 +223,16 @@ app.get('/api/addon-groups', (req, res) => {
 });
 
 app.post('/api/addon-groups', (req, res) => {
-  const { name, min_selection, max_selection, is_mandatory, selection_type, items } = req.body;
-  db.all(
-    `INSERT INTO addon_groups (name, min_selection, max_selection, is_mandatory, selection_type, items) VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
-    [name, min_selection || 0, max_selection || 5, is_mandatory ? 1 : 0, selection_type || 'Single choice', JSON.stringify(items || [])],
-    (err, result) => {
-      if (err) return res.status(500).json({ error: err.message });
-      const id = result && result[0] ? result[0].id : null;
-      res.json({ success: true, id });
+  const { name, min_selection, max_selection, is_mandatory, items } = req.body;
+  db.run(
+    `INSERT INTO addon_groups (name, min_selection, max_selection, is_mandatory, items) VALUES (?, ?, ?, ?, ?)`,
+    [name, min_selection || 0, max_selection || 5, is_mandatory ? 1 : 0, JSON.stringify(items || [])],
+    function (err) {
+      if (err) {
+        console.error('Addon group insert error:', err.message);
+        return res.status(500).json({ error: err.message });
+      }
+      res.json({ success: true, id: this.lastID || 1 });
     }
   );
 });
