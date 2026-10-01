@@ -86,11 +86,37 @@
     </div>
   </div>
 
+  <!-- ================= ONLINE ADDON SELECTION MODAL ================= -->
+  <div id="onlineAddonModal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-5 max-w-md w-full shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
+      <div class="flex justify-between items-center border-b pb-2">
+        <div>
+          <h3 id="onlineAddonModalItemName" class="font-black text-gray-900 text-sm">Select Add-ons</h3>
+          <p class="text-[10px] text-gray-500">Apni pasand ke add-ons select karein</p>
+        </div>
+        <button onclick="closeOnlineAddonModal()" class="text-gray-400 hover:text-black font-bold">✕</button>
+      </div>
+
+      <div id="onlineAddonModalContent" class="space-y-4 overflow-y-auto flex-1 pr-1 text-xs">
+        <!-- Dynamic Addon Groups & Items -->
+      </div>
+
+      <div class="pt-3 border-t flex justify-between items-center shrink-0">
+        <div class="text-xs font-bold text-gray-700">Total Price: <span id="onlineAddonModalTotalPrice" class="text-sm font-black text-indigo-600">₹0</span></div>
+        <button onclick="confirmOnlineAddonSelection()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-black px-5 py-2 rounded-xl text-xs shadow-sm">
+          Add to Cart ✓
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script>
     let mode = 'Dine-In';
     let cart = [];
     let menu = [];
     let activeCategory = 'All';
+    let currentModalSelectedItem = null;
+    let currentModalItemGroups = [];
 
     function setMode(m) {
       mode = m;
@@ -147,7 +173,7 @@
       }
 
       grid.innerHTML = filtered.map(item => {
-        const inCart = cart.find(i => i.id === item.id);
+        const inCart = cart.filter(i => i.id === item.id).reduce((s, c) => s + c.qty, 0);
         return `
           <div class="bg-white p-3.5 rounded-2xl border border-gray-100 flex justify-between items-center shadow-xs">
             <div class="space-y-0.5">
@@ -156,14 +182,12 @@
               <p class="text-emerald-600 font-black text-sm">₹${item.price}</p>
             </div>
             <div>
-              ${inCart ? `
+              ${inCart > 0 ? `
                 <div class="flex items-center bg-indigo-50 border border-indigo-200 rounded-xl overflow-hidden">
-                  <button onclick="changeQty(${item.id}, -1)" class="px-3 py-1 font-black text-indigo-700 hover:bg-indigo-100 active:scale-95">-</button>
-                  <span class="px-2 font-black text-xs text-indigo-900">${inCart.qty}</span>
-                  <button onclick="changeQty(${item.id}, 1)" class="px-3 py-1 font-black text-indigo-700 hover:bg-indigo-100 active:scale-95">+</button>
+                  <span class="px-3 py-1 font-black text-xs text-indigo-900">${inCart} in cart</span>
                 </div>
               ` : `
-                <button onclick='addItem(${JSON.stringify(item)})' class="bg-indigo-50 hover:bg-indigo-100 active:scale-95 border border-indigo-200 text-indigo-700 font-black text-xs px-4 py-1.5 rounded-xl transition">
+                <button onclick='addItemCheckAddons(${JSON.stringify(item)})' class="bg-indigo-50 hover:bg-indigo-100 active:scale-95 border border-indigo-200 text-indigo-700 font-black text-xs px-4 py-1.5 rounded-xl transition">
                   + ADD
                 </button>
               `}
@@ -173,19 +197,125 @@
       }).join('');
     }
 
-    function addItem(item) {
-      cart.push({ id: item.id, name: item.name, price: Number(item.price), qty: 1 });
+    async function addItemCheckAddons(item) {
+      let assignedGroups = [];
+      if (item.assigned_addon_groups) {
+        try {
+          assignedGroups = JSON.parse(item.assigned_addon_groups || '[]');
+        } catch(e) {
+          assignedGroups = [];
+        }
+      }
+
+      if (assignedGroups.length > 0) {
+        try {
+          const res = await fetch('/api/addon-groups');
+          const allGroups = await res.json();
+          const itemGroups = allGroups.filter(g => assignedGroups.includes(g.id));
+          
+          if (itemGroups.length > 0) {
+            openOnlineAddonModal(item, itemGroups);
+            return;
+          }
+        } catch(err) {
+          console.error('Error fetching addons:', err);
+        }
+      }
+
+      // Direct add if no addons
+      cart.push({ id: item.id, name: item.name, price: Number(item.price), qty: 1, addons: [] });
+      updateCartUI();
+      renderMenu();
+    }
+
+    function openOnlineAddonModal(item, groups) {
+      currentModalSelectedItem = item;
+      currentModalItemGroups = groups;
+      document.getElementById('onlineAddonModalItemName').innerText = item.name + ` (₹${item.price})`;
+      
+      let html = '';
+      groups.forEach((g, gIdx) => {
+        let groupItems = [];
+        try { groupItems = JSON.parse(g.items || '[]'); } catch(e) {}
+        
+        html += `
+          <div class="border rounded-xl p-3 bg-gray-50 space-y-2">
+            <div class="flex justify-between items-center">
+              <span class="font-black text-gray-800">${g.name}</span>
+              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${g.is_mandatory ? 'bg-rose-100 text-rose-700' : 'bg-gray-200 text-gray-600'}">${g.is_mandatory ? 'Required' : 'Optional'}</span>
+            </div>
+            <div class="space-y-1">
+        `;
+        
+        groupItems.forEach((ai) => {
+          let inputType = g.selection_type === 'Multiple choice' ? 'checkbox' : 'radio';
+          html += `
+            <label class="flex items-center justify-between p-2 rounded-lg bg-white border cursor-pointer hover:bg-indigo-50/50">
+              <div class="flex items-center gap-2">
+                <input type="${inputType}" name="online_addon_grp_${gIdx}" value="${ai.name}" data-price="${ai.price}" class="onlineAddonInput grp-${gIdx} text-indigo-600 rounded">
+                <span class="font-bold text-gray-700">${ai.name}</span>
+              </div>
+              <span class="font-black text-gray-900">+₹${ai.price}</span>
+            </label>
+          `;
+        });
+        html += `</div></div>`;
+      });
+
+      document.getElementById('onlineAddonModalContent').innerHTML = html;
+      document.getElementById('onlineAddonModal').classList.remove('hidden');
+    }
+
+    function closeOnlineAddonModal() {
+      document.getElementById('onlineAddonModal').classList.add('hidden');
+      currentModalSelectedItem = null;
+      currentModalItemGroups = [];
+    }
+
+    function confirmOnlineAddonSelection() {
+      if (!currentModalSelectedItem) return;
+
+      let selectedAddons = [];
+      let extraPrice = 0;
+
+      try {
+        currentModalItemGroups.forEach((g, gIdx) => {
+          const checkedInputs = document.querySelectorAll(`.onlineAddonInput.grp-${gIdx}:checked`);
+          if (g.is_mandatory && checkedInputs.length === 0) {
+            alert(`"${g.name}" group mein kam se kam ek option select karna anivarya hai!`);
+            throw new Error('Mandatory group missing');
+          }
+
+          checkedInputs.forEach(input => {
+            const aName = input.value;
+            const aPrice = Number(input.getAttribute('data-price')) || 0;
+            selectedAddons.push({ name: aName, price: aPrice });
+            extraPrice += aPrice;
+          });
+        });
+      } catch (e) {
+        return;
+      }
+
+      const finalPrice = Number(currentModalSelectedItem.price) + extraPrice;
+      const addonNamesString = selectedAddons.map(a => a.name).join(', ');
+      const displayName = selectedAddons.length > 0 ? `${currentModalSelectedItem.name} (${addonNamesString})` : currentModalSelectedItem.name;
+
+      cart.push({
+        id: currentModalSelectedItem.id,
+        name: displayName,
+        price: finalPrice,
+        qty: 1,
+        addons: selectedAddons
+      });
+
+      closeOnlineAddonModal();
       updateCartUI();
       renderMenu();
     }
 
     function changeQty(id, delta) {
-      const item = cart.find(i => i.id === id);
-      if (!item) return;
-      item.qty += delta;
-      if (item.qty <= 0) {
-        cart = cart.filter(i => i.id !== id);
-      }
+      // Basic fallback
       updateCartUI();
       renderMenu();
     }
@@ -233,7 +363,6 @@
 
       const total = cart.reduce((s, i) => s + (i.price * i.qty), 0);
 
-      // Sent with status: 'RUNNING' so POS Active board captures it immediately
       fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
