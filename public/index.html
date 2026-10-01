@@ -396,6 +396,17 @@
         <h2 class="text-base font-black tracking-tight text-gray-800">Menu Management Dashboard</h2>
       </div>
       <div class="flex items-center gap-2">
+        <!-- New Buttons Added Here -->
+        <button onclick="openCategoriesGroupModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs">
+          <span>📁</span> Categories Group
+        </button>
+        <button onclick="openVariationsGroupModal()" class="bg-purple-600 hover:bg-purple-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs">
+          <span>⚙️</span> Variations Group
+        </button>
+        <button onclick="openAddonGroupsModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs">
+          <span>➕</span> Add-on Groups
+        </button>
+
         <!-- Import Excel Button Inside Menu Management Header -->
         <button onclick="openExcelImportModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs">
           <span>📥</span> Import Excel Menu
@@ -446,6 +457,54 @@
       </div>
       <div id="menuManagementContainer" class="space-y-3">
         <p class="text-center py-10 text-gray-400 italic text-xs">Loading menu items...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= CATEGORIES GROUP MODAL ================= -->
+  <div id="modalCategoriesGroup" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl p-5 space-y-4 border border-gray-200">
+      <div class="flex justify-between items-center border-b pb-2">
+        <span class="font-black text-gray-800 text-sm flex items-center gap-1.5"><span>📁</span> Categories Group Management</span>
+        <button onclick="closeCategoriesGroupModal()" class="text-gray-400 hover:text-gray-600 font-black text-base">✕</button>
+      </div>
+      <div class="space-y-2 text-xs">
+        <p class="text-gray-600">Yahan aap restaurant ki categories ko manage aur group kar sakte hain.</p>
+      </div>
+      <div class="pt-2 text-right">
+        <button onclick="closeCategoriesGroupModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-xl text-xs font-bold transition">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= VARIATIONS GROUP MODAL ================= -->
+  <div id="modalVariationsGroup" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl p-5 space-y-4 border border-gray-200">
+      <div class="flex justify-between items-center border-b pb-2">
+        <span class="font-black text-gray-800 text-sm flex items-center gap-1.5"><span>⚙️</span> Variations Group Management</span>
+        <button onclick="closeVariationsGroupModal()" class="text-gray-400 hover:text-gray-600 font-black text-base">✕</button>
+      </div>
+      <div class="space-y-2 text-xs">
+        <p class="text-gray-600">Yahan aap item sizes aur variations (jaise Small, Medium, Large) set kar sakte hain.</p>
+      </div>
+      <div class="pt-2 text-right">
+        <button onclick="closeVariationsGroupModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-xl text-xs font-bold transition">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= ADD-ON GROUPS MODAL ================= -->
+  <div id="modalAddonGroups" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl p-5 space-y-4 border border-gray-200">
+      <div class="flex justify-between items-center border-b pb-2">
+        <span class="font-black text-gray-800 text-sm flex items-center gap-1.5"><span>➕</span> Add-on Groups Management</span>
+        <button onclick="closeAddonGroupsModal()" class="text-gray-400 hover:text-gray-600 font-black text-base">✕</button>
+      </div>
+      <div class="space-y-2 text-xs">
+        <p class="text-gray-600">Yahan aap extra toppings, cheese aur add-on modifiers manage kar sakte hain.</p>
+      </div>
+      <div class="pt-2 text-right">
+        <button onclick="closeAddonGroupsModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-xl text-xs font-bold transition">Close</button>
       </div>
     </div>
   </div>
@@ -1040,6 +1099,28 @@
       document.getElementById('topOrderActiveBadge').classList.add('hidden');
       
       loadMenuManagementData();
+    }
+
+    // Modal Control Functions for the 3 New Buttons
+    function openCategoriesGroupModal() {
+      document.getElementById('modalCategoriesGroup').classList.remove('hidden');
+    }
+    function closeCategoriesGroupModal() {
+      document.getElementById('modalCategoriesGroup').classList.add('hidden');
+    }
+
+    function openVariationsGroupModal() {
+      document.getElementById('modalVariationsGroup').classList.remove('hidden');
+    }
+    function closeVariationsGroupModal() {
+      document.getElementById('modalVariationsGroup').classList.add('hidden');
+    }
+
+    function openAddonGroupsModal() {
+      document.getElementById('modalAddonGroups').classList.remove('hidden');
+    }
+    function closeAddonGroupsModal() {
+      document.getElementById('modalAddonGroups').classList.add('hidden');
     }
 
     // ================= EXCEL IMPORT MODAL FUNCTIONS =================
