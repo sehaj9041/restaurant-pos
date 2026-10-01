@@ -2,257 +2,3119 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Order Online - Vishal Foodiez</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-50 min-h-screen flex flex-col font-sans pb-32">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TadkaTech - Vishal Foodiez - Fast POS</title>
+  
+  <!-- PWA Settings -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#ea580c">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
-  <!-- Top Header -->
-  <header class="bg-white sticky top-0 z-30 shadow-xs border-b px-4 py-3 flex justify-between items-center">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: #f8fafc; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    
+    .floor-dots {
+      background-size: 24px 24px;
+      background-image: radial-gradient(circle, #e2e8f0 1.2px, transparent 1.2px);
+    }
+  </style>
+</head>
+<body class="bg-[#f8fafc] text-gray-800 font-sans h-screen flex flex-col overflow-hidden select-none relative">
+
+  <iframe id="silentPrintFrame" style="position:fixed;right:0;bottom:0;width:0;height:0;border:0;"></iframe>
+
+  <!-- ================= SLIDE-OUT LEFT SIDEBAR DRAWER ================= -->
+  <div id="sidebarBackdrop" onclick="toggleSidebarMenu(false)" class="fixed inset-0 bg-black/40 z-40 hidden transition-opacity duration-200"></div>
+
+  <aside id="sidebarDrawer" class="fixed top-0 left-0 h-full w-64 bg-white z-50 shadow-2xl transform -translate-x-full transition-transform duration-200 ease-in-out flex flex-col justify-between border-r border-gray-200 text-xs select-none">
     <div>
-      <h1 class="text-lg font-black text-gray-900 tracking-tight">VISHAL FOODIEZ</h1>
-      <p class="text-[10px] text-gray-500 font-semibold">Budhlada • Fresh & Fast</p>
+      <div class="p-3.5 border-b border-gray-100 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-orange-600 text-white font-black flex items-center justify-center text-sm shadow-xs">V</div>
+          <div>
+            <div class="font-black text-gray-800 leading-tight text-[13px]">Vishal Foodiez</div>
+            <div class="text-[9px] font-bold tracking-wider text-gray-400 uppercase">Restaurant Portal</div>
+          </div>
+        </div>
+        <button onclick="toggleSidebarMenu(false)" class="p-1 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition">✕</button>
+      </div>
+
+      <div class="overflow-y-auto max-h-[calc(100vh-130px)] p-2 space-y-3">
+        <div>
+          <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Overview</div>
+          <button onclick="toggleSidebarMenu(false); showActiveOrdersView();" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+            <span class="text-sm">⚡</span> Dashboard
+          </button>
+        </div>
+
+        <div>
+          <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Operations</div>
+          <div class="space-y-0.5">
+            <button onclick="toggleSidebarMenu(false); showActiveOrdersView();" class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-black bg-orange-50 text-orange-600 border border-orange-200 transition">
+              <span class="flex items-center gap-2.5"><span class="text-sm">📑</span> Orders</span>
+            </button>
+            <button onclick="toggleSidebarMenu(false); showActiveOrdersView();" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="text-sm">🪑</span> Tables & Floor
+            </button>
+            <button onclick="protectedNav('/kot.html')" class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="flex items-center gap-2.5"><span class="text-sm">🍳</span> Kitchen (KDS)</span>
+              <span class="bg-emerald-100 text-emerald-700 text-[9px] font-black px-1.5 py-0.2 rounded-full">Live</span>
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Menu</div>
+          <button onclick="toggleSidebarMenu(false); openMenuManagement();" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+            <span class="text-sm">🍽</span> Menu Management
+          </button>
+        </div>
+
+        <div>
+          <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Billing</div>
+          <div class="space-y-0.5">
+            <button onclick="toggleSidebarMenu(false); showOrderHistoryView();" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="text-sm">🧾</span> Order History
+            </button>
+            <button onclick="toggleSidebarMenu(false); showDueOrdersView();" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="text-sm">📒</span> Due / Khata
+            </button>
+            <button onclick="protectedNav('/report.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="text-sm">💸</span> Expenses
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">People</div>
+          <button onclick="protectedNav('/customers.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+            <span class="text-sm">👥</span> Customers (CRM)
+          </button>
+        </div>
+
+        <div>
+          <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Reports & Support</div>
+          <div class="space-y-0.5">
+            <button onclick="protectedNav('/report.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="text-sm">📊</span> Analytics & Reports
+            </button>
+            <button onclick="protectedNav('/admin.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+              <span class="text-sm">⚙️</span> Settings
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
-    <div class="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 px-2.5 py-1 rounded-full text-[10px] font-black">
-      <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-      <span>ONLINE ORDERING</span>
+
+    <div class="p-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <div class="w-7 h-7 rounded-full bg-orange-100 border border-orange-300 text-orange-700 font-black flex items-center justify-center text-xs">S</div>
+        <div>
+          <div class="font-black text-gray-800 text-[11px] leading-tight">Sehaj</div>
+          <div class="text-[9px] text-gray-400 font-bold">Owner</div>
+        </div>
+      </div>
+      <button onclick="location.reload()" title="Logout" class="text-gray-400 hover:text-red-600 transition text-[11px] font-bold">↪ Log out</button>
+    </div>
+  </aside>
+
+  <!-- ================= TOP MAIN HEADER NAVBAR ================= -->
+  <header class="bg-white border-b border-gray-200 px-4 py-2.5 flex justify-between items-center z-30 shadow-xs">
+    <div class="flex items-center gap-3">
+      <button onclick="toggleSidebarMenu(true)" class="p-1.5 hover:bg-gray-100 rounded-lg text-gray-600 transition" title="Open Menu">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+
+      <!-- GLOBAL TOP BACK BUTTON -->
+      <button id="btnTopBack" onclick="handleGlobalBackNavigation()" class="hidden text-xs font-bold px-2.5 py-1 rounded-lg border border-gray-300 bg-gray-50 hover:bg-gray-100 text-gray-700 transition flex items-center gap-1">
+        <span>← Back</span>
+      </button>
+
+      <div class="flex items-center gap-2">
+        <span class="text-orange-500 font-black text-lg">📑</span>
+        <h1 id="topPageTitle" class="text-base font-black tracking-tight text-gray-800">Orders</h1>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <div class="flex items-center gap-1.5 bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-full text-xs font-bold text-gray-700">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        <span>Sehaj</span>
+      </div>
+
+      <a href="/customer.html" target="_blank" class="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-700 flex items-center gap-1 transition">
+        <span>🖥</span> Customer Display
+      </a>
+
+      <div id="topOrderActiveBadge" class="hidden flex items-center gap-1.5 bg-emerald-50 border border-emerald-300 text-emerald-800 px-2.5 py-1 rounded-full text-xs font-black">
+        <span class="w-2 h-2 rounded-full bg-emerald-600"></span>
+        <span id="topOrderActiveText">Order • 0</span>
+      </div>
+
+      <button id="btnCancelOrderView" onclick="closePOSOrderView()" class="hidden text-xs font-bold px-3 py-1.5 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 text-gray-700 transition">
+        ✕ Cancel
+      </button>
+
+      <button onclick="protectedNav('/report.html')" class="p-1.5 hover:bg-gray-100 text-gray-600 rounded-lg relative transition">
+        <span class="text-base">🔔</span>
+        <span id="topNotificationBadge" class="absolute top-0.5 right-0.5 bg-orange-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">1</span>
+      </button>
+
+      <button onclick="showOrderHistoryView()" class="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 flex items-center gap-1 text-gray-700 transition">
+        <span>📋</span> All Orders
+      </button>
+
+      <button onclick="openCashDrawer()" class="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 flex items-center gap-1 text-amber-900 transition shadow-2xs">
+        <span>💵</span> Open Drawer
+      </button>
+
+      <button onclick="openPOSOrderView('', '')" class="bg-orange-500 hover:bg-orange-600 text-white px-3.5 py-1.5 rounded-lg text-xs font-black shadow-sm flex items-center gap-1 transition">
+        <span>+</span> New Order
+      </button>
     </div>
   </header>
 
-  <!-- Order Mode Selector -->
-  <div class="bg-white p-3 border-b shadow-xs space-y-2 sticky top-[57px] z-20">
-    <div class="grid grid-cols-3 gap-1.5 bg-gray-100 p-1 rounded-xl text-xs font-black">
-      <button onclick="setMode('Dine-In')" id="mDine" class="py-2 rounded-lg bg-white text-indigo-700 shadow-xs transition">🍽 Dine-In</button>
-      <button onclick="setMode('Takeaway')" id="mTake" class="py-2 rounded-lg text-gray-500 transition">🛍 Takeaway</button>
-      <button onclick="setMode('Delivery')" id="mDeliv" class="py-2 rounded-lg text-gray-500 transition">🛵 Delivery</button>
-    </div>
-    <input type="text" id="targetLoc" placeholder="Table Number (e.g. Table 2)" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs outline-none bg-gray-50 font-bold focus:bg-white focus:border-indigo-500 transition">
-  </div>
-
-  <!-- Category Badges Bar -->
-  <div id="categoryBar" class="p-3 flex gap-2 overflow-x-auto no-scrollbar pb-1"></div>
-
-  <!-- Menu Listing -->
-  <main class="p-3 flex-1">
-    <div id="menuGrid" class="space-y-3">
-      <div class="text-center py-12 text-gray-400 text-xs font-semibold">Loading menu items...</div>
-    </div>
-  </main>
-
-  <!-- Sticky Bottom Cart Bar -->
-  <div id="cartBar" class="hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t p-3 shadow-2xl z-40">
-    <div class="max-w-md mx-auto flex justify-between items-center">
-      <div onclick="openCheckout()" class="cursor-pointer">
-        <span id="cartCount" class="text-[10px] font-black bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">0 items</span>
-        <div id="cartTotal" class="text-xl font-black text-gray-900">₹0</div>
+  <!-- ================= VIEW 1: FLOOR & QUEUES DASHBOARD ================= -->
+  <div id="viewFloorDashboard" class="flex-1 overflow-y-auto p-4 space-y-3 pb-16">
+    <div class="grid grid-cols-4 gap-3">
+      <div class="bg-white border border-gray-200 rounded-xl p-3 flex justify-between items-center shadow-2xs">
+        <div class="flex items-center gap-2.5">
+          <span class="w-3.5 h-3.5 rounded-full bg-emerald-500"></span>
+          <div>
+            <div class="text-[11px] font-black uppercase text-gray-500 tracking-wider">Active</div>
+            <div class="text-[10px] text-gray-400 font-medium">Right now</div>
+          </div>
+        </div>
+        <div id="metricActiveCount" class="text-xl font-black text-gray-800">0</div>
       </div>
-      <button onclick="openCheckout()" class="bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-black px-6 py-3 rounded-2xl text-xs shadow-lg transition">
-        View Order →
+
+      <div class="bg-white border border-gray-200 rounded-xl p-3 flex justify-between items-center shadow-2xs">
+        <div class="flex items-center gap-2.5">
+          <span class="w-4 h-4 rounded bg-emerald-600 text-white flex items-center justify-center text-[10px] font-black">✓</span>
+          <div>
+            <div class="text-[11px] font-black uppercase text-gray-500 tracking-wider">Completed Today</div>
+            <div class="text-[10px] text-gray-400 font-medium">Billed & closed</div>
+          </div>
+        </div>
+        <div id="metricCompletedCount" class="text-xl font-black text-gray-800">0</div>
+      </div>
+
+      <div class="bg-white border border-gray-200 rounded-xl p-3 flex justify-between items-center shadow-2xs">
+        <div class="flex items-center gap-2.5">
+          <span class="text-base">🛵</span>
+          <div>
+            <div class="text-[11px] font-black uppercase text-gray-500 tracking-wider">Delivery</div>
+            <div class="text-[10px] text-gray-400 font-medium">In progress</div>
+          </div>
+        </div>
+        <div id="metricDeliveryCount" class="text-xl font-black text-gray-800">0</div>
+      </div>
+
+      <div class="bg-white border border-gray-200 rounded-xl p-3 flex justify-between items-center shadow-2xs">
+        <div class="flex items-center gap-2.5">
+          <span class="text-red-500 font-black text-base">✕</span>
+          <div>
+            <div class="text-[11px] font-black uppercase text-gray-500 tracking-wider">Voided Today</div>
+            <div class="text-[10px] text-gray-400 font-medium">No voids</div>
+          </div>
+        </div>
+        <div class="text-xl font-black text-gray-800">0</div>
+      </div>
+    </div>
+
+    <!-- FILTER & ACTION BAR -->
+    <div class="flex justify-between items-center bg-white p-2 rounded-xl border border-gray-200 shadow-2xs">
+      <div class="flex items-center gap-2">
+        <button id="btnNavActiveOrders" onclick="showActiveOrdersView()" class="bg-orange-500 text-white text-xs font-black px-3 py-1.5 rounded-lg shadow-2xs transition">
+          Active Orders (<span id="filterActiveBadge">0</span>)
+        </button>
+        <button id="btnNavDueOrders" onclick="showDueOrdersView()" class="text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition">
+          Due (<span id="filterDueCount">0</span>) • <span id="filterDueTotal">₹0</span>
+        </button>
+        <button id="btnNavOrderHistory" onclick="showOrderHistoryView()" class="text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition">
+          Order History
+        </button>
+      </div>
+
+      <button onclick="openPOSOrderView('', '')" class="bg-orange-500 hover:bg-orange-600 text-white px-3.5 py-1 rounded-lg text-xs font-black shadow-2xs">
+        + New Order
       </button>
     </div>
+
+    <!-- ================= DUE / KHATA DUAL-VIEW CONTAINER ================= -->
+    <div id="dueOrdersContainer" class="hidden bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-2xs p-3 space-y-3">
+      <div class="flex items-center justify-between border-b pb-3">
+        <div class="flex bg-gray-100 p-1 rounded-xl">
+          <button id="btnDueByOrder" onclick="switchDueTab('BY_ORDER')" class="bg-orange-500 text-white font-black px-4 py-1.5 rounded-lg text-xs shadow-2xs transition">
+            By order
+          </button>
+          <button id="btnDueByCustomer" onclick="switchDueTab('BY_CUSTOMER')" class="text-gray-600 hover:text-black font-bold px-4 py-1.5 rounded-lg text-xs transition">
+            By customer
+          </button>
+        </div>
+        <div class="text-xs font-bold text-gray-500">
+          Total Due: <span id="dueHeaderTotalLabel" class="text-rose-600 font-black text-sm">₹0</span>
+        </div>
+      </div>
+
+      <div id="dueByOrderSection" class="space-y-2">
+        <div id="dueOrderList" class="divide-y divide-gray-100">
+          <p class="text-center py-10 text-gray-400 font-bold italic text-xs">Loading due orders...</p>
+        </div>
+      </div>
+
+      <div id="dueByCustomerSection" class="hidden space-y-2">
+        <div id="dueCustomerList" class="divide-y divide-gray-100">
+          <p class="text-center py-10 text-gray-400 font-bold italic text-xs">Loading customer dues...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ORDER HISTORY SCREEN -->
+    <div id="orderHistoryContainer" class="hidden bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-2xs">
+      <div class="p-3 border-b border-gray-100 flex flex-wrap justify-between items-center gap-2 bg-gray-50/50">
+        <div class="flex items-center gap-2">
+          <input type="text" id="histSearchInput" oninput="filterHistoryRows()" placeholder="Search order #, customer..." class="border border-gray-200 rounded-lg px-2.5 py-1 text-xs outline-none bg-white focus:border-orange-500 w-44">
+          <select id="histTypeFilter" onchange="filterHistoryRows()" class="border border-gray-200 rounded-lg px-2 py-1 text-xs outline-none bg-white">
+            <option value="ALL">All Types</option>
+            <option value="Dine-In">Dine-In</option>
+            <option value="Takeaway">Takeaway</option>
+            <option value="Delivery">Delivery</option>
+          </select>
+          <input type="date" id="histDateFilter" onchange="loadSettledOrderHistory()" class="border border-gray-200 rounded-lg px-2 py-1 text-xs outline-none bg-white font-bold">
+        </div>
+        <div class="text-xs font-bold text-gray-500">
+          Showing <span id="histCountLabel" class="text-gray-900 font-black">0</span> settled orders
+        </div>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs border-collapse">
+          <thead>
+            <tr class="bg-gray-50 text-gray-400 font-bold border-b border-gray-100 uppercase tracking-wider text-[10px]">
+              <th class="p-3">ORDER #</th>
+              <th class="p-3">TYPE / TABLE</th>
+              <th class="p-3">ITEMS</th>
+              <th class="p-3">CUSTOMER</th>
+              <th class="p-3">STATUS</th>
+              <th class="p-3">TIME</th>
+              <th class="p-3">AMOUNT</th>
+              <th class="p-3 text-center">ACTION</th>
+            </tr>
+          </thead>
+          <tbody id="orderHistoryTableBody" class="divide-y divide-gray-100">
+            <tr>
+              <td colspan="8" class="text-center py-10 text-gray-400 font-bold">Loading settled orders...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- MAIN FLOOR CONTENT (Floor Plan & Queues) -->
+    <div id="mainFloorDashboardContent" class="space-y-3">
+      <div id="onlineOrdersBox" class="bg-white rounded-xl border border-orange-300 p-3 shadow-2xs space-y-2 mb-3 hidden">
+        <div class="flex justify-between items-center text-xs font-bold text-gray-700 border-b pb-2">
+          <span class="flex items-center gap-1.5"><span>🌐</span> Online Orders</span>
+          <span id="onlineOrdersCountBadge" class="bg-orange-500 text-white px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
+        </div>
+        <div id="onlineOrdersList" class="space-y-2"></div>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-2xs">
+        <div class="p-2.5 border-b border-gray-100 flex justify-between items-center text-xs">
+          <div class="flex items-center gap-3">
+            <span class="font-bold text-gray-700">Dining Room</span>
+            <div class="flex bg-gray-100 p-0.5 rounded-lg">
+              <button class="bg-white text-gray-800 font-bold px-2 py-0.5 rounded shadow-xs text-[11px]">Floor Plan</button>
+              <button class="text-gray-500 hover:text-gray-800 font-bold px-2 py-0.5 rounded text-[11px]">Table Numbers</button>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-3 text-[10px] font-bold text-gray-500">
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-100 border border-emerald-400"></span> Free</span>
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-orange-100 border border-orange-400"></span> Occupied</span>
+            <button onclick="promptAddCustomTable()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-2 py-1 rounded border border-gray-200 text-[11px] ml-2">
+              ✏️ Edit Layout
+            </button>
+          </div>
+        </div>
+
+        <div class="floor-dots py-6 px-4 flex flex-col items-center justify-center min-h-[310px]">
+          <div class="bg-gray-100 text-gray-500 text-[10px] font-black px-4 py-1 rounded-md border border-gray-200 mb-5 tracking-wide">
+            Billing/POS
+          </div>
+          <div id="floorTablesGrid" class="grid grid-cols-2 gap-x-12 gap-y-3.5 max-w-sm w-full"></div>
+        </div>
+      </div>
+
+      <div id="kioskUnassignedBox" class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs space-y-2 hidden">
+        <div class="flex justify-between items-center text-xs font-bold text-gray-700 border-b pb-2">
+          <span class="flex items-center gap-1.5"><span>🪑</span> Dine-in - needs a table</span>
+          <span id="kioskUnassignedCount" class="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
+        </div>
+        <div id="kioskUnassignedList" class="space-y-2"></div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs flex flex-col">
+          <div class="flex justify-between items-center text-xs font-black text-gray-800 border-b pb-2 mb-2">
+            <span class="flex items-center gap-1.5">🛍 Takeaway Queue</span>
+            <span id="takeawayQueueBadge" class="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
+          </div>
+          <div id="takeawayQueueList" class="space-y-2 flex-1 overflow-y-auto max-h-[420px] pr-1">
+            <p class="text-xs text-gray-400 italic text-center py-6">No takeaway orders in queue</p>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs flex flex-col">
+          <div class="flex justify-between items-center text-xs font-black text-gray-800 border-b pb-2 mb-2">
+            <span class="flex items-center gap-1.5">🛵 Delivery</span>
+            <span id="deliveryQueueBadge" class="bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
+          </div>
+          <div id="deliveryQueueList" class="space-y-2 flex-1 overflow-y-auto max-h-[420px] pr-1">
+            <p class="text-xs text-gray-400 italic text-center py-6">No delivery orders in queue</p>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <!-- Checkout Popup Modal -->
-  <div id="checkoutModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-end justify-center">
-    <div class="bg-white w-full max-w-md rounded-t-3xl p-5 shadow-2xl space-y-4 animate-in slide-in-from-bottom duration-200">
-      <div class="flex justify-between items-center border-b pb-3">
-        <div>
-          <h3 class="text-base font-black text-gray-900">Review & Place Order</h3>
-          <p id="modalModeText" class="text-[11px] text-gray-500 font-semibold">Dine-In Order</p>
-        </div>
-        <button onclick="closeCheckout()" class="text-gray-400 hover:text-gray-700 text-lg font-bold p-1">✕</button>
+  <!-- ================= NEW INTEGRATED MENU MANAGEMENT VIEW ================= -->
+  <div id="menuManagementView" class="flex-1 overflow-y-auto p-4 space-y-4 bg-[#f8f9fa] hidden" style="display: none;">
+    
+    <!-- Top Header & Back -->
+    <div class="flex justify-between items-center bg-white p-3 rounded-xl border border-gray-200 shadow-2xs">
+      <div class="flex items-center gap-2">
+        <span class="text-orange-500 font-black text-lg">🍽</span>
+        <h2 class="text-base font-black tracking-tight text-gray-800">Menu Management Dashboard</h2>
       </div>
+      <div class="flex items-center gap-2">
+        <!-- New Buttons -->
+        <button onclick="openCategoriesGroupModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs">
+          <span>📁</span> Categories Group
+        </button>
+        <button onclick="openVariationsGroupModal()" class="bg-purple-600 hover:bg-purple-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs">
+          <span>⚙️</span> Variations Group
+        </button>
+        <button onclick="openAddonGroupsModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs">
+          <span>➕</span> Add-on Groups
+        </button>
 
-      <!-- Item Cart Items List -->
-      <div id="cartList" class="space-y-2 max-h-48 overflow-y-auto divide-y divide-gray-100 pr-1"></div>
-
-      <!-- Customer Details Input -->
-      <div class="space-y-2 pt-1">
-        <input type="text" id="cName" placeholder="Your Name" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-500 font-medium">
-        <input type="tel" id="cPhone" placeholder="10-digit Phone Number" maxlength="10" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs font-mono outline-none focus:border-indigo-500 font-medium">
-      </div>
-
-      <!-- Bill Total & Send Button -->
-      <div class="pt-3 border-t flex justify-between items-center">
-        <div>
-          <p class="text-[10px] text-gray-400 uppercase font-black tracking-wider">Total Payable</p>
-          <span id="cTotal" class="text-xl font-black text-emerald-600">₹0</span>
-        </div>
-        <button id="submitBtn" onclick="placeOrder()" class="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black px-6 py-3 rounded-xl text-xs shadow-lg transition flex items-center gap-2">
-          <span>🚀 Place Order</span>
+        <!-- Import Excel Button -->
+        <button onclick="openExcelImportModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs">
+          <span>📥</span> Import Excel Menu
+        </button>
+        <button onclick="showActiveOrdersView()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold transition">
+          ← Back to POS Billing
         </button>
       </div>
     </div>
-  </div>
 
-  <!-- ================= ONLINE VARIATION SELECTION MODAL ================= -->
-  <div id="onlineVariationModal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl p-5 max-w-sm w-full shadow-2xl space-y-4">
-      <div class="flex justify-between items-center border-b pb-2">
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-4 gap-3">
+      <div class="bg-white border border-gray-200 rounded-xl p-3 flex justify-between items-center shadow-2xs border-l-4 border-l-blue-500">
         <div>
-          <h3 id="onlineVarModalItemName" class="font-black text-gray-900 text-sm">Select Size / Variant</h3>
-          <p class="text-[10px] text-gray-500">Apna pasandida size select karein</p>
+          <div class="text-[11px] font-black uppercase text-gray-400 tracking-wider">Categories</div>
+          <div id="statCategories" class="text-xl font-black text-gray-800 mt-0.5">0</div>
+          <div class="text-[10px] text-gray-400">Active sections</div>
         </div>
-        <button onclick="closeOnlineVariationModal()" class="text-gray-400 hover:text-black font-bold">✕</button>
       </div>
+      <div class="bg-white border border-gray-200 rounded-xl p-3 flex justify-between items-center shadow-2xs border-l-4 border-l-emerald-500">
+        <div>
+          <div class="text-[11px] font-black uppercase text-gray-400 tracking-wider">Total Items</div>
+          <div id="statTotalItems" class="text-xl font-black text-gray-800 mt-0.5">0</div>
+          <div class="text-[10px] text-gray-400">In catalogue</div>
+        </div>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-xl p-3 flex justify-between items-center shadow-2xs border-l-4 border-l-amber-500">
+        <div>
+          <div class="text-[11px] font-black uppercase text-gray-400 tracking-wider">Out of Stock</div>
+          <div id="statOutOfStock" class="text-xl font-black text-gray-800 mt-0.5">0</div>
+          <div class="text-[10px] text-gray-400">Unavailable now</div>
+        </div>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-xl p-3 flex justify-between items-center shadow-2xs border-l-4 border-l-rose-500">
+        <div>
+          <div class="text-[11px] font-black uppercase text-gray-400 tracking-wider">Hidden</div>
+          <div id="statHidden" class="text-xl font-black text-gray-800 mt-0.5">0</div>
+          <div class="text-[10px] text-gray-400">Not shown</div>
+        </div>
+      </div>
+    </div>
 
-      <div id="onlineVarModalContent" class="space-y-2 max-h-60 overflow-y-auto pr-1 text-xs"></div>
-
-      <div class="pt-2 text-right border-t">
-        <button onclick="closeOnlineVariationModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-xl text-xs font-bold transition">Cancel</button>
+    <!-- Category & Item List Container -->
+    <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-2xs p-4">
+      <div class="flex justify-between items-center pb-3 border-b mb-3 text-xs font-bold text-gray-600">
+        <span>Category Wise Grouped Items</span>
+        <span class="text-gray-400 font-normal">Click 'Edit' to open 8-tab configuration</span>
+      </div>
+      <div id="menuManagementContainer" class="space-y-3">
+        <p class="text-center py-10 text-gray-400 italic text-xs">Loading menu items...</p>
       </div>
     </div>
   </div>
 
-  <!-- ================= ONLINE ADDON SELECTION MODAL ================= -->
-  <div id="onlineAddonModal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+  <!-- ================= CATEGORIES GROUP MODAL ================= -->
+  <div id="modalCategoriesGroup" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl p-5 space-y-4 border border-gray-200">
+      <div class="flex justify-between items-center border-b pb-2">
+        <span class="font-black text-gray-800 text-sm flex items-center gap-1.5"><span>📁</span> Categories Group Management</span>
+        <button onclick="closeCategoriesGroupModal()" class="text-gray-400 hover:text-gray-600 font-black text-base">✕</button>
+      </div>
+      <div class="space-y-3 text-xs max-h-[60vh] overflow-y-auto">
+        <div class="flex justify-between items-center bg-gray-50 p-2.5 rounded-xl border">
+          <input type="text" id="newCategoryInput" placeholder="New Category Name..." class="border rounded-lg px-3 py-1.5 text-xs outline-none flex-1 mr-2 bg-white">
+          <button onclick="addNewCategoryGroup()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg font-bold">Add Category</button>
+        </div>
+        <div id="categoriesGroupList" class="divide-y divide-gray-100 border rounded-xl p-2">
+          <p class="text-center text-gray-400 py-4 italic">Loading categories...</p>
+        </div>
+      </div>
+      <div class="pt-2 text-right border-t">
+        <button onclick="closeCategoriesGroupModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-xl text-xs font-bold transition">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= VARIATIONS GROUP MODAL ================= -->
+  <div id="modalVariationsGroup" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl p-5 space-y-4 border border-gray-200">
+      <div class="flex justify-between items-center border-b pb-2">
+        <span class="font-black text-gray-800 text-sm flex items-center gap-1.5"><span>⚙️</span> Variations Group Management (Sizes)</span>
+        <button onclick="closeVariationsGroupModal()" class="text-gray-400 hover:text-gray-600 font-black text-base">✕</button>
+      </div>
+      <div class="space-y-3 text-xs max-h-[60vh] overflow-y-auto">
+        <div class="p-3 bg-gray-50 border rounded-xl space-y-2">
+          <input type="text" id="varGroupName" placeholder="Variation Name (e.g. Pizza Size)" class="w-full border rounded-lg p-2 bg-white font-bold">
+          <input type="text" id="varGroupOptions" placeholder="Options comma separated (e.g. Regular, Medium, Large)" class="w-full border rounded-lg p-2 bg-white">
+          <button onclick="saveVariationGroup()" class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg font-black">Save Variation Group</button>
+        </div>
+        <div id="variationsGroupList" class="space-y-2"></div>
+      </div>
+      <div class="pt-2 text-right border-t">
+        <button onclick="closeVariationsGroupModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-xl text-xs font-bold transition">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= ADD-ON GROUPS MODAL (Modifier Library Style) ================= -->
+  <div id="modalAddonGroups" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-2xl shadow-2xl p-5 space-y-4 border border-gray-200 max-h-[90vh] flex flex-col">
+      <div class="flex justify-between items-center border-b pb-2 shrink-0">
+        <span class="font-black text-gray-800 text-sm flex items-center gap-1.5"><span>➕</span> Add-on Groups Library</span>
+        <div class="flex items-center gap-2">
+          <button onclick="openNewAddonGroupForm()" class="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold">+ New group</button>
+          <button onclick="closeAddonGroupsModal()" class="text-gray-400 hover:text-gray-600 font-black text-base">✕</button>
+        </div>
+      </div>
+
+      <!-- New Group Form -->
+      <div id="newAddonGroupFormContainer" class="hidden bg-orange-50/50 border border-orange-200 rounded-xl p-3 space-y-3 shrink-0 text-xs">
+        <div class="font-black text-orange-900">Create New Add-on Group</div>
+        <div>
+          <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Name *</label>
+          <input type="text" id="addonGrpName" placeholder="e.g. Spice Level, Extra Toppings" class="w-full border rounded-lg p-2 bg-white font-bold">
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Selection Type</label>
+            <select id="addonGrpType" class="w-full border rounded-lg p-2 bg-white font-bold">
+              <option value="Single choice">Single choice (radio)</option>
+              <option value="Multiple choice">Multiple choice (checkboxes)</option>
+            </select>
+          </div>
+          <div class="flex items-center pt-5">
+            <label class="flex items-center gap-2 cursor-pointer font-bold text-gray-700">
+              <input type="checkbox" id="addonGrpRequired" class="w-4 h-4 text-orange-600 rounded">
+              <span>Required — customer must choose</span>
+            </label>
+          </div>
+        </div>
+        <div class="flex justify-end gap-2 pt-1">
+          <button onclick="document.getElementById('newAddonGroupFormContainer').classList.add('hidden')" class="border px-3 py-1.5 rounded-lg bg-white">Cancel</button>
+          <button onclick="submitNewAddonGroup()" class="bg-orange-600 text-white px-4 py-1.5 rounded-lg font-black">Create group</button>
+        </div>
+      </div>
+
+      <!-- Addon Groups List -->
+      <div id="addonGroupsListContainer" class="space-y-3 overflow-y-auto flex-1 pr-1 text-xs">
+        <p class="text-center py-10 text-gray-400 italic">Loading add-on groups...</p>
+      </div>
+
+      <div class="pt-2 text-right border-t shrink-0">
+        <button onclick="closeAddonGroupsModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-xl text-xs font-bold transition">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= EXCEL IMPORT MODAL ================= -->
+  <div id="modalExcelImport" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl p-5 space-y-4 border border-gray-200">
+      <div class="flex justify-between items-center border-b pb-2">
+        <span class="font-black text-gray-800 text-sm flex items-center gap-1.5"><span>📊</span> Import Menu from Excel</span>
+        <button onclick="closeExcelImportModal()" class="text-gray-400 hover:text-gray-600 font-black text-base">✕</button>
+      </div>
+
+      <div class="space-y-2 text-xs">
+        <p class="text-gray-600">Apni Excel file select karein (<code class="bg-gray-100 px-1 py-0.5 rounded font-mono">menu_vishal_foodiez.xlsx</code>):</p>
+        
+        <div class="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center bg-gray-50 hover:bg-gray-100 transition cursor-pointer">
+          <input type="file" id="excelFileInput" accept=".xlsx, .xls" class="w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-black file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100">
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 pt-2">
+        <button onclick="closeExcelImportModal()" class="border border-gray-300 hover:bg-gray-100 text-gray-700 py-2 rounded-xl text-xs font-bold transition">Cancel</button>
+        <button onclick="uploadExcelMenuFile()" class="bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-xl text-xs font-black transition shadow-sm">Upload & Sync</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= ITEM EDIT MODAL / VIEW (8 TABS) ================= -->
+  <div id="itemEditModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      
+      <!-- Modal Header -->
+      <div class="p-3.5 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+        <div class="flex items-center gap-2">
+          <span class="text-orange-600 font-bold">✏️</span>
+          <h3 id="editModalItemTitle" class="font-black text-gray-800 text-sm">Edit Item</h3>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="closeEditModal()" class="px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-bold bg-white hover:bg-gray-100">Cancel</button>
+          <button onclick="saveItemChanges()" class="px-3.5 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-xs font-black shadow-xs">Save Changes</button>
+        </div>
+      </div>
+
+      <!-- 8 Tabs Navigation Header -->
+      <div class="flex gap-4 border-b border-gray-200 px-4 bg-gray-50/50 text-xs font-bold text-gray-600 overflow-x-auto">
+        <button onclick="switchEditTab('basic')" class="edit-tab-btn py-2.5 border-b-2 border-orange-600 text-orange-600 font-black whitespace-nowrap">Basic Info</button>
+        <button onclick="switchEditTab('variants')" class="edit-tab-btn py-2.5 whitespace-nowrap">Variants</button>
+        <button onclick="switchEditTab('addons')" class="edit-tab-btn py-2.5 whitespace-nowrap">Add-ons</button>
+        <button onclick="switchEditTab('availability')" class="edit-tab-btn py-2.5 whitespace-nowrap">Availability</button>
+        <button onclick="switchEditTab('allergens')" class="edit-tab-btn py-2.5 whitespace-nowrap">Allergens</button>
+        <button onclick="switchEditTab('tags')" class="edit-tab-btn py-2.5 whitespace-nowrap">Tags</button>
+        <button onclick="switchEditTab('performance')" class="edit-tab-btn py-2.5 whitespace-nowrap">Performance</button>
+        <button onclick="switchEditTab('recipe')" class="edit-tab-btn py-2.5 whitespace-nowrap">Recipe</button>
+      </div>
+
+      <!-- Tab Contents Body -->
+      <div class="p-4 overflow-y-auto flex-1 space-y-4 text-xs">
+        
+        <!-- Tab 1: Basic Info -->
+        <div id="tab-basic" class="edit-tab-content space-y-3">
+          <input type="hidden" id="editItemId">
+          <div>
+            <label class="block font-black text-gray-500 uppercase text-[10px] mb-1">Item Name *</label>
+            <input type="text" id="editItemName" class="w-full border border-gray-300 rounded-lg p-2 font-bold text-gray-800 outline-none focus:border-orange-500">
+          </div>
+          <div>
+            <label class="block font-black text-gray-500 uppercase text-[10px] mb-1">Category *</label>
+            <select id="editItemCategory" class="w-full border border-gray-300 rounded-lg p-2 font-bold text-gray-800 outline-none focus:border-orange-500 bg-white">
+              <!-- Dynamically populated categories -->
+            </select>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block font-black text-gray-500 uppercase text-[10px] mb-1">Base Price (₹) *</label>
+              <input type="number" id="editItemPrice" class="w-full border border-gray-300 rounded-lg p-2 font-bold text-gray-800 outline-none focus:border-orange-500">
+            </div>
+            <div>
+              <label class="block font-black text-gray-500 uppercase text-[10px] mb-1">Stock / Qty *</label>
+              <input type="number" id="editItemStock" class="w-full border border-gray-300 rounded-lg p-2 font-bold text-gray-800 outline-none focus:border-orange-500">
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Variants -->
+        <div id="tab-variants" class="edit-tab-content hidden space-y-2">
+          <div class="font-bold text-gray-700">Variants / Sizes</div>
+          <p class="text-gray-400 italic">Manage size variations (e.g. Small, Medium, Large) and custom prices.</p>
+        </div>
+
+        <!-- Tab 3: Add-ons -->
+        <div id="tab-addons" class="edit-tab-content hidden space-y-2">
+          <div class="font-bold text-gray-700">Add-ons & Modifiers</div>
+          <p class="text-gray-400 italic">Link modifier groups like Extra Cheese, Toppings, etc.</p>
+        </div>
+
+        <!-- Tab 4: Availability -->
+        <div id="tab-availability" class="edit-tab-content hidden space-y-2">
+          <label class="block font-black text-gray-500 uppercase text-[10px] mb-1">Availability Status</label>
+          <select id="editItemStatus" class="w-full border border-gray-300 rounded-lg p-2 font-bold text-gray-800 outline-none">
+            <option value="Available">Available</option>
+            <option value="Out of Stock">Out of Stock</option>
+            <option value="Hidden">Hidden</option>
+          </select>
+        </div>
+
+        <!-- Tab 5: Allergens -->
+        <div id="tab-allergens" class="edit-tab-content hidden space-y-2">
+          <div class="font-bold text-gray-700">Allergens Information</div>
+          <p class="text-gray-400 italic">Configure allergen warnings.</p>
+        </div>
+
+        <!-- Tab 6: Tags -->
+        <div id="tab-tags" class="edit-tab-content hidden space-y-2">
+          <div class="font-bold text-gray-700">Tags & Labels</div>
+          <p class="text-gray-400 italic">Assign custom tags (e.g. Bestseller, New Launch).</p>
+        </div>
+
+        <!-- Tab 7: Performance -->
+        <div id="tab-performance" class="edit-tab-content hidden space-y-2">
+          <div class="font-bold text-gray-700">Performance Stats</div>
+          <p class="text-gray-400 italic">Sales metrics for this item will appear here.</p>
+        </div>
+
+        <!-- Tab 8: Recipe -->
+        <div id="tab-recipe" class="edit-tab-content hidden space-y-2">
+          <div class="font-bold text-gray-700">Recipe Ingredients & Costing</div>
+          <p class="text-gray-400 italic">Manage raw material mapping and portion cost.</p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= VIEW 2: FULL 3-COLUMN POS BILLING SCREEN ================= -->
+  <div id="viewPOSOrderScreen" class="flex-1 flex overflow-hidden hidden bg-white">
+    <div class="w-48 border-r border-gray-200 bg-white flex flex-col overflow-y-auto shrink-0">
+      <div class="p-3 text-[10px] font-black uppercase text-gray-400 tracking-wider border-b">Categories</div>
+      <div id="categoriesList" class="divide-y divide-gray-50 flex-1"></div>
+    </div>
+
+    <div class="flex-1 flex flex-col border-r border-gray-200 overflow-hidden bg-[#fafafa]">
+      <div class="p-3 bg-white border-b border-gray-200 space-y-2.5">
+        <div class="flex justify-between items-center">
+          <h2 class="text-xs font-black text-gray-800 tracking-tight">Step 2 — Select Items</h2>
+          <div class="flex items-center gap-2">
+            <div class="flex bg-gray-100 p-0.5 rounded-lg text-xs">
+              <button class="bg-orange-500 text-white px-2 py-1 rounded shadow-xs text-[11px] font-bold">▦</button>
+              <button class="text-gray-500 px-2 py-1 rounded text-[11px] font-bold">☰</button>
+            </div>
+            <input type="text" id="menuItemSearch" onfocus="openVirtualKeyboard(this, 'text')" oninput="filterMenuItems()" placeholder="Search menu..." class="border border-gray-200 rounded-lg px-2.5 py-1 text-xs outline-none bg-gray-50 focus:bg-white focus:border-orange-500 w-44">
+          </div>
+        </div>
+
+        <div class="flex items-center gap-1.5 text-[11px] font-bold overflow-x-auto pb-1">
+          <button onclick="setPriceFilter('ALL')" id="filterBtnAll" class="px-2.5 py-1 rounded-full bg-orange-500 text-white shadow-2xs">Any Price</button>
+          <button onclick="setPriceFilter('UNDER200')" id="filterBtn200" class="px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200">Under ₹200</button>
+          <button onclick="setPriceFilter('200TO500')" id="filterBtn500" class="px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200">₹200–500</button>
+          <button onclick="setPriceFilter('ABOVE500')" id="filterBtnAbove500" class="px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200">₹500+</button>
+        </div>
+      </div>
+
+      <div id="posItemsGrid" class="flex-1 overflow-y-auto p-3 grid grid-cols-2 gap-2.5 content-start"></div>
+    </div>
+
+    <!-- COLUMN 3: ORDER SUMMARY & PAYMENT -->
+    <div class="w-80 flex flex-col bg-white shrink-0 h-full border-l border-gray-200">
+      <div class="grid grid-cols-2 p-1.5 bg-gray-100 border-b text-xs font-bold shrink-0">
+        <button id="tabBtnCustomer" onclick="switchRightTab('CUSTOMER')" class="py-1.5 rounded-lg transition bg-white text-orange-600 shadow-2xs font-black">Order Type & Customer</button>
+        <button id="tabBtnSummary" onclick="switchRightTab('SUMMARY')" class="py-1.5 rounded-lg transition text-gray-500 hover:text-gray-900 flex items-center justify-center gap-1">
+          <span>Order Summary</span>
+          <span id="tabSummaryBadge" class="bg-orange-500 text-white text-[9px] font-black px-1.5 py-0.2 rounded-full">0</span>
+        </button>
+      </div>
+
+      <div class="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <div id="tabContentCustomer" class="p-3.5 space-y-3 overflow-y-auto flex-1">
+          <div class="bg-gray-50 border border-gray-200 rounded-xl p-2.5 flex justify-between items-center text-xs">
+            <div>
+              <span class="text-[10px] font-bold text-gray-400 block uppercase">Selected Table</span>
+              <span id="posDisplayTable" class="font-black text-gray-800 text-sm">Select Order Type</span>
+            </div>
+            <button onclick="closePOSOrderView()" class="text-orange-600 font-bold text-xs underline">Change</button>
+          </div>
+
+          <div class="grid grid-cols-3 gap-1.5">
+            <button id="posBtnDineIn" onclick="setPOSOrderType('Dine-In')" class="border border-gray-200 hover:bg-gray-50 rounded-xl py-3 flex flex-col items-center justify-center text-gray-600 font-bold">
+              <span class="text-base mb-0.5">🍽</span>
+              <span class="text-[11px] font-bold">Dine-In</span>
+            </button>
+            <button id="posBtnTakeaway" onclick="setPOSOrderType('Takeaway')" class="border border-gray-200 hover:bg-gray-50 rounded-xl py-3 flex flex-col items-center justify-center text-gray-600 font-bold">
+              <span class="text-base mb-0.5">🛍</span>
+              <span class="text-[11px] font-bold">Takeaway</span>
+            </button>
+            <button id="posBtnDelivery" onclick="setPOSOrderType('Delivery')" class="border border-gray-200 hover:bg-gray-50 rounded-xl py-3 flex flex-col items-center justify-center text-gray-600 font-bold">
+              <span class="text-base mb-0.5">🛵</span>
+              <span class="text-[11px] font-bold">Delivery</span>
+            </button>
+          </div>
+
+          <div class="space-y-2 pt-1">
+            <div>
+              <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Phone Number</label>
+              <input type="text" id="posCustPhone" readonly onclick="openVirtualKeyboard(this, 'number', 'right')" placeholder="e.g. 9876543210" class="w-full border border-gray-200 rounded-lg p-2 text-xs font-mono outline-none focus:border-orange-500 bg-white cursor-pointer">
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Customer Name</label>
+              <input type="text" id="posCustName" readonly onclick="openVirtualKeyboard(this, 'text', 'center')" placeholder="Auto-filled from phone" class="w-full border border-gray-200 rounded-lg p-2 text-xs outline-none focus:border-orange-500 bg-white cursor-pointer">
+            </div>
+          </div>
+        </div>
+
+        <div id="tabContentSummary" class="p-3 hidden flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div id="posCartItemList" class="flex-1 overflow-y-auto pr-1 text-xs divide-y divide-gray-100 space-y-1">
+            <p class="text-gray-400 text-center py-10 italic text-xs">Cart is empty</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- BILLING & CONTROLS -->
+      <div class="border-t border-gray-200 p-3 bg-white space-y-2 shrink-0 overflow-y-auto max-h-[50vh]">
+        <div class="flex justify-between items-center text-xs font-bold text-gray-500">
+          <span class="flex items-center gap-1 text-orange-600 cursor-pointer">🏷 Offers</span>
+          <div class="flex items-center gap-1.5">
+            <span class="text-[11px] text-gray-400">Guests</span>
+            <div class="flex items-center border rounded bg-gray-50 px-1.5 py-0.5">
+              <button onclick="changeGuestCount(-1)" class="font-bold px-1 hover:text-black">-</button>
+              <span id="guestCountLabel" class="px-1.5 font-black text-gray-800">1</span>
+              <button onclick="changeGuestCount(1)" class="font-bold px-1 hover:text-black">+</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="boxAlreadyPaidBanner" class="hidden bg-emerald-50 border border-emerald-200 rounded-xl p-2 text-xs flex justify-between items-center">
+          <div>
+            <span class="text-[10px] font-black uppercase text-emerald-600 block">Already Received</span>
+            <span id="lblAlreadyPaidMode" class="text-[11px] font-bold text-emerald-800">Cash</span>
+          </div>
+          <span id="lblAlreadyPaidAmount" class="text-sm font-black text-emerald-700">₹0.00</span>
+        </div>
+
+        <div class="text-[11px] text-gray-500 flex justify-between border-t pt-1.5">
+          <span>Subtotal: <b id="posCalcSubtotal">₹0</b></span>
+          <span>GST (5%): <b id="posCalcGst">₹0.00</b></span>
+          <span>Round Off: <b id="posCalcRound">₹0.00</b></span>
+        </div>
+
+        <div class="flex justify-between items-center pt-1 border-t">
+          <div>
+            <span class="text-xs font-bold text-gray-500 block">Grand Total: <b id="posCalcGrandTotal" class="text-gray-900 font-black">₹0</b></span>
+            <span id="lblPayableDiffTitle" class="text-sm font-black text-orange-700">Payable Now</span>
+          </div>
+          <span id="posCalcPayableNow" class="text-2xl font-black text-gray-900">₹0</span>
+        </div>
+
+        <div class="grid grid-cols-5 gap-1 pt-1">
+          <button onclick="handlePaymentModeClick('Cash')" id="payBtnCash" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5">💵 Cash</button>
+          <button onclick="handlePaymentModeClick('UPI')" id="payBtnUPI" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5">📲 UPI</button>
+          <button onclick="handlePaymentModeClick('Card')" id="payBtnCard" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5">💳 Card</button>
+          <button onclick="handlePaymentModeClick('Split')" id="payBtnSplit" class="border border-blue-200 hover:bg-blue-50 text-blue-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5">🔀 Split</button>
+          <button onclick="handlePaymentModeClick('DUE')" id="payBtnDUE" class="border border-rose-200 hover:bg-rose-50 text-rose-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5">📒 Due</button>
+        </div>
+
+        <div id="splitPaymentPanel" class="hidden border border-blue-100 bg-blue-50/20 rounded-xl p-2.5 space-y-2.5 text-xs mt-2">
+          <div class="flex justify-between items-center border-b border-blue-100 pb-1.5">
+            <span class="font-bold text-gray-600 text-[11px]">Total to split</span>
+            <span id="splitTotalDisplay" class="font-black text-gray-900 text-sm">₹0.00</span>
+          </div>
+
+          <div class="bg-white border border-gray-200 rounded-lg p-2 space-y-1.5 shadow-2xs">
+            <div class="flex justify-between items-center text-[10px] font-bold text-gray-400 uppercase">
+              <span>Method 1</span>
+            </div>
+            <div class="grid grid-cols-4 gap-1">
+              <button onclick="setSplitMethodType(1, 'Cash')" id="splitM1_Cash" class="border border-orange-400 bg-orange-50 text-orange-700 font-bold py-1 rounded text-[10px]">Cash</button>
+              <button onclick="setSplitMethodType(1, 'UPI')" id="splitM1_UPI" class="border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold py-1 rounded text-[10px]">UPI</button>
+              <button onclick="setSplitMethodType(1, 'Card')" id="splitM1_Card" class="border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold py-1 rounded text-[10px]">Card</button>
+              <button onclick="setSplitMethodType(1, 'DUE')" id="splitM1_DUE" class="border border-gray-200 hover:bg-gray-50 text-rose-600 font-bold py-1 rounded text-[10px]">Due</button>
+            </div>
+            <div class="flex items-center gap-1.5 pt-1">
+              <div class="relative flex-1">
+                <span class="absolute left-2 top-1.5 text-gray-400 font-bold text-xs">₹</span>
+                <input type="text" id="splitAmount1" readonly onclick="openVirtualKeyboard(this, 'number', 'left')" oninput="calculateSplitDifference()" placeholder="0.00" value="" class="w-full pl-5 pr-2 py-1 border border-gray-200 rounded text-xs font-mono font-black outline-none bg-gray-50 focus:bg-white cursor-pointer">
+              </div>
+              <button onclick="fillSplitRest(1)" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-[10px] font-bold px-2.5 py-1 rounded border">Fill rest</button>
+            </div>
+          </div>
+
+          <div class="bg-white border border-gray-200 rounded-lg p-2 space-y-1.5 shadow-2xs">
+            <div class="flex justify-between items-center text-[10px] font-bold text-gray-400 uppercase">
+              <span>Method 2</span>
+            </div>
+            <div class="grid grid-cols-4 gap-1">
+              <button onclick="setSplitMethodType(2, 'Cash')" id="splitM2_Cash" class="border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold py-1 rounded text-[10px]">Cash</button>
+              <button onclick="setSplitMethodType(2, 'UPI')" id="splitM2_UPI" class="border border-blue-500 bg-blue-50 text-blue-700 font-bold py-1 rounded text-[10px]">UPI</button>
+              <button onclick="setSplitMethodType(2, 'Card')" id="splitM2_Card" class="border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold py-1 rounded text-[10px]">Card</button>
+              <button onclick="setSplitMethodType(2, 'DUE')" id="splitM2_DUE" class="border border-gray-200 hover:bg-gray-50 text-rose-600 font-bold py-1 rounded text-[10px]">Due</button>
+            </div>
+            <div class="flex items-center gap-1.5 pt-1">
+              <div class="relative flex-1">
+                <span class="absolute left-2 top-1.5 text-gray-400 font-bold text-xs">₹</span>
+                <input type="text" id="splitAmount2" readonly onclick="openVirtualKeyboard(this, 'number', 'left')" oninput="calculateSplitDifference()" placeholder="0.00" value="" class="w-full pl-5 pr-2 py-1 border border-gray-200 rounded text-xs font-mono font-black outline-none bg-gray-50 focus:bg-white cursor-pointer">
+              </div>
+              <button onclick="fillSplitRest(2)" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-[10px] font-bold px-2.5 py-1 rounded border">Fill rest</button>
+            </div>
+          </div>
+
+          <div id="splitStatusAlertBox" class="border border-rose-200 bg-rose-50 text-rose-700 rounded-lg p-2 text-[10px] font-bold flex justify-between items-center">
+            <span id="splitStatusMessage">Split must equal the total</span>
+            <span id="splitPendingDiff" class="font-black text-xs">₹0.00</span>
+          </div>
+        </div>
+
+        <div class="flex gap-1.5 pt-1">
+          <button id="btnPOSPlaceOrder" onclick="executePlaceOrder()" class="flex-1 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5">
+            <span>✓ Place Order</span>
+          </button>
+          <button onclick="triggerManualKOTDirect()" title="Print KOT Slip" class="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3 rounded-xl font-black text-xs">🍳</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= SINGLE ORDER QUICK SETTLE MODAL ================= -->
+  <div id="modalSingleOrderSettle" class="fixed inset-0 bg-black/40 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-4 space-y-3.5 border border-gray-200 animate-in fade-in zoom-in duration-150">
+      <div class="flex justify-between items-center border-b border-gray-100 pb-2">
+        <span class="font-black text-gray-800 text-xs flex items-center gap-1.5"><span>⚡</span> Quick Settle Order</span>
+        <button onclick="closeSingleOrderSettleModal()" class="text-gray-400 hover:text-gray-600 font-black text-sm">✕</button>
+      </div>
+
+      <div class="bg-orange-50/60 border border-orange-200 rounded-xl p-3 space-y-1">
+        <div class="text-[11px] font-bold text-gray-500">Order: <b id="lblSingleSettleOrderId" class="text-gray-900 font-black">---</b></div>
+        <div class="text-[10px] text-gray-400">Customer: <span id="lblSingleSettleCustomer" class="font-bold text-gray-700">---</span></div>
+        <div class="text-xs font-bold text-gray-700 pt-1 flex justify-between border-t border-orange-200/60 mt-1">
+          <span>Amount to Settle:</span>
+          <span id="lblSingleSettleAmount" class="font-black text-emerald-700 text-base">₹0.00</span>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-[10px] font-black uppercase text-gray-400 mb-1.5">PAYMENT MODE</label>
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" onclick="setSingleOrderSettleMode('CASH')" id="btnSingleSettleCash" class="border-2 border-emerald-500 bg-emerald-50 text-emerald-800 font-black py-2 rounded-xl text-xs flex items-center justify-center gap-1 shadow-2xs">
+            💵 Cash
+          </button>
+          <button type="button" onclick="setSingleOrderSettleMode('UPI')" id="btnSingleSettleUPI" class="border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1 shadow-2xs">
+            📲 UPI / QR
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 pt-2">
+        <button onclick="closeSingleOrderSettleModal()" class="border border-gray-300 hover:bg-gray-100 text-gray-700 py-2.5 rounded-xl text-xs font-black transition">Cancel</button>
+        <button onclick="confirmSingleOrderSettleExecute()" class="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white py-2.5 rounded-xl text-xs font-black transition shadow-sm">Settle & Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= ONE-CLICK CUSTOMER SETTLE DUE MODAL ================= -->
+  <div id="modalSettleCustomerDue" class="fixed inset-0 bg-black/40 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-4 space-y-3.5 border border-gray-200 animate-in fade-in zoom-in duration-150">
+      <div class="flex justify-between items-center border-b border-gray-100 pb-2">
+        <span class="font-black text-gray-800 text-xs flex items-center gap-1.5"><span>📒</span> Settle All Customer Dues</span>
+        <button onclick="closeCustomerSettleModal()" class="text-gray-400 hover:text-gray-600 font-black text-sm">✕</button>
+      </div>
+
+      <div class="bg-orange-50/60 border border-orange-200 rounded-xl p-3 space-y-1">
+        <div class="text-[11px] font-bold text-gray-500">Customer: <b id="lblSettleCustomerName" class="text-gray-900 font-black">---</b></div>
+        <div class="text-[10px] text-gray-400 font-mono">Phone: <span id="lblSettleCustomerPhone">---</span></div>
+        <div class="text-xs font-bold text-gray-700 pt-1 flex justify-between border-t border-orange-200/60 mt-1">
+          <span>Total Balance to Clear:</span>
+          <span id="lblSettleCustomerAmount" class="font-black text-rose-600 text-base">₹0.00</span>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-[10px] font-black uppercase text-gray-400 mb-1.5">SELECT PAYMENT MODE</label>
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" onclick="setCustomerSettleMode('CASH')" id="btnCustSettleCash" class="border-2 border-emerald-500 bg-emerald-50 text-emerald-800 font-black py-2 rounded-xl text-xs flex items-center justify-center gap-1 shadow-2xs">
+            💵 Cash
+          </button>
+          <button type="button" onclick="setCustomerSettleMode('UPI')" id="btnCustSettleUPI" class="border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1 shadow-2xs">
+            📲 UPI / QR
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 pt-2">
+        <button onclick="closeCustomerSettleModal()" class="border border-gray-300 hover:bg-gray-100 text-gray-700 py-2.5 rounded-xl text-xs font-black transition">Cancel</button>
+        <button onclick="confirmCustomerSettleAllExecute()" class="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white py-2.5 rounded-xl text-xs font-black transition shadow-sm">Confirm & Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= CASH RECEIVED POPUP MODAL ================= -->
+  <div id="modalCashReceived" class="fixed inset-0 bg-black/40 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-4 space-y-3.5 border border-gray-200 animate-in fade-in zoom-in duration-150">
+      <div class="flex justify-between items-center border-b border-gray-100 pb-2">
+        <span class="font-black text-gray-800 text-xs flex items-center gap-1.5"><span>💵</span> Cash received</span>
+        <button onclick="closeCashReceivedModal()" class="text-gray-400 hover:text-gray-600 font-black text-sm">✕</button>
+      </div>
+
+      <div class="flex justify-between items-center pt-1">
+        <span class="text-[11px] font-black uppercase tracking-wider text-gray-400">PAYABLE AMOUNT</span>
+        <span id="modalCashOrderTotal" class="text-base font-black text-gray-900">₹0.00</span>
+      </div>
+
+      <div>
+        <label class="block text-[10px] font-black uppercase text-gray-400 mb-1">CASH RECEIVED</label>
+        <input type="text" id="inputCashReceivedAmount" readonly onclick="openVirtualKeyboard(this, 'number', 'center')" oninput="calculateChangeReturn()" placeholder="0.00" value="" class="w-full border-2 border-orange-400 rounded-xl p-2.5 text-base font-mono font-black outline-none bg-orange-50/20 focus:bg-white cursor-pointer">
+      </div>
+
+      <div class="bg-orange-50/50 border border-orange-200 rounded-xl p-2.5 text-center">
+        <span class="text-[11px] font-bold text-orange-700">Return to customer: </span>
+        <span id="modalCashReturnChange" class="font-black text-sm text-orange-950">₹0.00</span>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 pt-1">
+        <button onclick="closeCashReceivedModal()" class="border border-gray-300 hover:bg-gray-100 text-gray-700 py-2.5 rounded-xl text-xs font-black transition">Cancel</button>
+        <button onclick="confirmCashPaymentExecute()" class="bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white py-2.5 rounded-xl text-xs font-black transition shadow-sm">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= POS VARIATION SELECTION MODAL ================= -->
+  <div id="posVariationModal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-5 max-w-sm w-full shadow-2xl space-y-4">
+      <div class="flex justify-between items-center border-b pb-2">
+        <div>
+          <h3 id="posVarModalItemName" class="font-black text-gray-900 text-sm">Select Size / Variant</h3>
+          <p class="text-[10px] text-gray-500">Apna pasandida size select karein</p>
+        </div>
+        <button onclick="closePOSVariationModal()" class="text-gray-400 hover:text-black font-bold">✕</button>
+      </div>
+
+      <div id="posVarModalContent" class="space-y-2 max-h-60 overflow-y-auto pr-1 text-xs"></div>
+
+      <div class="pt-2 text-right border-t">
+        <button onclick="closePOSVariationModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-xl text-xs font-bold transition">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= POS ADDON SELECTION MODAL ================= -->
+  <div id="posAddonModal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl p-5 max-w-md w-full shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
       <div class="flex justify-between items-center border-b pb-2">
         <div>
-          <h3 id="onlineAddonModalItemName" class="font-black text-gray-900 text-sm">Select Add-ons</h3>
+          <h3 id="posAddonModalItemName" class="font-black text-gray-900 text-sm">Select Add-ons</h3>
           <p class="text-[10px] text-gray-500">Apni pasand ke add-ons select karein</p>
         </div>
-        <button onclick="closeOnlineAddonModal()" class="text-gray-400 hover:text-black font-bold">✕</button>
+        <button onclick="closePOSAddonModal()" class="text-gray-400 hover:text-black font-bold">✕</button>
       </div>
 
-      <div id="onlineAddonModalContent" class="space-y-4 overflow-y-auto flex-1 pr-1 text-xs"></div>
+      <div id="posAddonModalContent" class="space-y-4 overflow-y-auto flex-1 pr-1 text-xs"></div>
 
       <div class="pt-3 border-t flex justify-between items-center shrink-0">
-        <div class="text-xs font-bold text-gray-700">Total Price: <span id="onlineAddonModalTotalPrice" class="text-sm font-black text-indigo-600">₹0</span></div>
-        <button onclick="confirmOnlineAddonSelection()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-black px-5 py-2 rounded-xl text-xs shadow-sm">
+        <div class="text-xs font-bold text-gray-700">Total Item Price: <span id="posAddonModalTotalPrice" class="text-sm font-black text-orange-600">₹0</span></div>
+        <button onclick="confirmPOSAddonSelection()" class="bg-orange-500 hover:bg-orange-600 text-white font-black px-5 py-2 rounded-xl text-xs shadow-sm">
           Add to Cart ✓
         </button>
       </div>
     </div>
   </div>
 
+  <!-- ================= VIRTUAL KEYBOARDS ================= -->
+  <div id="vKeypadNum" class="fixed bottom-4 w-72 bg-[#f1f3f5] border border-gray-300 rounded-2xl shadow-2xl p-3 z-50 hidden select-none transition-all">
+    <div class="flex justify-between items-center mb-2 pb-1 border-b border-gray-200 text-gray-500 text-xs">
+      <span class="font-bold">⌨</span>
+      <span id="numPadDisplayLabel" class="font-mono font-bold text-gray-700 truncate max-w-[150px]">Enter digits...</span>
+      <button onclick="closeVirtualKeyboards()" class="font-black text-gray-400 hover:text-black text-sm px-1.5">✕</button>
+    </div>
+    <div class="grid grid-cols-3 gap-2">
+      <button onclick="keypadPress('1')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">1</button>
+      <button onclick="keypadPress('2')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">2</button>
+      <button onclick="keypadPress('3')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">3</button>
+
+      <button onclick="keypadPress('4')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">4</button>
+      <button onclick="keypadPress('5')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">5</button>
+      <button onclick="keypadPress('6')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">6</button>
+
+      <button onclick="keypadPress('7')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">7</button>
+      <button onclick="keypadPress('8')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">8</button>
+      <button onclick="keypadPress('9')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">9</button>
+
+      <button onclick="keypadPress('.')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">.</button>
+      <button onclick="keypadPress('0')" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-lg py-3 rounded-xl shadow-xs">0</button>
+      <button onclick="keypadBackspace()" class="bg-white hover:bg-gray-50 active:bg-gray-200 text-gray-800 font-bold text-base py-3 rounded-xl shadow-xs flex items-center justify-center">⌫</button>
+    </div>
+    <button onclick="closeVirtualKeyboards()" class="w-full mt-2.5 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-black text-sm py-2.5 rounded-xl shadow-xs">
+      ✓ Done
+    </button>
+  </div>
+
+  <div id="vKeypadText" class="fixed left-1/2 -translate-x-1/2 bottom-3 w-[520px] bg-[#eef0f3] border border-gray-300 rounded-3xl shadow-2xl p-3 z-50 hidden select-none">
+    <div class="flex justify-between items-center mb-2 px-2 text-xs text-gray-500">
+      <span class="font-bold text-[11px]">⌨</span>
+      <span id="textPadDisplayLabel" class="font-bold text-gray-700 truncate max-w-[300px]">Type here...</span>
+      <button onclick="closeVirtualKeyboards()" class="text-xs font-bold text-gray-500 hover:text-black">Hide</button>
+    </div>
+    <div class="grid grid-cols-10 gap-1 mb-1">
+      <button onclick="keypadPress('1')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">1</button>
+      <button onclick="keypadPress('2')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">2</button>
+      <button onclick="keypadPress('3')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">3</button>
+      <button onclick="keypadPress('4')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">4</button>
+      <button onclick="keypadPress('5')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">5</button>
+      <button onclick="keypadPress('6')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">6</button>
+      <button onclick="keypadPress('7')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">7</button>
+      <button onclick="keypadPress('8')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">8</button>
+      <button onclick="keypadPress('9')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">9</button>
+      <button onclick="keypadPress('0')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">0</button>
+    </div>
+    <div class="grid grid-cols-10 gap-1 mb-1">
+      <button onclick="keypadPressLetter('q')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">q</button>
+      <button onclick="keypadPressLetter('w')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">w</button>
+      <button onclick="keypadPressLetter('e')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">e</button>
+      <button onclick="keypadPressLetter('r')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">r</button>
+      <button onclick="keypadPressLetter('t')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">t</button>
+      <button onclick="keypadPressLetter('y')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">y</button>
+      <button onclick="keypadPressLetter('u')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">u</button>
+      <button onclick="keypadPressLetter('i')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">i</button>
+      <button onclick="keypadPressLetter('o')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">o</button>
+      <button onclick="keypadPressLetter('p')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">p</button>
+    </div>
+    <div class="grid grid-cols-9 gap-1 px-4 mb-1">
+      <button onclick="keypadPressLetter('a')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">a</button>
+      <button onclick="keypadPressLetter('s')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">s</button>
+      <button onclick="keypadPressLetter('d')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">d</button>
+      <button onclick="keypadPressLetter('f')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">f</button>
+      <button onclick="keypadPressLetter('g')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">g</button>
+      <button onclick="keypadPressLetter('h')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">h</button>
+      <button onclick="keypadPressLetter('j')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">j</button>
+      <button onclick="keypadPressLetter('k')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">k</button>
+      <button onclick="keypadPressLetter('l')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">l</button>
+    </div>
+    <div class="flex gap-1 mb-1.5">
+      <button onclick="toggleShiftMode()" id="btnShiftKey" class="w-12 bg-gray-200 active:bg-gray-300 text-gray-700 font-bold text-xs py-2.5 rounded-lg shadow-2xs">⇧</button>
+      <div class="grid grid-cols-7 gap-1 flex-1">
+        <button onclick="keypadPressLetter('z')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">z</button>
+        <button onclick="keypadPressLetter('x')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">x</button>
+        <button onclick="keypadPressLetter('c')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">c</button>
+        <button onclick="keypadPressLetter('v')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">v</button>
+        <button onclick="keypadPressLetter('b')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">b</button>
+        <button onclick="keypadPressLetter('n')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">n</button>
+        <button onclick="keypadPressLetter('m')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">m</button>
+      </div>
+      <button onclick="keypadBackspace()" class="w-12 bg-gray-200 active:bg-gray-300 text-gray-700 font-bold text-sm py-2.5 rounded-lg shadow-2xs flex items-center justify-center">⌫</button>
+    </div>
+    <div class="flex gap-1.5">
+      <button onclick="keypadPress(' ')" class="flex-1 bg-white active:bg-gray-200 text-gray-400 font-bold text-xs py-2.5 rounded-lg shadow-2xs">space</button>
+      <button onclick="closeVirtualKeyboards()" class="w-24 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-black text-xs py-2.5 rounded-lg shadow-2xs">return</button>
+    </div>
+  </div>
+
   <script>
-    let mode = 'Dine-In';
-    let cart = [];
-    let menu = [];
-    let activeCategory = 'All';
-    let currentModalSelectedItem = null;
-    let currentModalItemGroups = [];
+    var allActiveOrders = [];
+    var allMenuItems = [];
+    var allCategories = [];
+    var posCart = [];
+    var settledHistoryOrders = [];
+    var dueOrdersList = [];
+    var dueCustomersList = [];
+    var currentDueTab = 'BY_ORDER';
 
-    function setMode(m) {
-      mode = m;
-      document.getElementById('mDine').className = m === 'Dine-In' ? "py-2 rounded-lg bg-white text-indigo-700 shadow-xs transition" : "py-2 rounded-lg text-gray-500 transition";
-      document.getElementById('mTake').className = m === 'Takeaway' ? "py-2 rounded-lg bg-white text-indigo-700 shadow-xs transition" : "py-2 rounded-lg text-gray-500 transition";
-      document.getElementById('mDeliv').className = m === 'Delivery' ? "py-2 rounded-lg bg-white text-indigo-700 shadow-xs transition" : "py-2 rounded-lg text-gray-500 transition";
-      
-      const locInput = document.getElementById('targetLoc');
-      if (m === 'Dine-In') locInput.placeholder = "Table Number (e.g. Table 2)";
-      else if (m === 'Takeaway') locInput.placeholder = "Pickup Note (Optional)";
-      else locInput.placeholder = "Delivery Address & Landmark";
+    var selectedCategory = 'ALL';
+    var selectedPriceFilter = 'ALL';
+    var currentPOSOrderType = '';
+    var selectedPOSTableId = '';
+    var selectedPaymentMode = null; 
+    var currentGuestCount = 1;
+    var editingActiveOrderId = null;
 
-      document.getElementById('modalModeText').innerText = `${m} Order`;
+    var alreadyPaidAmount = 0;
+    var alreadyPaidMode = '';
+
+    var currentCashReceived = 0;
+    var currentCashChange = 0;
+    var splitMethod1 = 'Cash';
+    var splitMethod2 = 'UPI';
+
+    var targetSingleSettleOrderId = null;
+    var targetSingleSettleMode = 'CASH';
+
+    var targetCustomerSettlePhone = '';
+    var targetCustomerSettleMode = 'CASH';
+
+    var activeVirtualInput = null;
+    var isShiftActive = false;
+    var currentViewMode = 'DASHBOARD'; 
+    var previousViewBeforePOS = 'DASHBOARD';
+
+    var currentModalSelectedItem = null;
+    var currentModalItemGroups = [];
+
+    var defaultFloorTables = [
+      { id: 'T04', label: 'T04', seats: 2 },
+      { id: 'T08', label: 'T08', seats: 2 },
+      { id: 'T03', label: 'T03', seats: 2 },
+      { id: 'T07', label: 'T07', seats: 2 },
+      { id: 'T02', label: 'T02', seats: 2 },
+      { id: 'T06', label: 'T06', seats: 2 },
+      { id: 'T01', label: 'T01', seats: 2 },
+      { id: 'T05', label: 'T05', seats: 2 }
+    ];
+
+    function initializePOS() {
+      fetchMenu();
+      fetchActiveOrders();
+      loadDueOrdersData();
+
+      setInterval(function() {
+        fetchActiveOrders();
+        loadDueOrdersData();
+      }, 4000);
+
+      var today = new Date().toISOString().slice(0, 10);
+      var df = document.getElementById('histDateFilter');
+      if (df) df.value = today;
+
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch(function(){});
+      }
     }
 
-    // Load Menu from POS Backend
-    fetch('/api/menu')
-      .then(r => r.json())
-      .then(items => {
-        menu = items;
-        renderCategories();
-        renderMenu();
-      })
-      .catch(err => {
-        document.getElementById('menuGrid').innerHTML = `
-          <div class="text-center py-10 text-rose-500 font-bold text-xs">
-            Unable to fetch menu. Please refresh.
-          </div>`;
+    // ================= INTEGRATED MENU MANAGEMENT FUNCTIONS =================
+    function openMenuManagement() {
+      currentViewMode = 'MENU_MGMT';
+      document.getElementById('viewPOSOrderScreen').classList.add('hidden');
+      document.getElementById('viewFloorDashboard').classList.add('hidden');
+      document.getElementById('menuManagementView').style.display = 'block';
+      document.getElementById('menuManagementView').classList.remove('hidden');
+      
+      document.getElementById('topPageTitle').innerText = 'Menu Management';
+      document.getElementById('btnTopBack').classList.remove('hidden');
+      document.getElementById('btnCancelOrderView').classList.add('hidden');
+      document.getElementById('topOrderActiveBadge').classList.add('hidden');
+      
+      loadMenuManagementData();
+    }
+
+    // Categories Group Modal Functions
+    function openCategoriesGroupModal() {
+      document.getElementById('modalCategoriesGroup').classList.remove('hidden');
+      loadCategoriesListInModal();
+    }
+    function closeCategoriesGroupModal() {
+      document.getElementById('modalCategoriesGroup').classList.add('hidden');
+    }
+    function loadCategoriesListInModal() {
+      var container = document.getElementById('categoriesGroupList');
+      container.innerHTML = allCategories.map(function(cat) {
+        return `<div class="py-2 px-3 flex justify-between items-center font-bold text-gray-700"><span>📁 ${cat}</span></div>`;
+      }).join('') || '<p class="text-center text-gray-400 py-2">No categories found</p>';
+    }
+    function addNewCategoryGroup() {
+      var val = document.getElementById('newCategoryInput').value.trim();
+      if (!val) return alert('Category name daalein!');
+      fetch('/api/menu', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Dummy Item', category: val, price: 10, stock: 1 })
+      }).then(function() {
+        document.getElementById('newCategoryInput').value = '';
+        fetchMenu();
+        loadCategoriesListInModal();
+        alert('Category add ho gayi!');
+      });
+    }
+
+    // Variations Group Modal Functions
+    function openVariationsGroupModal() {
+      document.getElementById('modalVariationsGroup').classList.remove('hidden');
+      loadVariationsGroupData();
+    }
+    function closeVariationsGroupModal() {
+      document.getElementById('modalVariationsGroup').classList.add('hidden');
+    }
+    function loadVariationsGroupData() {
+      fetch('/api/variation-masters')
+        .then(function(r){ return r.json(); })
+        .then(function(rows){
+          var list = document.getElementById('variationsGroupList');
+          if (!rows.length) {
+            list.innerHTML = '<p class="text-center text-gray-400 py-4 italic">No variation groups created yet.</p>';
+            return;
+          }
+          list.innerHTML = rows.map(function(v){
+            var opts = JSON.parse(v.options || '[]').join(', ');
+            return `<div class="border rounded-xl p-2.5 bg-gray-50 flex justify-between items-center"><div><div class="font-black text-gray-800">${v.name}</div><div class="text-[10px] text-gray-500">Options: ${opts}</div></div></div>`;
+          }).join('');
+        });
+    }
+    function saveVariationGroup() {
+      var name = document.getElementById('varGroupName').value.trim();
+      var rawOpts = document.getElementById('varGroupOptions').value.trim();
+      if (!name || !rawOpts) return alert('Sabhi fields bharein!');
+      var options = rawOpts.split(',').map(function(s){ return s.trim(); }).filter(Boolean);
+
+      fetch('/api/variation-masters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name, options: options })
+      }).then(function(){
+        document.getElementById('varGroupName').value = '';
+        document.getElementById('varGroupOptions').value = '';
+        loadVariationsGroupData();
+        alert('Variation group successfully save ho gaya!');
+      });
+    }
+
+    // Add-on Groups Modal Functions (Modifier Library Style)
+    function openAddonGroupsModal() {
+      document.getElementById('modalAddonGroups').classList.remove('hidden');
+      loadAddonGroupsData();
+    }
+    function closeAddonGroupsModal() {
+      document.getElementById('modalAddonGroups').classList.add('hidden');
+      document.getElementById('newAddonGroupFormContainer').classList.add('hidden');
+    }
+    function openNewAddonGroupForm() {
+      document.getElementById('newAddonGroupFormContainer').classList.remove('hidden');
+    }
+    function loadAddonGroupsData() {
+      fetch('/api/addon-groups')
+        .then(function(r){ return r.json(); })
+        .then(function(rows){
+          var container = document.getElementById('addonGroupsListContainer');
+          if (!rows.length) {
+            container.innerHTML = '<p class="text-center py-10 text-gray-400 italic">No add-on groups found.</p>';
+            return;
+          }
+          container.innerHTML = rows.map(function(g){
+            var items = JSON.parse(g.items || '[]');
+            var itemsHtml = items.map(function(it){
+              return `<div class="py-1.5 px-3 bg-white border-b flex justify-between items-center text-xs"><span>${it.name} (+₹${it.price})</span><span class="text-emerald-600 font-bold">Available</span></div>`;
+            }).join('') || '<div class="p-2 text-gray-400 italic text-center">No options inside this group</div>';
+
+            return `
+              <div class="border border-orange-200 rounded-xl overflow-hidden bg-orange-50/20 shadow-2xs">
+                <div class="bg-orange-50 p-2.5 flex justify-between items-center border-b border-orange-200">
+                  <div>
+                    <span class="font-black text-gray-900">${g.name}</span>
+                    <span class="ml-2 bg-emerald-100 text-emerald-800 text-[9px] font-black px-1.5 py-0.5 rounded">${g.selection_type || 'Single choice'}</span>
+                    ${g.is_mandatory ? '<span class="ml-1 bg-rose-100 text-rose-800 text-[9px] font-black px-1.5 py-0.5 rounded">Required</span>' : ''}
+                  </div>
+                  <button onclick="deleteAddonGroup(${g.id})" class="text-red-500 font-bold hover:underline">Delete</button>
+                </div>
+                <div class="divide-y">${itemsHtml}</div>
+              </div>
+            `;
+          }).join('');
+        });
+    }
+    function submitNewAddonGroup() {
+      var name = document.getElementById('addonGrpName').value.trim();
+      var type = document.getElementById('addonGrpType').value;
+      var required = document.getElementById('addonGrpRequired').checked ? 1 : 0;
+      if (!name) return alert('Group name daalna zaroori hai!');
+
+      fetch('/api/addon-groups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name, selection_type: type, is_mandatory: required, items: [] })
+      }).then(function(){
+        document.getElementById('addonGrpName').value = '';
+        document.getElementById('newAddonGroupFormContainer').classList.add('hidden');
+        loadAddonGroupsData();
+      });
+    }
+    function deleteAddonGroup(id) {
+      if (!confirm("Kya aap is add-on group ko delete karna chahte hain?")) return;
+      fetch('/api/addon-groups/' + id, { method: 'DELETE' })
+        .then(function(){ loadAddonGroupsData(); });
+    }
+
+    // ================= EXCEL IMPORT MODAL FUNCTIONS =================
+    function openExcelImportModal() {
+      document.getElementById('modalExcelImport').classList.remove('hidden');
+    }
+
+    function closeExcelImportModal() {
+      document.getElementById('excelFileInput').value = '';
+      document.getElementById('modalExcelImport').classList.add('hidden');
+    }
+
+    async function uploadExcelMenuFile() {
+      const fileInput = document.getElementById('excelFileInput');
+      if (!fileInput.files || fileInput.files.length === 0) {
+        return alert('Kripya pehle ek Excel file select karein!');
+      }
+
+      const formData = new FormData();
+      formData.append('menuFile', fileInput.files[0]);
+
+      try {
+        const btn = event.currentTarget;
+        const oldText = btn.innerText;
+        btn.innerText = 'Syncing...';
+        btn.disabled = true;
+
+        const res = await fetch('/api/menu/import-excel', {
+          method: 'POST',
+          body: formData
+        });
+        const result = await res.json();
+
+        if (result.success) {
+          alert(result.message || 'Menu successfully import ho gaya!');
+          closeExcelImportModal();
+          loadMenuManagementData();
+          fetchMenu();
+        } else {
+          alert('Import fail ho gaya: ' + (result.error || 'Unknown error'));
+        }
+        btn.innerText = oldText;
+        btn.disabled = false;
+      } catch (err) {
+        console.error('Upload error:', err);
+        alert('Server error during upload!');
+        event.currentTarget.innerText = 'Upload & Sync';
+        event.currentTarget.disabled = false;
+      }
+    }
+
+    async function loadMenuManagementData() {
+      try {
+        const res = await fetch('/api/menu');
+        const items = await res.json();
+
+        const categoriesSet = new Set(items.map(i => i.category || 'General'));
+        let totalItems = items.length;
+        let outOfStock = items.filter(i => (Number(i.stock) || 0) <= 0 || i.status === 'Out of Stock').length;
+        let hiddenItems = items.filter(i => i.status === 'Hidden').length;
+
+        document.getElementById('statCategories').innerText = categoriesSet.size;
+        document.getElementById('statTotalItems').innerText = totalItems;
+        document.getElementById('statOutOfStock').innerText = outOfStock;
+        document.getElementById('statHidden').innerText = hiddenItems;
+
+        const grouped = {};
+        items.forEach(item => {
+          const cat = item.category || 'General';
+          if (!grouped[cat]) grouped[cat] = [];
+          grouped[cat].push(item);
+        });
+
+        let html = '';
+        for (const [category, catItems] of Object.entries(grouped)) {
+          html += `
+            <div class="border border-gray-200 rounded-xl overflow-hidden mb-3">
+              <div class="bg-gray-50 p-3 font-black text-gray-800 flex justify-between items-center border-b">
+                <span>📁 ${category} (${catItems.length} items)</span>
+              </div>
+              <div class="divide-y divide-gray-100">
+          `;
+          catItems.forEach(item => {
+            let statusBadge = (Number(item.stock) || 0) <= 0 ? '<span class="text-rose-600 font-bold">Out of Stock</span>' : '<span class="text-emerald-600 font-bold">Available</span>';
+            html += `
+              <div class="p-3 flex justify-between items-center hover:bg-orange-50/30 transition">
+                <div>
+                  <div class="font-black text-gray-900">${item.name}</div>
+                  <div class="text-[10px] text-gray-400">Stock: ${item.stock || 50}</div>
+                </div>
+                <div class="flex items-center gap-4">
+                  <span class="font-black text-gray-900">₹${item.price}</span>
+                  ${statusBadge}
+                  <button onclick='openItemEditModal(${JSON.stringify(item)})' class="px-3 py-1 bg-white border border-gray-300 hover:bg-gray-100 rounded-lg text-xs font-bold transition shadow-2xs">Edit</button>
+                </div>
+              </div>
+            `;
+          });
+          html += `</div></div>`;
+        }
+        document.getElementById('menuManagementContainer').innerHTML = html || '<p class="text-center py-10 text-gray-400">No items available</p>';
+      } catch (err) {
+        console.error('Error loading menu management:', err);
+      }
+    }
+
+    function openItemEditModal(item) {
+      document.getElementById('editItemId').value = item.id;
+      document.getElementById('editItemName').value = item.name;
+      
+      var catSelect = document.getElementById('editItemCategory');
+      catSelect.innerHTML = allCategories.map(function(cat) {
+        var selected = (cat === item.category) ? 'selected' : '';
+        return `<option value="${cat}" ${selected}>${cat}</option>`;
+      }).join('');
+      if (!allCategories.includes(item.category)) {
+        catSelect.innerHTML += `<option value="${item.category}" selected>${item.category}</option>`;
+      }
+
+      document.getElementById('editItemPrice').value = item.price;
+      document.getElementById('editItemStock').value = item.stock || 50;
+      if(document.getElementById('editItemStatus')) document.getElementById('editItemStatus').value = item.status || 'Available';
+      document.getElementById('editModalItemTitle').innerText = `Edit Item - ${item.name}`;
+      document.getElementById('itemEditModal').classList.remove('hidden');
+    }
+
+    function closeEditModal() {
+      document.getElementById('itemEditModal').classList.add('hidden');
+    }
+
+    function switchEditTab(tabName) {
+      document.querySelectorAll('.edit-tab-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.edit-tab-btn').forEach(el => {
+        el.className = "edit-tab-btn py-2.5 whitespace-nowrap text-gray-600 font-bold";
       });
 
-    function renderCategories() {
-      const categories = ['All', ...new Set(menu.map(i => i.category || 'General'))];
-      const bar = document.getElementById('categoryBar');
-      bar.innerHTML = categories.map(cat => `
-        <button onclick="filterCat('${cat}')" class="px-3.5 py-1.5 rounded-full text-xs font-bold shrink-0 transition ${activeCategory === cat ? 'bg-indigo-600 text-white shadow-xs' : 'bg-white border text-gray-600'}">
-          ${cat}
-        </button>
-      `).join('');
+      document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+      event.currentTarget.className = "edit-tab-btn py-2.5 border-b-2 border-orange-600 text-orange-600 font-black whitespace-nowrap";
     }
 
-    function filterCat(cat) {
-      activeCategory = cat;
-      renderCategories();
-      renderMenu();
+    async function saveItemChanges() {
+      const id = document.getElementById('editItemId').value;
+      const data = {
+        name: document.getElementById('editItemName').value,
+        category: document.getElementById('editItemCategory').value,
+        price: Number(document.getElementById('editItemPrice').value),
+        stock: Number(document.getElementById('editItemStock').value),
+        status: document.getElementById('editItemStatus') ? document.getElementById('editItemStatus').value : 'Available'
+      };
+
+      try {
+        const res = await fetch(`/api/menu/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        const result = await res.json();
+        if (result.success) {
+          closeEditModal();
+          loadMenuManagementData();
+          fetchMenu();
+        } else {
+          alert('Error updating item');
+        }
+      } catch (err) {
+        console.error('Save error:', err);
+      }
     }
 
-    function renderMenu() {
-      const filtered = activeCategory === 'All' ? menu : menu.filter(i => (i.category || 'General') === activeCategory);
-      const grid = document.getElementById('menuGrid');
+    // ================= GLOBAL NAVIGATION & VIEW SWITCHERS =================
+    function showActiveOrdersView() {
+      currentViewMode = 'DASHBOARD';
+      document.getElementById('viewPOSOrderScreen').classList.add('hidden');
+      document.getElementById('menuManagementView').style.display = 'none';
+      document.getElementById('menuManagementView').classList.add('hidden');
+      document.getElementById('viewFloorDashboard').classList.remove('hidden');
 
-      if (!filtered.length) {
-        grid.innerHTML = '<div class="text-center py-10 text-gray-400 text-xs">No items in this category.</div>';
+      document.getElementById('orderHistoryContainer').classList.add('hidden');
+      document.getElementById('dueOrdersContainer').classList.add('hidden');
+      document.getElementById('mainFloorDashboardContent').classList.remove('hidden');
+
+      var btnActive = document.getElementById('btnNavActiveOrders');
+      var btnHist = document.getElementById('btnNavOrderHistory');
+      var btnDue = document.getElementById('btnNavDueOrders');
+      if (btnActive) btnActive.className = "bg-orange-500 text-white text-xs font-black px-3 py-1.5 rounded-lg shadow-2xs transition";
+      if (btnHist) btnHist.className = "text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition";
+      if (btnDue) btnDue.className = "text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition";
+
+      document.getElementById('topPageTitle').innerText = 'Orders';
+      document.getElementById('btnTopBack').classList.add('hidden');
+      document.getElementById('btnCancelOrderView').classList.add('hidden');
+      document.getElementById('topOrderActiveBadge').classList.add('hidden');
+      fetchActiveOrders();
+      loadDueOrdersData();
+    }
+
+    function showOrderHistoryView() {
+      currentViewMode = 'HISTORY';
+      document.getElementById('viewPOSOrderScreen').classList.add('hidden');
+      document.getElementById('menuManagementView').style.display = 'none';
+      document.getElementById('menuManagementView').classList.add('hidden');
+      document.getElementById('viewFloorDashboard').classList.remove('hidden');
+
+      document.getElementById('mainFloorDashboardContent').classList.add('hidden');
+      document.getElementById('dueOrdersContainer').classList.add('hidden');
+      document.getElementById('orderHistoryContainer').classList.remove('hidden');
+
+      var btnActive = document.getElementById('btnNavActiveOrders');
+      var btnHist = document.getElementById('btnNavOrderHistory');
+      var btnDue = document.getElementById('btnNavDueOrders');
+      if (btnHist) btnHist.className = "bg-orange-500 text-white text-xs font-black px-3 py-1.5 rounded-lg shadow-2xs transition";
+      if (btnActive) btnActive.className = "text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition";
+      if (btnDue) btnDue.className = "text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition";
+
+      document.getElementById('topPageTitle').innerText = 'Order History';
+      document.getElementById('btnTopBack').classList.remove('hidden');
+      loadSettledOrderHistory();
+    }
+
+    function showDueOrdersView() {
+      currentViewMode = 'DUE';
+      document.getElementById('viewPOSOrderScreen').classList.add('hidden');
+      document.getElementById('menuManagementView').style.display = 'none';
+      document.getElementById('menuManagementView').classList.add('hidden');
+      document.getElementById('viewFloorDashboard').classList.remove('hidden');
+
+      document.getElementById('mainFloorDashboardContent').classList.add('hidden');
+      document.getElementById('orderHistoryContainer').classList.add('hidden');
+      document.getElementById('dueOrdersContainer').classList.remove('hidden');
+
+      var btnActive = document.getElementById('btnNavActiveOrders');
+      var btnHist = document.getElementById('btnNavOrderHistory');
+      var btnDue = document.getElementById('btnNavDueOrders');
+      if (btnDue) btnDue.className = "bg-orange-500 text-white font-black px-4 py-1.5 rounded-lg text-xs shadow-2xs transition";
+      if (btnActive) btnActive.className = "text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition";
+      if (btnHist) btnHist.className = "text-gray-600 hover:bg-gray-100 text-xs font-bold px-3 py-1.5 rounded-lg transition";
+
+      document.getElementById('topPageTitle').innerText = 'Due (Khata) Orders';
+      document.getElementById('btnTopBack').classList.remove('hidden');
+
+      loadDueOrdersData();
+    }
+
+    function handleGlobalBackNavigation() {
+      if (currentViewMode === 'POS') {
+        closePOSOrderView();
+      } else if (currentViewMode === 'MENU_MGMT') {
+        showActiveOrdersView();
+      } else {
+        showActiveOrdersView();
+      }
+    }
+
+    // ================= DUE (KHATA) MODULE LOGIC =================
+    function switchDueTab(tab) {
+      currentDueTab = tab;
+      var btnOrder = document.getElementById('btnDueByOrder');
+      var btnCust = document.getElementById('btnDueByCustomer');
+      var secOrder = document.getElementById('dueByOrderSection');
+      var secCust = document.getElementById('dueByCustomerSection');
+
+      if (tab === 'BY_ORDER') {
+        btnOrder.className = "bg-orange-500 text-white font-black px-4 py-1.5 rounded-lg text-xs shadow-2xs transition";
+        btnCust.className = "text-gray-600 hover:text-black font-bold px-4 py-1.5 rounded-lg text-xs transition";
+        secOrder.classList.remove('hidden');
+        secCust.classList.add('hidden');
+      } else {
+        btnCust.className = "bg-orange-500 text-white font-black px-4 py-1.5 rounded-lg text-xs shadow-2xs transition";
+        btnOrder.className = "text-gray-600 hover:text-black font-bold px-4 py-1.5 rounded-lg text-xs transition";
+        secCust.classList.remove('hidden');
+        secOrder.classList.add('hidden');
+      }
+    }
+
+    function loadDueOrdersData() {
+      fetch('/api/due/orders')
+        .then(function(r){ return r.json(); })
+        .then(function(orders){
+          dueOrdersList = Array.isArray(orders) ? orders : [];
+          var totalDueSum = dueOrdersList.reduce(function(s, o) { return s + (Number(o.due_amount) || 0); }, 0);
+          
+          var filterDueCountEl = document.getElementById('filterDueCount');
+          var filterDueTotalEl = document.getElementById('filterDueTotal');
+          var dueHeaderTotalLabelEl = document.getElementById('dueHeaderTotalLabel');
+
+          if (filterDueCountEl) filterDueCountEl.innerText = dueOrdersList.length;
+          if (filterDueTotalEl) filterDueTotalEl.innerText = '₹' + totalDueSum.toLocaleString();
+          if (dueHeaderTotalLabelEl) dueHeaderTotalLabelEl.innerText = '₹' + totalDueSum.toLocaleString();
+
+          renderDueOrdersList();
+        })
+        .catch(function(){});
+
+      fetch('/api/due/customers')
+        .then(function(r){ return r.json(); })
+        .then(function(customers){
+          dueCustomersList = Array.isArray(customers) ? customers : [];
+          renderDueCustomersList();
+        })
+        .catch(function(){});
+    }
+
+    function renderDueOrdersList() {
+      var container = document.getElementById('dueOrderList');
+      if (!container) return;
+      if (!dueOrdersList || dueOrdersList.length === 0) {
+        container.innerHTML = '<p class="text-center py-16 text-gray-400 font-bold italic text-xs">No pending due orders found</p>';
         return;
       }
 
-      grid.innerHTML = filtered.map(item => {
-        const inCart = cart.filter(i => i.id === item.id).reduce((s, c) => s + c.qty, 0);
+      container.innerHTML = dueOrdersList.map(function(o){
+        var dueBadge = o.due_days > 0 ? `${o.due_days}d` : `${o.due_hours}h`;
+
         return `
-          <div class="bg-white p-3.5 rounded-2xl border border-gray-100 flex justify-between items-center shadow-xs">
-            <div class="space-y-0.5">
-              <span class="text-[9px] font-black px-2 py-0.5 rounded bg-gray-100 text-gray-500 uppercase">${item.category || 'General'}</span>
-              <h3 class="font-bold text-gray-900 text-sm">${item.name}</h3>
-              <p class="text-emerald-600 font-black text-sm">₹${item.price}</p>
-            </div>
+          <div class="py-3 flex justify-between items-center text-xs hover:bg-orange-50/40 px-2 rounded-xl transition">
             <div>
-              ${inCart > 0 ? `
-                <div class="flex items-center bg-indigo-50 border border-indigo-200 rounded-xl overflow-hidden">
-                  <span class="px-3 py-1 font-black text-xs text-indigo-900">${inCart} in cart</span>
-                </div>
-              ` : `
-                <button onclick='addItemCheckAddons(${JSON.stringify(item)})' class="bg-indigo-50 hover:bg-indigo-100 active:scale-95 border border-indigo-200 text-indigo-700 font-black text-xs px-4 py-1.5 rounded-xl transition">
-                  + ADD
-                </button>
-              `}
+              <div class="flex items-center gap-2">
+                <span class="font-black text-gray-900 text-sm">ORD-${o.id}</span>
+                <span class="bg-gray-100 text-gray-600 font-bold px-1.5 py-0.5 rounded text-[10px]">Token ${o.id.toString().padStart(3, '0')}</span>
+              </div>
+              <div class="text-[11px] font-bold text-gray-600 mt-0.5">
+                ${o.customer_name || 'Walk-in'} • <span class="font-mono text-gray-500">${o.customer_phone || '-'}</span>
+              </div>
+            </div>
+
+            <div class="text-center">
+              <div class="font-black text-rose-600 text-sm">₹${o.due_amount} due</div>
+              <div class="text-[10px] text-gray-400 font-medium">Due • ${dueBadge}</div>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button onclick="actionViewOrder(${o.id})" class="border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-2xs">
+                View
+              </button>
+              <button onclick="actionEditAddItems(${o.id})" class="border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-2xs">
+                Return to Active
+              </button>
+              <button onclick="actionSettlePopup(${o.id})" class="bg-orange-500 hover:bg-orange-600 text-white font-black px-4 py-1.5 rounded-lg text-xs transition shadow-2xs">
+                Settle
+              </button>
             </div>
           </div>
         `;
       }).join('');
     }
 
-    async function addItemCheckAddons(item) {
+    function renderDueCustomersList() {
+      var container = document.getElementById('dueCustomerList');
+      if (!container) return;
+      if (!dueCustomersList || dueCustomersList.length === 0) {
+        container.innerHTML = '<p class="text-center py-16 text-gray-400 font-bold italic text-xs">No pending customer dues found</p>';
+        return;
+      }
+
+      container.innerHTML = dueCustomersList.map(function(c){
+        var chips = (c.order_ids || []).slice(0, 3).map(function(id){
+          return `<span class="bg-gray-100 text-gray-600 font-bold px-1.5 py-0.2 rounded text-[10px]">ORD-${id}</span>`;
+        }).join(' ');
+
+        var moreCount = (c.order_ids || []).length > 3 ? `+${c.order_ids.length - 3} more` : '';
+
+        return `
+          <div class="py-3 flex justify-between items-center text-xs hover:bg-orange-50/40 px-2 rounded-xl transition">
+            <div class="space-y-1">
+              <div class="flex items-center gap-2">
+                <span class="font-black text-gray-900 text-sm">${c.name}</span>
+                <span class="bg-gray-100 text-gray-600 font-bold px-1.5 py-0.5 rounded text-[10px]">${c.total_orders} orders</span>
+              </div>
+              <div class="text-[11px] font-mono text-gray-500">${c.phone}</div>
+              <div class="flex items-center gap-1.5 text-[10px] text-gray-400">
+                ${chips} ${moreCount ? `<span class="italic text-[10px] text-gray-400">${moreCount}</span>` : ''}
+              </div>
+            </div>
+
+            <div class="text-center">
+              <div class="font-black text-rose-600 text-sm">₹${c.total_due} due</div>
+              <div class="text-[10px] text-gray-400 font-medium">Oldest • ${c.oldest_days || 0}d</div>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button onclick="promptWhatsAppReminder('${c.phone}', '${c.name}', ${c.total_due})" class="border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-2xs flex items-center gap-1">
+                <span>💬</span> Remind
+              </button>
+              <button onclick="openCustomerSettleModal('${c.phone}', '${c.name.replace(/'/g, "\\'")}', ${c.total_due})" class="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4 py-1.5 rounded-lg text-xs transition shadow-2xs flex items-center gap-1">
+                <span>✓</span> Settle All Due
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function promptWhatsAppReminder(phone, name, amount) {
+      var cleanPhone = phone.replace(/[^0-9]/g, '');
+      if (cleanPhone.length < 10) return alert('Customer phone number invalid hai!');
+      var text = encodeURIComponent(`Namaste ${name}, aapka Vishal Foodiez par ₹${amount} ka balance due hai. Kripya samay par bhuqtan karein. Dhanyawad!`);
+      window.open(`https://wa.me/91${cleanPhone.slice(-10)}?text=${text}`, '_blank');
+    }
+
+    // ================= SINGLE ORDER QUICK SETTLE LOGIC =================
+    function actionSettlePopup(orderId) {
+      actionEditAddItems(orderId);
+    }
+
+    function closeSingleOrderSettleModal() {
+      document.getElementById('modalSingleOrderSettle').classList.add('hidden');
+    }
+
+    function setSingleOrderSettleMode(mode) {
+      targetSingleSettleMode = mode;
+      var btnCash = document.getElementById('btnSingleSettleCash');
+      var btnUPI = document.getElementById('btnSingleSettleUPI');
+      if (mode === 'CASH') {
+        btnCash.className = "border-2 border-emerald-500 bg-emerald-50 text-emerald-800 font-black py-2 rounded-xl text-xs flex items-center justify-center gap-1 shadow-2xs";
+        btnUPI.className = "border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1 shadow-2xs";
+      } else {
+        btnUPI.className = "border-2 border-blue-500 bg-blue-50 text-blue-800 font-black py-2 rounded-xl text-xs flex items-center justify-center gap-1 shadow-2xs";
+        btnCash.className = "border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1 shadow-2xs";
+      }
+    }
+
+    function confirmSingleOrderSettleExecute() {
+      if (!targetSingleSettleOrderId) return;
+
+      fetch('/api/tables/' + targetSingleSettleOrderId + '/settle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payment_mode: targetSingleSettleMode })
+      })
+      .then(function(r){ return r.json(); })
+      .then(function(res){
+        closeSingleOrderSettleModal();
+        if (targetSingleSettleMode === 'CASH') openCashDrawer();
+        fetchActiveOrders();
+        loadDueOrdersData();
+        if (typeof loadSettledOrderHistory === 'function') loadSettledOrderHistory();
+      });
+    }
+
+    // ================= CUSTOMER FULL KHATA SETTLE MODAL =================
+    function openCustomerSettleModal(phone, name, amount) {
+      targetCustomerSettlePhone = phone;
+      targetCustomerSettleMode = 'CASH';
+      document.getElementById('lblSettleCustomerName').innerText = name;
+      document.getElementById('lblSettleCustomerPhone').innerText = phone;
+      document.getElementById('lblSettleCustomerAmount').innerText = '₹' + amount.toLocaleString();
+      setCustomerSettleMode('CASH');
+      document.getElementById('modalSettleCustomerDue').classList.remove('hidden');
+    }
+
+    function closeCustomerSettleModal() {
+      document.getElementById('modalSettleCustomerDue').classList.add('hidden');
+    }
+
+    function setCustomerSettleMode(mode) {
+      targetCustomerSettleMode = mode;
+      var btnCash = document.getElementById('btnCustSettleCash');
+      var btnUPI = document.getElementById('btnCustSettleUPI');
+      if (mode === 'CASH') {
+        btnCash.className = "border-2 border-emerald-500 bg-emerald-50 text-emerald-800 font-black py-2 rounded-xl text-xs flex items-center justify-center gap-1 shadow-2xs";
+        btnUPI.className = "border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1 shadow-2xs";
+      } else {
+        btnUPI.className = "border-2 border-blue-500 bg-blue-50 text-blue-800 font-black py-2 rounded-xl text-xs flex items-center justify-center gap-1 shadow-2xs";
+        btnCash.className = "border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1 shadow-2xs";
+      }
+    }
+
+    function confirmCustomerSettleAllExecute() {
+      if (!targetCustomerSettlePhone) return;
+
+      fetch('/api/due/settle-customer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: targetCustomerSettlePhone, payment_mode: targetCustomerSettleMode })
+      })
+      .then(function(r){ return r.json(); })
+      .then(function(res){
+        closeCustomerSettleModal();
+        if (targetCustomerSettleMode === 'CASH') openCashDrawer();
+        loadDueOrdersData();
+        fetchActiveOrders();
+      });
+    }
+
+    // ================= LOAD & RENDER ORDER HISTORY =================
+    function loadSettledOrderHistory() {
+      var dateVal = document.getElementById('histDateFilter').value || new Date().toISOString().slice(0, 10);
+      var tbody = document.getElementById('orderHistoryTableBody');
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-gray-400 font-bold">Loading settled orders...</td></tr>';
+
+      fetch('/api/orders/history?date=' + dateVal)
+        .then(function(r){ return r.json(); })
+        .then(function(orders){
+          settledHistoryOrders = orders || [];
+          filterHistoryRows();
+        })
+        .catch(function(){
+          tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-rose-500 font-bold">Failed to load order history</td></tr>';
+        });
+    }
+
+    function filterHistoryRows() {
+      var q = (document.getElementById('histSearchInput').value || '').toLowerCase().trim();
+      var typeF = document.getElementById('histTypeFilter').value;
+
+      var filtered = settledHistoryOrders.filter(function(o){
+        var matchType = (typeF === 'ALL' || o.order_type === typeF);
+        var matchQ = (!q || 
+          ('ORD-' + o.id).toLowerCase().includes(q) || 
+          (o.customer_name || '').toLowerCase().includes(q) || 
+          (o.customer_phone || '').includes(q)
+        );
+        return matchType && matchQ;
+      });
+
+      document.getElementById('histCountLabel').innerText = filtered.length;
+      renderHistoryTable(filtered);
+    }
+
+    function renderHistoryTable(orders) {
+      var tbody = document.getElementById('orderHistoryTableBody');
+      if (!orders || orders.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-12 text-gray-400 font-bold italic">No settled orders found</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = orders.map(function(o){
+        var itemsText = (o.items && o.items.length > 0)
+          ? o.items.map(function(i){ return i.name + ' ×' + i.qty; }).join(', ')
+          : 'Items logged';
+
+        var typeBadge = o.order_type === 'Dine-In'
+          ? '<span class="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-[10px] font-bold">Dine-In</span>'
+          : (o.order_type === 'Delivery' 
+              ? '<span class="bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded text-[10px] font-bold">Delivery</span>'
+              : '<span class="bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded text-[10px] font-bold">Takeaway</span>');
+
+        var modeBadge = `<span class="bg-emerald-50 text-emerald-800 font-bold px-1.5 py-0.5 rounded text-[10px]">PAID • ${o.payment_mode || 'Cash'}</span>`;
+        var d = new Date(o.created_at);
+        var timeFormatted = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) + ' • ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }).toLowerCase();
+
+        return `
+          <tr class="hover:bg-orange-50/60 transition text-gray-700 cursor-pointer" onclick="openSettledOrderInPOS(${o.id})">
+            <td class="p-3 font-mono font-black text-gray-900">
+              <div>ORD-${o.id}</div>
+              <div class="text-[10px] text-gray-400 font-normal">Token ${o.id.toString().padStart(3, '0')}</div>
+            </td>
+            <td class="p-3">
+              <div class="flex items-center gap-1.5">
+                ${typeBadge}
+                ${o.table_no ? `<span class="bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded text-[10px] font-bold">${o.table_no}</span>` : ''}
+              </div>
+            </td>
+            <td class="p-3 text-[11px] font-medium text-gray-800 max-w-xs">
+              <div class="flex items-start gap-1 line-clamp-2">
+                <span>🥪</span> <span>${itemsText}</span>
+              </div>
+            </td>
+            <td class="p-3">
+              <div class="font-bold text-gray-900">${o.customer_name || 'Walk-in'}</div>
+              <div class="text-[10px] text-gray-400 font-mono">${o.customer_phone || '-'}</div>
+            </td>
+            <td class="p-3">
+              <span class="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black px-2 py-0.5 rounded-full">Closed</span>
+            </td>
+            <td class="p-3 text-[11px] text-gray-500 whitespace-nowrap">${timeFormatted}</td>
+            <td class="p-3">
+              <div class="font-black text-gray-900 text-xs">₹${o.total}</div>
+              <div class="mt-0.5">${modeBadge}</div>
+            </td>
+            <td class="p-3 text-center" onclick="event.stopPropagation()">
+              <div class="flex items-center justify-center gap-1.5">
+                <button onclick="openSettledOrderInPOS(${o.id})" class="border border-orange-200 bg-orange-50 hover:bg-orange-100 text-orange-700 px-2 py-1 rounded-lg text-[11px] font-bold shadow-2xs transition">
+                  Edit / Open
+                </button>
+                <button onclick="actionPrintReceiptFromHistory(${o.id})" class="border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 px-2 py-1 rounded-lg text-[11px] font-bold shadow-2xs transition">
+                  Receipt
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function openSettledOrderInPOS(orderId) {
+      var ord = settledHistoryOrders.find(function(o){ return o.id === orderId; });
+      if (!ord) return;
+
+      previousViewBeforePOS = 'HISTORY';
+      currentViewMode = 'POS';
+      currentPOSOrderType = ord.order_type || 'Takeaway';
+      selectedPOSTableId = ord.table_no || 'T01';
+      editingActiveOrderId = ord.id;
+
+      var paidRecorded = Number(ord.paid_amount) || Number(ord.total) || 0;
+      alreadyPaidAmount = paidRecorded;
+      alreadyPaidMode = ord.payment_mode || 'Cash';
+
+      document.getElementById('posCustPhone').value = ord.customer_phone || '';
+      document.getElementById('posCustName').value = ord.customer_name || '';
+
+      if (alreadyPaidAmount > 0) {
+        document.getElementById('boxAlreadyPaidBanner').classList.remove('hidden');
+        document.getElementById('lblAlreadyPaidAmount').innerText = '₹' + alreadyPaidAmount.toFixed(2);
+        document.getElementById('lblAlreadyPaidMode').innerText = alreadyPaidMode;
+      } else {
+        document.getElementById('boxAlreadyPaidBanner').classList.add('hidden');
+      }
+
+      if (Array.isArray(ord.items) && ord.items.length > 0) {
+        posCart = ord.items.map(function(item) {
+          return { id: item.id || null, name: item.name, price: Number(item.price) || 0, qty: Number(item.qty) || 1 };
+        });
+      } else {
+        posCart = [{ id: null, name: 'Order #' + ord.id, price: Number(ord.total) || 0, qty: 1 }];
+      }
+
+      setPOSOrderType(currentPOSOrderType);
+      document.getElementById('posDisplayTable').innerText = (selectedPOSTableId ? selectedPOSTableId + ' • ' : '') + currentPOSOrderType;
+
+      document.getElementById('viewFloorDashboard').classList.add('hidden');
+      document.getElementById('viewPOSOrderScreen').classList.remove('hidden');
+
+      document.getElementById('topPageTitle').innerText = 'Edit Order #ORD-' + ord.id;
+      document.getElementById('btnTopBack').classList.remove('hidden');
+      document.getElementById('btnCancelOrderView').classList.remove('hidden');
+      document.getElementById('topOrderActiveBadge').classList.remove('hidden');
+
+      renderPOSCart();
+      renderPOSItems();
+      switchRightTab('SUMMARY');
+    }
+
+    function actionPrintReceiptFromHistory(orderId) {
+      var ord = settledHistoryOrders.find(function(o){ return o.id === orderId; });
+      if (!ord) return;
+      var calc = { subtotal: Number(ord.subtotal) || Number(ord.total), gst: Number(ord.gst) || 0, grandTotal: Number(ord.total), payableNow: 0 };
+      dispatchDirectPrintReceipt(ord.id, ord, calc);
+    }
+
+    function actionViewOrder(orderId) {
+      actionEditAddItems(orderId);
+    }
+
+    // ================= DYNAMIC POSITIONING VIRTUAL KEYBOARD =================
+    function openVirtualKeyboard(inputEl, mode, position) {
+      activeVirtualInput = inputEl;
+      closeVirtualKeyboards();
+
+      if (mode === 'number') {
+        var numpad = document.getElementById('vKeypadNum');
+        numpad.classList.remove('hidden');
+        document.getElementById('numPadDisplayLabel').innerText = inputEl.placeholder || 'Enter digits...';
+        
+        if (position === 'left') {
+          numpad.style.right = 'auto';
+          numpad.style.left = '420px';
+        } else if (position === 'center') {
+          numpad.style.right = 'auto';
+          numpad.style.left = '50%';
+          numpad.style.transform = 'translateX(-50%)';
+        } else {
+          numpad.style.left = 'auto';
+          numpad.style.transform = 'none';
+          numpad.style.right = '1rem';
+        }
+      } else {
+        document.getElementById('vKeypadText').classList.remove('hidden');
+        document.getElementById('textPadDisplayLabel').innerText = inputEl.placeholder || 'Type here...';
+      }
+    }
+
+    function closeVirtualKeyboards() {
+      document.getElementById('vKeypadNum').classList.add('hidden');
+      document.getElementById('vKeypadText').classList.add('hidden');
+
+      if (activeVirtualInput && activeVirtualInput.id === 'posCustPhone') lookupCustomerPhone();
+      if (activeVirtualInput && activeVirtualInput.id === 'menuItemSearch') filterMenuItems();
+      if (activeVirtualInput && activeVirtualInput.id === 'inputCashReceivedAmount') calculateChangeReturn();
+      if (activeVirtualInput && (activeVirtualInput.id === 'splitAmount1' || activeVirtualInput.id === 'splitAmount2')) calculateSplitDifference();
+    }
+
+    function keypadPress(val) {
+      if (!activeVirtualInput) return;
+      if (activeVirtualInput.value === '0.00' || activeVirtualInput.value === '0') activeVirtualInput.value = '';
+      activeVirtualInput.value += val;
+      triggerInputEvent(activeVirtualInput);
+    }
+
+    function keypadPressLetter(letter) {
+      if (!activeVirtualInput) return;
+      var char = isShiftActive ? letter.toUpperCase() : letter.toLowerCase();
+      activeVirtualInput.value += char;
+      triggerInputEvent(activeVirtualInput);
+      if (isShiftActive) toggleShiftMode();
+    }
+
+    function keypadBackspace() {
+      if (!activeVirtualInput) return;
+      activeVirtualInput.value = activeVirtualInput.value.slice(0, -1);
+      triggerInputEvent(activeVirtualInput);
+    }
+
+    function toggleShiftMode() {
+      isShiftActive = !isShiftActive;
+      var btn = document.getElementById('btnShiftKey');
+      btn.className = isShiftActive 
+        ? "w-12 bg-orange-500 text-white font-black text-xs py-2.5 rounded-lg shadow-2xs" 
+        : "w-12 bg-gray-200 active:bg-gray-300 text-gray-700 font-bold text-xs py-2.5 rounded-lg shadow-2xs";
+
+      var letters = document.querySelectorAll('.vKeyLetter');
+      letters.forEach(function(el) {
+        el.innerText = isShiftActive ? el.innerText.toUpperCase() : el.innerText.toLowerCase();
+      });
+    }
+
+    function triggerInputEvent(el) {
+      var event = new Event('input', { bubbles: true });
+      el.dispatchEvent(event);
+    }
+
+    function toggleSidebarMenu(show) {
+      var drawer = document.getElementById('sidebarDrawer');
+      var backdrop = document.getElementById('sidebarBackdrop');
+      if (show) {
+        backdrop.classList.remove('hidden');
+        drawer.classList.remove('-translate-x-full');
+      } else {
+        drawer.classList.add('-translate-x-full');
+        backdrop.classList.add('hidden');
+      }
+    }
+
+    function fetchMenu() {
+      fetch('/api/menu')
+        .then(function(r) { return r.json(); })
+        .then(function(items) {
+          allMenuItems = items || [];
+          extractCategories();
+          renderCategoriesSidebar();
+          renderPOSItems();
+        }).catch(function(){});
+    }
+
+    function extractCategories() {
+      var set = new Set();
+      allMenuItems.forEach(function(i) {
+        if (i.category) set.add(i.category.trim());
+      });
+      allCategories = Array.from(set);
+    }
+
+    function fetchActiveOrders() {
+      fetch('/api/orders/active')
+        .then(function(r) { return r.json(); })
+        .then(function(orders) {
+          allActiveOrders = orders || [];
+          renderDashboardMetrics();
+          renderFloorTablesGrid();
+          renderAllQueues();
+        }).catch(function(){});
+    }
+
+    function renderDashboardMetrics() {
+      document.getElementById('metricActiveCount').innerText = allActiveOrders.length;
+      document.getElementById('filterActiveBadge').innerText = allActiveOrders.length;
+
+      var deliveryCount = allActiveOrders.filter(function(o) { return o.order_type === 'Delivery'; }).length;
+      document.getElementById('metricDeliveryCount').innerText = deliveryCount;
+
+      fetch('/api/orders/today-stats')
+        .then(function(r){ return r.json(); })
+        .then(function(stats){
+          if (stats && stats.completed !== undefined) {
+            document.getElementById('metricCompletedCount').innerText = stats.completed;
+          }
+        }).catch(function(){});
+    }
+
+    function renderFloorTablesGrid() {
+      var grid = document.getElementById('floorTablesGrid');
+      if (!grid) return;
+
+      grid.innerHTML = defaultFloorTables.map(function(t) {
+        var busy = allActiveOrders.find(function(o) {
+          return o.order_type === 'Dine-In' && o.table_no && (o.table_no.toUpperCase() === t.id || o.table_no === t.label);
+        });
+        var isBusy = !!busy;
+
+        return `
+          <div onclick="openPOSOrderView('Dine-In', '${t.id}')" class="cursor-pointer border-2 rounded-2xl p-3 flex flex-col items-center justify-center transition-all duration-150 transform active:scale-95 shadow-xs ${isBusy ? 'bg-orange-50 border-orange-400 text-orange-950 shadow-orange-100' : 'bg-emerald-50 border-emerald-300 text-emerald-950 hover:border-emerald-500'}">
+            <span class="font-black text-sm tracking-wide">${t.label}</span>
+            <span class="text-[10px] font-bold opacity-75">${t.seats} seats</span>
+            ${isBusy ? `<span class="text-xs font-black text-orange-700 mt-1">₹${busy.total}</span>` : `<span class="text-[9px] text-emerald-600 font-bold mt-1">Free</span>`}
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ================= INTEGRATED QUEUES & ONLINE ORDERS RENDER =================
+    function renderAllQueues() {
+      var onlineOrders = allActiveOrders.filter(function(o) {
+        var type = (o.order_type || '').toLowerCase();
+        var isCompleted = (o.status === 'COMPLETED');
+        return (type === 'online' || type === 'delivery-online') && !isCompleted;
+      });
+
+      var onlineBox = document.getElementById('onlineOrdersBox');
+      var onlineList = document.getElementById('onlineOrdersList');
+      var onlineBadge = document.getElementById('onlineOrdersCountBadge');
+
+      if (onlineOrders.length > 0) {
+        if (onlineBox) onlineBox.classList.remove('hidden');
+        if (onlineBadge) onlineBadge.innerText = onlineOrders.length;
+        if (onlineList) {
+          onlineList.innerHTML = onlineOrders.map(buildOrderActionCard).join('');
+        }
+      } else {
+        if (onlineBox) onlineBox.classList.add('hidden');
+      }
+
+      var unassignedKiosk = allActiveOrders.filter(function(o) {
+        var type = (o.order_type || '').toLowerCase();
+        return type === 'dine-in' && (!o.table_no || o.table_no.trim() === '' || o.table_no === 'Direct');
+      });
+
+      var kioskBox = document.getElementById('kioskUnassignedBox');
+      var kioskList = document.getElementById('kioskUnassignedList');
+      if (unassignedKiosk.length > 0) {
+        kioskBox.classList.remove('hidden');
+        document.getElementById('kioskUnassignedCount').innerText = unassignedKiosk.length;
+        kioskList.innerHTML = unassignedKiosk.map(function(o) {
+          var itemsText = (o.items || []).map(function(i){ return i.name + ' x' + i.qty; }).join(', ');
+          var totalAmount = Number(o.total) || 0;
+          var paidAmount = Number(o.paid_amount) || Number(o.already_paid) || 0;
+
+          if (paidAmount === 0 && o.payment_mode && o.payment_mode !== 'UNPAID' && o.payment_mode !== 'DUE' && o.status !== 'RUNNING_TABLE') {
+            paidAmount = totalAmount;
+          }
+
+          var remainingDue = Math.max(0, totalAmount - paidAmount);
+          var isFullyPaid = paidAmount >= totalAmount && totalAmount > 0;
+          var isPartiallyPaid = paidAmount > 0 && remainingDue > 0;
+
+          var statusTag = '';
+          var tagBg = '';
+          if (isFullyPaid) {
+            statusTag = o.payment_mode || 'Paid';
+            tagBg = 'bg-emerald-100 text-emerald-800';
+          } else if (isPartiallyPaid) {
+            statusTag = `Partially Paid (Due: ₹${remainingDue})`;
+            tagBg = 'bg-amber-100 text-amber-900';
+          } else {
+            statusTag = (o.payment_mode === 'DUE' || o.status === 'DUE_PENDING') ? 'Due' : 'Unpaid';
+            tagBg = 'bg-amber-100 text-amber-900';
+          }
+
+          return `
+            <div class="border border-orange-200/70 bg-[#fffdfa] rounded-xl p-3 text-xs shadow-2xs hover:border-orange-300 transition space-y-2">
+              <div class="flex justify-between items-start">
+                <div>
+                  <div class="flex items-center gap-1.5">
+                    <span class="bg-pink-100 text-pink-700 font-black px-1.5 py-0.5 rounded text-[10px]">Kiosk / Unassigned</span>
+                    <span class="text-gray-500 font-bold text-[10px]">Token ${o.id.toString().padStart(3, '0')}</span>
+                    <span class="font-black text-gray-800 text-xs">ORD-${o.id}</span>
+                  </div>
+                  <div class="text-[11px] text-gray-600 mt-0.5 line-clamp-1">${itemsText || 'Order placed'}</div>
+                  <div class="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
+                    <span>👤 ${o.customer_name || 'Valued Guest'}</span>
+                    ${o.customer_phone ? `<span class="ml-1 text-gray-500 font-mono">(${o.customer_phone})</span>` : ''}
+                  </div>
+                </div>
+
+                <div class="text-right">
+                  <div class="flex items-center justify-end gap-1 mb-0.5">
+                    <span class="font-black text-gray-900 text-sm">₹${o.total}</span>
+                    <span class="text-[10px] font-black px-1.5 py-0.5 rounded ${tagBg}">${statusTag}</span>
+                  </div>
+                  <div class="text-[9px] text-gray-400">${o.time || ''}</div>
+                </div>
+              </div>
+
+              <div class="flex flex-wrap gap-1.5 pt-1.5 border-t border-gray-100 text-[10px] font-bold">
+                <button onclick="promptAssignTable(${o.id})" class="px-2 py-1 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded border border-orange-200 font-black shadow-2xs"><span>🪑</span> Assign table</button>
+                <button onclick="actionViewOrder(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>👁</span> View</button>
+                <button onclick="actionAddPhone(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-orange-700 rounded border border-orange-200 flex items-center gap-1 shadow-2xs"><span>📞</span> Add phone</button>
+                <button onclick="actionPrintKOT(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🍳</span> KOT</button>
+                <button onclick="actionPrintReceipt(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🖨</span> Print Receipt</button>
+                <button onclick="actionEditAddItems(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>+</span> Add Item</button>
+                <button onclick="actionSettlePopup(${o.id})" class="px-2.5 py-1 bg-orange-100 hover:bg-orange-200 text-orange-800 rounded border border-orange-300 font-black shadow-2xs">Settle</button>
+                <button onclick="actionMarkDue(${o.id})" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded border border-rose-300 font-black shadow-2xs">Mark Due</button>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } else {
+        kioskBox.classList.add('hidden');
+      }
+
+      function buildOrderActionCard(o) {
+        var itemsText = (o.items || []).map(function(i){ return i.name + ' x' + i.qty; }).join(', ');
+        var totalAmount = Number(o.total) || 0;
+        var paidAmount = Number(o.paid_amount) || Number(o.already_paid) || 0;
+
+        if (paidAmount === 0 && o.payment_mode && o.payment_mode !== 'UNPAID' && o.payment_mode !== 'DUE' && o.status !== 'RUNNING_TABLE') {
+          paidAmount = totalAmount;
+        }
+
+        var remainingDue = Math.max(0, totalAmount - paidAmount);
+        var isFullyPaid = paidAmount >= totalAmount && totalAmount > 0;
+        var isPartiallyPaid = paidAmount > 0 && remainingDue > 0;
+
+        var statusTag = '';
+        var tagBg = '';
+        if (isFullyPaid) {
+          statusTag = o.payment_mode || 'Paid';
+          tagBg = 'bg-emerald-100 text-emerald-800';
+        } else if (isPartiallyPaid) {
+          statusTag = `Partially Paid (Due: ₹${remainingDue})`;
+          tagBg = 'bg-amber-100 text-amber-900';
+        } else {
+          statusTag = (o.payment_mode === 'DUE' || o.status === 'DUE_PENDING') ? 'Due' : 'Unpaid';
+          tagBg = 'bg-amber-100 text-amber-900';
+        }
+
+        return `
+          <div class="border border-orange-200/70 bg-[#fffdfa] rounded-xl p-3 text-xs shadow-2xs hover:border-orange-300 transition space-y-2">
+            <div class="flex justify-between items-start">
+              <div>
+                <div class="flex items-center gap-1.5">
+                  <span class="text-gray-500 font-bold text-[10px]">Token ${o.id.toString().padStart(3, '0')}</span>
+                  <span class="font-black text-gray-800 text-xs">ORD-${o.id}</span>
+                </div>
+                <div class="text-[11px] text-gray-600 mt-0.5 line-clamp-1">${itemsText || 'Order placed'}</div>
+                <div class="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
+                  <span>👤 ${o.customer_name || 'Guest'}</span>
+                  ${o.customer_phone ? `<span class="ml-1 text-gray-500 font-mono">(${o.customer_phone})</span>` : ''}
+                </div>
+              </div>
+
+              <div class="text-right">
+                <div class="flex items-center justify-end gap-1 mb-0.5">
+                  <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100/70 text-orange-800">${o.order_type || 'Online'}</span>
+                  <span class="font-black text-gray-900 text-sm">₹${o.total}</span>
+                  <span class="text-[10px] font-black px-1.5 py-0.5 rounded ${tagBg}">${statusTag}</span>
+                </div>
+                <div class="text-[9px] text-gray-400">Live Order</div>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap gap-1.5 pt-1.5 border-t border-gray-100 text-[10px] font-bold">
+              <button onclick="actionViewOrder(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>👁</span> View</button>
+              <button onclick="actionAddPhone(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-orange-700 rounded border border-orange-200 flex items-center gap-1 shadow-2xs"><span>📞</span> Add phone</button>
+              <button onclick="actionPrintKOT(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🍳</span> KOT</button>
+              <button onclick="actionPrintReceipt(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🖨</span> Print Receipt</button>
+              <button onclick="actionEditAddItems(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>+</span> Add Item</button>
+              <button onclick="actionSettlePopup(${o.id})" class="px-2.5 py-1 bg-orange-100 hover:bg-orange-200 text-orange-800 rounded border border-orange-300 font-black shadow-2xs">Settle</button>
+              <button onclick="actionMarkDue(${o.id})" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded border border-rose-300 font-black shadow-2xs">Mark Due</button>
+            </div>
+          </div>
+        `;
+      }
+
+      var takeawayOrders = allActiveOrders.filter(function(o) { 
+        var isDispatched = (o.status === 'KOT_READY' || o.status === 'COMPLETED');
+        var type = (o.order_type || '').toLowerCase();
+        return type === 'takeaway' && !isDispatched; 
+      });
+
+      var tList = document.getElementById('takeawayQueueList');
+      if (tList) {
+        document.getElementById('takeawayQueueBadge').innerText = takeawayOrders.length;
+        if (!takeawayOrders.length) tList.innerHTML = '<p class="text-xs text-gray-400 italic text-center py-6">No takeaway orders in queue</p>';
+        else tList.innerHTML = takeawayOrders.map(buildOrderActionCard).join('');
+      }
+
+      var deliveryOrders = allActiveOrders.filter(function(o) { 
+        var isDispatched = (o.status === 'KOT_READY' || o.status === 'COMPLETED');
+        var type = (o.order_type || '').toLowerCase();
+        return (type === 'delivery' && type !== 'online') && !isDispatched; 
+      });
+
+      var dList = document.getElementById('deliveryQueueList');
+      if (dList) {
+        document.getElementById('deliveryQueueBadge').innerText = deliveryOrders.length;
+        if (!deliveryOrders.length) dList.innerHTML = '<p class="text-xs text-gray-400 italic text-center py-6">No delivery orders in queue</p>';
+        else dList.innerHTML = deliveryOrders.map(buildOrderActionCard).join('');
+      }
+    }
+
+    function actionAddPhone(orderId) {
+      var ph = prompt("Customer Phone Number daalein:");
+      if (!ph || ph.trim().length < 10) return alert("Valid 10-digit number enter karein!");
+      fetch('/api/orders/' + orderId + '/update-phone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: ph.trim() })
+      }).then(function(){ fetchActiveOrders(); });
+    }
+
+    function actionPrintKOT(orderId) {
+      var ord = allActiveOrders.find(function(o) { return o.id === orderId; });
+      if (!ord) return;
+      posCart = (ord.items || []).map(function(i){ return { name: i.name, qty: i.qty }; });
+      selectedPOSTableId = ord.table_no || ord.order_type;
+      currentPOSOrderType = ord.order_type;
+      triggerManualKOTDirect();
+    }
+
+    function actionPrintReceipt(orderId) {
+      var ord = allActiveOrders.find(function(o) { return o.id === orderId; });
+      if (!ord) return;
+      var calc = { subtotal: Number(ord.subtotal) || Number(ord.total), gst: Number(ord.gst) || 0, grandTotal: Number(ord.total), payableNow: 0 };
+      dispatchDirectPrintReceipt(ord.id, ord, calc);
+    }
+
+    // ================= PERSISTENT DIFFERENTIAL DETECTION =================
+    function actionEditAddItems(orderId) {
+      var ord = allActiveOrders.find(function(o) { return o.id === orderId; }) || dueOrdersList.find(function(o) { return o.id === orderId; });
+      if (!ord) return;
+      
+      previousViewBeforePOS = (currentViewMode === 'DUE') ? 'DUE' : 'DASHBOARD';
+      openPOSOrderView(ord.order_type, ord.table_no || '');
+      editingActiveOrderId = ord.id;
+      
+      var recordedPaid = Number(ord.paid_amount) || Number(ord.already_paid) || 0;
+      
+      if (recordedPaid === 0 && ord.payment_mode && ord.payment_mode !== 'UNPAID' && ord.payment_mode !== 'DUE' && ord.status !== 'RUNNING_TABLE') {
+        recordedPaid = Number(ord.total) || 0;
+      }
+
+      if (recordedPaid > 0) {
+        alreadyPaidAmount = recordedPaid;
+        alreadyPaidMode = ord.already_paid_mode || ord.payment_mode || 'Paid';
+        
+        document.getElementById('boxAlreadyPaidBanner').classList.remove('hidden');
+        document.getElementById('lblAlreadyPaidAmount').innerText = '₹' + alreadyPaidAmount.toFixed(2);
+        document.getElementById('lblAlreadyPaidMode').innerText = alreadyPaidMode;
+      } else {
+        alreadyPaidAmount = 0;
+        alreadyPaidMode = '';
+        document.getElementById('boxAlreadyPaidBanner').classList.add('hidden');
+      }
+
+      posCart = (ord.items || []).map(function(i) {
+        return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1 };
+      });
+      renderPOSCart();
+    }
+
+    function actionMarkDue(orderId) {
+      if (!confirm("Kya aap is order ko Due (Khata) mein dalna chahte hain?")) return;
+
+      fetch('/api/orders/' + orderId + '/mark-due', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      .then(function(r){ return r.json(); })
+      .then(function(res){
+        fetchActiveOrders();
+        loadDueOrdersData();
+        alert("Order successfully Due (Khata) section mein chala gaya!");
+      })
+      .catch(function(){
+        fetch('/api/tables/' + orderId + '/settle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ payment_mode: 'DUE' })
+        }).then(function(){
+          fetchActiveOrders();
+          loadDueOrdersData();
+        });
+      });
+    }
+
+    // ================= PAYMENT MODE SELECTION & CASH MODAL =================
+    function handlePaymentModeClick(mode) {
+      var calc = calculatePOSBillTotals();
+      var payableAmount = calc.payableNow;
+
+      if (mode === 'Cash') {
+        if (payableAmount <= 0) return alert('No additional payment pending!');
+        document.getElementById('modalCashOrderTotal').innerText = '₹' + payableAmount.toFixed(2);
+        
+        document.getElementById('inputCashReceivedAmount').value = '';
+        currentCashReceived = 0;
+        currentCashChange = 0;
+        document.getElementById('modalCashReturnChange').innerText = '₹0.00';
+        
+        document.getElementById('modalCashReceived').classList.remove('hidden');
+        return;
+      }
+
+      if (mode === 'Split') {
+        selectPaymentMode('Split');
+        document.getElementById('splitTotalDisplay').innerText = '₹' + payableAmount.toFixed(2);
+        
+        document.getElementById('splitAmount1').value = '';
+        document.getElementById('splitAmount2').value = '';
+        calculateSplitDifference();
+        
+        document.getElementById('splitPaymentPanel').classList.remove('hidden');
+        return;
+      }
+
+      document.getElementById('splitPaymentPanel').classList.add('hidden');
+      selectPaymentMode(mode);
+      
+      var placeBtn = document.getElementById('btnPOSPlaceOrder');
+      if (placeBtn) {
+        placeBtn.disabled = false;
+        placeBtn.className = "flex-1 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5";
+      }
+    }
+
+    function closeCashReceivedModal() {
+      closeVirtualKeyboards();
+      document.getElementById('modalCashReceived').classList.add('hidden');
+    }
+
+    function calculateChangeReturn() {
+      var calc = calculatePOSBillTotals();
+      var payableAmount = calc.payableNow;
+      var rawVal = document.getElementById('inputCashReceivedAmount').value.trim();
+      var rec = parseFloat(rawVal) || 0;
+      var change = (rawVal === '') ? 0 : Math.max(0, rec - payableAmount);
+      currentCashReceived = rec;
+      currentCashChange = change;
+      document.getElementById('modalCashReturnChange').innerText = '₹' + change.toFixed(2);
+    }
+
+    function confirmCashPaymentExecute() {
+      closeCashReceivedModal();
+      selectPaymentMode('Cash');
+      document.getElementById('splitPaymentPanel').classList.add('hidden');
+      openCashDrawer();
+      executePlaceOrder();
+    }
+
+    // ================= SPLIT PAYMENT LOGIC =================
+    function setSplitMethodType(methodNum, type) {
+      if (methodNum === 1) splitMethod1 = type;
+      if (methodNum === 2) splitMethod2 = type;
+
+      ['Cash', 'UPI', 'Card', 'DUE'].forEach(function(m) {
+        var btn1 = document.getElementById('splitM1_' + m);
+        var btn2 = document.getElementById('splitM2_' + m);
+        if (btn1) {
+          if (splitMethod1 === m) {
+            btn1.className = (m === 'DUE') ? "border border-rose-400 bg-rose-50 text-rose-700 font-bold py-1 rounded text-[10px]" : "border border-orange-400 bg-orange-50 text-orange-700 font-bold py-1 rounded text-[10px]";
+          } else {
+            btn1.className = "border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold py-1 rounded text-[10px]";
+          }
+        }
+        if (btn2) {
+          if (splitMethod2 === m) {
+            btn2.className = (m === 'DUE') ? "border border-rose-400 bg-rose-50 text-rose-700 font-bold py-1 rounded text-[10px]" : "border border-blue-500 bg-blue-50 text-blue-700 font-bold py-1 rounded text-[10px]";
+          } else {
+            btn2.className = "border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold py-1 rounded text-[10px]";
+          }
+        }
+      });
+    }
+
+    function fillSplitRest(targetMethod) {
+      var calc = calculatePOSBillTotals();
+      var total = calc.payableNow;
+      if (targetMethod === 1) {
+        var m2 = parseFloat(document.getElementById('splitAmount2').value) || 0;
+        document.getElementById('splitAmount1').value = Math.max(0, total - m2).toFixed(2);
+      } else {
+        var m1 = parseFloat(document.getElementById('splitAmount1').value) || 0;
+        document.getElementById('splitAmount2').value = Math.max(0, total - m1).toFixed(2);
+      }
+      calculateSplitDifference();
+    }
+
+    function calculateSplitDifference() {
+      var calc = calculatePOSBillTotals();
+      var total = calc.payableNow;
+      var raw1 = document.getElementById('splitAmount1').value.trim();
+      var raw2 = document.getElementById('splitAmount2').value.trim();
+      var a1 = parseFloat(raw1) || 0;
+      var a2 = parseFloat(raw2) || 0;
+      var sum = a1 + a2;
+      var diff = total - sum;
+
+      var alertBox = document.getElementById('splitStatusAlertBox');
+      var msg = document.getElementById('splitStatusMessage');
+      var pending = document.getElementById('splitPendingDiff');
+      var placeBtn = document.getElementById('btnPOSPlaceOrder');
+
+      if (selectedPaymentMode === 'Split') {
+        if ((raw1 !== '' || raw2 !== '') && Math.abs(diff) < 0.01) {
+          alertBox.className = "border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-lg p-2 text-[10px] font-bold flex justify-between items-center";
+          msg.innerText = "✓ Exact total matched!";
+          pending.innerText = "₹0.00";
+          placeBtn.disabled = false;
+          placeBtn.className = "flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5";
+        } else {
+          alertBox.className = "border border-rose-200 bg-rose-50 text-rose-700 rounded-lg p-2 text-[10px] font-bold flex justify-between items-center";
+          msg.innerText = "Split must equal the total";
+          pending.innerText = (diff > 0 ? "Remaining: ₹" : "Exceeded: ₹") + Math.abs(diff).toFixed(2);
+          placeBtn.disabled = true;
+          placeBtn.className = "flex-1 bg-gray-300 text-gray-500 py-2.5 rounded-xl font-black text-xs cursor-not-allowed flex items-center justify-center gap-1.5";
+        }
+      }
+    }
+
+    function selectPaymentMode(mode) {
+      selectedPaymentMode = (selectedPaymentMode === mode) ? null : mode;
+
+      ['Cash', 'UPI', 'Card', 'Split', 'DUE'].forEach(function(m) {
+        var btn = document.getElementById('payBtn' + m);
+        if (btn) btn.className = (m === 'DUE') 
+          ? "border border-rose-200 hover:bg-rose-50 text-rose-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5" 
+          : "border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5";
+      });
+
+      if (selectedPaymentMode) {
+        var activeBtn = document.getElementById('payBtn' + selectedPaymentMode);
+        if (activeBtn) {
+          activeBtn.className = (selectedPaymentMode === 'DUE')
+            ? "border-2 border-rose-600 bg-rose-50 text-rose-800 py-1.5 rounded-lg text-xs font-black flex items-center justify-center gap-0.5"
+            : "border-2 border-emerald-600 bg-emerald-50 text-emerald-800 py-1.5 rounded-lg text-xs font-black flex items-center justify-center gap-0.5";
+        }
+      }
+
+      if (selectedPaymentMode !== 'Split') {
+        var placeBtn = document.getElementById('btnPOSPlaceOrder');
+        if (placeBtn) {
+          placeBtn.disabled = false;
+          placeBtn.className = "flex-1 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5";
+        }
+      }
+    }
+
+    function calculatePOSBillTotals() {
+      var subtotal = posCart.reduce(function(s, i) { return s + (i.price * i.qty); }, 0);
+      var gst = Math.round((subtotal * 5) / 100);
+      var grandTotal = Math.round(subtotal + gst);
+      var payableNow = Math.max(0, grandTotal - alreadyPaidAmount);
+
+      document.getElementById('posCalcSubtotal').innerText = '₹' + subtotal;
+      document.getElementById('posCalcGst').innerText = '₹' + gst.toFixed(2);
+      document.getElementById('posCalcGrandTotal').innerText = '₹' + grandTotal;
+      document.getElementById('posCalcPayableNow').innerText = '₹' + payableNow;
+
+      document.getElementById('tabSummaryBadge').innerText = posCart.reduce(function(s, i){ return s + i.qty; }, 0);
+      document.getElementById('topOrderActiveBadge').innerText = 'Order • ' + posCart.reduce(function(s, i){ return s + i.qty; }, 0);
+
+      return { subtotal: subtotal, gst: gst, grandTotal: grandTotal, payableNow: payableNow };
+    }
+
+    function renderPOSCart() {
+      var box = document.getElementById('posCartItemList');
+      var placeBtn = document.getElementById('btnPOSPlaceOrder');
+
+      if (!posCart.length) {
+        box.innerHTML = '<p class="text-gray-400 text-center py-10 italic text-xs">Cart is empty</p>';
+        calculatePOSBillTotals();
+        return;
+      }
+
+      if (selectedPaymentMode !== 'Split' && placeBtn) {
+        placeBtn.disabled = false;
+        placeBtn.className = "flex-1 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5";
+      }
+
+      box.innerHTML = posCart.map(function(item, idx) {
+        return `
+          <div class="py-2 flex items-center justify-between text-xs">
+            <div class="flex items-center gap-2">
+              <div class="flex items-center border rounded bg-gray-50">
+                <button onclick="changeItemQty(${idx}, -1)" class="px-2 py-0.5 font-bold hover:bg-gray-200">-</button>
+                <span class="px-1.5 font-black text-gray-800">${item.qty}</span>
+                <button onclick="changeItemQty(${idx}, 1)" class="px-2 py-0.5 font-bold hover:bg-gray-200">+</button>
+              </div>
+              <span class="font-bold text-gray-800 truncate max-w-[120px]">${item.name}</span>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button onclick="removeItemCompletely(${idx})" class="text-gray-400 hover:text-red-600 text-xs">🗑</button>
+              <span class="font-black text-gray-900 w-12 text-right">₹${item.price * item.qty}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      calculatePOSBillTotals();
+    }
+
+    // ================= ROBUST PLACE ORDER =================
+    function executePlaceOrder() {
+      if (!posCart.length) return alert('Kripya cart mein item add karein!');
+      if (!currentPOSOrderType) return alert('Kripya pehle Order Type (Dine-In, Takeaway, Delivery) select karein!');
+
+      var calc = calculatePOSBillTotals();
+      var custPhone = document.getElementById('posCustPhone').value.trim();
+      var custName = document.getElementById('posCustName').value.trim();
+
+      var newlyPaidAmount = 0;
+      var newPaymentModeLabel = selectedPaymentMode;
+
+      if (selectedPaymentMode === 'Cash' || selectedPaymentMode === 'UPI' || selectedPaymentMode === 'Card') {
+        newlyPaidAmount = calc.payableNow;
+      } else if (selectedPaymentMode === 'Split') {
+        var a1 = parseFloat(document.getElementById('splitAmount1').value) || 0;
+        var a2 = parseFloat(document.getElementById('splitAmount2').value) || 0;
+        newlyPaidAmount = a1 + a2;
+        newPaymentModeLabel = `SPLIT (${splitMethod1}: ₹${a1}, ${splitMethod2}: ₹${a2})`;
+      }
+
+      var cumulativeTotalPaid = alreadyPaidAmount + newlyPaidAmount;
+      var remainingDue = Math.max(0, calc.grandTotal - cumulativeTotalPaid);
+
+      var finalMode = '';
+      var isHoldOrder = false;
+
+      if (remainingDue === 0) {
+        finalMode = alreadyPaidAmount > 0 
+          ? (newlyPaidAmount > 0 ? `${alreadyPaidMode} + ${newPaymentModeLabel}` : alreadyPaidMode)
+          : (newPaymentModeLabel || 'PAID');
+        isHoldOrder = false;
+      } else {
+        if (cumulativeTotalPaid > 0) {
+          finalMode = `PARTIAL (${alreadyPaidMode || 'Paid'}: ₹${cumulativeTotalPaid}, Due: ₹${remainingDue})`;
+        } else {
+          finalMode = (selectedPaymentMode === 'DUE') ? 'DUE' : 'UNPAID';
+        }
+        isHoldOrder = !selectedPaymentMode && remainingDue > 0;
+      }
+
+      var splitDetails = null;
+      if (selectedPaymentMode === 'Split') {
+        splitDetails = [
+          { mode: splitMethod1, amount: parseFloat(document.getElementById('splitAmount1').value) || 0 },
+          { mode: splitMethod2, amount: parseFloat(document.getElementById('splitAmount2').value) || 0 }
+        ];
+      }
+
+      var payload = {
+        order_type: currentPOSOrderType,
+        table_no: (currentPOSOrderType === 'Dine-In' ? selectedPOSTableId : ''),
+        customer_name: custName,
+        customer_phone: custPhone,
+        items: [...posCart],
+        payment_mode: finalMode,
+        subtotal: calc.subtotal,
+        gst: calc.gst,
+        total: calc.grandTotal,
+        paid_amount: cumulativeTotalPaid,
+        already_paid: cumulativeTotalPaid,
+        already_paid_mode: finalMode,
+        payable_now: remainingDue,
+        guests: currentGuestCount,
+        is_hold: isHoldOrder,
+        cash_received: currentCashReceived,
+        cash_change: currentCashChange,
+        split_details: splitDetails
+      };
+
+      if (editingActiveOrderId) {
+        fetch('/api/orders/' + editingActiveOrderId, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).then(function(){
+          if (newlyPaidAmount > 0) dispatchDirectPrintReceipt(editingActiveOrderId, payload, calc);
+          closePOSOrderView();
+        });
+      } else {
+        fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (newlyPaidAmount > 0) dispatchDirectPrintReceipt(data.orderId, payload, calc);
+          closePOSOrderView();
+        });
+      }
+    }
+
+    function dispatchDirectPrintReceipt(orderId, payload, calc) {
+      var itemsRows = (payload.items || []).map(function(item) {
+        return `
+          <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
+            <span style="width:70%; word-break: break-word;">${item.name} x ${item.qty}</span>
+            <span style="width:30%; text-align:right;">₹${(item.price * item.qty).toFixed(2)}</span>
+          </div>
+        `;
+      }).join('');
+
+      var diffSection = '';
+      if (alreadyPaidAmount > 0) {
+        diffSection = `
+          <div class="row" style="color:#047857;"><span>Previously Paid:</span><span>-₹${alreadyPaidAmount.toFixed(2)}</span></div>
+          <div class="row" style="font-weight:900;"><span>Balance Paid Now:</span><span>₹${(calc.payableNow || 0).toFixed(2)}</span></div>
+        `;
+      }
+
+      var cashSection = '';
+      if (payload.payment_mode && payload.payment_mode.includes('Cash') && payload.cash_received > 0) {
+        cashSection = `
+          <div class="row"><span>Cash Tendered:</span><span>₹${payload.cash_received.toFixed(2)}</span></div>
+          <div class="row"><span>Change Returned:</span><span>₹${payload.cash_change.toFixed(2)}</span></div>
+        `;
+      }
+
+      var splitSection = '';
+      if (payload.split_details && payload.split_details.length > 0) {
+        splitSection = payload.split_details.map(function(s) {
+          return `<div class="row"><span>${s.mode === 'DUE' ? 'Khata (Due)' : s.mode}:</span><span>₹${s.amount.toFixed(2)}</span></div>`;
+        }).join('');
+      }
+
+      var html = `
+        <html>
+        <head>
+          <style>
+            @page { margin: 0; size: 80mm auto; }
+            body { font-family: Arial, sans-serif; font-size: 13px; font-weight: 700; color: #000; padding: 0 6px 4px; width: 68mm; }
+            .center { text-align: center; }
+            .token { border: 2.5px solid #000; font-size: 26px; font-weight: 900; text-align: center; padding: 4px 0; margin: 6px 0; }
+            .divider { border-top: 1.5px dashed #000; margin: 6px 0; }
+            .row { display: flex; justify-content: space-between; }
+          </style>
+        </head>
+        <body>
+          <div class="center" style="font-size:18px; font-weight:900;">VISHAL FOODIEZ</div>
+          <div class="center" style="font-size:11px;">Railway Road, Budhlada</div>
+          <div class="token">TOKEN #${orderId || '---'}</div>
+          <div class="row"><span>Order: #${orderId}</span><span>(${payload.order_type.toUpperCase()})</span></div>
+          ${payload.table_no ? `<div>Table: ${payload.table_no}</div>` : ''}
+          ${payload.customer_name ? `<div>Guest: ${payload.customer_name}</div>` : ''}
+          <div>Date: ${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' })}</div>
+          <div class="divider"></div>
+          ${itemsRows}
+          <div class="divider"></div>
+          <div class="row"><span>Subtotal:</span><span>₹${calc.subtotal.toFixed(2)}</span></div>
+          <div class="row" style="font-size:16px; font-weight:900;"><span>TOTAL BILL:</span><span>₹${calc.grandTotal.toFixed(2)}</span></div>
+          ${diffSection}
+          ${cashSection}
+          ${splitSection}
+          <div class="divider"></div>
+          <div class="center" style="font-size:11px;">Payment Mode: <b>${payload.payment_mode}</b></div>
+          <div class="center" style="font-size:11px; margin-top:4px;">Thanks For Visiting Us!</div>
+        </body>
+        </html>
+      `;
+
+      var frame = document.getElementById('silentPrintFrame');
+      var doc = frame.contentWindow.document;
+      doc.open();
+      doc.write(html);
+      doc.close();
+      frame.contentWindow.focus();
+      setTimeout(function() {
+        try { frame.contentWindow.print(); } catch(e) {}
+      }, 250);
+    }
+
+    function triggerManualKOTDirect() {
+      if (!posCart.length) return alert('Cart khali hai!');
+      if (!currentPOSOrderType) return alert('Kripya pehle Order Type select karein!');
+      var itemsRows = posCart.map(function(i) {
+        return `
+          <tr>
+            <td style="font-size:14px; font-weight:bold; padding:2px 0;">${i.name}</td>
+            <td style="font-size:15px; font-weight:bold; text-align:right;">x${i.qty}</td>
+          </tr>
+        `;
+      }).join('');
+
+      var html = `
+        <html>
+        <head>
+          <style>
+            @page { size: 80mm auto; margin: 0; }
+            body { font-family: monospace; font-size: 12px; width: 72mm; margin: 0 auto; padding: 4px; }
+            .center { text-align: center; font-weight: bold; }
+            .line { border-bottom: 2px solid #000; margin: 5px 0; }
+            table { width: 100%; border-collapse: collapse; }
+          </style>
+        </head>
+        <body>
+          <div class="center" style="font-size:16px;">*** KITCHEN TICKET (KOT) ***</div>
+          <div class="line"></div>
+          <div><b>${currentPOSOrderType.toUpperCase()}</b> | Table: ${selectedPOSTableId || 'None'}</div>
+          <div class="line"></div>
+          <table>${itemsRows}</table>
+          <div class="line"></div>
+        </body>
+        </html>
+      `;
+
+      var frame = document.getElementById('silentPrintFrame');
+      var doc = frame.contentWindow.document;
+      doc.open();
+      doc.write(html);
+      doc.close();
+      frame.contentWindow.focus();
+      setTimeout(function() {
+        try { frame.contentWindow.print(); } catch(e) {}
+      }, 250);
+    }
+
+    function openCashDrawer() {
+      fetch('http://127.0.0.1:4567/kick-drawer', { method: 'POST' })
+      .catch(function(err) { console.error('Agent offline!', err); });
+    }
+
+    function promptAssignTable(orderId) {
+      var tbl = prompt("Table Number daalein (e.g. T01, T02):");
+      if (!tbl) return;
+      fetch('/api/orders/' + orderId + '/assign-table', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ table_no: tbl.trim().toUpperCase() })
+      }).then(function(){ fetchActiveOrders(); });
+    }
+
+    function settleActiveOrder(orderId, mode) {
+      fetch('/api/tables/' + orderId + '/settle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payment_mode: mode })
+      }).then(function(){ fetchActiveOrders(); loadDueOrdersData(); });
+    }
+
+    function promptAddCustomTable() {
+      var tno = prompt("New Table ID (e.g. T09):");
+      if (!tno) return;
+      defaultFloorTables.push({ id: tno.trim().toUpperCase(), label: tno.trim().toUpperCase(), seats: 2 });
+      renderFloorTablesGrid();
+    }
+
+    function protectedNav(targetUrl) {
+      var pin = prompt('Enter Owner/Admin Security PIN:');
+      if (!pin) return;
+      fetch('/api/verify-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: pin })
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data.valid) window.location.href = targetUrl;
+        else alert('Galat PIN!');
+      }).catch(function(){});
+    }
+
+    function lookupCustomerPhone() {
+      var ph = document.getElementById('posCustPhone').value.trim();
+      if (ph.length >= 10) {
+        fetch('/api/customers/' + ph)
+          .then(function(r){ return r.json(); })
+          .then(function(c){
+            if (c && c.name) document.getElementById('posCustName').value = c.name;
+          }).catch(function(){});
+      }
+    }
+
+    function openPOSOrderView(orderType, tableId) {
+      previousViewBeforePOS = (currentViewMode === 'DUE') ? 'DUE' : 'DASHBOARD';
+      currentViewMode = 'POS';
+      
+      if (!orderType && !tableId) {
+        currentPOSOrderType = '';
+        selectedPOSTableId = '';
+      } else {
+        currentPOSOrderType = orderType || 'Dine-In';
+        selectedPOSTableId = tableId || '';
+      }
+
+      editingActiveOrderId = null;
+      alreadyPaidAmount = 0;
+      alreadyPaidMode = '';
+      posCart = [];
+      selectedPaymentMode = null; 
+      currentCashReceived = 0;
+      currentCashChange = 0;
+
+      document.getElementById('boxAlreadyPaidBanner').classList.add('hidden');
+      document.getElementById('splitPaymentPanel').classList.add('hidden');
+
+      var placeBtn = document.getElementById('btnPOSPlaceOrder');
+      if (placeBtn) {
+        placeBtn.disabled = false;
+        placeBtn.className = "flex-1 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5";
+      }
+
+      ['Cash', 'UPI', 'Card', 'Split', 'DUE'].forEach(function(m) {
+        var btn = document.getElementById('payBtn' + m);
+        if (btn) btn.className = (m === 'DUE')
+          ? "border border-rose-200 hover:bg-rose-50 text-rose-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5"
+          : "border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5";
+      });
+
+      var running = null;
+      if (selectedPOSTableId) {
+        running = allActiveOrders.find(function(o) {
+          return o.order_type === 'Dine-In' && o.table_no && o.table_no.toUpperCase() === selectedPOSTableId.toUpperCase();
+        });
+      }
+
+      if (running) {
+        editingActiveOrderId = running.id;
+        document.getElementById('posCustPhone').value = running.customer_phone || '';
+        document.getElementById('posCustName').value = running.customer_name || '';
+        posCart = (running.items || []).map(function(i) {
+          return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1 };
+        });
+      } else {
+        document.getElementById('posCustPhone').value = '';
+        document.getElementById('posCustName').value = '';
+      }
+
+      if (currentPOSOrderType) {
+        setPOSOrderType(currentPOSOrderType);
+        document.getElementById('posDisplayTable').innerText = (selectedPOSTableId ? selectedPOSTableId + ' • ' : '') + currentPOSOrderType;
+      } else {
+        ['DineIn', 'Takeaway', 'Delivery'].forEach(function(t) {
+          var btn = document.getElementById('posBtn' + t);
+          if (btn) btn.className = "border border-gray-200 hover:bg-gray-50 rounded-xl py-3 flex flex-col items-center justify-center text-gray-600 font-bold";
+        });
+        document.getElementById('posDisplayTable').innerText = 'Select Order Type';
+      }
+
+      document.getElementById('viewFloorDashboard').classList.add('hidden');
+      document.getElementById('menuManagementView').style.display = 'none';
+      document.getElementById('menuManagementView').classList.add('hidden');
+      document.getElementById('viewPOSOrderScreen').classList.remove('hidden');
+
+      document.getElementById('topPageTitle').innerText = 'New Order';
+      document.getElementById('btnTopBack').classList.remove('hidden');
+      document.getElementById('btnCancelOrderView').classList.add('hidden');
+      document.getElementById('topOrderActiveBadge').classList.remove('hidden');
+
+      renderPOSCart();
+      renderPOSItems();
+    }
+
+    function closePOSOrderView() {
+      closeVirtualKeyboards();
+      closeCashReceivedModal();
+      document.getElementById('viewPOSOrderScreen').classList.add('hidden');
+      document.getElementById('viewFloorDashboard').classList.remove('hidden');
+
+      document.getElementById('btnCancelOrderView').classList.add('hidden');
+      document.getElementById('topOrderActiveBadge').classList.add('hidden');
+
+      if (previousViewBeforePOS === 'HISTORY') {
+        showOrderHistoryView();
+      } else if (previousViewBeforePOS === 'DUE') {
+        showDueOrdersView();
+      } else {
+        showActiveOrdersView();
+      }
+    }
+
+    function renderCategoriesSidebar() {
+      var container = document.getElementById('categoriesList');
+      if (!container) return;
+
+      var allBtn = `
+        <button onclick="selectPOSCategory('ALL')" class="w-full text-left px-3 py-2.5 text-xs font-bold transition flex justify-between items-center ${selectedCategory === 'ALL' ? 'bg-orange-50 text-orange-600 font-black border-r-2 border-orange-500' : 'text-gray-600 hover:bg-gray-50'}">
+          <span>All</span>
+        </button>
+      `;
+
+      var catBtns = allCategories.map(function(cat) {
+        var isSelected = (selectedCategory === cat);
+        return `
+          <button onclick="selectPOSCategory('${cat.replace(/'/g, "\\'")}')" class="w-full text-left px-3 py-2.5 text-xs font-bold transition flex justify-between items-center ${isSelected ? 'bg-orange-50 text-orange-600 font-black border-r-2 border-orange-500' : 'text-gray-600 hover:bg-gray-50'}">
+            <span class="truncate">${cat}</span>
+          </button>
+        `;
+      }).join('');
+
+      container.innerHTML = allBtn + catBtns;
+    }
+
+    function selectPOSCategory(cat) {
+      selectedCategory = cat;
+      renderCategoriesSidebar();
+      renderPOSItems();
+    }
+
+    function setPriceFilter(filter) {
+      selectedPriceFilter = filter;
+      ['ALL', '200', '500', 'Above500'].forEach(function(f) {
+        var btn = document.getElementById('filterBtn' + f);
+        if (btn) btn.className = "px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200";
+      });
+      if (filter === 'ALL') document.getElementById('filterBtnAll').className = "px-2.5 py-1 rounded-full bg-orange-500 text-white shadow-2xs";
+      if (filter === 'UNDER200') document.getElementById('filterBtn200').className = "px-2.5 py-1 rounded-full bg-orange-500 text-white shadow-2xs";
+      if (filter === '200TO500') document.getElementById('filterBtn500').className = "px-2.5 py-1 rounded-full bg-orange-500 text-white shadow-2xs";
+      if (filter === 'ABOVE500') document.getElementById('filterBtnAbove500').className = "px-2.5 py-1 rounded-full bg-orange-500 text-white shadow-2xs";
+      renderPOSItems();
+    }
+
+    function filterMenuItems() { renderPOSItems(); }
+
+    function renderPOSItems() {
+      var grid = document.getElementById('posItemsGrid');
+      if (!grid) return;
+
+      var q = (document.getElementById('menuItemSearch').value || '').toLowerCase().trim();
+
+      var filtered = allMenuItems.filter(function(i) {
+        var matchCat = (selectedCategory === 'ALL' || i.category === selectedCategory);
+        var matchQuery = (!q || i.name.toLowerCase().includes(q));
+        var p = Number(i.price) || 0;
+        var matchPrice = true;
+        if (selectedPriceFilter === 'UNDER200') matchPrice = (p <= 200);
+        if (selectedPriceFilter === '200TO500') matchPrice = (p > 200 && p <= 500);
+        if (selectedPriceFilter === 'ABOVE500') matchPrice = (p > 500);
+        return matchCat && matchQuery && matchPrice;
+      });
+
+      if (!filtered.length) {
+        grid.innerHTML = '<p class="col-span-2 text-center text-gray-400 py-16 italic text-xs">No items found</p>';
+        return;
+      }
+
+      grid.innerHTML = filtered.map(function(item) {
+        var totalQty = posCart.filter(function(c) { return c.name === item.name; }).reduce(function(s, c){ return s + c.qty; }, 0);
+
+        return `
+          <div onclick="addOrIncrementItem('${item.name.replace(/'/g, "\\'")}', ${item.price})" class="bg-white border rounded-xl p-2.5 cursor-pointer shadow-2xs hover:border-orange-500 transition flex items-center justify-between ${totalQty > 0 ? 'border-orange-400 bg-orange-50/20' : 'border-gray-200'}">
+            <div class="flex items-center gap-2.5">
+              ${item.image ? `<img src="${item.image}" class="w-12 h-12 rounded-lg object-cover border">` : `<div class="w-12 h-12 rounded-lg bg-gray-50 flex items-center justify-center text-gray-300 text-base">🍔</div>`}
+              <div>
+                <div class="text-[9px] font-bold text-gray-400 uppercase tracking-wide">${item.category || ''}</div>
+                <h3 class="text-xs font-bold text-gray-800 line-clamp-1">${item.name}</h3>
+                <div class="text-xs font-black text-gray-900 mt-0.5">₹${item.price}</div>
+              </div>
+            </div>
+
+            <div>
+              ${totalQty > 0 ? `<span class="bg-orange-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shadow-xs">${totalQty}</span>` : `<span class="text-orange-500 font-bold text-xs bg-orange-50 px-2 py-1 rounded-md">+ Add</span>`}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function addOrIncrementItem(name, price) {
+      var itemObj = allMenuItems.find(function(i) { return i.name === name; });
+      
       let variations = [];
-      if (item.variations) {
+      if (itemObj && itemObj.variations) {
         try {
-          variations = JSON.parse(item.variations || '[]');
+          variations = JSON.parse(itemObj.variations || '[]');
         } catch(e) {
           variations = [];
         }
       }
 
       if (variations.length > 0) {
-        openOnlineVariationModal(item, variations);
+        openPOSVariationModal(itemObj, variations);
         return;
       }
 
-      checkAndOpenAddonsCustomForOnline(item, item.name, item.price, []);
+      checkAndOpenAddonsCustomForPOS(itemObj, name, price, []);
     }
 
-    function openOnlineVariationModal(item, variations) {
-      document.getElementById('onlineVarModalItemName').innerText = item.name + ' - Select Size';
+    function openPOSVariationModal(item, variations) {
+      document.getElementById('posVarModalItemName').innerText = item.name + ' - Select Size';
       
       let html = variations.map((v) => `
-        <button onclick='selectOnlineVariationItem(${JSON.stringify(item)}, ${JSON.stringify(v)})' class="w-full text-left p-3 rounded-xl border border-gray-200 hover:border-indigo-500 hover:bg-indigo-50/50 flex justify-between items-center transition shadow-2xs">
+        <button onclick='selectPOSVariationItem(${JSON.stringify(item)}, ${JSON.stringify(v)})' class="w-full text-left p-3 rounded-xl border border-gray-200 hover:border-orange-500 hover:bg-orange-50/50 flex justify-between items-center transition shadow-2xs">
           <span class="font-black text-gray-800">${v.name}</span>
           <span class="font-black text-emerald-600 text-sm">₹${v.price}</span>
         </button>
       `).join('');
 
-      document.getElementById('onlineVarModalContent').innerHTML = html;
-      document.getElementById('onlineVariationModal').classList.remove('hidden');
+      document.getElementById('posVarModalContent').innerHTML = html;
+      document.getElementById('posVariationModal').classList.remove('hidden');
     }
 
-    function closeOnlineVariationModal() {
-      document.getElementById('onlineVariationModal').classList.add('hidden');
+    function closePOSVariationModal() {
+      document.getElementById('posVariationModal').classList.add('hidden');
     }
 
-    function selectOnlineVariationItem(item, variant) {
-      closeOnlineVariationModal();
-
+    function selectPOSVariationItem(item, variant) {
+      closePOSVariationModal();
+      
       let variantAddons = [];
       if (variant && variant.addon_groups) {
         variantAddons = variant.addon_groups;
@@ -264,10 +3126,10 @@
         }
       }
 
-      checkAndOpenAddonsCustomForOnline(item, `${item.name} (${variant.name})`, variant.price, variantAddons);
+      checkAndOpenAddonsCustomForPOS(item, `${item.name} (${variant.name})`, variant.price, variantAddons);
     }
 
-    async function checkAndOpenAddonsCustomForOnline(item, displayName, displayPrice, assignedGroups) {
+    async function checkAndOpenAddonsCustomForPOS(itemObj, displayName, displayPrice, assignedGroups) {
       if (assignedGroups.length > 0) {
         try {
           const res = await fetch('/api/addon-groups');
@@ -275,23 +3137,30 @@
           const itemGroups = allGroups.filter(g => assignedGroups.includes(g.id));
           
           if (itemGroups.length > 0) {
-            openOnlineAddonModal({ ...item, name: displayName, price: displayPrice }, itemGroups);
+            openPOSAddonSelectionModal({ ...itemObj, name: displayName, price: displayPrice }, itemGroups);
             return;
           }
         } catch(err) {
-          console.error('Error fetching variant addons:', err);
+          console.error('Error fetching variant addon groups:', err);
         }
       }
 
-      cart.push({ id: item.id, name: displayName, price: Number(displayPrice), qty: 1, addons: [] });
-      updateCartUI();
-      renderMenu();
+      if (editingActiveOrderId) {
+        posCart.push({ id: itemObj ? itemObj.id : null, name: displayName, price: Number(displayPrice), qty: 1, addons: [] });
+      } else {
+        var exist = posCart.find(function(i) { return i.name === displayName && (!i.addons || i.addons.length === 0); });
+        if (exist) exist.qty += 1;
+        else posCart.push({ id: itemObj ? itemObj.id : null, name: displayName, price: Number(displayPrice), qty: 1, addons: [] });
+      }
+      switchRightTab('SUMMARY');
+      renderPOSCart();
+      renderPOSItems();
     }
 
-    function openOnlineAddonModal(item, groups) {
+    function openPOSAddonSelectionModal(item, groups) {
       currentModalSelectedItem = item;
       currentModalItemGroups = groups;
-      document.getElementById('onlineAddonModalItemName').innerText = item.name + ` (₹${item.price})`;
+      document.getElementById('posAddonModalItemName').innerText = item.name + ` (₹${item.price})`;
       
       let html = '';
       groups.forEach((g, gIdx) => {
@@ -310,9 +3179,9 @@
         groupItems.forEach((ai) => {
           let inputType = g.selection_type === 'Multiple choice' ? 'checkbox' : 'radio';
           html += `
-            <label class="flex items-center justify-between p-2 rounded-lg bg-white border cursor-pointer hover:bg-indigo-50/50">
+            <label class="flex items-center justify-between p-2 rounded-lg bg-white border cursor-pointer hover:bg-orange-50/50">
               <div class="flex items-center gap-2">
-                <input type="${inputType}" name="online_addon_grp_${gIdx}" value="${ai.name}" data-price="${ai.price}" class="onlineAddonInput grp-${gIdx} text-indigo-600 rounded">
+                <input type="${inputType}" name="addon_group_${gIdx}" value="${ai.name}" data-price="${ai.price}" class="posAddonInput grp-${gIdx} text-orange-600 rounded">
                 <span class="font-bold text-gray-700">${ai.name}</span>
               </div>
               <span class="font-black text-gray-900">+₹${ai.price}</span>
@@ -322,17 +3191,17 @@
         html += `</div></div>`;
       });
 
-      document.getElementById('onlineAddonModalContent').innerHTML = html;
-      document.getElementById('onlineAddonModal').classList.remove('hidden');
+      document.getElementById('posAddonModalContent').innerHTML = html;
+      document.getElementById('posAddonModal').classList.remove('hidden');
     }
 
-    function closeOnlineAddonModal() {
-      document.getElementById('onlineAddonModal').classList.add('hidden');
+    function closePOSAddonModal() {
+      document.getElementById('posAddonModal').classList.add('hidden');
       currentModalSelectedItem = null;
       currentModalItemGroups = [];
     }
 
-    function confirmOnlineAddonSelection() {
+    function confirmPOSAddonSelection() {
       if (!currentModalSelectedItem) return;
 
       let selectedAddons = [];
@@ -340,7 +3209,7 @@
 
       try {
         currentModalItemGroups.forEach((g, gIdx) => {
-          const checkedInputs = document.querySelectorAll(`.onlineAddonInput.grp-${gIdx}:checked`);
+          const checkedInputs = document.querySelectorAll(`.posAddonInput.grp-${gIdx}:checked`);
           if (g.is_mandatory && checkedInputs.length === 0) {
             alert(`"${g.name}" group mein kam se kam ek option select karna anivarya hai!`);
             throw new Error('Mandatory group missing');
@@ -361,7 +3230,7 @@
       const addonNamesString = selectedAddons.map(a => a.name).join(', ');
       const displayName = selectedAddons.length > 0 ? `${currentModalSelectedItem.name} (${addonNamesString})` : currentModalSelectedItem.name;
 
-      cart.push({
+      posCart.push({
         id: currentModalSelectedItem.id,
         name: displayName,
         price: finalPrice,
@@ -369,86 +3238,68 @@
         addons: selectedAddons
       });
 
-      closeOnlineAddonModal();
-      updateCartUI();
-      renderMenu();
+      closePOSAddonModal();
+      switchRightTab('SUMMARY');
+      renderPOSCart();
+      renderPOSItems();
     }
 
-    function updateCartUI() {
-      const count = cart.reduce((s, i) => s + i.qty, 0);
-      const total = cart.reduce((s, i) => s + (i.price * i.qty), 0);
-      document.getElementById('cartCount').innerText = `${count} ${count === 1 ? 'item' : 'items'}`;
-      document.getElementById('cartTotal').innerText = `₹${total}`;
-      document.getElementById('cTotal').innerText = `₹${total}`;
-      document.getElementById('cartBar').classList.toggle('hidden', count === 0);
+    function changeItemQty(idx, delta) {
+      if (!posCart[idx]) return;
+      posCart[idx].qty += delta;
+      if (posCart[idx].qty <= 0) posCart.splice(idx, 1);
+      renderPOSCart();
+      renderPOSItems();
     }
 
-    function openCheckout() {
-      const list = document.getElementById('cartList');
-      list.innerHTML = cart.map(i => `
-        <div class="flex justify-between items-center py-2 text-xs">
-          <div>
-            <span class="font-bold text-gray-800">${i.name}</span>
-            <span class="text-gray-400 ml-1">× ${i.qty}</span>
-          </div>
-          <span class="font-black text-gray-900">₹${i.price * i.qty}</span>
-        </div>
-      `).join('');
-      document.getElementById('checkoutModal').classList.remove('hidden');
+    function removeItemCompletely(idx) {
+      if (!posCart[idx]) return;
+      posCart.splice(idx, 1);
+      renderPOSCart();
+      renderPOSItems();
     }
 
-    function closeCheckout() {
-      document.getElementById('checkoutModal').classList.add('hidden');
-    }
+    function switchRightTab(tab) {
+      closeVirtualKeyboards();
+      var btnCust = document.getElementById('tabBtnCustomer');
+      var btnSum = document.getElementById('tabBtnSummary');
+      var boxCust = document.getElementById('tabContentCustomer');
+      var boxSum = document.getElementById('tabContentSummary');
 
-    function placeOrder() {
-      const phone = document.getElementById('cPhone').value.trim();
-      const name = document.getElementById('cName').value.trim();
-      const loc = document.getElementById('targetLoc').value.trim();
-      const btn = document.getElementById('submitBtn');
-
-      if (!phone || phone.length < 10) {
-        alert('Please enter a valid 10-digit phone number.');
-        return;
+      if (tab === 'CUSTOMER') {
+        btnCust.className = "py-1.5 rounded-lg transition bg-white text-orange-600 shadow-2xs font-black";
+        btnSum.className = "py-1.5 rounded-lg transition text-gray-500 hover:text-gray-900 flex items-center justify-center gap-1";
+        boxCust.classList.remove('hidden');
+        boxSum.classList.add('hidden');
+      } else {
+        btnCust.className = "py-1.5 rounded-lg transition text-gray-500 hover:text-gray-900 font-bold";
+        btnSum.className = "py-1.5 rounded-lg transition bg-white text-orange-600 shadow-2xs font-black flex items-center justify-center gap-1";
+        boxCust.classList.add('hidden');
+        boxSum.classList.remove('hidden');
       }
-
-      btn.disabled = true;
-      btn.innerText = 'Sending...';
-
-      const total = cart.reduce((s, i) => s + (i.price * i.qty), 0);
-
-      fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          order_type: 'Online',
-          status: 'RUNNING',
-          table_no: `${mode} - ${loc || 'Direct'}`,
-          customer_name: name || 'Online Guest',
-          customer_phone: phone,
-          items: cart,
-          payment_mode: 'ONLINE_PENDING',
-          subtotal: total,
-          discount: 0,
-          gst: 0,
-          total: total
-        })
-      })
-      .then(r => r.json())
-      .then(d => {
-        alert(`Order Placed Successfully!\nToken #${d.orderId || 'CONFIRMED'}\nYour order has reached the restaurant.`);
-        cart = [];
-        closeCheckout();
-        updateCartUI();
-        renderMenu();
-        window.location.reload();
-      })
-      .catch(err => {
-        alert('Failed to send order. Please verify your connection.');
-        btn.disabled = false;
-        btn.innerText = '🚀 Place Order';
-      });
     }
+
+    function setPOSOrderType(type) {
+      currentPOSOrderType = type;
+      ['DineIn', 'Takeaway', 'Delivery'].forEach(function(t) {
+        var btn = document.getElementById('posBtn' + t);
+        if (btn) {
+          if (type.replace('-', '') === t.replace('-', '')) {
+            btn.className = "border-2 border-orange-500 bg-orange-50/50 rounded-xl py-3 flex flex-col items-center justify-center text-orange-700 shadow-2xs font-black";
+          } else {
+            btn.className = "border border-gray-200 hover:bg-gray-50 rounded-xl py-3 flex flex-col items-center justify-center text-gray-600 font-bold";
+          }
+        }
+      });
+      document.getElementById('posDisplayTable').innerText = (selectedPOSTableId ? selectedPOSTableId + ' • ' : '') + currentPOSOrderType;
+    }
+
+    function changeGuestCount(delta) {
+      currentGuestCount = Math.max(1, currentGuestCount + delta);
+      document.getElementById('guestCountLabel').innerText = currentGuestCount;
+    }
+
+    initializePOS();
   </script>
 </body>
 </html>
