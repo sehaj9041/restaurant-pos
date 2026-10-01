@@ -190,6 +190,30 @@ app.delete('/api/floor-tables/:id', (req, res) => {
   db.run("DELETE FROM floor_tables WHERE id = ?", [req.params.id], () => res.json({ success: true }));
 });
 
+// ================= CATEGORIES APIS =================
+app.get('/api/categories', (req, res) => {
+  db.all("SELECT * FROM categories ORDER BY id ASC", [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows || []);
+  });
+});
+
+app.post('/api/categories', (req, res) => {
+  const { name } = req.body;
+  if (!name) return res.status(400).json({ error: 'Category name is required' });
+  db.run("INSERT INTO categories (name) VALUES (?) ON CONFLICT(name) DO NOTHING", [name.trim()], function(err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ success: true, id: this.lastID });
+  });
+});
+
+app.delete('/api/categories/:id', (req, res) => {
+  db.run("DELETE FROM categories WHERE id = ?", [req.params.id], function(err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ success: true });
+  });
+});
+
 // 4. GLOBAL ADD-ON GROUPS APIS
 app.get('/api/addon-groups', (req, res) => {
   db.all("SELECT * FROM addon_groups ORDER BY id DESC", [], (err, rows) => {
@@ -199,10 +223,10 @@ app.get('/api/addon-groups', (req, res) => {
 });
 
 app.post('/api/addon-groups', (req, res) => {
-  const { name, min_selection, max_selection, is_mandatory, items } = req.body;
+  const { name, min_selection, max_selection, is_mandatory, selection_type, items } = req.body;
   db.all(
-    `INSERT INTO addon_groups (name, min_selection, max_selection, is_mandatory, items) VALUES (?, ?, ?, ?, ?) RETURNING id`,
-    [name, min_selection || 0, max_selection || 5, is_mandatory ? 1 : 0, JSON.stringify(items || [])],
+    `INSERT INTO addon_groups (name, min_selection, max_selection, is_mandatory, selection_type, items) VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
+    [name, min_selection || 0, max_selection || 5, is_mandatory ? 1 : 0, selection_type || 'Single choice', JSON.stringify(items || [])],
     (err, result) => {
       if (err) return res.status(500).json({ error: err.message });
       const id = result && result[0] ? result[0].id : null;
