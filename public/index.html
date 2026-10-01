@@ -974,6 +974,30 @@
     </div>
   </div>
 
+  <!-- ================= POS ADDON SELECTION MODAL ================= -->
+  <div id="posAddonModal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-5 max-w-md w-full shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
+      <div class="flex justify-between items-center border-b pb-2">
+        <div>
+          <h3 id="posAddonModalItemName" class="font-black text-gray-900 text-sm">Select Add-ons</h3>
+          <p class="text-[10px] text-gray-500">Apni pasand ke add-ons select karein</p>
+        </div>
+        <button onclick="closePOSAddonModal()" class="text-gray-400 hover:text-black font-bold">✕</button>
+      </div>
+
+      <div id="posAddonModalContent" class="space-y-4 overflow-y-auto flex-1 pr-1 text-xs">
+        <!-- Dynamic Addon Groups & Items will render here -->
+      </div>
+
+      <div class="pt-3 border-t flex justify-between items-center shrink-0">
+        <div class="text-xs font-bold text-gray-700">Total Item Price: <span id="posAddonModalTotalPrice" class="text-sm font-black text-orange-600">₹0</span></div>
+        <button onclick="confirmPOSAddonSelection()" class="bg-orange-500 hover:bg-orange-600 text-white font-black px-5 py-2 rounded-xl text-xs shadow-sm">
+          Add to Cart ✓
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- ================= VIRTUAL KEYBOARDS ================= -->
   <div id="vKeypadNum" class="fixed bottom-4 w-72 bg-[#f1f3f5] border border-gray-300 rounded-2xl shadow-2xl p-3 z-50 hidden select-none transition-all">
     <div class="flex justify-between items-center mb-2 pb-1 border-b border-gray-200 text-gray-500 text-xs">
@@ -1099,6 +1123,9 @@
     var isShiftActive = false;
     var currentViewMode = 'DASHBOARD'; 
     var previousViewBeforePOS = 'DASHBOARD';
+
+    var currentModalSelectedItem = null;
+    var currentModalItemGroups = [];
 
     var defaultFloorTables = [
       { id: 'T04', label: 'T04', seats: 2 },
@@ -3030,14 +3057,127 @@
       }).join('');
     }
 
-    function addOrIncrementItem(name, price) {
-      if (editingActiveOrderId) {
-        posCart.push({ id: null, name: name, price: Number(price), qty: 1 });
-      } else {
-        var exist = posCart.find(function(i) { return i.name === name; });
-        if (exist) exist.qty += 1;
-        else posCart.push({ id: null, name: name, price: Number(price), qty: 1 });
+    async function addOrIncrementItem(name, price) {
+      var itemObj = allMenuItems.find(function(i) { return i.name === name; });
+      
+      let assignedGroups = [];
+      if (itemObj && itemObj.assigned_addon_groups) {
+        try {
+          assignedGroups = JSON.parse(itemObj.assigned_addon_groups || '[]');
+        } catch(e) {
+          assignedGroups = [];
+        }
       }
+
+      if (assignedGroups.length > 0) {
+        try {
+          const res = await fetch('/api/addon-groups');
+          const allGroups = await res.json();
+          const itemGroups = allGroups.filter(g => assignedGroups.includes(g.id));
+          
+          if (itemGroups.length > 0) {
+            openPOSAddonSelectionModal(itemObj, itemGroups);
+            return;
+          }
+        } catch(err) {
+          console.error('Error fetching addon groups:', err);
+        }
+      }
+
+      if (editingActiveOrderId) {
+        posCart.push({ id: itemObj ? itemObj.id : null, name: name, price: Number(price), qty: 1, addons: [] });
+      } else {
+        var exist = posCart.find(function(i) { return i.name === name && (!i.addons || i.addons.length === 0); });
+        if (exist) exist.qty += 1;
+        else posCart.push({ id: itemObj ? itemObj.id : null, name: name, price: Number(price), qty: 1, addons: [] });
+      }
+      switchRightTab('SUMMARY');
+      renderPOSCart();
+      renderPOSItems();
+    }
+
+    function openPOSAddonSelectionModal(item, groups) {
+      currentModalSelectedItem = item;
+      currentModalItemGroups = groups;
+      document.getElementById('posAddonModalItemName').innerText = item.name + ` (₹${item.price})`;
+      
+      let html = '';
+      groups.forEach((g, gIdx) => {
+        let groupItems = [];
+        try { groupItems = JSON.parse(g.items || '[]'); } catch(e) {}
+        
+        html += `
+          <div class="border rounded-xl p-3 bg-gray-50 space-y-2">
+            <div class="flex justify-between items-center">
+              <span class="font-black text-gray-800">${g.name}</span>
+              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${g.is_mandatory ? 'bg-rose-100 text-rose-700' : 'bg-gray-200 text-gray-600'}">${g.is_mandatory ? 'Required' : 'Optional'}</span>
+            </div>
+            <div class="space-y-1">
+        `;
+        
+        groupItems.forEach((ai, aiIdx) => {
+          let inputType = g.selection_type === 'Multiple choice' ? 'checkbox' : 'radio';
+          html += `
+            <label class="flex items-center justify-between p-2 rounded-lg bg-white border cursor-pointer hover:bg-orange-50/50">
+              <div class="flex items-center gap-2">
+                <input type="${inputType}" name="addon_group_${gIdx}" value="${ai.name}" data-price="${ai.price}" class="posAddonInput grp-${gIdx} text-orange-600 rounded">
+                <span class="font-bold text-gray-700">${ai.name}</span>
+              </div>
+              <span class="font-black text-gray-900">+₹${ai.price}</span>
+            </label>
+          `;
+        });
+        html += `</div></div>`;
+      });
+
+      document.getElementById('posAddonModalContent').innerHTML = html;
+      document.getElementById('posAddonModal').classList.remove('hidden');
+    }
+
+    function closePOSAddonModal() {
+      document.getElementById('posAddonModal').classList.add('hidden');
+      currentModalSelectedItem = null;
+      currentModalItemGroups = [];
+    }
+
+    function confirmPOSAddonSelection() {
+      if (!currentModalSelectedItem) return;
+
+      let selectedAddons = [];
+      let extraPrice = 0;
+
+      try {
+        currentModalItemGroups.forEach((g, gIdx) => {
+          const checkedInputs = document.querySelectorAll(`.posAddonInput.grp-${gIdx}:checked`);
+          if (g.is_mandatory && checkedInputs.length === 0) {
+            alert(`"${g.name}" group mein kam se kam ek option select karna anivarya hai!`);
+            throw new Error('Mandatory group missing');
+          }
+
+          checkedInputs.forEach(input => {
+            const aName = input.value;
+            const aPrice = Number(input.getAttribute('data-price')) || 0;
+            selectedAddons.push({ name: aName, price: aPrice });
+            extraPrice += aPrice;
+          });
+        });
+      } catch (e) {
+        return;
+      }
+
+      const finalPrice = Number(currentModalSelectedItem.price) + extraPrice;
+      const addonNamesString = selectedAddons.map(a => a.name).join(', ');
+      const displayName = selectedAddons.length > 0 ? `${currentModalSelectedItem.name} (${addonNamesString})` : currentModalSelectedItem.name;
+
+      posCart.push({
+        id: currentModalSelectedItem.id,
+        name: displayName,
+        price: finalPrice,
+        qty: 1,
+        addons: selectedAddons
+      });
+
+      closePOSAddonModal();
       switchRightTab('SUMMARY');
       renderPOSCart();
       renderPOSItems();
