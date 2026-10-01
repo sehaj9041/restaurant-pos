@@ -229,7 +229,7 @@
         return;
       }
 
-      checkAndOpenAddonsForOnline(item, item.name, item.price);
+      checkAndOpenAddonsCustomForOnline(item, item.name, item.price, []);
     }
 
     function openOnlineVariationModal(item, variations) {
@@ -252,19 +252,22 @@
 
     function selectOnlineVariationItem(item, variant) {
       closeOnlineVariationModal();
-      checkAndOpenAddonsForOnline(item, `${item.name} (${variant.name})`, variant.price);
-    }
 
-    async function checkAndOpenAddonsForOnline(item, displayName, displayPrice) {
-      let assignedGroups = [];
-      if (item.assigned_addon_groups) {
+      let variantAddons = [];
+      if (variant && variant.addon_groups) {
+        variantAddons = variant.addon_groups;
+      } else if (item && item.assigned_addon_groups) {
         try {
-          assignedGroups = JSON.parse(item.assigned_addon_groups || '[]');
+          variantAddons = JSON.parse(item.assigned_addon_groups || '[]');
         } catch(e) {
-          assignedGroups = [];
+          variantAddons = [];
         }
       }
 
+      checkAndOpenAddonsCustomForOnline(item, `${item.name} (${variant.name})`, variant.price, variantAddons);
+    }
+
+    async function checkAndOpenAddonsCustomForOnline(item, displayName, displayPrice, assignedGroups) {
       if (assignedGroups.length > 0) {
         try {
           const res = await fetch('/api/addon-groups');
@@ -276,7 +279,7 @@
             return;
           }
         } catch(err) {
-          console.error('Error fetching addons:', err);
+          console.error('Error fetching variant addons:', err);
         }
       }
 
