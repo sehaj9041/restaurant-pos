@@ -214,7 +214,7 @@ app.delete('/api/categories/:id', (req, res) => {
   });
 });
 
-// ================= GLOBAL ADD-ON GROUPS APIS (SAFE VERSION) =================
+// ================= GLOBAL ADD-ON GROUPS APIS (ROBUST & SAFE) =================
 app.get('/api/addon-groups', (req, res) => {
   db.all("SELECT * FROM addon_groups ORDER BY id DESC", [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -223,10 +223,18 @@ app.get('/api/addon-groups', (req, res) => {
 });
 
 app.post('/api/addon-groups', (req, res) => {
-  const { name, min_selection, max_selection, is_mandatory, items } = req.body;
+  const { name, min_selection, max_selection, is_mandatory, selection_type, items } = req.body;
+  
+  // Safe insertion matching database.js schema
   db.run(
     `INSERT INTO addon_groups (name, min_selection, max_selection, is_mandatory, items) VALUES (?, ?, ?, ?, ?)`,
-    [name, min_selection || 0, max_selection || 5, is_mandatory ? 1 : 0, JSON.stringify(items || [])],
+    [
+      name || 'New Group', 
+      min_selection !== undefined ? min_selection : 0, 
+      max_selection !== undefined ? max_selection : 5, 
+      is_mandatory ? 1 : 0, 
+      JSON.stringify(items || [])
+    ],
     function (err) {
       if (err) {
         console.error('Addon group insert error:', err.message);
