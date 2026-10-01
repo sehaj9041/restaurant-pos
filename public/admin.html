@@ -421,22 +421,43 @@
 
     function saveAddonGroup(e) {
       e.preventDefault();
+      const groupName = document.getElementById('grp_name').value.trim();
+      const minSel = Number(document.getElementById('grp_min').value) || 0;
+      const maxSel = Number(document.getElementById('grp_max').value) || 5;
+      const mandatory = document.getElementById('grp_mandatory').checked ? 1 : 0;
+
+      if (!groupName) return alert('Group name daalna zaroori hai!');
+      if (tempGroupItems.length === 0) return alert('Kripya kam se kam ek item is group mein add karein!');
+
       fetch('/api/addon-groups', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: document.getElementById('grp_name').value,
-          min_selection: Number(document.getElementById('grp_min').value) || 0,
-          max_selection: Number(document.getElementById('grp_max').value) || 5,
-          is_mandatory: document.getElementById('grp_mandatory').checked,
+          name: groupName,
+          min_selection: minSel,
+          max_selection: maxSel,
+          is_mandatory: mandatory,
           items: tempGroupItems
         })
-      }).then(() => {
-        tempGroupItems = [];
-        document.getElementById('grp_name').value = '';
-        document.getElementById('grp_mandatory').checked = false;
-        renderTempGroupItems();
-        loadData();
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          tempGroupItems = [];
+          document.getElementById('grp_name').value = '';
+          document.getElementById('grp_min').value = '0';
+          document.getElementById('grp_max').value = '5';
+          document.getElementById('grp_mandatory').checked = false;
+          renderTempGroupItems();
+          loadData();
+          alert('Add-on Group successfully save ho gaya!');
+        } else {
+          alert('Error saving add-on group: ' + (data.error || 'Unknown error'));
+        }
+      })
+      .catch(err => {
+        console.error('Save addon group error:', err);
+        alert('Server connection error!');
       });
     }
 
