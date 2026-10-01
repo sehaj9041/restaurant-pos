@@ -1,5 +1,7 @@
 const { Pool } = require('pg');
 const path = require('path');
+const fs = require('fs');
+const XLSX = require('xlsx');
 
 let dbWrapper;
 
@@ -53,7 +55,7 @@ dbWrapper = {
   }
 };
 
-// Create required tables and seed complete menu automatically
+// Create required tables and auto-seed from Excel file on startup
 pool.query(`
   CREATE TABLE IF NOT EXISTS categories (
     id SERIAL PRIMARY KEY,
@@ -140,48 +142,48 @@ pool.query(`
 `).then(async () => {
   console.log('Postgres Cloud DB tables ready.');
 
-  // Seed Categories
-  const categoriesList = [
-    "Garlic Bread's", "New Launch", "Burger Value Meals", "Burgers", 
-    "Wrap Value Meals", "Wraps", "Shakes & Drinks", "Mocktails", 
-    "Desserts'", "French Fries", "Spring Roll", "Ice Cream's", 
-    "Limited Time Offers", "Momos", "Paneer Fingers", "Pasta", 
-    "Pizzas", "Sandwich", "Add-ons"
-  ];
-  for (const cat of categoriesList) {
-    await pool.query("INSERT INTO categories (name) VALUES ($1) ON CONFLICT (name) DO NOTHING", [cat]);
-  }
+  try {
+    const excelFilePath = path.join(__dirname, 'menu_vishal_foodiez.xlsx');
+    if (fs.existsSync(excelFilePath)) {
+      const workbook = XLSX.readFile(excelFilePath);
 
-  // Seed All 141 Menu Items from Excel
-  const res = await pool.query('SELECT COUNT(*) FROM menu');
-  if (parseInt(res.rows[0].count) === 0) {
-    const menuSeedingItems = [
-      ["Butter Jalapeno Garlic Bread", "Garlic Bread's", 199, 50, "https://cdn.tadkatech.in/restaurants/vishal_foodiez/menu/d7dcc67aa96b4fea99107c4c5cc18d58.webp"],
-      ["Butter Mushroom Garlic Bread", "Garlic Bread's", 199, 50, "https://cdn.tadkatech.in/restaurants/vishal_foodiez/menu/456d78c4ea2b478d8d6658123fe82504.webp"],
-      ["Butter&Cheese Garlic Bread", "Garlic Bread's", 199, 50, "https://cdn.tadkatech.in/restaurants/vishal_foodiez/menu/61e184d2041649bdbd765afa218cab8e.webp"],
-      ["Crispy Veggie Finger(8 Piece)", "New Launch", 109, 50, "https://cdn.tadkatech.in/menu/vishal_foodiez/Crispy%20Veggie%20Finger%20%288%20Piece%29.webp?v=20260706"],
-      ["VF Pizza Puff", "New Launch", 44, 0, "https://cdn.tadkatech.in/menu/vishal_foodiez/VF%20Pizza%20Puff.webp?v=20260706"],
-      ["VF Pizza Puff(Meal)", "New Launch", 94, 50, "https://cdn.tadkatech.in/menu/vishal_foodiez/VF%20Pizza%20Puff%28Meal%29.webp?v=20260706"],
-      ["Cheese Corn Roll(4 Rolls)", "New Launch", 129, 50, "https://cdn.tadkatech.in/menu/vishal_foodiez/Cheese%20Corn%20Roll%284%20Rolls%29.webp?v=20260706"],
-      ["Hara Bhara Kabab(8 Piece)", "New Launch", 109, 50, "https://cdn.tadkatech.in/menu/vishal_foodiez/Hara%20Bhara%20Kabab%288%20Piece%29.webp?v=20260706"],
-      ["Miraj Potato Chips(Cream And Onion)150 Gram", "New Launch", 75, 50, "https://cdn.tadkatech.in/menu/vishal_foodiez/Miraj%20Potato%20Chips%28Cream%20And%20Onion%29150%20Gram.webp?v=20260706"],
-      ["Miraj Potato Chips(Mirch Masala)150 Gram", "New Launch", 75, 50, "https://cdn.tadkatech.in/menu/vishal_foodiez/Miraj%20Potato%20Chips%28Mirch%20Masala%29150%20Gram.webp?v=20260706"],
-      ["Miraj Potato Chips(Plain Salted)150 Gram", "New Launch", 75, 50, "https://cdn.tadkatech.in/menu/vishal_foodiez/Miraj%20Potato%20Chips%28Plain%20Salted%29150%20Gram.webp?v=20260706"],
-      ["Cold Coffee", "Shakes & Drinks", 70, 50, "https://cdn.tadkatech.in/restaurants/vishal_foodiez/menu/70.webp"],
-      ["Crispy Veg Burger", "Burgers", 80, 50, "https://cdn.tadkatech.in/restaurants/vishal_foodiez/menu/80.webp"],
-      ["Cheese Loaded Pizza", "Pizzas", 180, 50, "https://cdn.tadkatech.in/restaurants/vishal_foodiez/menu/180.webp"],
-      ["Kurkure Momos", "Momos", 120, 50, "https://cdn.tadkatech.in/restaurants/vishal_foodiez/menu/120.webp"]
-    ];
+      // 1. Seed Categories
+      const catSheet = workbook.Sheets['Categories'];
+      const categories = catSheet ? XLSX.utils.sheet_to_json(catSheet) : [];
+      for (const cat of categories) {
+        const catName = cat['Category Name'] || cat['category'];
+        if (catName) {
+          await pool.query("INSERT INTO categories (name) VALUES ($1) ON CONFLICT (name) DO NOTHING", [catName]);
+        }
+      }
 
-    for (const item of menuSeedingItems) {
-      await pool.query(
-        `INSERT INTO menu (name, category, price, stock, image) VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (name) DO UPDATE SET category = EXCLUDED.category, price = EXCLUDED.price, stock = EXCLUDED.stock, image = EXCLUDED.image`,
-        item
-      );
+      // 2. Seed All Menu Items
+      const itemSheet = workbook.Sheets['Menu Items'];
+      const items = itemSheet ? XLSX.utils.sheet_to_json(itemSheet) : [];
+      for (const item of items) {
+        const itemName = item['Item Name'] || item['item_name'];
+        const category = item['Category'] || 'General';
+        const price = Number(item['Base Price (₹)'] || item['price']) || 0;
+        const image = item['Image URL'] || item['image'] || '';
+        const status = item['Availability'] || 'available';
+        const stock = status === 'available' ? 50 : 0;
+
+        if (itemName) {
+          await pool.query(
+            `INSERT INTO menu (name, category, price, stock, image) VALUES ($1, $2, $3, $4, $5)
+             ON CONFLICT (name) DO UPDATE SET category = EXCLUDED.category, price = EXCLUDED.price, stock = EXCLUDED.stock, image = EXCLUDED.image`,
+            [itemName.trim(), category, price, stock, image]
+          );
+        }
+      }
+      console.log(`Successfully auto-seeded ${items.length} menu items from Excel.`);
+    } else {
+      console.log('Excel file not found locally, skipping auto-seed.');
     }
-    console.log('Complete menu seeded automatically to Cloud DB.');
+  } catch (seedErr) {
+    console.error('Menu auto-seed error:', seedErr.message);
   }
+
 }).catch(err => {
   console.error('Database initialization error:', err);
 });
