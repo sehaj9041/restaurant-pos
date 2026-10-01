@@ -86,6 +86,25 @@
     </div>
   </div>
 
+  <!-- ================= ONLINE VARIATION SELECTION MODAL ================= -->
+  <div id="onlineVariationModal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-5 max-w-sm w-full shadow-2xl space-y-4">
+      <div class="flex justify-between items-center border-b pb-2">
+        <div>
+          <h3 id="onlineVarModalItemName" class="font-black text-gray-900 text-sm">Select Size / Variant</h3>
+          <p class="text-[10px] text-gray-500">Apna pasandida size select karein</p>
+        </div>
+        <button onclick="closeOnlineVariationModal()" class="text-gray-400 hover:text-black font-bold">✕</button>
+      </div>
+
+      <div id="onlineVarModalContent" class="space-y-2 max-h-60 overflow-y-auto pr-1 text-xs"></div>
+
+      <div class="pt-2 text-right border-t">
+        <button onclick="closeOnlineVariationModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-xl text-xs font-bold transition">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ================= ONLINE ADDON SELECTION MODAL ================= -->
   <div id="onlineAddonModal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl p-5 max-w-md w-full shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
@@ -97,9 +116,7 @@
         <button onclick="closeOnlineAddonModal()" class="text-gray-400 hover:text-black font-bold">✕</button>
       </div>
 
-      <div id="onlineAddonModalContent" class="space-y-4 overflow-y-auto flex-1 pr-1 text-xs">
-        <!-- Dynamic Addon Groups & Items -->
-      </div>
+      <div id="onlineAddonModalContent" class="space-y-4 overflow-y-auto flex-1 pr-1 text-xs"></div>
 
       <div class="pt-3 border-t flex justify-between items-center shrink-0">
         <div class="text-xs font-bold text-gray-700">Total Price: <span id="onlineAddonModalTotalPrice" class="text-sm font-black text-indigo-600">₹0</span></div>
@@ -198,6 +215,47 @@
     }
 
     async function addItemCheckAddons(item) {
+      let variations = [];
+      if (item.variations) {
+        try {
+          variations = JSON.parse(item.variations || '[]');
+        } catch(e) {
+          variations = [];
+        }
+      }
+
+      if (variations.length > 0) {
+        openOnlineVariationModal(item, variations);
+        return;
+      }
+
+      checkAndOpenAddonsForOnline(item, item.name, item.price);
+    }
+
+    function openOnlineVariationModal(item, variations) {
+      document.getElementById('onlineVarModalItemName').innerText = item.name + ' - Select Size';
+      
+      let html = variations.map((v) => `
+        <button onclick='selectOnlineVariationItem(${JSON.stringify(item)}, ${JSON.stringify(v)})' class="w-full text-left p-3 rounded-xl border border-gray-200 hover:border-indigo-500 hover:bg-indigo-50/50 flex justify-between items-center transition shadow-2xs">
+          <span class="font-black text-gray-800">${v.name}</span>
+          <span class="font-black text-emerald-600 text-sm">₹${v.price}</span>
+        </button>
+      `).join('');
+
+      document.getElementById('onlineVarModalContent').innerHTML = html;
+      document.getElementById('onlineVariationModal').classList.remove('hidden');
+    }
+
+    function closeOnlineVariationModal() {
+      document.getElementById('onlineVariationModal').classList.add('hidden');
+    }
+
+    function selectOnlineVariationItem(item, variant) {
+      closeOnlineVariationModal();
+      checkAndOpenAddonsForOnline(item, `${item.name} (${variant.name})`, variant.price);
+    }
+
+    async function checkAndOpenAddonsForOnline(item, displayName, displayPrice) {
       let assignedGroups = [];
       if (item.assigned_addon_groups) {
         try {
@@ -214,7 +272,7 @@
           const itemGroups = allGroups.filter(g => assignedGroups.includes(g.id));
           
           if (itemGroups.length > 0) {
-            openOnlineAddonModal(item, itemGroups);
+            openOnlineAddonModal({ ...item, name: displayName, price: displayPrice }, itemGroups);
             return;
           }
         } catch(err) {
@@ -222,8 +280,7 @@
         }
       }
 
-      // Direct add if no addons
-      cart.push({ id: item.id, name: item.name, price: Number(item.price), qty: 1, addons: [] });
+      cart.push({ id: item.id, name: displayName, price: Number(displayPrice), qty: 1, addons: [] });
       updateCartUI();
       renderMenu();
     }
@@ -310,12 +367,6 @@
       });
 
       closeOnlineAddonModal();
-      updateCartUI();
-      renderMenu();
-    }
-
-    function changeQty(id, delta) {
-      // Basic fallback
       updateCartUI();
       renderMenu();
     }
