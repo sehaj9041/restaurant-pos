@@ -1010,6 +1010,19 @@ app.post('/api/system/reset-orders', (req, res) => {
   });
 });
 
+// ================= WHATSAPP INTEGRATION APIS =================
+app.get('/api/whatsapp/status', (req, res) => {
+  res.json({ connected: false, status: 'disconnected', qr: null });
+});
+
+app.post('/api/whatsapp/connect', (req, res) => {
+  res.json({ success: true, message: 'WhatsApp connection initiated' });
+});
+
+app.post('/api/whatsapp/disconnect', (req, res) => {
+  res.json({ success: true, message: 'Disconnected successfully' });
+});
+
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, '0.0.0.0', () => {
