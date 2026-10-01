@@ -396,7 +396,7 @@
         <h2 class="text-base font-black tracking-tight text-gray-800">Menu Management Dashboard</h2>
       </div>
       <div class="flex items-center gap-2">
-        <!-- New Buttons Added Here -->
+        <!-- New Buttons -->
         <button onclick="openCategoriesGroupModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs">
           <span>📁</span> Categories Group
         </button>
@@ -407,7 +407,7 @@
           <span>➕</span> Add-on Groups
         </button>
 
-        <!-- Import Excel Button Inside Menu Management Header -->
+        <!-- Import Excel Button -->
         <button onclick="openExcelImportModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs">
           <span>📥</span> Import Excel Menu
         </button>
@@ -463,15 +463,21 @@
 
   <!-- ================= CATEGORIES GROUP MODAL ================= -->
   <div id="modalCategoriesGroup" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl p-5 space-y-4 border border-gray-200">
+    <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl p-5 space-y-4 border border-gray-200">
       <div class="flex justify-between items-center border-b pb-2">
         <span class="font-black text-gray-800 text-sm flex items-center gap-1.5"><span>📁</span> Categories Group Management</span>
         <button onclick="closeCategoriesGroupModal()" class="text-gray-400 hover:text-gray-600 font-black text-base">✕</button>
       </div>
-      <div class="space-y-2 text-xs">
-        <p class="text-gray-600">Yahan aap restaurant ki categories ko manage aur group kar sakte hain.</p>
+      <div class="space-y-3 text-xs max-h-[60vh] overflow-y-auto">
+        <div class="flex justify-between items-center bg-gray-50 p-2.5 rounded-xl border">
+          <input type="text" id="newCategoryInput" placeholder="New Category Name..." class="border rounded-lg px-3 py-1.5 text-xs outline-none flex-1 mr-2 bg-white">
+          <button onclick="addNewCategoryGroup()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg font-bold">Add Category</button>
+        </div>
+        <div id="categoriesGroupList" class="divide-y divide-gray-100 border rounded-xl p-2">
+          <p class="text-center text-gray-400 py-4 italic">Loading categories...</p>
+        </div>
       </div>
-      <div class="pt-2 text-right">
+      <div class="pt-2 text-right border-t">
         <button onclick="closeCategoriesGroupModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-xl text-xs font-bold transition">Close</button>
       </div>
     </div>
@@ -479,31 +485,70 @@
 
   <!-- ================= VARIATIONS GROUP MODAL ================= -->
   <div id="modalVariationsGroup" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl p-5 space-y-4 border border-gray-200">
+    <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl p-5 space-y-4 border border-gray-200">
       <div class="flex justify-between items-center border-b pb-2">
-        <span class="font-black text-gray-800 text-sm flex items-center gap-1.5"><span>⚙️</span> Variations Group Management</span>
+        <span class="font-black text-gray-800 text-sm flex items-center gap-1.5"><span>⚙️</span> Variations Group Management (Sizes)</span>
         <button onclick="closeVariationsGroupModal()" class="text-gray-400 hover:text-gray-600 font-black text-base">✕</button>
       </div>
-      <div class="space-y-2 text-xs">
-        <p class="text-gray-600">Yahan aap item sizes aur variations (jaise Small, Medium, Large) set kar sakte hain.</p>
+      <div class="space-y-3 text-xs max-h-[60vh] overflow-y-auto">
+        <div class="p-3 bg-gray-50 border rounded-xl space-y-2">
+          <input type="text" id="varGroupName" placeholder="Variation Name (e.g. Pizza Size)" class="w-full border rounded-lg p-2 bg-white font-bold">
+          <input type="text" id="varGroupOptions" placeholder="Options comma separated (e.g. Regular, Medium, Large)" class="w-full border rounded-lg p-2 bg-white">
+          <button onclick="saveVariationGroup()" class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg font-black">Save Variation Group</button>
+        </div>
+        <div id="variationsGroupList" class="space-y-2"></div>
       </div>
-      <div class="pt-2 text-right">
+      <div class="pt-2 text-right border-t">
         <button onclick="closeVariationsGroupModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-xl text-xs font-bold transition">Close</button>
       </div>
     </div>
   </div>
 
-  <!-- ================= ADD-ON GROUPS MODAL ================= -->
+  <!-- ================= ADD-ON GROUPS MODAL (Modifier Library Style) ================= -->
   <div id="modalAddonGroups" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl p-5 space-y-4 border border-gray-200">
-      <div class="flex justify-between items-center border-b pb-2">
-        <span class="font-black text-gray-800 text-sm flex items-center gap-1.5"><span>➕</span> Add-on Groups Management</span>
-        <button onclick="closeAddonGroupsModal()" class="text-gray-400 hover:text-gray-600 font-black text-base">✕</button>
+    <div class="bg-white rounded-2xl w-full max-w-2xl shadow-2xl p-5 space-y-4 border border-gray-200 max-h-[90vh] flex flex-col">
+      <div class="flex justify-between items-center border-b pb-2 shrink-0">
+        <span class="font-black text-gray-800 text-sm flex items-center gap-1.5"><span>➕</span> Add-on Groups Library</span>
+        <div class="flex items-center gap-2">
+          <button onclick="openNewAddonGroupForm()" class="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold">+ New group</button>
+          <button onclick="closeAddonGroupsModal()" class="text-gray-400 hover:text-gray-600 font-black text-base">✕</button>
+        </div>
       </div>
-      <div class="space-y-2 text-xs">
-        <p class="text-gray-600">Yahan aap extra toppings, cheese aur add-on modifiers manage kar sakte hain.</p>
+
+      <!-- New Group Form -->
+      <div id="newAddonGroupFormContainer" class="hidden bg-orange-50/50 border border-orange-200 rounded-xl p-3 space-y-3 shrink-0 text-xs">
+        <div class="font-black text-orange-900">Create New Add-on Group</div>
+        <div>
+          <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Name *</label>
+          <input type="text" id="addonGrpName" placeholder="e.g. Spice Level, Extra Toppings" class="w-full border rounded-lg p-2 bg-white font-bold">
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Selection Type</label>
+            <select id="addonGrpType" class="w-full border rounded-lg p-2 bg-white font-bold">
+              <option value="Single choice">Single choice (radio)</option>
+              <option value="Multiple choice">Multiple choice (checkboxes)</option>
+            </select>
+          </div>
+          <div class="flex items-center pt-5">
+            <label class="flex items-center gap-2 cursor-pointer font-bold text-gray-700">
+              <input type="checkbox" id="addonGrpRequired" class="w-4 h-4 text-orange-600 rounded">
+              <span>Required — customer must choose</span>
+            </label>
+          </div>
+        </div>
+        <div class="flex justify-end gap-2 pt-1">
+          <button onclick="document.getElementById('newAddonGroupFormContainer').classList.add('hidden')" class="border px-3 py-1.5 rounded-lg bg-white">Cancel</button>
+          <button onclick="submitNewAddonGroup()" class="bg-orange-600 text-white px-4 py-1.5 rounded-lg font-black">Create group</button>
+        </div>
       </div>
-      <div class="pt-2 text-right">
+
+      <!-- Addon Groups List -->
+      <div id="addonGroupsListContainer" class="space-y-3 overflow-y-auto flex-1 pr-1 text-xs">
+        <p class="text-center py-10 text-gray-400 italic">Loading add-on groups...</p>
+      </div>
+
+      <div class="pt-2 text-right border-t shrink-0">
         <button onclick="closeAddonGroupsModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-xl text-xs font-bold transition">Close</button>
       </div>
     </div>
@@ -1101,26 +1146,139 @@
       loadMenuManagementData();
     }
 
-    // Modal Control Functions for the 3 New Buttons
+    // Categories Group Modal Functions
     function openCategoriesGroupModal() {
       document.getElementById('modalCategoriesGroup').classList.remove('hidden');
+      loadCategoriesListInModal();
     }
     function closeCategoriesGroupModal() {
       document.getElementById('modalCategoriesGroup').classList.add('hidden');
     }
+    function loadCategoriesListInModal() {
+      var container = document.getElementById('categoriesGroupList');
+      container.innerHTML = allCategories.map(function(cat) {
+        return `<div class="py-2 px-3 flex justify-between items-center font-bold text-gray-700"><span>📁 ${cat}</span></div>`;
+      }).join('') || '<p class="text-center text-gray-400 py-2">No categories found</p>';
+    }
+    function addNewCategoryGroup() {
+      var val = document.getElementById('newCategoryInput').value.trim();
+      if (!val) return alert('Category name daalein!');
+      fetch('/api/menu', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Dummy Item', category: val, price: 10, stock: 1 })
+      }).then(function() {
+        document.getElementById('newCategoryInput').value = '';
+        fetchMenu();
+        loadCategoriesListInModal();
+        alert('Category add ho gayi!');
+      });
+    }
 
+    // Variations Group Modal Functions
     function openVariationsGroupModal() {
       document.getElementById('modalVariationsGroup').classList.remove('hidden');
+      loadVariationsGroupData();
     }
     function closeVariationsGroupModal() {
       document.getElementById('modalVariationsGroup').classList.add('hidden');
     }
+    function loadVariationsGroupData() {
+      fetch('/api/variation-masters')
+        .then(function(r){ return r.json(); })
+        .then(function(rows){
+          var list = document.getElementById('variationsGroupList');
+          if (!rows.length) {
+            list.innerHTML = '<p class="text-center text-gray-400 py-4 italic">No variation groups created yet.</p>';
+            return;
+          }
+          list.innerHTML = rows.map(function(v){
+            var opts = JSON.parse(v.options || '[]').join(', ');
+            return `<div class="border rounded-xl p-2.5 bg-gray-50 flex justify-between items-center"><div><div class="font-black text-gray-800">${v.name}</div><div class="text-[10px] text-gray-500">Options: ${opts}</div></div></div>`;
+          }).join('');
+        });
+    }
+    function saveVariationGroup() {
+      var name = document.getElementById('varGroupName').value.trim();
+      var rawOpts = document.getElementById('varGroupOptions').value.trim();
+      if (!name || !rawOpts) return alert('Sabhi fields bharein!');
+      var options = rawOpts.split(',').map(function(s){ return s.trim(); }).filter(Boolean);
 
+      fetch('/api/variation-masters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name, options: options })
+      }).then(function(){
+        document.getElementById('varGroupName').value = '';
+        document.getElementById('varGroupOptions').value = '';
+        loadVariationsGroupData();
+        alert('Variation group successfully save ho gaya!');
+      });
+    }
+
+    // Add-on Groups Modal Functions (Modifier Library Style)
     function openAddonGroupsModal() {
       document.getElementById('modalAddonGroups').classList.remove('hidden');
+      loadAddonGroupsData();
     }
     function closeAddonGroupsModal() {
       document.getElementById('modalAddonGroups').classList.add('hidden');
+      document.getElementById('newAddonGroupFormContainer').classList.add('hidden');
+    }
+    function openNewAddonGroupForm() {
+      document.getElementById('newAddonGroupFormContainer').classList.remove('hidden');
+    }
+    function loadAddonGroupsData() {
+      fetch('/api/addon-groups')
+        .then(function(r){ return r.json(); })
+        .then(function(rows){
+          var container = document.getElementById('addonGroupsListContainer');
+          if (!rows.length) {
+            container.innerHTML = '<p class="text-center py-10 text-gray-400 italic">No add-on groups found.</p>';
+            return;
+          }
+          container.innerHTML = rows.map(function(g){
+            var items = JSON.parse(g.items || '[]');
+            var itemsHtml = items.map(function(it){
+              return `<div class="py-1.5 px-3 bg-white border-b flex justify-between items-center text-xs"><span>${it.name} (+₹${it.price})</span><span class="text-emerald-600 font-bold">Available</span></div>`;
+            }).join('') || '<div class="p-2 text-gray-400 italic text-center">No options inside this group</div>';
+
+            return `
+              <div class="border border-orange-200 rounded-xl overflow-hidden bg-orange-50/20 shadow-2xs">
+                <div class="bg-orange-50 p-2.5 flex justify-between items-center border-b border-orange-200">
+                  <div>
+                    <span class="font-black text-gray-900">${g.name}</span>
+                    <span class="ml-2 bg-emerald-100 text-emerald-800 text-[9px] font-black px-1.5 py-0.5 rounded">${g.selection_type || 'Single choice'}</span>
+                    ${g.is_mandatory ? '<span class="ml-1 bg-rose-100 text-rose-800 text-[9px] font-black px-1.5 py-0.5 rounded">Required</span>' : ''}
+                  </div>
+                  <button onclick="deleteAddonGroup(${g.id})" class="text-red-500 font-bold hover:underline">Delete</button>
+                </div>
+                <div class="divide-y">${itemsHtml}</div>
+              </div>
+            `;
+          }).join('');
+        });
+    }
+    function submitNewAddonGroup() {
+      var name = document.getElementById('addonGrpName').value.trim();
+      var type = document.getElementById('addonGrpType').value;
+      var required = document.getElementById('addonGrpRequired').checked ? 1 : 0;
+      if (!name) return alert('Group name daalna zaroori hai!');
+
+      fetch('/api/addon-groups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name, selection_type: type, is_mandatory: required, items: [] })
+      }).then(function(){
+        document.getElementById('addonGrpName').value = '';
+        document.getElementById('newAddonGroupFormContainer').classList.add('hidden');
+        loadAddonGroupsData();
+      });
+    }
+    function deleteAddonGroup(id) {
+      if (!confirm("Kya aap is add-on group ko delete karna chahte hain?")) return;
+      fetch('/api/addon-groups/' + id, { method: 'DELETE' })
+        .then(function(){ loadAddonGroupsData(); });
     }
 
     // ================= EXCEL IMPORT MODAL FUNCTIONS =================
