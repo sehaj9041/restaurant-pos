@@ -52,7 +52,7 @@ dbWrapper = {
   }
 };
 
-// Create tables and force-seed all 141 items on every startup
+// Create tables and ensure unique index on menu name
 pool.query(`
   CREATE TABLE IF NOT EXISTS categories (
     id SERIAL PRIMARY KEY,
@@ -137,6 +137,8 @@ pool.query(`
     admin_pin TEXT
   );
 `).then(async () => {
+  // Ensure unique constraint on menu name safely
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS menu_name_idx ON menu (name);`).catch(() => {});
   console.log('Postgres Cloud DB tables ready.');
 
   // 1. Seed Categories
