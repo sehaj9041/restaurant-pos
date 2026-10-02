@@ -63,6 +63,10 @@
       width: calc(22px * var(--kot-scale));
       height: calc(22px * var(--kot-scale));
     }
+    .kot-card-box .kot-sub-check-box {
+      width: calc(16px * var(--kot-scale));
+      height: calc(16px * var(--kot-scale));
+    }
   </style>
 </head>
 <body class="bg-slate-100 min-h-screen p-6 font-sans text-slate-800 select-none">
@@ -317,6 +321,14 @@
       renderKOTCards();
     }
 
+    function toggleAddonReady(orderId, rowIdx, addonIdx) {
+      var store = getCheckedItemKeys();
+      var key = orderId + '_row_' + rowIdx + '_addon_' + addonIdx;
+      store[key] = !store[key];
+      saveCheckedItemKeys(store);
+      renderKOTCards();
+    }
+
     function markReadyStage(id) {
       var strId = id.toString();
       var readyStore = getReadyForDispatchOrders();
@@ -328,6 +340,11 @@
       if (targetOrder) {
         (targetOrder.items || []).forEach(function(item, idx) {
           checkedMap[strId + '_row_' + idx] = true;
+          if (item.addons && Array.isArray(item.addons)) {
+            item.addons.forEach(function(_, aIdx) {
+              checkedMap[strId + '_row_' + idx + '_addon_' + aIdx] = true;
+            });
+          }
         });
         saveCheckedItemKeys(checkedMap);
       }
@@ -351,9 +368,16 @@
 
       if (snapshots[strId]) {
         snapshots[strId].wasCompletedBefore = true;
-        var rCount = snapshots[strId].rowsCount || 0;
-        for (var i = 0; i < rCount; i++) {
-          checkedMap[strId + '_row_' + i] = true;
+        var targetOrder = liveOrdersData.find(function(o){ return o.id.toString() === strId; });
+        if (targetOrder && targetOrder.items) {
+          targetOrder.items.forEach(function(item, idx) {
+            checkedMap[strId + '_row_' + idx] = true;
+            if (item.addons && Array.isArray(item.addons)) {
+              item.addons.forEach(function(_, aIdx) {
+                checkedMap[strId + '_row_' + idx + '_addon_' + aIdx] = true;
+              });
+            }
+          });
         }
       }
 
@@ -509,7 +533,14 @@
         var isReadyForDispatch = !!readyStore[strId];
 
         var allItemsReady = (order.items || []).every(function(item, idx) {
-          return !!checkedMap[order.id + '_row_' + idx];
+          var mainItemDone = !!checkedMap[order.id + '_row_' + idx];
+          var addonsDone = true;
+          if (item.addons && Array.isArray(item.addons)) {
+            addonsDone = item.addons.every(function(_, aIdx) {
+              return !!checkedMap[order.id + '_row_' + idx + '_addon_' + aIdx];
+            });
+          }
+          return mainItemDone && addonsDone;
         });
 
         var theme = {
@@ -582,15 +613,30 @@
             ` : ''}
 
             <!-- ITEMS LIST -->
-            <div class="p-3.5 space-y-2">
+            <div class="p-3.5 space-y-3">
               ${(order.items || []).map(function(item, idx) {
                 var rowKey = order.id + '_row_' + idx;
                 var isDone = !!checkedMap[rowKey];
                 var badgeTag = persistentBadges[rowKey];
 
+                // Add-ons list formatting in parenthesis style like old KDS
+                var addonsList = [];
+                if (item.addons && Array.isArray(item.addons)) {
+                  addonsList = item.addons;
+                } else if (item.name && item.name.includes('(') && item.name.endsWith(')')) {
+                  // Fallback string extraction if addons embedded in name
+                  var parts = item.name.match(/\(([^)]+)\)/);
+                  if (parts && parts[1]) {
+                    addonsList = parts[1].split(',').map(function(s){ return { name: s.trim() }; });
+                  }
+                }
+
+                // Clean base name without old parentheses if any
+                var cleanBaseName = item.name.replace(/\s*\(.*?\)\s*$/, '');
+
                 return `
-                  <div onclick="toggleItemReady(${order.id}, 'row_${idx}')" class="border-b border-slate-100 pb-1.5 cursor-pointer select-none transition ${isDone ? 'opacity-35' : 'hover:bg-slate-50'}">
-                    <div class="flex items-center gap-2.5">
+                  <div class="border-b border-slate-100 pb-2.5">
+                    <div onclick="toggleItemReady(${order.id}, 'row_${idx}')" class="flex items-center gap-2.5 cursor-pointer select-none transition ${isDone ? 'opacity-35' : 'hover:bg-slate-50'}">
                       <div class="kot-check-box rounded-md flex items-center justify-center border shrink-0 transition ${isDone ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-slate-300 bg-white'}">
                         ${isDone ? '✓' : ''}
                       </div>
@@ -600,7 +646,9 @@
                         x${item.qty}
                       </span>
 
-                      <span class="kot-item-title font-bold text-slate-800 flex-1 ${isDone ? 'line-through text-slate-400' : ''}">${item.name}</span>
+                      <span class="kot-item-title font-bold text-slate-800 flex-1 ${isDone ? 'line-through text-slate-400' : ''}">
+                        ${cleanBaseName}${addonsList.length > 0 ? ` (${addonsList.map(a => a.name).join(', ')})` : ''}
+                      </span>
 
                       ${badgeTag ? `
                         <span class="badge-alert kot-badge bg-rose-600 text-white font-black px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 shadow-2xs border border-rose-400">
@@ -608,7 +656,26 @@
                         </span>
                       ` : ''}
                     </div>
-                    ${item.notes ? `<div class="kot-notes text-amber-600 font-semibold mt-0.5 ml-8">↳ ${item.notes}</div>` : ''}
+
+                    <!-- INDIVIDUAL ADD-ONS TICK BOXES -->
+                    ${addonsList.length > 0 ? `
+                      <div class="mt-1.5 ml-8 space-y-1 pl-2 border-l-2 border-slate-200">
+                        ${addonsList.map(function(addon, aIdx) {
+                          var addonKey = order.id + '_row_' + idx + '_addon_' + aIdx;
+                          var isAddonDone = !!checkedMap[addonKey];
+                          return `
+                            <div onclick="toggleAddonReady(${order.id}, ${idx},${aIdx})" class="flex items-center gap-2 cursor-pointer select-none ${isAddonDone ? 'opacity-30 line-through text-slate-400' : 'text-slate-600 hover:text-slate-900'}">
+                              <div class="kot-sub-check-box rounded flex items-center justify-center border shrink-0 transition ${isAddonDone ? 'bg-emerald-600 border-emerald-600 text-white text-[10px]' : 'border-slate-300 bg-white'}">
+                                ${isAddonDone ? '✓' : ''}
+                              </div>
+                              <span class="text-xs font-semibold">+ ${addon.name}</span>
+                            </div>
+                          `;
+                        }).join('')}
+                      </div>
+                    ` : ''}
+
+                    ${item.notes ? `<div class="kot-notes text-amber-600 font-semibold mt-1 ml-8">↳ ${item.notes}</div>` : ''}
                   </div>
                 `;
               }).join('')}
