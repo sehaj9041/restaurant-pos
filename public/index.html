@@ -3091,7 +3091,17 @@
         return;
       }
 
-      checkAndOpenAddonsCustomForPOS(itemObj, name, price, []);
+      // Fix for items without variations (like burgers) to read direct item-level assigned addon groups
+      let itemAddons = [];
+      if (itemObj && itemObj.assigned_addon_groups) {
+        try {
+          itemAddons = JSON.parse(itemObj.assigned_addon_groups || '[]');
+        } catch(e) {
+          itemAddons = [];
+        }
+      }
+
+      checkAndOpenAddonsCustomForPOS(itemObj, name, price, itemAddons);
     }
 
     function openPOSVariationModal(item, variations) {
