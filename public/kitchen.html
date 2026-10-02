@@ -319,9 +319,19 @@
       var newState = !store[key];
       store[key] = newState;
 
-      // Cascading: Toggle all sub-addons for this item row as well
+      // Extract addons to check/uncheck them together automatically
+      var addonsList = [];
       if (itemObj && itemObj.addons && Array.isArray(itemObj.addons)) {
-        itemObj.addons.forEach(function(_, aIdx) {
+        addonsList = itemObj.addons;
+      } else if (itemObj && itemObj.name && itemObj.name.includes('(') && itemObj.name.endsWith(')')) {
+        var parts = itemObj.name.match(/\(([^)]+)\)/);
+        if (parts && parts[1]) {
+          addonsList = parts[1].split(',').map(function(s){ return { name: s.trim() }; });
+        }
+      }
+
+      if (addonsList.length > 0) {
+        addonsList.forEach(function(_, aIdx) {
           var addonKey = orderId + '_' + rowIdentifier + '_addon_' + aIdx;
           store[addonKey] = newState;
         });
@@ -350,8 +360,19 @@
       if (targetOrder) {
         (targetOrder.items || []).forEach(function(item, idx) {
           checkedMap[strId + '_row_' + idx] = true;
+          
+          var addonsList = [];
           if (item.addons && Array.isArray(item.addons)) {
-            item.addons.forEach(function(_, aIdx) {
+            addonsList = item.addons;
+          } else if (item.name && item.name.includes('(') && item.name.endsWith(')')) {
+            var parts = item.name.match(/\(([^)]+)\)/);
+            if (parts && parts[1]) {
+              addonsList = parts[1].split(',').map(function(s){ return { name: s.trim() }; });
+            }
+          }
+
+          if (addonsList.length > 0) {
+            addonsList.forEach(function(_, aIdx) {
               checkedMap[strId + '_row_' + idx + '_addon_' + aIdx] = true;
             });
           }
@@ -382,8 +403,19 @@
         if (targetOrder && targetOrder.items) {
           targetOrder.items.forEach(function(item, idx) {
             checkedMap[strId + '_row_' + idx] = true;
+            
+            var addonsList = [];
             if (item.addons && Array.isArray(item.addons)) {
-              item.addons.forEach(function(_, aIdx) {
+              addonsList = item.addons;
+            } else if (item.name && item.name.includes('(') && item.name.endsWith(')')) {
+              var parts = item.name.match(/\(([^)]+)\)/);
+              if (parts && parts[1]) {
+                addonsList = parts[1].split(',').map(function(s){ return { name: s.trim() }; });
+              }
+            }
+
+            if (addonsList.length > 0) {
+              addonsList.forEach(function(_, aIdx) {
                 checkedMap[strId + '_row_' + idx + '_addon_' + aIdx] = true;
               });
             }
@@ -545,8 +577,19 @@
         var allItemsReady = (order.items || []).every(function(item, idx) {
           var mainItemDone = !!checkedMap[order.id + '_row_' + idx];
           var addonsDone = true;
+          
+          var addonsList = [];
           if (item.addons && Array.isArray(item.addons)) {
-            addonsDone = item.addons.every(function(_, aIdx) {
+            addonsList = item.addons;
+          } else if (item.name && item.name.includes('(') && item.name.endsWith(')')) {
+            var parts = item.name.match(/\(([^)]+)\)/);
+            if (parts && parts[1]) {
+              addonsList = parts[1].split(',').map(function(s){ return { name: s.trim() }; });
+            }
+          }
+
+          if (addonsList.length > 0) {
+            addonsDone = addonsList.every(function(_, aIdx) {
               return !!checkedMap[order.id + '_row_' + idx + '_addon_' + aIdx];
             });
           }
@@ -632,10 +675,15 @@
                 var addonsList = [];
                 if (item.addons && Array.isArray(item.addons)) {
                   addonsList = item.addons;
+                } else if (item.name && item.name.includes('(') && item.name.endsWith(')')) {
+                  var parts = item.name.match(/\(([^)]+)\)/);
+                  if (parts && parts[1]) {
+                    addonsList = parts[1].split(',').map(function(s){ return { name: s.trim() }; });
+                  }
                 }
 
-                // Clean base name without any lingering parenthesis
-                var cleanBaseName = item.name.replace(/\s*\(.*?\)\s*$/, '');
+                // Completely strip out any parentheses from main item display title
+                var cleanBaseName = item.name.replace(/\s*\(.*?\)\s*$/, '').trim();
 
                 return `
                   <div class="border-b border-slate-100 pb-2.5">
