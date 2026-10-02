@@ -313,10 +313,20 @@
       localStorage.setItem('kot_ready_dispatch', JSON.stringify(store));
     }
 
-    function toggleItemReady(orderId, rowIdentifier) {
+    function toggleItemReady(orderId, rowIdentifier, itemObj) {
       var store = getCheckedItemKeys();
       var key = orderId + '_' + rowIdentifier;
-      store[key] = !store[key];
+      var newState = !store[key];
+      store[key] = newState;
+
+      // Cascading: Toggle all sub-addons for this item row as well
+      if (itemObj && itemObj.addons && Array.isArray(itemObj.addons)) {
+        itemObj.addons.forEach(function(_, aIdx) {
+          var addonKey = orderId + '_' + rowIdentifier + '_addon_' + aIdx;
+          store[addonKey] = newState;
+        });
+      }
+
       saveCheckedItemKeys(store);
       renderKOTCards();
     }
@@ -619,24 +629,17 @@
                 var isDone = !!checkedMap[rowKey];
                 var badgeTag = persistentBadges[rowKey];
 
-                // Add-ons list formatting in parenthesis style like old KDS
                 var addonsList = [];
                 if (item.addons && Array.isArray(item.addons)) {
                   addonsList = item.addons;
-                } else if (item.name && item.name.includes('(') && item.name.endsWith(')')) {
-                  // Fallback string extraction if addons embedded in name
-                  var parts = item.name.match(/\(([^)]+)\)/);
-                  if (parts && parts[1]) {
-                    addonsList = parts[1].split(',').map(function(s){ return { name: s.trim() }; });
-                  }
                 }
 
-                // Clean base name without old parentheses if any
+                // Clean base name without any lingering parenthesis
                 var cleanBaseName = item.name.replace(/\s*\(.*?\)\s*$/, '');
 
                 return `
                   <div class="border-b border-slate-100 pb-2.5">
-                    <div onclick="toggleItemReady(${order.id}, 'row_${idx}')" class="flex items-center gap-2.5 cursor-pointer select-none transition ${isDone ? 'opacity-35' : 'hover:bg-slate-50'}">
+                    <div onclick='toggleItemReady(${order.id}, "row_${idx}", ${JSON.stringify(item)})' class="flex items-center gap-2.5 cursor-pointer select-none transition ${isDone ? 'opacity-35' : 'hover:bg-slate-50'}">
                       <div class="kot-check-box rounded-md flex items-center justify-center border shrink-0 transition ${isDone ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-slate-300 bg-white'}">
                         ${isDone ? '✓' : ''}
                       </div>
@@ -647,7 +650,7 @@
                       </span>
 
                       <span class="kot-item-title font-bold text-slate-800 flex-1 ${isDone ? 'line-through text-slate-400' : ''}">
-                        ${cleanBaseName}${addonsList.length > 0 ? ` (${addonsList.map(a => a.name).join(', ')})` : ''}
+                        ${cleanBaseName}
                       </span>
 
                       ${badgeTag ? `
