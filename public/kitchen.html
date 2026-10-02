@@ -71,7 +71,7 @@
 </head>
 <body class="bg-slate-100 min-h-screen p-6 font-sans text-slate-800 select-none">
 
-  <!-- TOP HEADER (LOCKED & CLEAN LIGHT BAR) -->
+  <!-- TOP HEADER -->
   <div class="flex justify-between items-center mb-6 border-b border-slate-200 pb-4 flex-wrap gap-4 bg-white p-4 rounded-2xl shadow-xs">
     <div class="flex items-center gap-3">
       <span class="inline-block w-3 h-3 bg-emerald-500 rounded-full animate-pulse"></span>
@@ -98,12 +98,17 @@
         <button onclick="resetKOTCardScale()" title="Reset Size" class="text-slate-400 hover:text-slate-800 text-xs px-1 font-bold">↺</button>
       </div>
 
+      <!-- KDS PRINTER SETTINGS BUTTON -->
+      <button onclick="openKdsSettingsModal()" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold px-3 py-1.5 rounded-lg text-xs transition flex items-center gap-1.5 shadow-2xs">
+        <span>🖨️</span> <span id="lblPrinterStatus">Printer: OFF</span>
+      </button>
+
       <!-- FULLSCREEN TOGGLE BUTTON -->
       <button id="btnFullScreen" onclick="toggleFullScreen()" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold px-3 py-1.5 rounded-lg text-xs transition flex items-center gap-1.5 shadow-2xs">
         <span id="fullScreenIcon">⛶</span> <span id="fullScreenText">Fullscreen</span>
       </button>
 
-      <!-- AUDIO ALERT TOGGLE (PERSISTENT STATE) -->
+      <!-- AUDIO ALERT TOGGLE -->
       <button id="btnAudioToggle" onclick="toggleAudioSetting()" class="bg-emerald-600 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition flex items-center gap-1.5 shadow-2xs">
         <span>🔔</span> <span id="lblAudioStatus">Sound Alert Active</span>
       </button>
@@ -120,10 +125,122 @@
     <div class="col-span-full text-center py-24 text-slate-400 font-bold text-lg">No active orders right now.</div>
   </div>
 
+  <!-- ================= KDS PRINTER SETTINGS MODAL ================= -->
+  <div id="kdsSettingsModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-2xl text-xs">
+      <div class="flex justify-between items-center border-b pb-2">
+        <h3 class="font-black text-slate-900 text-sm">KDS Network Printer Setup</h3>
+        <button onclick="closeKdsSettingsModal()" class="text-slate-400 hover:text-black font-bold text-base">✕</button>
+      </div>
+      
+      <div class="space-y-3">
+        <label class="flex items-center justify-between p-3 bg-slate-50 border rounded-xl cursor-pointer">
+          <div>
+            <div class="font-black text-slate-800">Enable Token Auto-Print</div>
+            <div class="text-[10px] text-slate-500">Isi KDS se item ready hone par print nikle</div>
+          </div>
+          <input type="checkbox" id="kdsAutoPrintToggle" onchange="toggleKdsPrinterFields()" class="w-4 h-4 accent-orange-500 rounded">
+        </label>
+
+        <div id="printerIpSection" class="space-y-1 hidden">
+          <label class="block font-bold text-slate-600 uppercase text-[10px]">Printer IP Address</label>
+          <input type="text" id="kdsPrinterIp" placeholder="e.g. 192.168.1.88" class="w-full border border-slate-300 rounded-lg p-2 font-mono font-bold text-slate-800 outline-none focus:border-orange-500">
+          <p class="text-[10px] text-slate-400">Thermal printer ka local Wi-Fi IP address daalein</p>
+        </div>
+      </div>
+
+      <div class="pt-2 flex justify-end gap-2">
+        <button onclick="closeKdsSettingsModal()" class="border px-3 py-2 rounded-xl font-bold bg-white">Cancel</button>
+        <button onclick="saveKdsPrinterSetting()" class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-xl font-bold">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <iframe id="silentPrintFrame" style="position:fixed;right:0;bottom:0;width:0;height:0;border:0;"></iframe>
+
   <script>
     var audioCtx = null;
     var isAudioAllowed = true;
     var liveOrdersData = [];
+
+    // ================= KDS PRINTER LOCAL SETTINGS =================
+    function getKdsPrinterConfig() {
+      try {
+        return JSON.parse(localStorage.getItem('kds_device_printer_config') || '{"enabled": false, "ip": ""}');
+      } catch(e) {
+        return { enabled: false, ip: "" };
+      }
+    }
+
+    function openKdsSettingsModal() {
+      var cfg = getKdsPrinterConfig();
+      document.getElementById('kdsAutoPrintToggle').checked = !!cfg.enabled;
+      document.getElementById('kdsPrinterIp').value = cfg.ip || '';
+      toggleKdsPrinterFields();
+      document.getElementById('kdsSettingsModal').classList.remove('hidden');
+    }
+
+    function closeKdsSettingsModal() {
+      document.getElementById('kdsSettingsModal').classList.add('hidden');
+      updateKdsPrinterUIState();
+    }
+
+    function toggleKdsPrinterFields() {
+      var isChecked = document.getElementById('kdsAutoPrintToggle').checked;
+      var ipSec = document.getElementById('printerIpSection');
+      if (isChecked) {
+        ipSec.classList.remove('hidden');
+      } else {
+        ipSec.classList.add('hidden');
+      }
+    }
+
+    function saveKdsPrinterSetting() {
+      var isEnabled = document.getElementById('kdsAutoPrintToggle').checked;
+      var ipVal = document.getElementById('kdsPrinterIp').value.trim();
+      
+      localStorage.setItem('kds_device_printer_config', JSON.stringify({ enabled: isEnabled, ip: ipVal }));
+      closeKdsSettingsModal();
+      updateKdsPrinterUIState();
+      alert('Printer settings saved successfully for this KDS!');
+    }
+
+    function updateKdsPrinterUIState() {
+      var cfg = getKdsPrinterConfig();
+      var btnLbl = document.getElementById('lblPrinterStatus');
+      if (btnLbl) {
+        btnLbl.innerText = (cfg.enabled && cfg.ip) ? `Printer: ON (${cfg.ip})` : "Printer: OFF";
+      }
+    }
+
+    function printItemReadyToken(order, item) {
+      var printerCfg = getKdsPrinterConfig();
+      if (!printerCfg.enabled) return;
+
+      var cleanName = item.name.replace(/\s*\(.*?\)\s*$/, '').trim();
+      var addonsStr = '';
+      if (item.addons && Array.isArray(item.addons)) {
+        addonsStr = item.addons.map(a => a.name).join(', ');
+      }
+
+      var printData = {
+        printer_ip: printerCfg.ip,
+        order_id: order.id,
+        table: order.table_no || order.order_type,
+        qty: item.qty,
+        item_name: cleanName,
+        addons: addonsStr,
+        time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+      };
+
+      fetch('http://127.0.0.1:4567/print-network-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(printData)
+      }).catch(function(err) {
+        console.warn('Network print agent offline, using fallback print', err);
+      });
+    }
 
     // ================= SOUND PERSISTENCE & AUDIO UNLOCK =================
     function initPersistentAudio() {
@@ -182,7 +299,6 @@
         if (!audioCtx) return;
 
         var now = audioCtx.currentTime;
-        
         var osc1 = audioCtx.createOscillator();
         var gain1 = audioCtx.createGain();
         osc1.type = 'sine';
@@ -319,7 +435,6 @@
       var newState = !store[key];
       store[key] = newState;
 
-      // Extract addons to check/uncheck them together automatically
       var addonsList = [];
       if (itemObj && itemObj.addons && Array.isArray(itemObj.addons)) {
         addonsList = itemObj.addons;
@@ -338,6 +453,18 @@
       }
 
       saveCheckedItemKeys(store);
+
+      if (newState) {
+        var targetOrder = liveOrdersData.find(function(o){ return o.id.toString() === orderId.toString(); });
+        if (targetOrder) {
+          var itemIndex = rowIdentifier.replace('row_', '');
+          var targetItem = targetOrder.items[itemIndex];
+          if (targetItem) {
+            printItemReadyToken(targetOrder, targetItem);
+          }
+        }
+      }
+
       renderKOTCards();
     }
 
