@@ -3091,7 +3091,6 @@
         return;
       }
 
-      // Fix for items without variations (like burgers) to read direct item-level assigned addon groups
       let itemAddons = [];
       if (itemObj && itemObj.assigned_addon_groups) {
         try {
@@ -3177,6 +3176,9 @@
         let groupItems = [];
         try { groupItems = JSON.parse(g.items || '[]'); } catch(e) {}
         
+        let isMultiple = (g.selection_type === 'Multiple choice' || g.max_selection > 1);
+        let inputType = isMultiple ? 'checkbox' : 'radio';
+
         html += `
           <div class="border rounded-xl p-3 bg-gray-50 space-y-2">
             <div class="flex justify-between items-center">
@@ -3187,11 +3189,10 @@
         `;
         
         groupItems.forEach((ai) => {
-          let inputType = g.selection_type === 'Multiple choice' ? 'checkbox' : 'radio';
           html += `
             <label class="flex items-center justify-between p-2 rounded-lg bg-white border cursor-pointer hover:bg-orange-50/50">
               <div class="flex items-center gap-2">
-                <input type="${inputType}" name="addon_group_${gIdx}" value="${ai.name}" data-price="${ai.price}" class="posAddonInput grp-${gIdx} text-orange-600 rounded">
+                <input type="${inputType}" name="addon_group_${gIdx}" value="${ai.name}" data-price="${ai.price}" onchange="updateAddonModalTotalPrice()" class="posAddonInput grp-${gIdx} text-orange-600 rounded">
                 <span class="font-bold text-gray-700">${ai.name}</span>
               </div>
               <span class="font-black text-gray-900">+₹${ai.price}</span>
@@ -3203,6 +3204,22 @@
 
       document.getElementById('posAddonModalContent').innerHTML = html;
       document.getElementById('posAddonModal').classList.remove('hidden');
+      updateAddonModalTotalPrice();
+    }
+
+    function updateAddonModalTotalPrice() {
+      if (!currentModalSelectedItem) return;
+      let basePrice = Number(currentModalSelectedItem.price) || 0;
+      let extraPrice = 0;
+
+      currentModalItemGroups.forEach((g, gIdx) => {
+        const checkedInputs = document.querySelectorAll(`.posAddonInput.grp-${gIdx}:checked`);
+        checkedInputs.forEach(input => {
+          extraPrice += Number(input.getAttribute('data-price')) || 0;
+        });
+      });
+
+      document.getElementById('posAddonModalTotalPrice').innerText = '₹' + (basePrice + extraPrice);
     }
 
     function closePOSAddonModal() {
