@@ -126,14 +126,14 @@ app.get('/api/display/current', (req, res) => {
 
 // 2. HARDWARE ZERO-PAPER CASH DRAWER PULSE
 const triggerDrawerKick = (req, res) => {
-  const psCommand = `powershell -NoProfile -Command "$bytes = [byte[]](0x1B,0x70,0x00,0x19,0xFA); $path = [System.IO.Path]::Combine($env:TEMP, 'kick.bin'); [System.IO.File]::WriteAllBytes($path, $bytes); Get-Content -Path $path -Encoding Byte -Raw | Out-Printer -Name 'Posiflex PP8803 Printer'; Remove-Item $path -ErrorAction SilentlyContinue"`;
+  const psCommand = `powershell -NoProfile -Command "$bytes = [byte[]](0x1B,0x70,0x01,0x19,0xFA); $path = [System.IO.Path]::Combine($env:TEMP, 'kick.bin'); [System.IO.File]::WriteAllBytes($path, $bytes); Get-Content -Path $path -Encoding Byte -Raw | Out-Printer -Name 'Posiflex PP8803 Printerrr'; Remove-Item $path -ErrorAction SilentlyContinue"`;
 
   exec(psCommand, (error) => {
     if (error) {
       console.error('[DRAWER ERROR]:', error.message);
       return res.status(500).json({ success: false, message: 'Drawer trigger error', error: error.message });
     }
-    console.log('[DRAWER SUCCESS]: Raw pulse sent to Posiflex PP8803 (Zero paper feed)');
+    console.log('[DRAWER SUCCESS]: Raw pulse sent to Posiflex PP8803 Printerrr');
     res.json({ success: true });
   });
 };
@@ -354,12 +354,63 @@ app.get('/api/orders/today-stats', (req, res) => {
   });
 });
 
+// ================= NEEDS APPROVAL (PENDING ORDERS) APIS =================
+app.get('/api/orders/needs-approval', (req, res) => {
+  const query = `
+    SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount, created_at
+    FROM orders 
+    WHERE UPPER(status) = 'NEEDS_APPROVAL'
+    ORDER BY id DESC
+  `;
+
+  db.all(query, [], async (err, orders) => {
+    if (err) {
+      console.error('Needs approval fetch error:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+    if (!orders || orders.length === 0) return res.json([]);
+
+    try {
+      const fullOrders = await Promise.all(
+        orders.map(order => {
+          return new Promise((resolve) => {
+            db.all('SELECT id, name, qty, price, notes FROM order_items WHERE order_id = ?', [order.id], (err2, items) => {
+              resolve({ ...order, items: items || [] });
+            });
+          });
+        })
+      );
+      res.json(fullOrders);
+    } catch (e) {
+      res.json(orders.map(o => ({ ...o, items: [] })));
+    }
+  });
+});
+
+app.post('/api/orders/:id/approve', (req, res) => {
+  const orderId = req.params.id;
+  db.run("UPDATE orders SET status = 'RUNNING_TABLE' WHERE id = ?", [orderId], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    console.log(`[ORDER APPROVED] Order #${orderId} accepted and sent to kitchen.`);
+    res.json({ success: true });
+  });
+});
+
+app.post('/api/orders/:id/reject', (req, res) => {
+  const orderId = req.params.id;
+  db.run("UPDATE orders SET status = 'VOID' WHERE id = ?", [orderId], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    console.log(`[ORDER REJECTED] Order #${orderId} rejected.`);
+    res.json({ success: true });
+  });
+});
+
 // 7. ACTIVE ORDERS (Robust fetch for online & active orders)
 app.get('/api/orders/active', (req, res) => {
   const query = `
     SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount
     FROM orders 
-    WHERE UPPER(status) != 'COMPLETED'
+    WHERE (UPPER(status) != 'COMPLETED' AND UPPER(status) != 'NEEDS_APPROVAL' AND UPPER(status) != 'VOID')
        OR UPPER(order_type) = 'ONLINE'
     ORDER BY id DESC
   `;
@@ -605,9 +656,12 @@ app.post('/api/orders', async (req, res) => {
     initialPaid = Number(paid_amount) || Number(total) || 0;
   }
 
-  let status = 'PENDING';
+  // Check if order is from Online / Kiosk, set status to NEEDS_APPROVAL
+  let status = 'RUNNING_TABLE';
   if (is_hold) {
     status = 'RUNNING_TABLE';
+  } else if (order_type && (order_type.toUpperCase() === 'ONLINE' || order_type.toUpperCase() === 'KIOSK')) {
+    status = 'NEEDS_APPROVAL';
   } else if (payment_mode === 'DUE') {
     status = 'DUE_PENDING';
   }
@@ -874,7 +928,7 @@ app.get('/api/kot', (req, res) => {
   db.all(
     `SELECT o.id, o.order_type, o.table_no, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
      FROM orders o 
-     WHERE o.status IN ('PENDING', 'RUNNING_TABLE', 'DUE_PENDING', 'RUNNING') 
+     WHERE o.status IN ('RUNNING_TABLE', 'DUE_PENDING', 'RUNNING') 
      ORDER BY o.id ASC`,
     [],
     async (err, orders) => {
@@ -962,7 +1016,7 @@ app.get('/api/reports/analytics', (req, res) => {
       COALESCE(SUM(CASE WHEN payment_mode = 'DUE' OR status = 'DUE_PENDING' THEN total ELSE 0 END), 0) AS due_sales
     FROM orders 
     WHERE (created_at::date BETWEEN ?::date AND ?::date OR DATE(created_at) BETWEEN DATE(?) AND DATE(?))
-      AND status NOT IN ('RUNNING_TABLE', 'KOT_READY')
+      AND status NOT IN ('RUNNING_TABLE', 'KOT_READY', 'NEEDS_APPROVAL')
   `;
 
   const expenseQuery = `
@@ -978,7 +1032,7 @@ app.get('/api/reports/analytics', (req, res) => {
     FROM order_items oi
     JOIN orders o ON o.id = oi.order_id
     WHERE (o.created_at::date BETWEEN ?::date AND ?::date OR DATE(o.created_at) BETWEEN DATE(?) AND DATE(?))
-      AND o.status NOT IN ('RUNNING_TABLE', 'KOT_READY')
+      AND o.status NOT IN ('RUNNING_TABLE', 'KOT_READY', 'NEEDS_APPROVAL')
     GROUP BY oi.name
     ORDER BY total_qty DESC
     LIMIT 10
@@ -988,7 +1042,7 @@ app.get('/api/reports/analytics', (req, res) => {
     SELECT id, order_type, table_no, customer_name, customer_phone, payment_mode, status, subtotal, discount, gst, total, COALESCE(paid_amount, total) as paid_amount, created_at
     FROM orders 
     WHERE (created_at::date BETWEEN ?::date AND ?::date OR DATE(created_at) BETWEEN DATE(?) AND DATE(?))
-      AND status NOT IN ('RUNNING_TABLE', 'KOT_READY')
+      AND status NOT IN ('RUNNING_TABLE', 'KOT_READY', 'NEEDS_APPROVAL')
     ORDER BY id DESC
   `;
 
