@@ -659,17 +659,19 @@ app.put('/api/orders/:id', (req, res) => {
 });
 
 app.post('/api/orders', async (req, res) => {
-  const { order_type, table_no, customer_name, customer_phone, items, payment_mode, subtotal, discount, gst, total, is_hold, paid_amount } = req.body;
+  const { order_type, table_no, customer_name, customer_phone, items, payment_mode, subtotal, discount, gst, total, is_hold, paid_amount, is_kiosk } = req.body;
 
   let initialPaid = 0;
   if (payment_mode && payment_mode !== 'UNPAID' && payment_mode !== 'DUE') {
     initialPaid = Number(paid_amount) || Number(total) || 0;
   }
 
+  // Yahan check kar rahe hain ki agar kiosk, online ya self order hai toh status NEEDS_APPROVAL ho jaye
   let status = 'RUNNING_TABLE';
   if (is_hold) {
     status = 'RUNNING_TABLE';
-  } else if (order_type && (order_type.toUpperCase().includes('ONLINE') || order_type.toUpperCase().includes('KIOSK') || order_type.toUpperCase().includes('SELF'))) {
+  } else if (is_kiosk || (order_type && (order_type.toUpperCase().includes('ONLINE') || order_type.toUpperCase().includes('KIOSK') || order_type.toUpperCase().includes('SELF') || order_type.toUpperCase().includes('DINE-IN') || order_type.toUpperCase().includes('TAKEAWAY')))) {
+    // Kiosk se aane wale saare Dine-In ya Takeaway orders pehle approval ke liye jayenge
     status = 'NEEDS_APPROVAL';
   } else if (payment_mode === 'DUE') {
     status = 'DUE_PENDING';
