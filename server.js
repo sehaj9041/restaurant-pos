@@ -677,6 +677,18 @@ app.put('/api/orders/:id', (req, res) => {
 app.post('/api/orders', async (req, res) => {
   const { order_type, table_no, customer_name, customer_phone, items, payment_mode, subtotal, discount, is_hold, paid_amount, is_kiosk } = req.body;
 
+  let rawType = (order_type || 'Kiosk').trim();
+  let upperType = rawType.toUpperCase();
+  let normalizedOrderType = rawType;
+
+  if (upperType.includes('DELIVERY')) {
+    normalizedOrderType = 'Delivery';
+  } else if (upperType.includes('TAKEAWAY') || upperType.includes('PICKUP')) {
+    normalizedOrderType = 'Takeaway';
+  } else if (upperType.includes('DINE') || upperType.includes('EAT') || upperType.includes('KIOSK')) {
+    normalizedOrderType = 'Dine-In';
+  }
+
   let calculatedSubtotal = Number(subtotal) || 0;
   if (calculatedSubtotal === 0 && Array.isArray(items)) {
     calculatedSubtotal = items.reduce((sum, i) => sum + (Number(i.price) * Number(i.qty)), 0);
@@ -693,7 +705,7 @@ app.post('/api/orders', async (req, res) => {
   let status = 'RUNNING_TABLE';
   if (is_hold) {
     status = 'RUNNING_TABLE';
-  } else if (is_kiosk || (order_type && (order_type.toUpperCase().includes('ONLINE') || order_type.toUpperCase().includes('KIOSK') || order_type.toUpperCase().includes('SELF') || order_type.toUpperCase().includes('DINE-IN') || order_type.toUpperCase().includes('TAKEAWAY') || order_type.toUpperCase().includes('DELIVERY')))) {
+  } else if (is_kiosk || upperType.includes('ONLINE') || upperType.includes('KIOSK') || upperType.includes('SELF') || upperType.includes('DINE-IN') || upperType.includes('TAKEAWAY') || upperType.includes('DELIVERY')) {
     status = 'NEEDS_APPROVAL';
   } else if (payment_mode === 'DUE') {
     status = 'DUE_PENDING';
@@ -706,7 +718,7 @@ app.post('/api/orders', async (req, res) => {
   `;
 
   const orderValues = [
-    order_type || 'Kiosk',
+    normalizedOrderType,
     table_no || '',
     customer_name || '',
     customer_phone || '',
