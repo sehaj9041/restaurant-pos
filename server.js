@@ -5,6 +5,7 @@ const multer = require('multer');
 const fs = require('fs');
 const { exec } = require('child_process');
 const XLSX = require('xlsx');
+const net = require('net'); // Added for Network IP Thermal Printing
 const db = require('./database');
 
 const app = express();
@@ -225,7 +226,6 @@ app.get('/api/addon-groups', (req, res) => {
 app.post('/api/addon-groups', (req, res) => {
   const { name, min_selection, max_selection, is_mandatory, selection_type, items } = req.body;
   
-  // Safe insertion matching database.js schema
   db.run(
     `INSERT INTO addon_groups (name, min_selection, max_selection, is_mandatory, items) VALUES (?, ?, ?, ?, ?)`,
     [
@@ -709,6 +709,50 @@ app.post('/api/orders/:id/mark-due', (req, res) => {
       res.json({ success: true });
     }
   );
+});
+
+// ================= NETWORK IP THERMAL PRINTING ROUTE =================
+app.post('/api/print-ip', async (req, res) => {
+  const { printer_ip, order_id, table, qty, item_name, addons, time } = req.body;
+  
+  if (!printer_ip) {
+    return res.status(400).json({ success: false, error: 'Printer IP missing' });
+  }
+
+  // ESC/POS Commands for Thermal Printer
+  const ESC = '\x1B';
+  const GS = '\x1D';
+  const INIT = ESC + '@';
+  const BOLD_ON = ESC + 'E' + '\x01';
+  const BOLD_OFF = ESC + 'E' + '\x00';
+  const CENTER = ESC + 'a' + '\x01';
+  const LEFT = ESC + 'a' + '\x00';
+  const CUT = GS + 'V' + '\x41' + '\x00';
+
+  const printData = 
+    INIT +
+    CENTER + BOLD_ON + "ITEM READY\n" + BOLD_OFF +
+    `Order #${order_id} | ${table}\n` +
+    "--------------------------------\n" +
+    LEFT + BOLD_ON + `${qty} x ${item_name}\n` + BOLD_OFF +
+    (addons ? `+ ${addons}\n` : '') +
+    "--------------------------------\n" +
+    CENTER + `Time: ${time}\n\n\n` +
+    CUT;
+
+  // Send raw bytes via TCP socket to the printer IP on port 9100
+  const client = new net.Socket();
+  client.connect(9100, printer_ip, () => {
+    client.write(printData, 'binary', () => {
+      client.end();
+      res.json({ success: true, message: 'Print sent to IP successfully' });
+    });
+  });
+
+  client.on('error', (err) => {
+    console.error('Printer IP connection error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  });
 });
 
 // Printer setup
