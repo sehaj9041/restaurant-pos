@@ -156,8 +156,6 @@
     </div>
   </div>
 
-  <iframe id="silentPrintFrame" style="position:fixed;right:0;bottom:0;width:0;height:0;border:0;"></iframe>
-
   <script>
     var audioCtx = null;
     var isAudioAllowed = true;
@@ -196,7 +194,7 @@
     }
 
     function saveKdsPrinterSetting() {
-      var isEnabled = document.getElementById('kdsAutoPrintToggle').checked;
+      var isEnabled = document.getElementById('kdsAutoPrintToggle'].checked;
       var ipVal = document.getElementById('kdsPrinterIp').value.trim();
       
       localStorage.setItem('kds_device_printer_config', JSON.stringify({ enabled: isEnabled, ip: ipVal }));
@@ -215,7 +213,7 @@
 
     function printItemReadyToken(order, item) {
       var printerCfg = getKdsPrinterConfig();
-      if (!printerCfg.enabled) return;
+      if (!printerCfg.enabled || !printerCfg.ip) return;
 
       var cleanName = item.name.replace(/\s*\(.*?\)\s*$/, '').trim();
       var addonsStr = '';
@@ -223,49 +221,30 @@
         addonsStr = item.addons.map(a => a.name).join(', ');
       }
 
-      var html = `
-        <html>
-        <head>
-          <style>
-            @page { margin: 0; size: 58mm auto; }
-            body { font-family: monospace; font-size: 12px; font-weight: bold; width: 48mm; margin: 0 auto; padding: 4px; }
-            .center { text-align: center; }
-            .big { font-size: 16px; font-weight: 900; }
-            .line { border-bottom: 1.5px dashed #000; margin: 4px 0; }
-          </style>
-        </head>
-        <body>
-          <div class="center big">ITEM READY</div>
-          <div class="center">Order #${order.id} | ${order.table_no || order.order_type}</div>
-          <div class="line"></div>
-          <div style="font-size: 14px;">${item.qty} x ${cleanName}</div>
-          ${addonsStr ? `<div style="font-size: 10px; font-weight: normal;">+ ${addonsStr}</div>` : ''}
-          <div class="line"></div>
-          <div class="center" style="font-size: 10px;">Time: ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
-        </body>
-        </html>
-      `;
+      var printPayload = {
+        printer_ip: printerCfg.ip,
+        order_id: order.id,
+        table: order.table_no || order.order_type,
+        qty: item.qty,
+        item_name: cleanName,
+        addons: addonsStr,
+        time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+      };
 
-      var frame = document.getElementById('silentPrintFrame');
-      if (!frame) {
-        frame = document.createElement('iframe');
-        frame.id = 'silentPrintFrame';
-        frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
-        document.body.appendChild(frame);
-      }
-
-      var doc = frame.contentWindow.document;
-      doc.open();
-      doc.write(html);
-      doc.close();
-      frame.contentWindow.focus();
-      setTimeout(function() {
-        try { 
-          frame.contentWindow.print(); 
-        } catch(e) {
-          console.error('Print failed:', e);
+      fetch('/api/print-ip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(printPayload)
+      })
+      .then(function(res){ return res.json(); })
+      .then(function(data){
+        if (!data.success) {
+          console.error('IP Print Error:', data.error);
         }
-      }, 150);
+      })
+      .catch(function(err) {
+        console.error('Network print request failed:', err);
+      });
     }
 
     // ================= SOUND PERSISTENCE & AUDIO UNLOCK =================
