@@ -389,18 +389,35 @@ app.get('/api/orders/needs-approval', (req, res) => {
 
 app.post('/api/orders/:id/approve', (req, res) => {
   const orderId = req.params.id;
-  db.run(
-    `UPDATE orders 
-     SET status = 'RUNNING_TABLE', 
-         table_no = CASE WHEN table_no IS NULL OR table_no = '' OR table_no = 'Direct' THEN '' ELSE table_no END 
-     WHERE id = ?`, 
-    [orderId], 
-    (err) => {
-      if (err) return res.status(500).json({ error: err.message });
-      console.log(`[ORDER APPROVED] Order #${orderId} accepted and routed to active dining queue.`);
-      res.json({ success: true });
+  
+  db.get("SELECT order_type FROM orders WHERE id = ?", [orderId], (err, order) => {
+    if (err || !order) return res.status(404).json({ error: 'Order not found' });
+
+    let type = (order.order_type || '').toLowerCase();
+    let newTableNo = '';
+    let newStatus = 'RUNNING_TABLE';
+
+    if (type.includes('delivery')) {
+      newTableNo = 'Delivery';
+    } else if (type.includes('takeaway')) {
+      newTableNo = 'Takeaway';
+    } else {
+      newTableNo = '';
     }
-  );
+
+    db.run(
+      `UPDATE orders 
+       SET status = ?, 
+           table_no = ? 
+       WHERE id = ?`, 
+      [newStatus, newTableNo, orderId], 
+      (err2) => {
+        if (err2) return res.status(500).json({ error: err2.message });
+        console.log(`[ORDER APPROVED] Order #${orderId} accepted and routed correctly.`);
+        res.json({ success: true });
+      }
+    );
+  });
 });
 
 app.post('/api/orders/:id/reject', (req, res) => {
@@ -676,7 +693,7 @@ app.post('/api/orders', async (req, res) => {
   let status = 'RUNNING_TABLE';
   if (is_hold) {
     status = 'RUNNING_TABLE';
-  } else if (is_kiosk || (order_type && (order_type.toUpperCase().includes('ONLINE') || order_type.toUpperCase().includes('KIOSK') || order_type.toUpperCase().includes('SELF') || order_type.toUpperCase().includes('DINE-IN') || order_type.toUpperCase().includes('TAKEAWAY')))) {
+  } else if (is_kiosk || (order_type && (order_type.toUpperCase().includes('ONLINE') || order_type.toUpperCase().includes('KIOSK') || order_type.toUpperCase().includes('SELF') || order_type.toUpperCase().includes('DINE-IN') || order_type.toUpperCase().includes('TAKEAWAY') || order_type.toUpperCase().includes('DELIVERY')))) {
     status = 'NEEDS_APPROVAL';
   } else if (payment_mode === 'DUE') {
     status = 'DUE_PENDING';
