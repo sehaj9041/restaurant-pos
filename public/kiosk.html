@@ -207,17 +207,6 @@
       </div>
     </div>
 
-    <div id="tableServiceModal" class="hidden absolute inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div class="bg-white rounded-3xl p-6 max-w-xs w-full text-center shadow-2xl space-y-4">
-        <h3 class="text-base font-black text-neutral-900">Table Service</h3>
-        <p class="text-xs text-neutral-500">Enter your Tent Card Number (Table No):</p>
-        <input type="text" id="tentCardInput" placeholder="e.g. 12" class="w-full border-2 border-neutral-300 p-3 rounded-2xl text-center text-xl font-black outline-none focus:border-amber-500">
-        <button onclick="finalizeOrderWithTable()" class="w-full bg-[#ffc72c] hover:bg-[#eab01e] text-neutral-900 font-black py-3.5 rounded-2xl text-xs uppercase tracking-wider shadow-lg">
-          Confirm Order
-        </button>
-      </div>
-    </div>
-
     <div id="tokenSuccessModal" class="hidden absolute inset-0 bg-[#00853e] z-50 flex flex-col items-center justify-center p-6 text-white text-center">
       <div class="w-20 h-20 bg-white text-[#00853e] rounded-full flex items-center justify-center text-4xl shadow-2xl mb-4 font-black animate-bounce">✓</div>
       <h2 class="text-3xl font-black">Order Placed!</h2>
@@ -615,13 +604,8 @@
     function submitKioskOrder(payMethod) {
       closePaymentModal();
       pendingPaymentMode = payMethod;
-      document.getElementById('tableServiceModal').classList.remove('hidden');
-    }
-
-    function finalizeOrderWithTable() {
-      const tentCard = document.getElementById('tentCardInput').value.trim() || 'KIOSK';
-      document.getElementById('tableServiceModal').classList.add('hidden');
-
+      
+      // Table popup hatane ke liye direct order finalize kar rahe hain bina table maange
       const total = kioskTray.reduce((s, i) => s + (Number(i.price) * i.qty), 0);
 
       fetch('/api/orders', {
@@ -629,7 +613,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           order_type: 'Kiosk',
-          table_no: kioskOrderType === 'Dine-In' ? `Table ${tentCard}` : 'TAKEAWAY',
+          table_no: '', // Table number khali jayega taaki POS par unassigned section mein aaye
           customer_name: 'Self Kiosk Guest',
           customer_phone: '',
           items: kioskTray,
@@ -644,7 +628,7 @@
       .then(res => res.json())
       .then(data => {
         document.getElementById('kioskTokenDisplay').innerText = '#' + data.orderId;
-        document.getElementById('kioskModeNote').innerText = kioskOrderType + ' • Table ' + tentCard;
+        document.getElementById('kioskModeNote').innerText = kioskOrderType + ' • Unassigned';
         document.getElementById('tokenSuccessModal').classList.remove('hidden');
 
         setTimeout(() => {
@@ -672,11 +656,9 @@
     function resetKioskSession() {
       kioskTray = [];
       updateTrayUI();
-      document.getElementById('tentCardInput').value = '';
       document.getElementById('tokenSuccessModal').classList.add('hidden');
       document.getElementById('trayReviewModal').classList.add('hidden');
       document.getElementById('paymentModal').classList.add('hidden');
-      document.getElementById('tableServiceModal').classList.add('hidden');
       document.getElementById('customizerModal').classList.add('hidden');
       document.getElementById('idleScreensaver').classList.remove('hidden');
     }
