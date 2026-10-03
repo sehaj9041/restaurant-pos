@@ -754,7 +754,7 @@
           border: 'border-blue-200',
           badgeBg: 'bg-blue-50 text-blue-700 border-blue-200',
           headerBg: 'bg-blue-50/50',
-          emoji: '🪑🍽️',
+          emoji: '🪑🍽️️',
           label: 'Dine-In'
         };
 
@@ -821,7 +821,7 @@
 
             <!-- ITEMS LIST -->
             <div class="p-3.5 space-y-3">
-              ${(order.items || []).map(function(item, idx) {
+               ${(order.items || []).map(function(item, idx) {
                 var rowKey = order.id + '_row_' + idx;
                 var isDone = !!checkedMap[rowKey];
                 var badgeTag = persistentBadges[rowKey];
@@ -914,6 +914,7 @@
 
     initPersistentAudio();
     initCardScale();
+    updateKdsPrinterUIState(); // Restores printer status properly on page load/refresh
     fetchKOT();
     setInterval(fetchKOT, 3500);
     setInterval(updateLiveTimers, 1000);
