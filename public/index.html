@@ -1113,7 +1113,7 @@
     </div>
     <div class="flex gap-1.5">
       <button onclick="keypadPress(' ')" class="flex-1 bg-white active:bg-gray-200 text-gray-400 font-bold text-xs py-2.5 rounded-lg shadow-2xs">space</button>
-      <button onclick="closeVirtualKeyboards()" class="w-24 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-black text-sm py-2.5 rounded-lg shadow-2xs">return</button>
+      <button onclick="closeVirtualKeyboards()" class="w-24 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-black text-xs py-2.5 rounded-lg shadow-2xs">return</button>
     </div>
   </div>
 
@@ -1242,7 +1242,7 @@
                   <button onclick="rejectNeedsApprovalOrder(${order.id})" class="bg-white hover:bg-rose-50 text-rose-600 border border-rose-300 font-bold px-4 py-2 rounded-xl text-xs transition shadow-2xs">
                     Reject
                   </button>
-                  <button onclick="approveNeedsApprovalOrder(${order.id}, '${order.order_type}')" class="bg-orange-600 hover:bg-orange-700 text-white font-black px-5 py-2 rounded-xl text-xs transition shadow-xs flex items-center gap-1.5">
+                  <button onclick="approveNeedsApprovalOrder(${order.id})" class="bg-orange-600 hover:bg-orange-700 text-white font-black px-5 py-2 rounded-xl text-xs transition shadow-xs flex items-center gap-1.5">
                     <span>Collect ₹${order.total} & send to kitchen</span>
                   </button>
                 </div>
@@ -1253,7 +1253,7 @@
         .catch(function(err) { console.error('Approval fetch error:', err); });
     }
 
-    function approveNeedsApprovalOrder(orderId, orderType) {
+    function approveNeedsApprovalOrder(orderId) {
       fetch('/api/orders/' + orderId + '/approve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
@@ -1263,11 +1263,6 @@
         if (data.success) {
           fetchNeedsApprovalOrders();
           fetchActiveOrders();
-          if (orderType && (orderType.toLowerCase().includes('kiosk') || orderType.toLowerCase().includes('dine') || orderType.toLowerCase().includes('self'))) {
-            setTimeout(function() {
-              promptAssignTable(orderId);
-            }, 400);
-          }
         }
       });
     }
@@ -2323,7 +2318,7 @@
               <div class="flex flex-wrap gap-1.5 pt-1.5 border-t border-gray-100 text-[10px] font-bold">
                 <button onclick="promptAssignTable(${o.id})" class="px-2 py-1 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded border border-orange-200 font-black shadow-2xs"><span>🪑</span> Assign table</button>
                 <button onclick="actionViewOrder(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>👁</span> View</button>
-                <button onclick="actionAddPhone(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-orange-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>📞</span> Add phone</button>
+                <button onclick="actionAddPhone(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-orange-700 rounded border border-orange-200 flex items-center gap-1 shadow-2xs"><span>📞</span> Add phone</button>
                 <button onclick="actionPrintKOT(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🍳</span> KOT</button>
                 <button onclick="actionPrintReceipt(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🖨</span> Print Receipt</button>
                 <button onclick="actionEditAddItems(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>+</span> Add Item</button>
@@ -2390,7 +2385,7 @@
 
             <div class="flex flex-wrap gap-1.5 pt-1.5 border-t border-gray-100 text-[10px] font-bold">
               <button onclick="actionViewOrder(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>👁</span> View</button>
-              <button onclick="actionAddPhone(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-orange-700 rounded border border-orange-200 flex items-center gap-1 shadow-2xs"><span>📞</span> Add phone</button>
+              <button onclick="actionAddPhone(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-orange-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>📞</span> Add phone</button>
               <button onclick="actionPrintKOT(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🍳</span> KOT</button>
               <button onclick="actionPrintReceipt(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🖨</span> Print Receipt</button>
               <button onclick="actionEditAddItems(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>+</span> Add Item</button>
@@ -3078,7 +3073,7 @@
       document.getElementById('topPageTitle').innerText = 'New Order';
       document.getElementById('btnTopBack').classList.remove('hidden');
       document.getElementById('btnCancelOrderView').classList.add('hidden');
-      document.getElementById('topOrderActiveBadge').classList.add('hidden');
+      document.getElementById('topOrderActiveBadge').classList.remove('hidden');
 
       renderPOSCart();
       renderPOSItems();
