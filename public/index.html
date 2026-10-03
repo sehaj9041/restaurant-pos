@@ -228,6 +228,19 @@
       </div>
     </div>
 
+    <!-- ================= NEEDS APPROVAL SECTION CONTAINER ================= -->
+    <div id="needsApprovalWrapper" class="mb-4 hidden">
+      <div class="bg-orange-50 border-2 border-orange-300 rounded-2xl p-4 shadow-sm">
+        <div class="flex items-center gap-2 mb-3 border-b border-orange-200 pb-2">
+          <span id="needsApprovalCountBadge" class="bg-orange-500 text-white font-black px-2 py-0.5 rounded-md text-xs animate-pulse">1</span>
+          <span class="text-xs font-bold text-orange-800">Customer orders waiting for review before reaching the kitchen</span>
+        </div>
+        <div id="needsApprovalList" class="space-y-3">
+          <!-- Dynamic Approval Cards Will Load Here -->
+        </div>
+      </div>
+    </div>
+
     <!-- FILTER & ACTION BAR -->
     <div class="flex justify-between items-center bg-white p-2 rounded-xl border border-gray-200 shadow-2xs">
       <div class="flex items-center gap-2">
@@ -1159,11 +1172,13 @@
       fetchMenu();
       fetchActiveOrders();
       loadDueOrdersData();
+      fetchNeedsApprovalOrders();
 
       setInterval(function() {
         fetchActiveOrders();
         loadDueOrdersData();
-      }, 4000);
+        fetchNeedsApprovalOrders();
+      }, 3000);
 
       var today = new Date().toISOString().slice(0, 10);
       var df = document.getElementById('histDateFilter');
@@ -1172,6 +1187,98 @@
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js').catch(function(){});
       }
+    }
+
+    // ================= NEEDS APPROVAL MODULE =================
+    function fetchNeedsApprovalOrders() {
+      fetch('/api/orders/needs-approval')
+        .then(function(res) { return res.json(); })
+        .then(function(orders) {
+          var wrapper = document.getElementById('needsApprovalWrapper');
+          var container = document.getElementById('needsApprovalList');
+          var badge = document.getElementById('needsApprovalCountBadge');
+          if (!wrapper || !container) return;
+
+          if (!orders || orders.length === 0) {
+            wrapper.classList.add('hidden');
+            container.innerHTML = '';
+            return;
+          }
+
+          wrapper.classList.remove('hidden');
+          if (badge) badge.innerText = orders.length;
+
+          container.innerHTML = orders.map(function(order) {
+            var itemsHtml = (order.items || []).map(function(item) {
+              return `
+                <div class="flex justify-between items-center text-xs py-1 border-b border-orange-100 last:border-0">
+                  <span class="font-bold text-slate-800"><span class="text-orange-600 font-black">x${item.qty}</span> ${item.name}</span>
+                  <span class="font-mono font-semibold text-slate-600">₹${item.price * item.qty}</span>
+                </div>
+              `;
+            }).join('');
+
+            return `
+              <div class="bg-white border border-orange-200 rounded-xl p-4 shadow-xs space-y-3">
+                <div class="flex justify-between items-start flex-wrap gap-2">
+                  <div>
+                    <div class="flex items-center gap-2">
+                      <span class="bg-slate-100 border border-slate-200 text-slate-800 font-black px-2 py-0.5 rounded text-xs">${order.order_type || 'Kiosk'}</span>
+                      <span class="font-black text-slate-900 text-sm">#ORD-${order.id}</span>
+                      <span class="text-xs font-bold text-slate-600">${order.customer_name || 'Guest'} (${order.customer_phone || 'N/A'})</span>
+                    </div>
+                  </div>
+                  <div class="text-right">
+                    <div class="font-black text-slate-900 text-base">₹${order.total}</div>
+                    <div class="text-[10px] font-bold text-slate-400">Payment: ${order.payment_mode || 'COUNTER'}</div>
+                  </div>
+                </div>
+
+                <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-100 space-y-1">
+                  ${itemsHtml}
+                </div>
+
+                <div class="flex justify-end gap-2 pt-1">
+                  <button onclick="rejectNeedsApprovalOrder(${order.id})" class="bg-white hover:bg-rose-50 text-rose-600 border border-rose-300 font-bold px-4 py-2 rounded-xl text-xs transition shadow-2xs">
+                    Reject
+                  </button>
+                  <button onclick="approveNeedsApprovalOrder(${order.id}, ${order.total})" class="bg-orange-600 hover:bg-orange-700 text-white font-black px-5 py-2 rounded-xl text-xs transition shadow-xs flex items-center gap-1.5">
+                    <span>Collect ₹${order.total} & send to kitchen</span>
+                  </button>
+                </div>
+              </div>
+            `;
+          }).join('');
+        })
+        .catch(function(err) { console.error('Approval fetch error:', err); });
+    }
+
+    function approveNeedsApprovalOrder(orderId, totalAmount) {
+      fetch('/api/orders/' + orderId + '/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data.success) {
+          fetchNeedsApprovalOrders();
+          fetchActiveOrders();
+        }
+      });
+    }
+
+    function rejectNeedsApprovalOrder(orderId) {
+      if (!confirm('Kya aap is order ko reject karna chahte hain?')) return;
+      fetch('/api/orders/' + orderId + '/reject', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data.success) {
+          fetchNeedsApprovalOrders();
+        }
+      });
     }
 
     // ================= INTEGRATED MENU MANAGEMENT FUNCTIONS =================
@@ -1517,6 +1624,7 @@
       document.getElementById('topOrderActiveBadge').classList.add('hidden');
       fetchActiveOrders();
       loadDueOrdersData();
+      fetchNeedsApprovalOrders();
     }
 
     function showOrderHistoryView() {
