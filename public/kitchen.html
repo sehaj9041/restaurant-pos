@@ -125,6 +125,10 @@
     <div class="col-span-full text-center py-24 text-slate-400 font-bold text-lg">No active orders right now.</div>
   </div>
 
+  <!-- ON-SCREEN STATUS BANNER FOR ANDROID TV -->
+  <div id="tvStatusBanner" style="position: fixed; bottom: 20px; right: 20px; z-index: 99999; padding: 15px 25px; border-radius: 12px; font-size: 18px; font-weight: bold; color: white; background: rgba(0,0,0,0.85); display: none; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+  </div>
+
   <!-- ================= KDS PRINTER SETTINGS MODAL ================= -->
   <div id="kdsSettingsModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-2xl text-xs">
@@ -160,6 +164,20 @@
     var audioCtx = null;
     var isAudioAllowed = true;
     var liveOrdersData = [];
+
+    // ================= TV SCREEN STATUS LOGIC =================
+    function showTvStatus(message, isError = false) {
+      var banner = document.getElementById('tvStatusBanner');
+      if (!banner) return;
+      
+      banner.innerText = message;
+      banner.style.backgroundColor = isError ? '#e74c3c' : '#2ecc71';
+      banner.style.display = 'block';
+
+      setTimeout(function() {
+        banner.style.display = 'none';
+      }, 4000);
+    }
 
     // ================= KDS PRINTER LOCAL SETTINGS =================
     function getKdsPrinterConfig() {
@@ -231,6 +249,8 @@
         time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
       };
 
+      showTvStatus("Sending print command...", false);
+
       fetch('/api/print-ip', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -238,12 +258,14 @@
       })
       .then(function(res){ return res.json(); })
       .then(function(data){
-        if (!data.success) {
-          console.error('IP Print Error:', data.error);
+        if (data.success) {
+          showTvStatus("Print Successful!", false);
+        } else {
+          showTvStatus("Print Error: " + (data.error || "Unknown"), true);
         }
       })
       .catch(function(err) {
-        console.error('Network print request failed:', err);
+        showTvStatus("Network Error: " + err.message, true);
       });
     }
 
@@ -814,7 +836,6 @@
                   }
                 }
 
-                // Completely strip out any parentheses from main item display title
                 var cleanBaseName = item.name.replace(/\s*\(.*?\)\s*$/, '').trim();
 
                 return `
