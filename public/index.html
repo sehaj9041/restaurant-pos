@@ -414,7 +414,7 @@
           <span>📁</span> Categories Group
         </button>
         <button onclick="openVariationsGroupModal()" class="bg-purple-600 hover:bg-purple-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs">
-          <span>⚙️</span> Variations Group
+          <span>⚙️️</span> Variations Group
         </button>
         <button onclick="openAddonGroupsModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs">
           <span>➕</span> Add-on Groups
@@ -2217,7 +2217,8 @@
 
       grid.innerHTML = defaultFloorTables.map(function(t) {
         var busy = allActiveOrders.find(function(o) {
-          return o.order_type === 'Dine-In' && o.table_no && (o.table_no.toUpperCase() === t.id || o.table_no === t.label);
+          var type = (o.order_type || '').toLowerCase();
+          return type.includes('dine') && o.table_no && (o.table_no.toUpperCase() === t.id || o.table_no === t.label);
         });
         var isBusy = !!busy;
 
@@ -2236,7 +2237,7 @@
       var onlineOrders = allActiveOrders.filter(function(o) {
         var type = (o.order_type || '').toLowerCase();
         var isCompleted = (o.status === 'COMPLETED');
-        return (type === 'online' || type === 'delivery-online') && !isCompleted;
+        return (type === 'online' || type === 'delivery-online') && !type.includes('dine') && !isCompleted;
       });
 
       var onlineBox = document.getElementById('onlineOrdersBox');
@@ -2255,7 +2256,7 @@
 
       var unassignedKiosk = allActiveOrders.filter(function(o) {
         var type = (o.order_type || '').toLowerCase();
-        return type === 'dine-in' && (!o.table_no || o.table_no.trim() === '' || o.table_no === 'Direct');
+        return type.includes('dine') && (!o.table_no || o.table_no.trim() === '' || o.table_no === 'Direct');
       });
 
       var kioskBox = document.getElementById('kioskUnassignedBox');
@@ -3036,7 +3037,8 @@
       var running = null;
       if (selectedPOSTableId) {
         running = allActiveOrders.find(function(o) {
-          return o.order_type === 'Dine-In' && o.table_no && o.table_no.toUpperCase() === selectedPOSTableId.toUpperCase();
+          var type = (o.order_type || '').toLowerCase();
+          return type.includes('dine') && o.table_no && o.table_no.toUpperCase() === selectedPOSTableId.toUpperCase();
         });
       }
 
