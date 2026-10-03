@@ -405,13 +405,13 @@ app.post('/api/orders/:id/reject', (req, res) => {
   });
 });
 
-// 7. ACTIVE ORDERS (Robust fetch for online & active orders)
+// 7. ACTIVE ORDERS (Robust fetch for active, running, and online/kiosk orders)
 app.get('/api/orders/active', (req, res) => {
   const query = `
     SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount
     FROM orders 
-    WHERE (UPPER(status) != 'COMPLETED' AND UPPER(status) != 'NEEDS_APPROVAL' AND UPPER(status) != 'VOID')
-       OR UPPER(order_type) = 'ONLINE'
+    WHERE UPPER(status) NOT IN ('COMPLETED', 'NEEDS_APPROVAL', 'VOID')
+       OR UPPER(status) = 'RUNNING_TABLE'
     ORDER BY id DESC
   `;
 
@@ -656,7 +656,6 @@ app.post('/api/orders', async (req, res) => {
     initialPaid = Number(paid_amount) || Number(total) || 0;
   }
 
-  // Updated Kiosk / Online detection using includes for flexibility
   let status = 'RUNNING_TABLE';
   if (is_hold) {
     status = 'RUNNING_TABLE';
@@ -673,7 +672,7 @@ app.post('/api/orders', async (req, res) => {
   `;
 
   const orderValues = [
-    order_type,
+    order_type || 'Kiosk',
     table_no || '',
     customer_name || '',
     customer_phone || '',
@@ -768,7 +767,6 @@ app.post('/api/orders/:id/mark-due', (req, res) => {
 // ================= CLOUD PRINT QUEUE SYSTEM =================
 let printQueue = [];
 
-// 1. KDS se request yahan aayegi aur queue mein save ho jayegi
 app.post('/api/print-ip', (req, res) => {
   const { printer_ip, order_id, table, qty, item_name, addons, time } = req.body;
   
@@ -795,12 +793,10 @@ app.post('/api/print-ip', (req, res) => {
   res.json({ success: true, message: 'Print job queued for local agent' });
 });
 
-// 2. Local Agent yahan se pending jobs fetch karega
 app.get('/api/print/pending-queue', (req, res) => {
   res.json({ success: true, jobs: printQueue });
 });
 
-// 3. Local Agent print hone ke baad job ko queue se hata dega
 app.post('/api/print/acknowledge', (req, res) => {
   const { jobId } = req.body;
   printQueue = printQueue.filter(j => j.id !== jobId);
@@ -808,7 +804,6 @@ app.post('/api/print/acknowledge', (req, res) => {
   res.json({ success: true });
 });
 
-// Printer setup
 let ThermalPrinterClass = null;
 let PrinterTypesObj = null;
 
