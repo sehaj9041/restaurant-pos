@@ -389,11 +389,19 @@ app.get('/api/orders/needs-approval', (req, res) => {
 
 app.post('/api/orders/:id/approve', (req, res) => {
   const orderId = req.params.id;
-  db.run("UPDATE orders SET status = 'RUNNING_TABLE' WHERE id = ?", [orderId], (err) => {
-    if (err) return res.status(500).json({ error: err.message });
-    console.log(`[ORDER APPROVED] Order #${orderId} accepted and sent to kitchen.`);
-    res.json({ success: true });
-  });
+  // Jab order approve ho, toh status RUNNING_TABLE ho jaye aur table_no agar Direct ya blank ho toh usko unassigned set karein
+  db.run(
+    `UPDATE orders 
+     SET status = 'RUNNING_TABLE', 
+         table_no = CASE WHEN table_no IS NULL OR table_no = '' OR table_no = 'Direct' THEN '' ELSE table_no END 
+     WHERE id = ?`, 
+    [orderId], 
+    (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+      console.log(`[ORDER APPROVED] Order #${orderId} accepted and routed to active dining queue.`);
+      res.json({ success: true });
+    }
+  );
 });
 
 app.post('/api/orders/:id/reject', (req, res) => {
@@ -412,6 +420,8 @@ app.get('/api/orders/active', (req, res) => {
     FROM orders 
     WHERE UPPER(status) NOT IN ('COMPLETED', 'NEEDS_APPROVAL', 'VOID')
        OR UPPER(status) = 'RUNNING_TABLE'
+       OR UPPER(status) = 'RUNNING'
+       OR UPPER(status) = 'KOT_READY'
     ORDER BY id DESC
   `;
 
