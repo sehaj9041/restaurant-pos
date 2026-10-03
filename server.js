@@ -5,7 +5,7 @@ const multer = require('multer');
 const fs = require('fs');
 const { exec } = require('child_process');
 const XLSX = require('xlsx');
-const net = require('net'); // Added for Network IP Thermal Printing
+const net = require('net');
 const db = require('./database');
 
 const app = express();
@@ -711,68 +711,47 @@ app.post('/api/orders/:id/mark-due', (req, res) => {
   );
 });
 
-// ================= NETWORK IP THERMAL PRINTING ROUTE (OPTIMIZED) =================
-app.post('/api/print-ip', async (req, res) => {
+// ================= CLOUD PRINT QUEUE SYSTEM =================
+let printQueue = [];
+
+// 1. KDS se request yahan aayegi aur queue mein save ho jayegi
+app.post('/api/print-ip', (req, res) => {
   const { printer_ip, order_id, table, qty, item_name, addons, time } = req.body;
   
-  if (!printer_ip) {
-    return res.status(400).json({ success: false, error: 'Printer IP missing' });
+  if (!order_id || !item_name) {
+    return res.status(400).json({ success: false, error: 'Missing print details' });
   }
 
-  // ESC/POS Commands for Thermal Printer
-  const ESC = '\x1B';
-  const GS = '\x1D';
-  const INIT = ESC + '@';
-  const BOLD_ON = ESC + 'E' + '\x01';
-  const BOLD_OFF = ESC + 'E' + '\x00';
-  const CENTER = ESC + 'a' + '\x01';
-  const LEFT = ESC + 'a' + '\x00';
-  const CUT = GS + 'V' + '\x41' + '\x00';
+  const jobId = Date.now() + '-' + Math.random().toString(36).substring(2, 7);
+  
+  const printJob = {
+    id: jobId,
+    printer_ip: printer_ip || '192.168.1.87',
+    order_id,
+    table: table || 'Dine-In',
+    qty,
+    item_name,
+    addons: addons || '',
+    time: time || new Date().toLocaleTimeString()
+  };
 
-  const printData = 
-    INIT +
-    CENTER + BOLD_ON + "ITEM READY\n" + BOLD_OFF +
-    `Order #${order_id} | ${table}\n` +
-    "--------------------------------\n" +
-    LEFT + BOLD_ON + `${qty} x ${item_name}\n` + BOLD_OFF +
-    (addons ? `+ ${addons}\n` : '') +
-    "--------------------------------\n" +
-    CENTER + `Time: ${time}\n\n\n` +
-    CUT;
+  printQueue.push(printJob);
+  console.log(`[PRINT QUEUED] Job #${jobId} added for Order #${order_id} (${item_name})`);
+  
+  res.json({ success: true, message: 'Print job queued for local agent' });
+});
 
-  const client = new net.Socket();
-  client.setTimeout(4000); // 4 seconds timeout
-  client.setNoDelay(true); // Disable Nagle's algorithm for instant packet dispatch
+// 2. Local Agent yahan se pending jobs fetch karega
+app.get('/api/print/pending-queue', (req, res) => {
+  res.json({ success: true, jobs: printQueue });
+});
 
-  let responded = false;
-
-  client.connect(9100, printer_ip, () => {
-    client.write(printData, 'binary', () => {
-      client.end();
-      if (!responded) {
-        responded = true;
-        console.log(`[IP PRINT SUCCESS] Sent to printer ${printer_ip}`);
-        res.json({ success: true, message: 'Print sent to IP successfully' });
-      }
-    });
-  });
-
-  client.on('error', (err) => {
-    console.error(`[IP PRINT ERROR] Printer ${printer_ip}:`, err.message);
-    if (!responded) {
-      responded = true;
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  client.on('timeout', () => {
-    console.error(`[IP PRINT TIMEOUT] Connection timed out for printer ${printer_ip}`);
-    client.destroy();
-    if (!responded) {
-      responded = true;
-      res.status(500).json({ success: false, error: 'Connection timed out' });
-    }
-  });
+// 3. Local Agent print hone ke baad job ko queue se hata dega
+app.post('/api/print/acknowledge', (req, res) => {
+  const { jobId } = req.body;
+  printQueue = printQueue.filter(j => j.id !== jobId);
+  console.log(`[PRINT ACKNOWLEDGED] Job #${jobId} completed and removed from queue.`);
+  res.json({ success: true });
 });
 
 // Printer setup
