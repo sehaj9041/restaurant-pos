@@ -389,7 +389,6 @@ app.get('/api/orders/needs-approval', (req, res) => {
 
 app.post('/api/orders/:id/approve', (req, res) => {
   const orderId = req.params.id;
-  // Jab order approve ho, toh status RUNNING_TABLE ho jaye aur table_no agar Direct ya blank ho toh usko unassigned set karein
   db.run(
     `UPDATE orders 
      SET status = 'RUNNING_TABLE', 
@@ -659,19 +658,25 @@ app.put('/api/orders/:id', (req, res) => {
 });
 
 app.post('/api/orders', async (req, res) => {
-  const { order_type, table_no, customer_name, customer_phone, items, payment_mode, subtotal, discount, gst, total, is_hold, paid_amount, is_kiosk } = req.body;
+  const { order_type, table_no, customer_name, customer_phone, items, payment_mode, subtotal, discount, is_hold, paid_amount, is_kiosk } = req.body;
+
+  let calculatedSubtotal = Number(subtotal) || 0;
+  if (calculatedSubtotal === 0 && Array.isArray(items)) {
+    calculatedSubtotal = items.reduce((sum, i) => sum + (Number(i.price) * Number(i.qty)), 0);
+  }
+
+  let calculatedGst = Math.round((calculatedSubtotal * 5) / 100);
+  let calculatedTotal = Math.round(calculatedSubtotal + calculatedGst - (Number(discount) || 0));
 
   let initialPaid = 0;
   if (payment_mode && payment_mode !== 'UNPAID' && payment_mode !== 'DUE') {
-    initialPaid = Number(paid_amount) || Number(total) || 0;
+    initialPaid = Number(paid_amount) || calculatedTotal || 0;
   }
 
-  // Yahan check kar rahe hain ki agar kiosk, online ya self order hai toh status NEEDS_APPROVAL ho jaye
   let status = 'RUNNING_TABLE';
   if (is_hold) {
     status = 'RUNNING_TABLE';
   } else if (is_kiosk || (order_type && (order_type.toUpperCase().includes('ONLINE') || order_type.toUpperCase().includes('KIOSK') || order_type.toUpperCase().includes('SELF') || order_type.toUpperCase().includes('DINE-IN') || order_type.toUpperCase().includes('TAKEAWAY')))) {
-    // Kiosk se aane wale saare Dine-In ya Takeaway orders pehle approval ke liye jayenge
     status = 'NEEDS_APPROVAL';
   } else if (payment_mode === 'DUE') {
     status = 'DUE_PENDING';
@@ -690,10 +695,10 @@ app.post('/api/orders', async (req, res) => {
     customer_phone || '',
     status,
     payment_mode || 'Cash',
-    subtotal || 0,
+    calculatedSubtotal,
     discount || 0,
-    gst || 0,
-    total || 0,
+    calculatedGst,
+    calculatedTotal,
     initialPaid
   ];
 
@@ -1140,5 +1145,5 @@ app.post('/api/whatsapp/disconnect', (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server is running on port ${PORT}`);
+  console.log(`Server par port ${PORT} par chal raha hai.`);
 });
