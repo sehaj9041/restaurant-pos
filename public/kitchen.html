@@ -194,7 +194,7 @@
     }
 
     function saveKdsPrinterSetting() {
-      var isEnabled = document.getElementById('kdsAutoPrintToggle'].checked;
+      var isEnabled = document.getElementById('kdsAutoPrintToggle').checked;
       var ipVal = document.getElementById('kdsPrinterIp').value.trim();
       
       localStorage.setItem('kds_device_printer_config', JSON.stringify({ enabled: isEnabled, ip: ipVal }));
