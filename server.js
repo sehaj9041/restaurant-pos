@@ -656,11 +656,11 @@ app.post('/api/orders', async (req, res) => {
     initialPaid = Number(paid_amount) || Number(total) || 0;
   }
 
-  // Check if order is from Online / Kiosk, set status to NEEDS_APPROVAL
+  // Updated Kiosk / Online detection using includes for flexibility
   let status = 'RUNNING_TABLE';
   if (is_hold) {
     status = 'RUNNING_TABLE';
-  } else if (order_type && (order_type.toUpperCase() === 'ONLINE' || order_type.toUpperCase() === 'KIOSK')) {
+  } else if (order_type && (order_type.toUpperCase().includes('ONLINE') || order_type.toUpperCase().includes('KIOSK') || order_type.toUpperCase().includes('SELF'))) {
     status = 'NEEDS_APPROVAL';
   } else if (payment_mode === 'DUE') {
     status = 'DUE_PENDING';
