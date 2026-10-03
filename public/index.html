@@ -105,7 +105,7 @@
               <span class="text-sm">📊</span> Analytics & Reports
             </button>
             <button onclick="protectedNav('/admin.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
-              <span class="text-sm">⚙️️</span> Settings
+              <span class="text-sm">⚙️</span> Settings
             </button>
           </div>
         </div>
@@ -1243,7 +1243,7 @@
                     Reject
                   </button>
                   <button onclick="approveNeedsApprovalOrder(${order.id}, '${order.order_type}')" class="bg-orange-600 hover:bg-orange-700 text-white font-black px-5 py-2 rounded-xl text-xs transition shadow-xs flex items-center gap-1.5">
-                    <span>Accept & Send to Kitchen</span>
+                    <span>Collect ₹${order.total} & send to kitchen</span>
                   </button>
                 </div>
               </div>
@@ -1263,7 +1263,7 @@
         if (data.success) {
           fetchNeedsApprovalOrders();
           fetchActiveOrders();
-          if (orderType && (orderType.toLowerCase().includes('kiosk') || orderType.toLowerCase().includes('dine'))) {
+          if (orderType && (orderType.toLowerCase().includes('kiosk') || orderType.toLowerCase().includes('dine') || orderType.toLowerCase().includes('self'))) {
             setTimeout(function() {
               promptAssignTable(orderId);
             }, 400);
@@ -2242,7 +2242,7 @@
       var onlineOrders = allActiveOrders.filter(function(o) {
         var type = (o.order_type || '').toLowerCase();
         var isCompleted = (o.status === 'COMPLETED');
-        return (type === 'online' || type === 'delivery-online') && !type.includes('dine') && !isCompleted;
+        return type.includes('online') && !type.includes('kiosk') && !isCompleted;
       });
 
       var onlineBox = document.getElementById('onlineOrdersBox');
@@ -2261,7 +2261,7 @@
 
       var unassignedKiosk = allActiveOrders.filter(function(o) {
         var type = (o.order_type || '').toLowerCase();
-        return type.includes('dine') && (!o.table_no || o.table_no.trim() === '' || o.table_no === 'Direct');
+        return (type.includes('kiosk') || type.includes('dine')) && (!o.table_no || o.table_no.trim() === '' || o.table_no === 'Direct');
       });
 
       var kioskBox = document.getElementById('kioskUnassignedBox');
@@ -2300,7 +2300,7 @@
               <div class="flex justify-between items-start">
                 <div>
                   <div class="flex items-center gap-1.5">
-                    <span class="bg-pink-100 text-pink-700 font-black px-1.5 py-0.5 rounded text-[10px]">Kiosk / Unassigned</span>
+                    <span class="bg-pink-100 text-pink-700 font-black px-1.5 py-0.5 rounded text-[10px]">Kiosk Order</span>
                     <span class="text-gray-500 font-bold text-[10px]">Token ${o.id.toString().padStart(3, '0')}</span>
                     <span class="font-black text-gray-800 text-xs">ORD-${o.id}</span>
                   </div>
@@ -2323,7 +2323,7 @@
               <div class="flex flex-wrap gap-1.5 pt-1.5 border-t border-gray-100 text-[10px] font-bold">
                 <button onclick="promptAssignTable(${o.id})" class="px-2 py-1 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded border border-orange-200 font-black shadow-2xs"><span>🪑</span> Assign table</button>
                 <button onclick="actionViewOrder(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>👁</span> View</button>
-                <button onclick="actionAddPhone(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-orange-700 rounded border border-orange-200 flex items-center gap-1 shadow-2xs"><span>📞</span> Add phone</button>
+                <button onclick="actionAddPhone(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-orange-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>📞</span> Add phone</button>
                 <button onclick="actionPrintKOT(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🍳</span> KOT</button>
                 <button onclick="actionPrintReceipt(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🖨</span> Print Receipt</button>
                 <button onclick="actionEditAddItems(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>+</span> Add Item</button>
@@ -3078,7 +3078,7 @@
       document.getElementById('topPageTitle').innerText = 'New Order';
       document.getElementById('btnTopBack').classList.remove('hidden');
       document.getElementById('btnCancelOrderView').classList.add('hidden');
-      document.getElementById('topOrderActiveBadge').classList.remove('hidden');
+      document.getElementById('topOrderActiveBadge').classList.add('hidden');
 
       renderPOSCart();
       renderPOSItems();
