@@ -628,7 +628,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          order_type: 'Online',
+          order_type: 'Kiosk',
           table_no: kioskOrderType === 'Dine-In' ? `Table ${tentCard}` : 'TAKEAWAY',
           customer_name: 'Self Kiosk Guest',
           customer_phone: '',
