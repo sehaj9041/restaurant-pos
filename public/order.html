@@ -421,7 +421,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          order_type: 'Online',
+          order_type: `Online ${mode}`, // Yahan ab 'Online Delivery', 'Online Takeaway', ya 'Online Dine-In' jayega
           status: 'RUNNING',
           table_no: `${mode} - ${loc || 'Direct'}`,
           customer_name: name || 'Online Guest',
