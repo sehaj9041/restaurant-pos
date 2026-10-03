@@ -711,7 +711,7 @@ app.post('/api/orders/:id/mark-due', (req, res) => {
   );
 });
 
-// ================= NETWORK IP THERMAL PRINTING ROUTE =================
+// ================= NETWORK IP THERMAL PRINTING ROUTE (OPTIMIZED) =================
 app.post('/api/print-ip', async (req, res) => {
   const { printer_ip, order_id, table, qty, item_name, addons, time } = req.body;
   
@@ -740,18 +740,38 @@ app.post('/api/print-ip', async (req, res) => {
     CENTER + `Time: ${time}\n\n\n` +
     CUT;
 
-  // Send raw bytes via TCP socket to the printer IP on port 9100
   const client = new net.Socket();
+  client.setTimeout(4000); // 4 seconds timeout
+  client.setNoDelay(true); // Disable Nagle's algorithm for instant packet dispatch
+
+  let responded = false;
+
   client.connect(9100, printer_ip, () => {
     client.write(printData, 'binary', () => {
       client.end();
-      res.json({ success: true, message: 'Print sent to IP successfully' });
+      if (!responded) {
+        responded = true;
+        console.log(`[IP PRINT SUCCESS] Sent to printer ${printer_ip}`);
+        res.json({ success: true, message: 'Print sent to IP successfully' });
+      }
     });
   });
 
   client.on('error', (err) => {
-    console.error('Printer IP connection error:', err);
-    res.status(500).json({ success: false, error: err.message });
+    console.error(`[IP PRINT ERROR] Printer ${printer_ip}:`, err.message);
+    if (!responded) {
+      responded = true;
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  client.on('timeout', () => {
+    console.error(`[IP PRINT TIMEOUT] Connection timed out for printer ${printer_ip}`);
+    client.destroy();
+    if (!responded) {
+      responded = true;
+      res.status(500).json({ success: false, error: 'Connection timed out' });
+    }
   });
 });
 
