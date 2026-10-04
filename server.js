@@ -637,14 +637,20 @@ app.put('/api/orders/:id', (req, res) => {
     let finalPaid = Math.max(prevPaid, incomingPaid);
     let finalRemaining = Math.max(0, Number(total) - finalPaid);
 
-    // Preserve previous status (e.g. KOT_READY, RUNNING_TABLE, RUNNING) so order doesn't vanish from KDS or active queues
+    // CRITICAL FIX: Preserve status safely for Kiosk/POS edited orders so they never disappear from KDS/Queues
     let status = prevStatus || 'RUNNING_TABLE';
+    if (status === 'NEEDS_APPROVAL' || status === 'DUE_PENDING') {
+      status = prevStatus;
+    } else if (status !== 'COMPLETED' && status !== 'VOID') {
+      status = prevStatus;
+    }
+
     let finalMode = payment_mode;
 
     if (finalRemaining === 0 && finalPaid > 0) {
       status = 'COMPLETED';
     } else if (finalPaid > 0) {
-      status = (prevStatus === 'KOT_READY' || prevStatus === 'RUNNING_TABLE' || prevStatus === 'RUNNING') ? prevStatus : 'RUNNING_TABLE';
+      status = (prevStatus === 'KOT_READY' || prevStatus === 'RUNNING_TABLE' || prevStatus === 'RUNNING' || prevStatus === 'NEEDS_APPROVAL') ? prevStatus : 'RUNNING_TABLE';
       finalMode = `PARTIAL (Paid: ₹${finalPaid}, Due: ₹${finalRemaining})`;
     } else if (payment_mode === 'DUE') {
       status = (prevStatus === 'KOT_READY') ? 'KOT_READY' : 'DUE_PENDING';
@@ -668,7 +674,7 @@ app.put('/api/orders/:id', (req, res) => {
               });
             }
           }
-          console.log(`[ORDER UPDATED] Order #${orderId} modified successfully while keeping KDS & Queue status intact.`);
+          console.log(`[ORDER UPDATED SAFELY] Order #${orderId} modified successfully while keeping KDS & Queue state intact.`);
           res.json({ success: true, orderId, paid_amount: finalPaid, payable_now: finalRemaining });
         });
       }
