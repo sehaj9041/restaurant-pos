@@ -14,7 +14,6 @@
     ::-webkit-scrollbar { width: 0px; height: 0px; }
     body { -webkit-tap-highlight-color: transparent; user-select: none; font-family: system-ui, -apple-system, sans-serif; }
 
-    /* Ultra-smooth butter fly animation */
     .fly-item {
       position: fixed;
       z-index: 99999;
@@ -27,35 +26,51 @@
 
   <div id="kioskFrameContainer" class="kiosk-aspect-frame w-full bg-[#f8f9fa] relative flex flex-col justify-between shadow-[0_0_60px_rgba(0,0,0,0.9)] border-x border-neutral-800 overflow-hidden">
 
-    <!-- IDLE SCREENSAVER WITH MODE SELECTION -->
-    <div id="idleScreensaver" class="absolute inset-0 bg-[#da291c] z-50 flex flex-col items-center justify-between p-8 text-white text-center">
-      <div class="mt-8">
+    <!-- STEP 1: MCDONALD'S STYLE IDLE SCREENSAVER -->
+    <div id="idleScreensaver" onclick="showModeSelection()" class="absolute inset-0 bg-[#da291c] z-50 flex flex-col items-center justify-between p-8 text-white text-center cursor-pointer">
+      <div class="mt-12">
         <div class="w-24 h-24 bg-[#ffc72c] rounded-full flex items-center justify-center mx-auto shadow-2xl mb-4 border-4 border-white">
           <span class="text-5xl">🍔</span>
         </div>
         <h1 id="screenStoreName" class="text-3xl font-black tracking-widest uppercase drop-shadow-md">VISHAL FOODIEZ</h1>
-        <p class="text-xs font-bold text-amber-100 tracking-wider mt-1">TOUCH TO START ORDERING</p>
+        <p class="text-xs font-bold text-amber-100 tracking-wider mt-1">KOREAN SPICY & BURGER RANGE</p>
       </div>
 
-      <div class="w-full space-y-6 my-auto" onclick="startKioskOrderWithMode('Dine-In')">
-        <div class="w-40 h-40 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center mx-auto animate-bounce border-4 border-white/50 shadow-2xl cursor-pointer">
+      <div class="w-full space-y-4 my-auto">
+        <div class="w-40 h-40 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center mx-auto animate-bounce border-4 border-white/50 shadow-2xl">
           <span class="text-6xl">👆</span>
         </div>
-        <div class="bg-black/20 backdrop-blur-sm py-3 px-6 rounded-2xl inline-block border border-white/20">
-          <h2 class="text-lg font-black tracking-wide">START ORDER</h2>
-          <p class="text-[10px] uppercase tracking-widest text-white/80">Dine In & Takeaway Available</p>
+        <div class="bg-black/20 backdrop-blur-sm py-4 px-8 rounded-2xl inline-block border border-white/20 shadow-xl">
+          <h2 class="text-xl font-black tracking-wide">START ORDER</h2>
+          <p class="text-[10px] uppercase tracking-widest text-white/80 mt-0.5">To get deliciousness</p>
         </div>
       </div>
 
-      <div class="grid grid-cols-2 gap-3 w-full pb-6">
-        <div onclick="startKioskOrderWithMode('Dine-In')" class="bg-white text-neutral-900 p-4 rounded-2xl font-black text-center shadow-xl border-2 border-amber-300 flex flex-col items-center cursor-pointer active:scale-95 transition">
-          <span class="text-2xl mb-1">🍽</span>
-          <span class="text-xs uppercase">Eat In</span>
+      <div class="w-full pb-6 text-center text-xs text-white/70 font-semibold">
+        Tap anywhere on screen to begin
+      </div>
+    </div>
+
+    <!-- STEP 2: WHERE WOULD YOU LIKE TO EAT? (EAT IN / TAKEAWAY) -->
+    <div id="modeSelectionScreen" class="hidden absolute inset-0 bg-white z-40 flex flex-col justify-between p-8 text-neutral-900 text-center">
+      <div class="mt-8">
+        <h2 class="text-3xl font-black tracking-tight text-neutral-900">Where would you like to eat?</h2>
+        <p class="text-xs text-neutral-500 mt-1">Select your dining preference</p>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4 my-auto w-full">
+        <div onclick="startKioskOrderWithMode('Dine-In')" class="bg-neutral-50 hover:bg-amber-50/50 border-2 border-neutral-200 hover:border-amber-400 p-8 rounded-3xl flex flex-col items-center justify-center cursor-pointer transition shadow-sm active:scale-95">
+          <span class="text-6xl mb-3">🍽</span>
+          <span class="text-lg font-black uppercase">Eat In</span>
         </div>
-        <div onclick="startKioskOrderWithMode('Takeaway')" class="bg-white text-neutral-900 p-4 rounded-2xl font-black text-center shadow-xl border-2 border-amber-300 flex flex-col items-center cursor-pointer active:scale-95 transition">
-          <span class="text-2xl mb-1">🛍</span>
-          <span class="text-xs uppercase">Takeaway</span>
+        <div onclick="startKioskOrderWithMode('Takeaway')" class="bg-neutral-50 hover:bg-amber-50/50 border-2 border-neutral-200 hover:border-amber-400 p-8 rounded-3xl flex flex-col items-center justify-center cursor-pointer transition shadow-sm active:scale-95">
+          <span class="text-6xl mb-3">🛍</span>
+          <span class="text-lg font-black uppercase">Takeaway</span>
         </div>
+      </div>
+
+      <div class="pb-6">
+        <button onclick="resetKioskSession()" class="text-xs font-bold text-neutral-400 hover:text-neutral-700 uppercase tracking-wider">← Back to Start</button>
       </div>
     </div>
 
@@ -452,13 +467,11 @@
       selectedGroupAddons = {};
     }
 
-    // ULTRA-SLOW & BUTTERY-SMOOTH FLY ANIMATION (1.6s)
     function triggerFlyToCartAnimation(itemImgUrl) {
       const cartIcon = document.getElementById('cartIconBox');
       if (!cartIcon) return;
 
       const cartRect = cartIcon.getBoundingClientRect();
-      
       const startX = lastClickedCardRect ? (lastClickedCardRect.left + lastClickedCardRect.width / 2 - 28) : window.innerWidth / 2;
       const startY = lastClickedCardRect ? (lastClickedCardRect.top + lastClickedCardRect.height / 2 - 28) : window.innerHeight / 2;
 
@@ -613,6 +626,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           order_type: kioskOrderType,
+          is_kiosk: true,
           table_no: '', 
           customer_name: 'Self Kiosk Guest',
           customer_phone: '',
@@ -628,7 +642,7 @@
       .then(res => res.json())
       .then(data => {
         document.getElementById('kioskTokenDisplay').innerText = '#' + data.orderId;
-        document.getElementById('kioskModeNote').innerText = kioskOrderType + ' • Unassigned';
+        document.getElementById('kioskModeNote').innerText = kioskOrderType + ' • Pending Approval';
         document.getElementById('tokenSuccessModal').classList.remove('hidden');
 
         setTimeout(() => {
@@ -651,13 +665,15 @@
       }
     }
 
+    function showModeSelection() {
+      document.getElementById('idleScreensaver').classList.add('hidden');
+      document.getElementById('modeSelectionScreen').classList.remove('hidden');
+    }
+
     function startKioskOrderWithMode(mode) {
       switchKioskMode(mode);
       document.getElementById('idleScreensaver').classList.add('hidden');
-    }
-
-    function startKioskOrder() { 
-      startKioskOrderWithMode('Dine-In');
+      document.getElementById('modeSelectionScreen').classList.add('hidden');
     }
 
     function resetKioskSession() {
@@ -667,6 +683,7 @@
       document.getElementById('trayReviewModal').classList.add('hidden');
       document.getElementById('paymentModal').classList.add('hidden');
       document.getElementById('customizerModal').classList.add('hidden');
+      document.getElementById('modeSelectionScreen').classList.add('hidden');
       document.getElementById('idleScreensaver').classList.remove('hidden');
     }
 
