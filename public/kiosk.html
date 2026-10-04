@@ -24,59 +24,79 @@
 </head>
 <body class="bg-neutral-900 flex justify-center items-center h-screen w-screen overflow-hidden">
 
-  <div id="kioskFrameContainer" class="kiosk-aspect-frame w-full bg-[#f8f9fa] relative flex flex-col justify-between shadow-[0_0_60px_rgba(0,0,0,0.9)] border-x border-neutral-800 overflow-hidden">
+  <div id="kioskFrameContainer" class="kiosk-aspect-frame w-full bg-[#fcfcfc] relative flex flex-col justify-between shadow-[0_0_60px_rgba(0,0,0,0.9)] border-x border-neutral-800 overflow-hidden">
 
-    <!-- STEP 1: MCDONALD'S STYLE IDLE SCREENSAVER -->
-    <div id="idleScreensaver" onclick="showModeSelection()" class="absolute inset-0 bg-[#da291c] z-50 flex flex-col items-center justify-between p-8 text-white text-center cursor-pointer">
-      <div class="mt-12">
-        <div class="w-24 h-24 bg-[#ffc72c] rounded-full flex items-center justify-center mx-auto shadow-2xl mb-4 border-4 border-white">
-          <span class="text-5xl">🍔</span>
+    <!-- STEP 1: EXACT MCDONALD'S START SCREEN (Screenshot 1 Style) -->
+    <div id="idleScreensaver" onclick="showModeSelection()" class="absolute inset-0 bg-neutral-900 z-50 flex flex-col justify-between p-6 text-white text-center cursor-pointer overflow-hidden">
+      <!-- Top Promotional Banner/Image Area -->
+      <div class="relative flex-1 rounded-3xl overflow-hidden bg-gradient-to-b from-rose-900 via-neutral-900 to-neutral-900 flex flex-col items-center justify-center p-6 border border-neutral-800 shadow-inner mt-2">
+        <span class="bg-[#ffc72c] text-neutral-900 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest mb-3 shadow">New Range</span>
+        <h1 class="text-3xl font-black tracking-wider uppercase text-amber-50 drop-shadow-md">KOREAN SPICY</h1>
+        <p class="text-xs text-amber-200/80 font-bold tracking-widest mt-1">VISHAL FOODIEZ SPECIAL</p>
+        
+        <div class="my-auto py-4 flex gap-4">
+          <div class="w-28 h-28 bg-neutral-800/80 backdrop-blur rounded-2xl p-2 border border-neutral-700 shadow-xl flex flex-col items-center justify-center">
+            <span class="text-4xl">🍔</span>
+            <span class="text-[9px] font-bold mt-1 text-amber-100">McSpicy Burger</span>
+          </div>
+          <div class="w-28 h-28 bg-neutral-800/80 backdrop-blur rounded-2xl p-2 border border-neutral-700 shadow-xl flex flex-col items-center justify-center">
+            <span class="text-4xl">🍟</span>
+            <span class="text-[9px] font-bold mt-1 text-amber-100">Crispy Fries</span>
+          </div>
         </div>
-        <h1 id="screenStoreName" class="text-3xl font-black tracking-widest uppercase drop-shadow-md">VISHAL FOODIEZ</h1>
-        <p class="text-xs font-bold text-amber-100 tracking-wider mt-1">KOREAN SPICY & BURGER RANGE</p>
       </div>
 
-      <div class="w-full space-y-4 my-auto">
-        <div class="w-40 h-40 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center mx-auto animate-bounce border-4 border-white/50 shadow-2xl">
-          <span class="text-6xl">👆</span>
+      <!-- Bottom Interactive Touch Box (Exact McCafe/MCD Kiosk Look) -->
+      <div class="bg-white text-neutral-900 rounded-3xl p-5 shadow-2xl mt-4 border border-neutral-200 flex flex-col gap-3">
+        <div class="flex items-center justify-between bg-neutral-100 p-3 rounded-2xl border border-neutral-200">
+          <div class="text-left">
+            <div class="text-[10px] font-bold text-neutral-500 uppercase">Deals & More</div>
+            <div class="text-xs font-black text-neutral-900">Scan or tap for offers</div>
+          </div>
+          <div class="w-10 h-10 bg-white rounded-xl border border-neutral-300 flex items-center justify-center text-lg shadow-2xs">📱</div>
         </div>
-        <div class="bg-black/20 backdrop-blur-sm py-4 px-8 rounded-2xl inline-block border border-white/20 shadow-xl">
-          <h2 class="text-xl font-black tracking-wide">START ORDER</h2>
-          <p class="text-[10px] uppercase tracking-widest text-white/80 mt-0.5">To get deliciousness</p>
-        </div>
-      </div>
 
-      <div class="w-full pb-6 text-center text-xs text-white/70 font-semibold">
-        Tap anywhere on screen to begin
+        <div class="bg-[#ffc72c] hover:bg-[#f3bc22] text-neutral-900 py-4 px-6 rounded-2xl font-black text-sm tracking-wide shadow-md flex items-center justify-center gap-2 transition active:scale-95">
+          <span>Start Order</span>
+          <span class="text-base">→</span>
+        </div>
+        <p class="text-[10px] text-neutral-400 font-bold uppercase tracking-wider">Touch anywhere to begin</p>
       </div>
     </div>
 
-    <!-- STEP 2: WHERE WOULD YOU LIKE TO EAT? (EAT IN / TAKEAWAY) -->
-    <div id="modeSelectionScreen" class="hidden absolute inset-0 bg-white z-40 flex flex-col justify-between p-8 text-neutral-900 text-center">
-      <div class="mt-8">
-        <h2 class="text-3xl font-black tracking-tight text-neutral-900">Where would you like to eat?</h2>
-        <p class="text-xs text-neutral-500 mt-1">Select your dining preference</p>
+    <!-- STEP 2: WHERE WOULD YOU LIKE TO EAT? (Screenshot 3 Style) -->
+    <div id="modeSelectionScreen" class="hidden absolute inset-0 bg-[#f8f9fa] z-40 flex flex-col justify-between p-6 text-neutral-900 text-center">
+      <div class="mt-6">
+        <h2 class="text-2xl font-black tracking-tight text-neutral-900">Where would you like to eat?</h2>
       </div>
 
       <div class="grid grid-cols-2 gap-4 my-auto w-full">
-        <div onclick="startKioskOrderWithMode('Dine-In')" class="bg-neutral-50 hover:bg-amber-50/50 border-2 border-neutral-200 hover:border-amber-400 p-8 rounded-3xl flex flex-col items-center justify-center cursor-pointer transition shadow-sm active:scale-95">
-          <span class="text-6xl mb-3">🍽</span>
-          <span class="text-lg font-black uppercase">Eat In</span>
+        <!-- Eat In Card -->
+        <div onclick="startKioskOrderWithMode('Dine-In')" class="bg-white hover:border-amber-400 border-2 border-neutral-200 p-6 rounded-3xl flex flex-col items-center justify-center cursor-pointer transition shadow-sm active:scale-95 space-y-4">
+          <div class="w-24 h-24 bg-neutral-100 rounded-2xl flex items-center justify-center shadow-inner">
+            <span class="text-5xl">🥤🍔</span>
+          </div>
+          <span class="text-base font-black uppercase tracking-wide">Eat In</span>
         </div>
-        <div onclick="startKioskOrderWithMode('Takeaway')" class="bg-neutral-50 hover:bg-amber-50/50 border-2 border-neutral-200 hover:border-amber-400 p-8 rounded-3xl flex flex-col items-center justify-center cursor-pointer transition shadow-sm active:scale-95">
-          <span class="text-6xl mb-3">🛍</span>
-          <span class="text-lg font-black uppercase">Takeaway</span>
+
+        <!-- Takeaway Card -->
+        <div onclick="startKioskOrderWithMode('Takeaway')" class="bg-white hover:border-amber-400 border-2 border-neutral-200 p-6 rounded-3xl flex flex-col items-center justify-center cursor-pointer transition shadow-sm active:scale-95 space-y-4">
+          <div class="w-24 h-24 bg-neutral-100 rounded-2xl flex items-center justify-center shadow-inner">
+            <span class="text-5xl">🛍️📦</span>
+          </div>
+          <span class="text-base font-black uppercase tracking-wide">Take Away</span>
         </div>
       </div>
 
-      <div class="pb-6">
-        <button onclick="resetKioskSession()" class="text-xs font-bold text-neutral-400 hover:text-neutral-700 uppercase tracking-wider">← Back to Start</button>
+      <div class="pb-4">
+        <button onclick="resetKioskSession()" class="text-xs font-black text-neutral-400 hover:text-neutral-700 uppercase tracking-widest bg-neutral-200/60 px-4 py-2 rounded-xl">← Back</button>
       </div>
     </div>
 
+    <!-- MAIN KIOSK HEADER -->
     <header class="bg-[#27251f] text-white px-4 py-3 shadow-md flex justify-between items-center z-10">
       <div class="flex items-center gap-2.5">
-        <div class="w-10 h-10 bg-[#ffc72c] rounded-xl flex items-center justify-center text-neutral-900 text-xl font-black shadow">
+        <div class="w-9 h-9 bg-[#ffc72c] rounded-xl flex items-center justify-center text-neutral-900 text-lg font-black shadow">
           M
         </div>
         <div>
@@ -86,52 +106,55 @@
       </div>
 
       <div class="flex bg-neutral-800 p-1 rounded-xl border border-neutral-700">
-        <button id="pillDine" onclick="switchKioskMode('Dine-In')" class="px-3.5 py-1.5 rounded-lg font-black text-[10px] transition bg-[#da291c] text-white shadow flex items-center gap-1">
+        <button id="pillDine" onclick="switchKioskMode('Dine-In')" class="px-3 py-1 rounded-lg font-black text-[10px] transition bg-[#da291c] text-white shadow flex items-center gap-1">
           <span>🍽</span> Eat In
         </button>
-        <button id="pillTake" onclick="switchKioskMode('Takeaway')" class="px-3.5 py-1.5 rounded-lg font-black text-[10px] transition text-neutral-400 hover:text-white flex items-center gap-1">
+        <button id="pillTake" onclick="switchKioskMode('Takeaway')" class="px-3.5 py-1 rounded-lg font-black text-[10px] transition text-neutral-400 hover:text-white flex items-center gap-1">
           <span>🛍</span> Takeaway
         </button>
       </div>
     </header>
 
+    <!-- MENU BROWSE SCREEN (Screenshot 2 Style) -->
     <main class="flex-1 flex overflow-hidden bg-[#f3f4f6]">
       <aside id="categorySidebar" class="w-24 bg-white border-r border-neutral-200 flex flex-col py-3 gap-2 overflow-y-auto shrink-0 shadow-sm"></aside>
       
-      <section class="flex-1 p-4 overflow-y-auto">
-        <div class="flex justify-between items-center mb-3">
-          <h2 id="activeCategoryHeading" class="text-sm font-black text-neutral-800 tracking-tight uppercase">Menu</h2>
-          <span id="categoryItemCount" class="text-[10px] font-bold text-neutral-500 bg-neutral-200 px-2.5 py-0.5 rounded-full">0 items</span>
+      <section class="flex-1 p-3 overflow-y-auto">
+        <div class="flex justify-between items-center mb-2.5 bg-white p-2.5 rounded-2xl border shadow-2xs">
+          <h2 id="activeCategoryHeading" class="text-xs font-black text-neutral-800 tracking-tight uppercase">Menu</h2>
+          <span id="categoryItemCount" class="text-[10px] font-bold text-neutral-500 bg-neutral-100 px-2 py-0.5 rounded-full">0 items</span>
         </div>
-        <div id="itemsGrid" class="grid grid-cols-2 gap-3.5 pb-6"></div>
+        <div id="itemsGrid" class="grid grid-cols-2 gap-3 pb-6"></div>
       </section>
     </main>
 
-    <footer class="bg-white border-t border-neutral-200 px-4 py-3.5 shadow-[0_-5px_20px_rgba(0,0,0,0.06)] z-20 flex justify-between items-center">
+    <!-- FOOTER CART & CHECKOUT BAR -->
+    <footer class="bg-white border-t border-neutral-200 px-4 py-3 shadow-[0_-5px_20px_rgba(0,0,0,0.06)] z-20 flex justify-between items-center">
       <div onclick="openTrayReviewModal()" class="flex items-center gap-3 cursor-pointer">
         <div class="relative">
-          <div id="cartIconBox" class="w-12 h-12 bg-[#da291c] rounded-2xl flex items-center justify-center text-white text-xl shadow-lg">
+          <div id="cartIconBox" class="w-11 h-11 bg-[#da291c] rounded-2xl flex items-center justify-center text-white text-lg shadow-lg">
             🛍️
           </div>
           <span id="trayCountBadge" class="absolute -top-1.5 -right-1.5 bg-[#ffc72c] text-neutral-900 text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-white shadow">0</span>
         </div>
         <div>
           <p class="text-[9px] font-bold text-neutral-400 uppercase tracking-wider">My Bag</p>
-          <p id="trayTotalDisplay" class="text-xl font-black text-neutral-900 leading-none mt-0.5">₹0</p>
+          <p id="trayTotalDisplay" class="text-lg font-black text-neutral-900 leading-none mt-0.5">₹0</p>
         </div>
       </div>
 
-      <div class="flex gap-2.5">
-        <button onclick="resetKioskSession()" class="px-3 py-2 font-black text-[11px] text-neutral-400 hover:text-red-600 transition uppercase">
+      <div class="flex gap-2">
+        <button onclick="resetKioskSession()" class="px-2.5 py-2 font-black text-[10px] text-neutral-400 hover:text-red-600 transition uppercase">
           Cancel
         </button>
-        <button onclick="openPaymentChoice()" class="bg-[#00853e] hover:bg-[#007033] text-white font-black px-6 py-3.5 rounded-2xl text-xs shadow-lg transition flex items-center gap-2">
+        <button onclick="openPaymentChoice()" class="bg-[#00853e] hover:bg-[#007033] text-white font-black px-5 py-3 rounded-2xl text-xs shadow-lg transition flex items-center gap-1.5">
           <span>Checkout</span>
           <span class="text-sm">→</span>
         </button>
       </div>
     </footer>
 
+    <!-- ITEM CUSTOMIZER MODAL -->
     <div id="customizerModal" class="hidden absolute inset-0 bg-black/70 backdrop-blur-sm z-40 flex items-end justify-center">
       <div class="bg-white w-full max-h-[88%] rounded-t-3xl p-5 shadow-2xl flex flex-col justify-between overflow-hidden animate-in slide-in-from-bottom duration-300">
         
@@ -147,12 +170,12 @@
         </div>
 
         <div class="flex-1 overflow-y-auto py-3 space-y-4 pr-1">
-          <div class="bg-amber-50 border border-amber-200 p-3.5 rounded-2xl flex items-center justify-between">
+          <div class="bg-amber-50 border border-amber-200 p-3 rounded-2xl flex items-center justify-between">
             <div>
               <h4 class="text-xs font-black text-amber-900">Make it a Meal? 🍟🥤</h4>
               <p class="text-[10px] text-amber-700">Add Fries & Drink for best combo</p>
             </div>
-            <span class="text-xs font-black text-amber-600 bg-white px-2.5 py-1 rounded-xl border border-amber-300 shadow-sm">Popular</span>
+            <span class="text-xs font-black text-amber-600 bg-white px-2 py-1 rounded-xl border border-amber-300 shadow-sm">Popular</span>
           </div>
 
           <div id="modalVarSection" class="hidden">
@@ -167,7 +190,7 @@
             <span class="text-[9px] font-bold text-neutral-400 uppercase tracking-wider">Total Amount</span>
             <div id="modalItemRunningTotal" class="text-2xl font-black text-[#00853e] leading-none mt-0.5">₹0</div>
           </div>
-          <button id="addToTrayBtn" onclick="confirmKioskItemAdd()" class="bg-[#da291c] hover:bg-[#b52217] text-white font-black px-8 py-3.5 rounded-2xl text-xs shadow-xl transition uppercase tracking-wider">
+          <button id="addToTrayBtn" onclick="confirmKioskItemAdd()" class="bg-[#da291c] hover:bg-[#b52217] text-white font-black px-7 py-3 rounded-2xl text-xs shadow-xl transition uppercase tracking-wider">
             Add To Bag
           </button>
         </div>
@@ -175,6 +198,7 @@
       </div>
     </div>
 
+    <!-- TRAY REVIEW MODAL -->
     <div id="trayReviewModal" class="hidden absolute inset-0 bg-black/70 backdrop-blur-sm z-40 flex items-end justify-center">
       <div class="bg-white w-full max-h-[80%] rounded-t-3xl p-5 shadow-2xl flex flex-col justify-between">
         <div class="flex justify-between items-center border-b pb-3 mb-2">
@@ -196,6 +220,7 @@
       </div>
     </div>
 
+    <!-- PAYMENT SELECTION MODAL -->
     <div id="paymentModal" class="hidden absolute inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div class="bg-white rounded-3xl p-6 max-w-xs w-full text-center shadow-2xl space-y-5">
         <div class="flex justify-between items-center border-b pb-2">
@@ -223,6 +248,7 @@
       </div>
     </div>
 
+    <!-- SUCCESS TOKEN MODAL -->
     <div id="tokenSuccessModal" class="hidden absolute inset-0 bg-[#00853e] z-50 flex flex-col items-center justify-center p-6 text-white text-center">
       <div class="w-20 h-20 bg-white text-[#00853e] rounded-full flex items-center justify-center text-4xl shadow-2xl mb-4 font-black animate-bounce">✓</div>
       <h2 class="text-3xl font-black">Order Placed!</h2>
@@ -325,13 +351,13 @@
 
         return `
           <div onclick='openCustomizer(event, ${JSON.stringify(item).replace(/'/g, "&apos;")})' class="bg-white rounded-3xl p-3 shadow-sm border border-neutral-200/80 flex flex-col justify-between active:scale-95 transition cursor-pointer hover:shadow-md">
-            ${itemImg ? `<img src="${itemImg}" class="w-full h-32 object-cover rounded-2xl mb-2.5" onerror="this.onerror=null; this.style.display='none';">` : `<div class="w-full h-32 bg-amber-50 rounded-2xl mb-2.5 flex items-center justify-center text-amber-500 text-3xl font-black">🍔</div>`}
+            ${itemImg ? `<img src="${itemImg}" class="w-full h-28 object-cover rounded-2xl mb-2.5" onerror="this.onerror=null; this.style.display='none';">` : `<div class="w-full h-28 bg-amber-50 rounded-2xl mb-2.5 flex items-center justify-center text-amber-500 text-3xl font-black">🍔</div>`}
             <div>
               <h3 class="font-black text-neutral-900 text-xs leading-tight line-clamp-2">${item.name}</h3>
             </div>
             <div class="flex justify-between items-center mt-3 pt-2 border-t border-neutral-100">
               <span class="font-black text-[#00853e] text-xs">${priceTag}</span>
-              <span class="w-7 h-7 bg-red-50 text-[#da291c] rounded-full flex items-center justify-center font-black text-xs shadow-sm">+</span>
+              <span class="w-6 h-6 bg-red-50 text-[#da291c] rounded-full flex items-center justify-center font-black text-xs shadow-sm">+</span>
             </div>
           </div>
         `;
@@ -657,11 +683,11 @@
       const pTake = document.getElementById('pillTake');
 
       if (mode === 'Dine-In') {
-        pDine.className = "px-3.5 py-1.5 rounded-lg font-black text-[10px] transition bg-[#da291c] text-white shadow flex items-center gap-1";
-        pTake.className = "px-3.5 py-1.5 rounded-lg font-black text-[10px] transition text-neutral-400 hover:text-white flex items-center gap-1";
+        pDine.className = "px-3 py-1 rounded-lg font-black text-[10px] transition bg-[#da291c] text-white shadow flex items-center gap-1";
+        pTake.className = "px-3.5 py-1 rounded-lg font-black text-[10px] transition text-neutral-400 hover:text-white flex items-center gap-1";
       } else {
-        pTake.className = "px-3.5 py-1.5 rounded-lg font-black text-[10px] transition bg-[#da291c] text-white shadow flex items-center gap-1";
-        pDine.className = "px-3.5 py-1.5 rounded-lg font-black text-[10px] transition text-neutral-400 hover:text-white flex items-center gap-1";
+        pTake.className = "px-3.5 py-1 rounded-lg font-black text-[10px] transition bg-[#da291c] text-white shadow flex items-center gap-1";
+        pDine.className = "px-3 py-1 rounded-lg font-black text-[10px] transition text-neutral-400 hover:text-white flex items-center gap-1";
       }
     }
 
