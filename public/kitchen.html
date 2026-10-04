@@ -40,7 +40,6 @@
     .kot-card-box .kot-item-title {
       font-size: calc(15px * var(--kot-scale));
     }
-    /* BIGGER & PROMINENT QUANTITY FONT */
     .kot-card-box .kot-qty-badge {
       font-size: calc(18px * var(--kot-scale));
       line-height: 1;
@@ -79,7 +78,6 @@
     </div>
     
     <div class="flex items-center gap-3 flex-wrap">
-      <!-- CARD SIZE SCROLLER -->
       <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg shadow-2xs">
         <span class="text-xs font-bold text-slate-600 flex items-center gap-1">
           <span>🔍</span> <span>Size:</span>
@@ -98,17 +96,14 @@
         <button onclick="resetKOTCardScale()" title="Reset Size" class="text-slate-400 hover:text-slate-800 text-xs px-1 font-bold">↺</button>
       </div>
 
-      <!-- KDS PRINTER SETTINGS BUTTON -->
       <button onclick="openKdsSettingsModal()" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold px-3 py-1.5 rounded-lg text-xs transition flex items-center gap-1.5 shadow-2xs">
-        <span>🖨️</span> <span id="lblPrinterStatus">Printer: OFF</span>
+        <span>🖨️️</span> <span id="lblPrinterStatus">Printer: OFF</span>
       </button>
 
-      <!-- FULLSCREEN TOGGLE BUTTON -->
       <button id="btnFullScreen" onclick="toggleFullScreen()" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold px-3 py-1.5 rounded-lg text-xs transition flex items-center gap-1.5 shadow-2xs">
         <span id="fullScreenIcon">⛶</span> <span id="fullScreenText">Fullscreen</span>
       </button>
 
-      <!-- AUDIO ALERT TOGGLE -->
       <button id="btnAudioToggle" onclick="toggleAudioSetting()" class="bg-emerald-600 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition flex items-center gap-1.5 shadow-2xs">
         <span>🔔</span> <span id="lblAudioStatus">Sound Alert Active</span>
       </button>
@@ -120,16 +115,13 @@
     </div>
   </div>
 
-  <!-- AUTO-FLOW RESPONSIVE GRID -->
   <div id="kotGrid">
     <div class="col-span-full text-center py-24 text-slate-400 font-bold text-lg">No active orders right now.</div>
   </div>
 
-  <!-- ON-SCREEN STATUS BANNER FOR ANDROID TV -->
   <div id="tvStatusBanner" style="position: fixed; bottom: 20px; right: 20px; z-index: 99999; padding: 15px 25px; border-radius: 12px; font-size: 18px; font-weight: bold; color: white; background: rgba(0,0,0,0.85); display: none; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
   </div>
 
-  <!-- ================= KDS PRINTER SETTINGS MODAL ================= -->
   <div id="kdsSettingsModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-2xl text-xs">
       <div class="flex justify-between items-center border-b pb-2">
@@ -165,21 +157,15 @@
     var isAudioAllowed = true;
     var liveOrdersData = [];
 
-    // ================= TV SCREEN STATUS LOGIC =================
     function showTvStatus(message, isError = false) {
       var banner = document.getElementById('tvStatusBanner');
       if (!banner) return;
-      
       banner.innerText = message;
       banner.style.backgroundColor = isError ? '#e74c3c' : '#2ecc71';
       banner.style.display = 'block';
-
-      setTimeout(function() {
-        banner.style.display = 'none';
-      }, 4000);
+      setTimeout(function() { banner.style.display = 'none'; }, 4000);
     }
 
-    // ================= KDS PRINTER LOCAL SETTINGS =================
     function getKdsPrinterConfig() {
       try {
         return JSON.parse(localStorage.getItem('kds_device_printer_config') || '{"enabled": false, "ip": ""}');
@@ -204,17 +190,12 @@
     function toggleKdsPrinterFields() {
       var isChecked = document.getElementById('kdsAutoPrintToggle').checked;
       var ipSec = document.getElementById('printerIpSection');
-      if (isChecked) {
-        ipSec.classList.remove('hidden');
-      } else {
-        ipSec.classList.add('hidden');
-      }
+      if (isChecked) { ipSec.classList.remove('hidden'); } else { ipSec.classList.add('hidden'); }
     }
 
     function saveKdsPrinterSetting() {
       var isEnabled = document.getElementById('kdsAutoPrintToggle').checked;
       var ipVal = document.getElementById('kdsPrinterIp').value.trim();
-      
       localStorage.setItem('kds_device_printer_config', JSON.stringify({ enabled: isEnabled, ip: ipVal }));
       closeKdsSettingsModal();
       updateKdsPrinterUIState();
@@ -232,7 +213,6 @@
     function printItemReadyToken(order, item) {
       var printerCfg = getKdsPrinterConfig();
       if (!printerCfg.enabled || !printerCfg.ip) return;
-
       var cleanName = item.name.replace(/\s*\(.*?\)\s*$/, '').trim();
       var addonsStr = '';
       if (item.addons && Array.isArray(item.addons)) {
@@ -240,7 +220,6 @@
       } else if (item.notes) {
         addonsStr = item.notes;
       }
-
       var printPayload = {
         printer_ip: printerCfg.ip,
         order_id: order.id,
@@ -250,9 +229,7 @@
         addons: addonsStr,
         time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
       };
-
       showTvStatus("Sending print command...", false);
-
       fetch('/api/print-ip', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -260,18 +237,12 @@
       })
       .then(function(res){ return res.json(); })
       .then(function(data){
-        if (data.success) {
-          showTvStatus("Print Successful!", false);
-        } else {
-          showTvStatus("Print Error: " + (data.error || "Unknown"), true);
-        }
+        if (data.success) { showTvStatus("Print Successful!", false); }
+        else { showTvStatus("Print Error: " + (data.error || "Unknown"), true); }
       })
-      .catch(function(err) {
-        showTvStatus("Network Error: " + err.message, true);
-      });
+      .catch(function(err) { showTvStatus("Network Error: " + err.message, true); });
     }
 
-    // ================= SOUND PERSISTENCE & AUDIO UNLOCK =================
     function initPersistentAudio() {
       var savedSoundState = localStorage.getItem('kot_sound_enabled');
       if (savedSoundState === null || savedSoundState === 'true') {
@@ -287,17 +258,13 @@
       isAudioAllowed = !isAudioAllowed;
       localStorage.setItem('kot_sound_enabled', isAudioAllowed ? 'true' : 'false');
       updateAudioButtonUI(isAudioAllowed);
-      if (isAudioAllowed) {
-        unlockAudioEngine();
-        playKOTBeepSound();
-      }
+      if (isAudioAllowed) { unlockAudioEngine(); playKOTBeepSound(); }
     }
 
     function updateAudioButtonUI(active) {
       var btn = document.getElementById('btnAudioToggle');
       var lbl = document.getElementById('lblAudioStatus');
       if (!btn || !lbl) return;
-
       if (active) {
         btn.className = "bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition flex items-center gap-1.5 shadow-2xs";
         lbl.innerText = "Sound Alert Active";
@@ -309,24 +276,16 @@
 
     function unlockAudioEngine() {
       try {
-        if (!audioCtx) {
-          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        if (audioCtx.state === 'suspended') {
-          audioCtx.resume();
-        }
-      } catch (e) {
-        console.warn('Audio context pending interaction:', e);
-      }
+        if (!audioCtx) { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+        if (audioCtx.state === 'suspended') { audioCtx.resume(); }
+      } catch (e) { console.warn('Audio context pending interaction:', e); }
     }
 
     function playKOTBeepSound() {
       if (!isAudioAllowed) return;
-
       try {
         unlockAudioEngine();
         if (!audioCtx) return;
-
         var now = audioCtx.currentTime;
         var osc1 = audioCtx.createOscillator();
         var gain1 = audioCtx.createGain();
@@ -349,12 +308,9 @@
         gain2.connect(audioCtx.destination);
         osc2.start(now + 0.12);
         osc2.stop(now + 0.65);
-      } catch (err) {
-        console.warn('Audio awaiting interaction:', err);
-      }
+      } catch (err) { console.warn('Audio awaiting interaction:', err); }
     }
 
-    // ================= DYNAMIC CARD & BOX SCALING =================
     function initCardScale() {
       var savedScale = localStorage.getItem('kot_display_scale') || '100';
       var slider = document.getElementById('kotSizeSlider');
@@ -370,10 +326,8 @@
     function applyDynamicCardWidthAndScale(val) {
       var label = document.getElementById('lblSizePercent');
       if (label) label.innerText = val + '%';
-      
       var numericScale = Number(val) / 100;
       var calculatedWidth = Math.round(300 * numericScale);
-
       document.documentElement.style.setProperty('--kot-scale', numericScale);
       document.documentElement.style.setProperty('--kot-card-min-width', calculatedWidth + 'px');
     }
@@ -384,16 +338,11 @@
       changeKOTCardScale(100);
     }
 
-    // ================= FULLSCREEN TOGGLE LOGIC =================
     function toggleFullScreen() {
       if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(function(err) {
-          console.warn("Fullscreen error:", err.message);
-        });
+        document.documentElement.requestFullscreen().catch(function(err) { console.warn("Fullscreen error:", err.message); });
       } else {
-        if (document.exitFullscreen) {
-          document.exitFullscreen();
-        }
+        if (document.exitFullscreen) { document.exitFullscreen(); }
       }
     }
 
@@ -409,56 +358,41 @@
       }
     });
 
-    // ================= LOCAL STORAGE PERSISTENCE =================
     function getStoredSnapshots() {
-      try {
-        return JSON.parse(localStorage.getItem('kot_order_snapshots') || '{}');
-      } catch (e) {
-        return {};
-      }
+      try { return JSON.parse(localStorage.getItem('kot_order_snapshots') || '{}'); } catch (e) { return {}; }
     }
-
     function saveStoredSnapshots(snapshots) {
       localStorage.setItem('kot_order_snapshots', JSON.stringify(snapshots));
     }
 
     function getCheckedItemKeys() {
-      try {
-        return JSON.parse(localStorage.getItem('kot_checked_items') || '{}');
-      } catch (e) {
-        return {};
-      }
+      try { return JSON.parse(localStorage.getItem('kot_checked_items') || '{}'); } catch (e) { return {}; }
     }
-
     function saveCheckedItemKeys(store) {
       localStorage.setItem('kot_checked_items', JSON.stringify(store));
     }
 
     function getAlertBadges() {
-      try {
-        return JSON.parse(localStorage.getItem('kot_alert_badges') || '{}');
-      } catch (e) {
-        return {};
-      }
+      try { return JSON.parse(localStorage.getItem('kot_alert_badges') || '{}'); } catch (e) { return {}; }
     }
-
     function saveAlertBadges(badges) {
       localStorage.setItem('kot_alert_badges', JSON.stringify(badges));
     }
 
-    function getReadyForDispatchOrders() {
-      try {
-        return JSON.parse(localStorage.getItem('kot_ready_dispatch') || '{}');
-      } catch (e) {
-        return {};
-      }
+    function getCancelledItemsStore() {
+      try { return JSON.parse(localStorage.getItem('kot_cancelled_items') || '{}'); } catch (e) { return {}; }
+    }
+    function saveCancelledItemsStore(store) {
+      localStorage.setItem('kot_cancelled_items', JSON.stringify(store));
     }
 
+    function getReadyForDispatchOrders() {
+      try { return JSON.parse(localStorage.getItem('kot_ready_dispatch') || '{}'); } catch (e) { return {}; }
+    }
     function saveReadyForDispatchOrders(store) {
       localStorage.setItem('kot_ready_dispatch', JSON.stringify(store));
     }
 
-    // Helper to get unified addons list for any item without duplication
     function extractAddonsList(item) {
       var addonsList = [];
       if (item.addons && Array.isArray(item.addons)) {
@@ -488,14 +422,12 @@
       store[key] = newState;
 
       var addonsList = extractAddonsList(itemObj);
-
       if (addonsList.length > 0) {
         addonsList.forEach(function(_, aIdx) {
           var addonKey = orderId + '_' + rowIdentifier + '_addon_' + aIdx;
           store[addonKey] = newState;
         });
       }
-
       saveCheckedItemKeys(store);
 
       if (newState) {
@@ -503,12 +435,9 @@
         if (targetOrder) {
           var itemIndex = rowIdentifier.replace('row_', '');
           var targetItem = targetOrder.items[itemIndex];
-          if (targetItem) {
-            printItemReadyToken(targetOrder, targetItem);
-          }
+          if (targetItem) { printItemReadyToken(targetOrder, targetItem); }
         }
       }
-
       renderKOTCards();
     }
 
@@ -531,9 +460,7 @@
       if (targetOrder) {
         (targetOrder.items || []).forEach(function(item, idx) {
           checkedMap[strId + '_row_' + idx] = true;
-          
           var addonsList = extractAddonsList(item);
-
           if (addonsList.length > 0) {
             addonsList.forEach(function(_, aIdx) {
               checkedMap[strId + '_row_' + idx + '_addon_' + aIdx] = true;
@@ -542,7 +469,6 @@
         });
         saveCheckedItemKeys(checkedMap);
       }
-
       renderKOTCards();
     }
 
@@ -559,35 +485,17 @@
       var snapshots = getStoredSnapshots();
       var checkedMap = getCheckedItemKeys();
       var readyStore = getReadyForDispatchOrders();
+      var cancelledStore = getCancelledItemsStore();
 
       if (snapshots[strId]) {
         snapshots[strId].wasCompletedBefore = true;
-        var targetOrder = liveOrdersData.find(function(o){ return o.id.toString() === strId; });
-        if (targetOrder && targetOrder.items) {
-          targetOrder.items.forEach(function(item, idx) {
-            checkedMap[strId + '_row_' + idx] = true;
-            
-            var addonsList = extractAddonsList(item);
-
-            if (addonsList.length > 0) {
-              addonsList.forEach(function(_, aIdx) {
-                checkedMap[strId + '_row_' + idx + '_addon_' + aIdx] = true;
-              });
-            }
-          });
-        }
       }
-
-      var badges = getAlertBadges();
-      Object.keys(badges).forEach(function(k) {
-        if (k.startsWith(strId + '_')) delete badges[k];
-      });
-
+      delete cancelledStore[strId];
       delete readyStore[strId];
 
       saveStoredSnapshots(snapshots);
       saveCheckedItemKeys(checkedMap);
-      saveAlertBadges(badges);
+      saveCancelledItemsStore(cancelledStore);
       saveReadyForDispatchOrders(readyStore);
 
       fetch('/api/kot/' + id + '/complete', { method: 'POST' })
@@ -600,14 +508,11 @@
       liveOrdersData.forEach(function(order) {
         var timerEl = document.getElementById('kotTimer_' + order.id);
         if (!timerEl) return;
-
         var startTime = order.created_at ? new Date(order.created_at).getTime() : now;
         var diffSec = Math.max(0, Math.floor((now - startTime) / 1000));
-
         var mins = Math.floor(diffSec / 60);
         var secs = diffSec % 60;
         var formatted = (mins < 10 ? '0' : '') + mins + ':' + (secs < 10 ? '0' : '') + secs;
-
         timerEl.innerText = formatted;
 
         if (mins >= 10) {
@@ -630,6 +535,7 @@
           var snapshots = getStoredSnapshots();
           var persistentBadges = getAlertBadges();
           var checkedMap = getCheckedItemKeys();
+          var cancelledStore = getCancelledItemsStore();
           var readyStore = getReadyForDispatchOrders();
           var shouldPlaySound = false;
 
@@ -641,74 +547,79 @@
             if (!prevSnapshot) {
               shouldPlaySound = true;
               snapshots[orderId] = {
-                rowsCount: currentItems.length,
-                rowsQty: currentItems.map(function(i){ return Number(i.qty) || 1; }),
+                itemsMap: currentItems.reduce(function(acc, item, idx) {
+                  acc[item.name] = Number(item.qty) || 1;
+                  return acc;
+                }, {}),
                 wasCompletedBefore: false
               };
             } else {
-              var prevRowsCount = prevSnapshot.rowsCount || 0;
-              var prevRowsQty = prevSnapshot.rowsQty || [];
+              var prevItemsMap = prevSnapshot.itemsMap || {};
+              var currentItemsMap = {};
 
-              if (currentItems.length > prevRowsCount) {
-                shouldPlaySound = true;
-                delete readyStore[orderId];
-                for (var idx = prevRowsCount; idx < currentItems.length; idx++) {
-                  var itemRowKey = orderId + '_row_' + idx;
-                  persistentBadges[itemRowKey] = 'NEW';
-                  delete checkedMap[itemRowKey];
-                }
-              }
+              currentItems.forEach(function(item) {
+                currentItemsMap[item.name] = Number(item.qty) || 1;
+              });
 
-              currentItems.forEach(function(item, idx) {
-                var currentQty = Number(item.qty) || 1;
-                var prevQty = prevRowsQty[idx];
+              // Check for new items or increased qty or decreased qty or removed items
+              Object.keys(currentItemsMap).forEach(function(name) {
+                var curQ = currentItemsMap[name];
+                var prevQ = prevItemsMap[name];
 
-                if (prevQty !== undefined && currentQty > prevQty) {
-                  var diff = currentQty - prevQty;
-                  var rowKey = orderId + '_row_' + idx;
-                  persistentBadges[rowKey] = '+' + diff + ' QTY';
-                  delete checkedMap[rowKey];
-                  delete readyStore[orderId];
+                if (prevQ === undefined) {
                   shouldPlaySound = true;
+                  delete readyStore[orderId];
+                } else if (curQ > prevQ) {
+                  shouldPlaySound = true;
+                  delete readyStore[orderId];
+                  var diff = curQ - prevQ;
+                  // find index in currentItems
+                  var cIdx = currentItems.findIndex(function(i){ return i.name === name; });
+                  if (cIdx !== -1) {
+                    persistentBadges[orderId + '_row_' + cIdx] = '+' + diff + ' QTY';
+                  }
+                } else if (curQ < prevQ) {
+                  shouldPlaySound = true;
+                  var diff = prevQ - curQ;
+                  var cIdx = currentItems.findIndex(function(i){ return i.name === name; });
+                  if (cIdx !== -1) {
+                    persistentBadges[orderId + '_row_' + cIdx] = '-' + diff + ' QTY';
+                  }
                 }
               });
 
-              if (prevSnapshot.wasCompletedBefore && (currentItems.length > prevRowsCount || shouldPlaySound)) {
-                for (var p = 0; p < prevRowsCount; p++) {
-                  var rKey = orderId + '_row_' + p;
-                  if (!persistentBadges[rKey]) {
-                    checkedMap[rKey] = true;
+              // Check for completely removed/cancelled items
+              Object.keys(prevItemsMap).forEach(function(name) {
+                if (currentItemsMap[name] === undefined) {
+                  shouldPlaySound = true;
+                  if (!cancelledStore[orderId]) cancelledStore[orderId] = [];
+                  // Avoid duplicates
+                  if (!cancelledStore[orderId].includes(name)) {
+                    cancelledStore[orderId].push(name);
                   }
                 }
-                prevSnapshot.wasCompletedBefore = false;
-              }
+              });
 
-              snapshots[orderId].rowsCount = currentItems.length;
-              snapshots[orderId].rowsQty = currentItems.map(function(i){ return Number(i.qty) || 1; });
+              snapshots[orderId].itemsMap = currentItemsMap;
             }
           });
 
           var currentOrderIds = new Set(liveOrdersData.map(function(o){ return o.id.toString(); }));
-          Object.keys(snapshots).forEach(function(id) {
-            if (!currentOrderIds.has(id)) delete snapshots[id];
-          });
+          Object.keys(snapshots).forEach(function(id) { if (!currentOrderIds.has(id)) delete snapshots[id]; });
           Object.keys(persistentBadges).forEach(function(key) {
             var ordId = key.split('_')[0];
             if (!currentOrderIds.has(ordId)) delete persistentBadges[key];
           });
-          Object.keys(readyStore).forEach(function(id) {
-            if (!currentOrderIds.has(id)) delete readyStore[id];
-          });
+          Object.keys(cancelledStore).forEach(function(id) { if (!currentOrderIds.has(id)) delete cancelledStore[id]; });
+          Object.keys(readyStore).forEach(function(id) { if (!currentOrderIds.has(id)) delete readyStore[id]; });
 
           saveStoredSnapshots(snapshots);
           saveAlertBadges(persistentBadges);
           saveCheckedItemKeys(checkedMap);
+          saveCancelledItemsStore(cancelledStore);
           saveReadyForDispatchOrders(readyStore);
 
-          if (shouldPlaySound) {
-            playKOTBeepSound();
-          }
-
+          if (shouldPlaySound) { playKOTBeepSound(); }
           renderKOTCards();
         })
         .catch(function(){});
@@ -723,18 +634,18 @@
 
       var persistentBadges = getAlertBadges();
       var checkedMap = getCheckedItemKeys();
+      var cancelledStore = getCancelledItemsStore();
       var readyStore = getReadyForDispatchOrders();
 
       grid.innerHTML = liveOrdersData.map(function(order) {
         var strId = order.id.toString();
         var isReadyForDispatch = !!readyStore[strId];
+        var cancelledNames = cancelledStore[strId] || [];
 
         var allItemsReady = (order.items || []).every(function(item, idx) {
           var mainItemDone = !!checkedMap[order.id + '_row_' + idx];
           var addonsDone = true;
-          
           var addonsList = extractAddonsList(item);
-
           if (addonsList.length > 0) {
             addonsDone = addonsList.every(function(_, aIdx) {
               return !!checkedMap[order.id + '_row_' + idx + '_addon_' + aIdx];
@@ -756,22 +667,10 @@
         var tableInfo = '';
 
         if (rawType.toLowerCase().includes('takeaway')) {
-          theme = {
-            border: 'border-emerald-200',
-            badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-            headerBg: 'bg-emerald-50/50',
-            emoji: '🛍️',
-            label: 'Takeaway'
-          };
+          theme = { border: 'border-emerald-200', badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200', headerBg: 'bg-emerald-50/50', emoji: '🛍️', label: 'Takeaway' };
           displayLabel = 'Takeaway';
         } else if (rawType.toLowerCase().includes('delivery')) {
-          theme = {
-            border: 'border-purple-200',
-            badgeBg: 'bg-purple-50 text-purple-700 border-purple-200',
-            headerBg: 'bg-purple-50/50',
-            emoji: '🛵',
-            label: 'Delivery'
-          };
+          theme = { border: 'border-purple-200', badgeBg: 'bg-purple-50 text-purple-700 border-purple-200', headerBg: 'bg-purple-50/50', emoji: '🛵', label: 'Delivery' };
           displayLabel = 'Delivery';
         } else if (rawType.toLowerCase().includes('dine')) {
           displayLabel = 'Dine-In';
@@ -789,9 +688,7 @@
           : (allItemsReady ? 'border-emerald-500 shadow-emerald-50' : theme.border);
 
         return `
-          <!-- LIGHT THEME KOT CARD -->
           <div class="kot-card-box bg-white border-2 ${cardBorderClass} rounded-2xl flex flex-col justify-between overflow-hidden shadow-xs hover:shadow-md transition self-start w-full">
-            <!-- HEADER -->
             <div class="p-3.5 border-b border-slate-100 ${theme.headerBg} flex justify-between items-center">
               <div>
                 <div class="flex items-center gap-2">
@@ -805,7 +702,6 @@
                 <div class="kot-notes text-slate-500 font-mono mt-0.5">Time: ${order.time || ''}</div>
               </div>
 
-              <!-- LIVE 00:00 TIMER -->
               <div class="flex flex-col items-end">
                 <span class="kot-notes font-bold text-slate-400 uppercase tracking-wider mb-0.5">Elapsed</span>
                 <span id="kotTimer_${order.id}" class="kot-timer text-slate-700 font-mono font-bold bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
@@ -814,7 +710,6 @@
               </div>
             </div>
 
-            <!-- READY STATUS BANNER -->
             ${isReadyForDispatch ? `
               <div class="bg-emerald-100/70 border-b border-emerald-200 px-3 py-1.5 flex justify-between items-center">
                 <span class="kot-badge font-black text-emerald-800 flex items-center gap-1.5">
@@ -827,15 +722,16 @@
               </div>
             ` : ''}
 
-            <!-- ITEMS LIST -->
             <div class="p-3.5 space-y-3">
+               <!-- ACTIVE ITEMS -->
                ${(order.items || []).map(function(item, idx) {
                 var rowKey = order.id + '_row_' + idx;
                 var isDone = !!checkedMap[rowKey];
                 var badgeTag = persistentBadges[rowKey];
-
                 var addonsList = extractAddonsList(item);
                 var cleanBaseName = item.name.replace(/\s*\(.*?\)\s*$/, '').trim();
+
+                var badgeBgClass = (badgeTag && badgeTag.startsWith('-')) ? 'bg-amber-600 border-amber-400' : 'bg-rose-600 border-rose-400';
 
                 return `
                   <div class="border-b border-slate-100 pb-2.5">
@@ -844,7 +740,6 @@
                         ${isDone ? '✓' : ''}
                       </div>
 
-                      <!-- BIGGER & BOLDER QUANTITY BADGE -->
                       <span class="kot-qty-badge font-black text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2 py-1 rounded-md shrink-0 shadow-2xs">
                         x${item.qty}
                       </span>
@@ -854,13 +749,12 @@
                       </span>
 
                       ${badgeTag ? `
-                        <span class="badge-alert kot-badge bg-rose-600 text-white font-black px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 shadow-2xs border border-rose-400">
+                        <span class="badge-alert kot-badge ${badgeBgClass} text-white font-black px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 shadow-2xs">
                           ${badgeTag}
                         </span>
                       ` : ''}
                     </div>
 
-                    <!-- INDIVIDUAL ADD-ONS TICK BOXES (No Duplicate Text Below) -->
                     ${addonsList.length > 0 ? `
                       <div class="mt-1.5 ml-8 space-y-1 pl-2 border-l-2 border-slate-200">
                         ${addonsList.map(function(addon, aIdx) {
@@ -880,9 +774,27 @@
                   </div>
                 `;
               }).join('')}
+
+              <!-- CANCELLED / REMOVED ITEMS -->
+              ${cancelledNames.map(function(cName) {
+                return `
+                  <div class="border-b border-slate-100 pb-2.5 opacity-60 bg-rose-50/50 p-2 rounded-xl">
+                    <div class="flex items-center gap-2.5">
+                      <span class="kot-qty-badge font-black text-rose-700 bg-rose-100 border border-rose-300 px-2 py-1 rounded-md shrink-0">
+                        ✕
+                      </span>
+                      <span class="kot-item-title font-bold text-slate-500 flex-1 line-through">
+                        ${cName}
+                      </span>
+                      <span class="kot-badge bg-rose-600 text-white font-black px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0">
+                        CANCEL
+                      </span>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
             </div>
 
-            <!-- TWO-STAGE BUTTON FOOTER -->
             <div class="p-3 bg-slate-50 border-t border-slate-100">
               ${isReadyForDispatch ? `
                 <button onclick="executeDispatch(${order.id})" class="kot-btn w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-black rounded-xl transition flex items-center justify-center gap-2 shadow-sm animate-bounce">
@@ -904,9 +816,7 @@
     }
 
     window.addEventListener('click', function() {
-      if (isAudioAllowed) {
-        unlockAudioEngine();
-      }
+      if (isAudioAllowed) { unlockAudioEngine(); }
     }, { once: true });
 
     initPersistentAudio();
