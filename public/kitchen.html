@@ -458,7 +458,7 @@
       localStorage.setItem('kot_ready_dispatch', JSON.stringify(store));
     }
 
-    // Helper to get unified addons list for any item
+    // Helper to get unified addons list for any item without duplication
     function extractAddonsList(item) {
       var addonsList = [];
       if (item.addons && Array.isArray(item.addons)) {
@@ -845,7 +845,7 @@
                       ` : ''}
                     </div>
 
-                    <!-- INDIVIDUAL ADD-ONS TICK BOXES -->
+                    <!-- INDIVIDUAL ADD-ONS TICK BOXES (No Duplicate Text Below) -->
                     ${addonsList.length > 0 ? `
                       <div class="mt-1.5 ml-8 space-y-1 pl-2 border-l-2 border-slate-200">
                         ${addonsList.map(function(addon, aIdx) {
@@ -862,8 +862,6 @@
                         }).join('')}
                       </div>
                     ` : ''}
-
-                    ${item.notes && !item.addons ? `<div class="kot-notes text-amber-600 font-semibold mt-1 ml-8">↳ ${item.notes}</div>` : ''}
                   </div>
                 `;
               }).join('')}
