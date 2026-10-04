@@ -751,7 +751,11 @@
           label: 'Dine-In'
         };
 
-        if (order.order_type === 'Takeaway') {
+        var rawType = (order.order_type || '').trim();
+        var displayLabel = rawType;
+        var tableInfo = '';
+
+        if (rawType.toLowerCase().includes('takeaway')) {
           theme = {
             border: 'border-emerald-200',
             badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -759,7 +763,8 @@
             emoji: '🛍️',
             label: 'Takeaway'
           };
-        } else if (order.order_type === 'Delivery') {
+          displayLabel = 'Takeaway';
+        } else if (rawType.toLowerCase().includes('delivery')) {
           theme = {
             border: 'border-purple-200',
             badgeBg: 'bg-purple-50 text-purple-700 border-purple-200',
@@ -767,6 +772,16 @@
             emoji: '🛵',
             label: 'Delivery'
           };
+          displayLabel = 'Delivery';
+        } else if (rawType.toLowerCase().includes('dine')) {
+          displayLabel = 'Dine-In';
+        }
+
+        if (order.table_no && order.table_no.trim() !== '') {
+          var cleanTbl = order.table_no.trim();
+          if (cleanTbl.toLowerCase() !== displayLabel.toLowerCase()) {
+            tableInfo = `<span>• ${cleanTbl}</span>`;
+          }
         }
 
         var cardBorderClass = isReadyForDispatch 
@@ -783,8 +798,8 @@
                   <h3 class="font-black text-slate-900">#${order.id}</h3>
                   <span class="kot-badge font-black px-2 py-0.5 rounded-md border ${theme.badgeBg} flex items-center gap-1 shadow-2xs">
                     <span>${theme.emoji}</span>
-                    <span>${theme.label}</span>
-                    ${order.table_no ? `<span>• ${order.table_no}</span>` : ''}
+                    <span>${displayLabel}</span>
+                    ${tableInfo}
                   </span>
                 </div>
                 <div class="kot-notes text-slate-500 font-mono mt-0.5">Time: ${order.time || ''}</div>
