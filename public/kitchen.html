@@ -237,6 +237,8 @@
       var addonsStr = '';
       if (item.addons && Array.isArray(item.addons)) {
         addonsStr = item.addons.map(a => a.name).join(', ');
+      } else if (item.notes) {
+        addonsStr = item.notes;
       }
 
       var printPayload = {
@@ -456,21 +458,36 @@
       localStorage.setItem('kot_ready_dispatch', JSON.stringify(store));
     }
 
+    // Helper to get unified addons list for any item
+    function extractAddonsList(item) {
+      var addonsList = [];
+      if (item.addons && Array.isArray(item.addons)) {
+        addonsList = item.addons;
+      } else if (item.notes && item.notes.trim() !== '') {
+        var parts = item.notes.split(',');
+        addonsList = parts.map(function(p) {
+          var clean = p.trim().replace(/\s*\(\+?₹?[0-9]+\)\s*$/, '');
+          return { name: clean };
+        }).filter(function(a){ return a.name.length > 0; });
+      } else if (item.name && item.name.includes('(') && item.name.endsWith(')')) {
+        var parts = item.name.match(/\(([^)]+)\)/);
+        if (parts && parts[1]) {
+          addonsList = parts[1].split(',').map(function(s){ 
+            var subClean = s.trim().replace(/\s*\(\+?₹?[0-9]+\)\s*$/, '');
+            return { name: subClean }; 
+          });
+        }
+      }
+      return addonsList;
+    }
+
     function toggleItemReady(orderId, rowIdentifier, itemObj) {
       var store = getCheckedItemKeys();
       var key = orderId + '_' + rowIdentifier;
       var newState = !store[key];
       store[key] = newState;
 
-      var addonsList = [];
-      if (itemObj && itemObj.addons && Array.isArray(itemObj.addons)) {
-        addonsList = itemObj.addons;
-      } else if (itemObj && itemObj.name && itemObj.name.includes('(') && itemObj.name.endsWith(')')) {
-        var parts = itemObj.name.match(/\(([^)]+)\)/);
-        if (parts && parts[1]) {
-          addonsList = parts[1].split(',').map(function(s){ return { name: s.trim() }; });
-        }
-      }
+      var addonsList = extractAddonsList(itemObj);
 
       if (addonsList.length > 0) {
         addonsList.forEach(function(_, aIdx) {
@@ -515,15 +532,7 @@
         (targetOrder.items || []).forEach(function(item, idx) {
           checkedMap[strId + '_row_' + idx] = true;
           
-          var addonsList = [];
-          if (item.addons && Array.isArray(item.addons)) {
-            addonsList = item.addons;
-          } else if (item.name && item.name.includes('(') && item.name.endsWith(')')) {
-            var parts = item.name.match(/\(([^)]+)\)/);
-            if (parts && parts[1]) {
-              addonsList = parts[1].split(',').map(function(s){ return { name: s.trim() }; });
-            }
-          }
+          var addonsList = extractAddonsList(item);
 
           if (addonsList.length > 0) {
             addonsList.forEach(function(_, aIdx) {
@@ -558,15 +567,7 @@
           targetOrder.items.forEach(function(item, idx) {
             checkedMap[strId + '_row_' + idx] = true;
             
-            var addonsList = [];
-            if (item.addons && Array.isArray(item.addons)) {
-              addonsList = item.addons;
-            } else if (item.name && item.name.includes('(') && item.name.endsWith(')')) {
-              var parts = item.name.match(/\(([^)]+)\)/);
-              if (parts && parts[1]) {
-                addonsList = parts[1].split(',').map(function(s){ return { name: s.trim() }; });
-              }
-            }
+            var addonsList = extractAddonsList(item);
 
             if (addonsList.length > 0) {
               addonsList.forEach(function(_, aIdx) {
@@ -732,15 +733,7 @@
           var mainItemDone = !!checkedMap[order.id + '_row_' + idx];
           var addonsDone = true;
           
-          var addonsList = [];
-          if (item.addons && Array.isArray(item.addons)) {
-            addonsList = item.addons;
-          } else if (item.name && item.name.includes('(') && item.name.endsWith(')')) {
-            var parts = item.name.match(/\(([^)]+)\)/);
-            if (parts && parts[1]) {
-              addonsList = parts[1].split(',').map(function(s){ return { name: s.trim() }; });
-            }
-          }
+          var addonsList = extractAddonsList(item);
 
           if (addonsList.length > 0) {
             addonsDone = addonsList.every(function(_, aIdx) {
@@ -754,7 +747,7 @@
           border: 'border-blue-200',
           badgeBg: 'bg-blue-50 text-blue-700 border-blue-200',
           headerBg: 'bg-blue-50/50',
-          emoji: '🪑🍽️️',
+          emoji: '🪑🍽',
           label: 'Dine-In'
         };
 
@@ -826,16 +819,7 @@
                 var isDone = !!checkedMap[rowKey];
                 var badgeTag = persistentBadges[rowKey];
 
-                var addonsList = [];
-                if (item.addons && Array.isArray(item.addons)) {
-                  addonsList = item.addons;
-                } else if (item.name && item.name.includes('(') && item.name.endsWith(')')) {
-                  var parts = item.name.match(/\(([^)]+)\)/);
-                  if (parts && parts[1]) {
-                    addonsList = parts[1].split(',').map(function(s){ return { name: s.trim() }; });
-                  }
-                }
-
+                var addonsList = extractAddonsList(item);
                 var cleanBaseName = item.name.replace(/\s*\(.*?\)\s*$/, '').trim();
 
                 return `
@@ -879,7 +863,7 @@
                       </div>
                     ` : ''}
 
-                    ${item.notes ? `<div class="kot-notes text-amber-600 font-semibold mt-1 ml-8">↳ ${item.notes}</div>` : ''}
+                    ${item.notes && !item.addons ? `<div class="kot-notes text-amber-600 font-semibold mt-1 ml-8">↳ ${item.notes}</div>` : ''}
                   </div>
                 `;
               }).join('')}
@@ -914,7 +898,7 @@
 
     initPersistentAudio();
     initCardScale();
-    updateKdsPrinterUIState(); // Restores printer status properly on page load/refresh
+    updateKdsPrinterUIState();
     fetchKOT();
     setInterval(fetchKOT, 3500);
     setInterval(updateLiveTimers, 1000);
