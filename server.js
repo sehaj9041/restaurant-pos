@@ -623,38 +623,18 @@ app.put('/api/orders/:id', (req, res) => {
   const { order_type, table_no, customer_name, customer_phone, items, subtotal, discount, gst, total, payment_mode, paid_amount } = req.body;
 
   db.get("SELECT total, paid_amount, payment_mode, status FROM orders WHERE id = ?", [orderId], (errGet, currentOrder) => {
-    let prevPaid = 0;
     let prevStatus = currentOrder ? currentOrder.status : 'RUNNING_TABLE';
+    let prevPaid = currentOrder ? Number(currentOrder.paid_amount) || 0 : 0;
 
-    if (currentOrder) {
-      prevPaid = Number(currentOrder.paid_amount) || 0;
-      if (prevPaid === 0 && currentOrder.payment_mode && currentOrder.payment_mode !== 'UNPAID' && currentOrder.payment_mode !== 'DUE' && !currentOrder.payment_mode.includes('PARTIAL')) {
-        prevPaid = Number(currentOrder.total) || 0;
-      }
-    }
-
-    let incomingPaid = Number(paid_amount) || 0;
-    let finalPaid = Math.max(prevPaid, incomingPaid);
-    let finalRemaining = Math.max(0, Number(total) - finalPaid);
-
-    // CRITICAL FIX: Preserve status safely for Kiosk/POS edited orders so they never disappear from KDS/Queues
+    // CRITICAL FIX: Lock the status so quantity reduction/editing never auto-completes or removes it from KDS/Active Queue
     let status = prevStatus || 'RUNNING_TABLE';
-    if (status === 'NEEDS_APPROVAL' || status === 'DUE_PENDING') {
-      status = prevStatus;
-    } else if (status !== 'COMPLETED' && status !== 'VOID') {
-      status = prevStatus;
+    if (status === 'COMPLETED') {
+      status = 'RUNNING_TABLE';
     }
 
-    let finalMode = payment_mode;
-
-    if (finalRemaining === 0 && finalPaid > 0) {
-      status = 'COMPLETED';
-    } else if (finalPaid > 0) {
-      status = (prevStatus === 'KOT_READY' || prevStatus === 'RUNNING_TABLE' || prevStatus === 'RUNNING' || prevStatus === 'NEEDS_APPROVAL') ? prevStatus : 'RUNNING_TABLE';
-      finalMode = `PARTIAL (Paid: ₹${finalPaid}, Due: ₹${finalRemaining})`;
-    } else if (payment_mode === 'DUE') {
-      status = (prevStatus === 'KOT_READY') ? 'KOT_READY' : 'DUE_PENDING';
-    }
+    let finalPaid = Math.min(prevPaid, Number(total));
+    let finalRemaining = Math.max(0, Number(total) - finalPaid);
+    let finalMode = payment_mode || (currentOrder ? currentOrder.payment_mode : 'Cash');
 
     db.run(
       `UPDATE orders SET order_type = ?, table_no = ?, customer_name = ?, customer_phone = ?, subtotal = ?, discount = ?, gst = ?, total = ?, payment_mode = ?, status = ?, paid_amount = ? WHERE id = ?`,
@@ -674,7 +654,7 @@ app.put('/api/orders/:id', (req, res) => {
               });
             }
           }
-          console.log(`[ORDER UPDATED SAFELY] Order #${orderId} modified successfully while keeping KDS & Queue state intact.`);
+          console.log(`[ORDER EDIT SAFE] Order #${orderId} quantity updated successfully. Status locked to: ${status}`);
           res.json({ success: true, orderId, paid_amount: finalPaid, payable_now: finalRemaining });
         });
       }
