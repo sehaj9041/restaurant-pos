@@ -889,7 +889,7 @@
   <div id="modalSingleOrderSettle" class="fixed inset-0 bg-black/40 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-4 space-y-3.5 border border-gray-200 animate-in fade-in zoom-in duration-150">
       <div class="flex justify-between items-center border-b border-gray-100 pb-2">
-        <span class="font-black text-gray-800 text-xs flex items-center gap-1.5"><span>⚡</span> Quick Settle Order</span>
+        <span class="font-black text-gray-800 text-xs flex items-center gap-1.5">⚡ Quick Settle Order</span>
         <button onclick="closeSingleOrderSettleModal()" class="text-gray-400 hover:text-gray-600 font-black text-sm">✕</button>
       </div>
 
@@ -925,7 +925,7 @@
   <div id="modalSettleCustomerDue" class="fixed inset-0 bg-black/40 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-4 space-y-3.5 border border-gray-200 animate-in fade-in zoom-in duration-150">
       <div class="flex justify-between items-center border-b border-gray-100 pb-2">
-        <span class="font-black text-gray-800 text-xs flex items-center gap-1.5"><span>📒</span> Settle All Customer Dues</span>
+        <span class="font-black text-gray-800 text-xs flex items-center gap-1.5">📒 Settle All Customer Dues</span>
         <button onclick="closeCustomerSettleModal()" class="text-gray-400 hover:text-gray-600 font-black text-sm">✕</button>
       </div>
 
@@ -961,7 +961,7 @@
   <div id="modalCashReceived" class="fixed inset-0 bg-black/40 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-4 space-y-3.5 border border-gray-200 animate-in fade-in zoom-in duration-150">
       <div class="flex justify-between items-center border-b border-gray-100 pb-2">
-        <span class="font-black text-gray-800 text-xs flex items-center gap-1.5"><span>💵</span> Cash received</span>
+        <span class="font-black text-gray-800 text-xs flex items-center gap-1.5">💵 Cash received</span>
         <button onclick="closeCashReceivedModal()" class="text-gray-400 hover:text-gray-600 font-black text-sm">✕</button>
       </div>
 
@@ -1254,17 +1254,30 @@
     }
 
     function approveNeedsApprovalOrder(orderId) {
-      fetch('/api/orders/' + orderId + '/approve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      })
-      .then(function(res) { return res.json(); })
-      .then(function(data) {
-        if (data.success) {
-          fetchNeedsApprovalOrders();
-          fetchActiveOrders();
-        }
-      });
+      fetch('/api/orders/needs-approval')
+        .then(function(res) { return res.json(); })
+        .then(function(orders) {
+          var targetOrder = orders.find(function(o) { return o.id === orderId; });
+          if (!targetOrder) return;
+
+          previousViewBeforePOS = 'DASHBOARD';
+          openPOSOrderView(targetOrder.order_type || 'Takeaway', targetOrder.table_no || '');
+          editingActiveOrderId = targetOrder.id;
+
+          document.getElementById('posCustPhone').value = targetOrder.customer_phone || '';
+          document.getElementById('posCustName').value = targetOrder.customer_name || '';
+
+          posCart = (targetOrder.items || []).map(function(i) {
+            return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1 };
+          });
+
+          alreadyPaidAmount = 0;
+          alreadyPaidMode = '';
+          document.getElementById('boxAlreadyPaidBanner').classList.add('hidden');
+
+          renderPOSCart();
+          switchRightTab('SUMMARY');
+        });
     }
 
     function rejectNeedsApprovalOrder(orderId) {
