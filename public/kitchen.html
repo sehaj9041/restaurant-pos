@@ -1,220 +1,830 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Live Kitchen Display (KOT)</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    @keyframes pulse-ring {
-      0% { transform: scale(0.95); opacity: 0.8; }
-      50% { transform: scale(1.05); opacity: 1; }
-      100% { transform: scale(0.95); opacity: 0.8; }
-    }
-    .badge-alert {
-      animation: pulse-ring 1.5s infinite;
-    }
-    input[type=range]::-webkit-slider-thumb {
-      background: #ea580c;
-      cursor: pointer;
-    }
+  <meta charset="UTF-8">
+  <title>Live Kitchen Display (KOT)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.05); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+    .badge-alert {
+      animation: pulse-ring 1.5s infinite;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      background: #ea580c;
+      cursor: pointer;
+    }
 
-    /* DYNAMIC CARD SCALING & AUTO-FLOW GRID ENGINE */
-    :root {
-      --kot-scale: 1;
-      --kot-card-min-width: 290px;
-    }
+    /* DYNAMIC CARD SCALING & AUTO-FLOW GRID ENGINE */
+    :root {
+      --kot-scale: 1;
+      --kot-card-min-width: 290px;
+    }
 
-    #kotGrid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(var(--kot-card-min-width), 1fr));
-      gap: calc(16px * var(--kot-scale));
-      align-items: start;
-    }
+    #kotGrid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(var(--kot-card-min-width), 1fr));
+      gap: calc(16px * var(--kot-scale));
+      align-items: start;
+    }
 
-    .kot-card-box {
-      font-size: calc(14px * var(--kot-scale));
-    }
-    .kot-card-box h3 {
-      font-size: calc(20px * var(--kot-scale));
-    }
-    .kot-card-box .kot-item-title {
-      font-size: calc(15px * var(--kot-scale));
-    }
-    .kot-card-box .kot-qty-badge {
-      font-size: calc(18px * var(--kot-scale));
-      line-height: 1;
-    }
-    .kot-card-box .kot-btn {
-      font-size: calc(14px * var(--kot-scale));
-      padding-top: calc(10px * var(--kot-scale));
-      padding-bottom: calc(10px * var(--kot-scale));
-    }
-    .kot-card-box .kot-timer {
-      font-size: calc(12px * var(--kot-scale));
-    }
-    .kot-card-box .kot-badge {
-      font-size: calc(11px * var(--kot-scale));
-    }
-    .kot-card-box .kot-notes {
-      font-size: calc(12px * var(--kot-scale));
-    }
-    .kot-card-box .kot-check-box {
-      width: calc(22px * var(--kot-scale));
-      height: calc(22px * var(--kot-scale));
-    }
-    .kot-card-box .kot-sub-check-box {
-      width: calc(16px * var(--kot-scale));
-      height: calc(16px * var(--kot-scale));
-    }
-  </style>
+    .kot-card-box {
+      font-size: calc(14px * var(--kot-scale));
+    }
+    .kot-card-box h3 {
+      font-size: calc(20px * var(--kot-scale));
+    }
+    .kot-card-box .kot-item-title {
+      font-size: calc(15px * var(--kot-scale));
+    }
+    .kot-card-box .kot-qty-badge {
+      font-size: calc(18px * var(--kot-scale));
+      line-height: 1;
+    }
+    .kot-card-box .kot-btn {
+      font-size: calc(14px * var(--kot-scale));
+      padding-top: calc(10px * var(--kot-scale));
+      padding-bottom: calc(10px * var(--kot-scale));
+    }
+    .kot-card-box .kot-timer {
+      font-size: calc(12px * var(--kot-scale));
+    }
+    .kot-card-box .kot-badge {
+      font-size: calc(11px * var(--kot-scale));
+    }
+    .kot-card-box .kot-notes {
+      font-size: calc(12px * var(--kot-scale));
+    }
+    .kot-card-box .kot-check-box {
+      width: calc(22px * var(--kot-scale));
+      height: calc(22px * var(--kot-scale));
+    }
+    .kot-card-box .kot-sub-check-box {
+      width: calc(16px * var(--kot-scale));
+      height: calc(16px * var(--kot-scale));
+    }
+  </style>
 </head>
 <body class="bg-slate-100 min-h-screen p-6 font-sans text-slate-800 select-none">
 
-  <!-- TOP HEADER -->
-  <div class="flex justify-between items-center mb-6 border-b border-slate-200 pb-4 flex-wrap gap-4 bg-white p-4 rounded-2xl shadow-xs">
-    <div class="flex items-center gap-3">
-      <span class="inline-block w-3 h-3 bg-emerald-500 rounded-full animate-pulse"></span>
-      <h1 class="text-2xl font-black tracking-wide text-slate-900">Live Kitchen Orders</h1>
-    </div>
-    
-    <div class="flex items-center gap-3 flex-wrap">
-      <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg shadow-2xs">
-        <span class="text-xs font-bold text-slate-600 flex items-center gap-1">
-          <span>🔍</span> <span>Size:</span>
-        </span>
-        <input 
-          type="range" 
-          id="kotSizeSlider" 
-          min="65" 
-          max="140" 
-          value="100" 
-          step="5"
-          oninput="changeKOTCardScale(this.value)"
-          class="w-24 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-orange-500"
-        />
-        <span id="lblSizePercent" class="text-[11px] font-mono font-bold text-orange-600 w-9 text-right">100%</span>
-        <button onclick="resetKOTCardScale()" title="Reset Size" class="text-slate-400 hover:text-slate-800 text-xs px-1 font-bold">↺</button>
-      </div>
+  <!-- TOP HEADER -->
+  <div class="flex justify-between items-center mb-6 border-b border-slate-200 pb-4 flex-wrap gap-4 bg-white p-4 rounded-2xl shadow-xs">
+    <div class="flex items-center gap-3">
+      <span class="inline-block w-3 h-3 bg-emerald-500 rounded-full animate-pulse"></span>
+      <h1 class="text-2xl font-black tracking-wide text-slate-900">Live Kitchen Orders</h1>
+    </div>
+    
+    <div class="flex items-center gap-3 flex-wrap">
+      <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg shadow-2xs">
+        <span class="text-xs font-bold text-slate-600 flex items-center gap-1">
+          <span>🔍</span> <span>Size:</span>
+        </span>
+        <input 
+          type="range" 
+          id="kotSizeSlider" 
+          min="65" 
+          max="140" 
+          value="100" 
+          step="5"
+          oninput="changeKOTCardScale(this.value)"
+          class="w-24 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-orange-500"
+        />
+        <span id="lblSizePercent" class="text-[11px] font-mono font-bold text-orange-600 w-9 text-right">100%</span>
+        <button onclick="resetKOTCardScale()" title="Reset Size" class="text-slate-400 hover:text-slate-800 text-xs px-1 font-bold">↺</button>
+      </div>
 
-      <button onclick="openKdsSettingsModal()" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold px-3 py-1.5 rounded-lg text-xs transition flex items-center gap-1.5 shadow-2xs">
-        <span>🖨</span> <span id="lblPrinterStatus">Printer: OFF</span>
-      </button>
+      <button onclick="openKdsSettingsModal()" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold px-3 py-1.5 rounded-lg text-xs transition flex items-center gap-1.5 shadow-2xs">
+        <span>🖨️️</span> <span id="lblPrinterStatus">Printer: OFF</span>
+      </button>
 
-      <button id="btnFullScreen" onclick="toggleFullScreen()" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold px-3 py-1.5 rounded-lg text-xs transition flex items-center gap-1.5 shadow-2xs">
-        <span id="fullScreenIcon">⛶</span> <span id="fullScreenText">Fullscreen</span>
-      </button>
+      <button id="btnFullScreen" onclick="toggleFullScreen()" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold px-3 py-1.5 rounded-lg text-xs transition flex items-center gap-1.5 shadow-2xs">
+        <span id="fullScreenIcon">⛶</span> <span id="fullScreenText">Fullscreen</span>
+      </button>
 
-      <button id="btnAudioToggle" onclick="toggleAudioSetting()" class="bg-emerald-600 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition flex items-center gap-1.5 shadow-2xs">
-        <span>🔔</span> <span id="lblAudioStatus">Sound Alert Active</span>
-      </button>
+      <button id="btnAudioToggle" onclick="toggleAudioSetting()" class="bg-emerald-600 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition flex items-center gap-1.5 shadow-2xs">
+        <span>🔔</span> <span id="lblAudioStatus">Sound Alert Active</span>
+      </button>
 
-      <span id="pendingCount" class="bg-indigo-600 text-white font-bold px-3 py-1.5 rounded-lg text-sm shadow-2xs">0 Pending</span>
-      <a href="/" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-bold text-sm transition shadow-2xs">
-        ← POS Counter
-      </a>
-    </div>
-  </div>
+      <span id="pendingCount" class="bg-indigo-600 text-white font-bold px-3 py-1.5 rounded-lg text-sm shadow-2xs">0 Pending</span>
+      <a href="/" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-bold text-sm transition shadow-2xs">
+        ← POS Counter
+      </a>
+    </div>
+  </div>
 
-  <div id="kotGrid">
-    <div class="col-span-full text-center py-24 text-slate-400 font-bold text-lg">No active orders right now.</div>
-  </div>
+  <div id="kotGrid">
+    <div class="col-span-full text-center py-24 text-slate-400 font-bold text-lg">No active orders right now.</div>
+  </div>
 
-  <div id="tvStatusBanner" style="position: fixed; bottom: 20px; right: 20px; z-index: 99999; padding: 15px 25px; border-radius: 12px; font-size: 18px; font-weight: bold; color: white; background: rgba(0,0,0,0.85); display: none; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
-  </div>
+  <div id="tvStatusBanner" style="position: fixed; bottom: 20px; right: 20px; z-index: 99999; padding: 15px 25px; border-radius: 12px; font-size: 18px; font-weight: bold; color: white; background: rgba(0,0,0,0.85); display: none; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+  </div>
 
-  <div id="kdsSettingsModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-2xl text-xs">
-      <div class="flex justify-between items-center border-b pb-2">
-        <h3 class="font-black text-slate-900 text-sm">KDS Network Printer Setup</h3>
-        <button onclick="closeKdsSettingsModal()" class="text-slate-400 hover:text-black font-bold text-base">✕</button>
-      </div>
-      
-      <div class="space-y-3">
-        <label class="flex items-center justify-between p-3 bg-slate-50 border rounded-xl cursor-pointer">
-          <div>
-            <div class="font-black text-slate-800">Enable Token Auto-Print</div>
-            <div class="text-[10px] text-slate-500">Isi KDS se item ready hone par print nikle</div>
-          </div>
-          <input type="checkbox" id="kdsAutoPrintToggle" onchange="toggleKdsPrinterFields()" class="w-4 h-4 accent-orange-500 rounded">
-        </label>
+  <div id="kdsSettingsModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-2xl text-xs">
+      <div class="flex justify-between items-center border-b pb-2">
+        <h3 class="font-black text-slate-900 text-sm">KDS Network Printer Setup</h3>
+        <button onclick="closeKdsSettingsModal()" class="text-slate-400 hover:text-black font-bold text-base">✕</button>
+      </div>
+      
+      <div class="space-y-3">
+        <label class="flex items-center justify-between p-3 bg-slate-50 border rounded-xl cursor-pointer">
+          <div>
+            <div class="font-black text-slate-800">Enable Token Auto-Print</div>
+            <div class="text-[10px] text-slate-500">Isi KDS se item ready hone par print nikle</div>
+          </div>
+          <input type="checkbox" id="kdsAutoPrintToggle" onchange="toggleKdsPrinterFields()" class="w-4 h-4 accent-orange-500 rounded">
+        </label>
 
-        <div id="printerIpSection" class="space-y-1 hidden">
-          <label class="block font-bold text-slate-600 uppercase text-[10px]">Printer IP Address</label>
-          <input type="text" id="kdsPrinterIp" placeholder="e.g. 192.168.1.88" class="w-full border border-slate-300 rounded-lg p-2 font-mono font-bold text-slate-800 outline-none focus:border-orange-500">
-          <p class="text-[10px] text-slate-400">Thermal printer ka local Wi-Fi IP address daalein</p>
-        </div>
-      </div>
+        <div id="printerIpSection" class="space-y-1 hidden">
+          <label class="block font-bold text-slate-600 uppercase text-[10px]">Printer IP Address</label>
+          <input type="text" id="kdsPrinterIp" placeholder="e.g. 192.168.1.88" class="w-full border border-slate-300 rounded-lg p-2 font-mono font-bold text-slate-800 outline-none focus:border-orange-500">
+          <p class="text-[10px] text-slate-400">Thermal printer ka local Wi-Fi IP address daalein</p>
+        </div>
+      </div>
 
-      <div class="pt-2 flex justify-end gap-2">
-        <button onclick="closeKdsSettingsModal()" class="border px-3 py-2 rounded-xl font-bold bg-white">Cancel</button>
-        <button onclick="saveKdsPrinterSetting()" class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-xl font-bold">Save Settings</button>
-      </div>
-    </div>
-  </div>
+      <div class="pt-2 flex justify-end gap-2">
+        <button onclick="closeKdsSettingsModal()" class="border px-3 py-2 rounded-xl font-bold bg-white">Cancel</button>
+        <button onclick="saveKdsPrinterSetting()" class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-xl font-bold">Save Settings</button>
+      </div>
+    </div>
+  </div>
 
-  <script>
-    var audioCtx = null;
-    var isAudioAllowed = true;
-    var liveOrdersData = [];
+  <script>
+    var audioCtx = null;
+    var isAudioAllowed = true;
+    var liveOrdersData = [];
 
-    function showTvStatus(message, isError = false) {
-      var banner = document.getElementById('tvStatusBanner');
-      if (!banner) return;
-      banner.innerText = message;
-      banner.style.backgroundColor = isError ? '#e74c3c' : '#2ecc71';
-      banner.style.display = 'block';
-      setTimeout(function() { banner.style.display = 'none'; }, 4000);
-    }
+    function showTvStatus(message, isError = false) {
+      var banner = document.getElementById('tvStatusBanner');
+      if (!banner) return;
+      banner.innerText = message;
+      banner.style.backgroundColor = isError ? '#e74c3c' : '#2ecc71';
+      banner.style.display = 'block';
+      setTimeout(function() { banner.style.display = 'none'; }, 4000);
+    }
 
-    function getKdsPrinterConfig() {
-      try {
-        return JSON.parse(localStorage.getItem('kds_device_printer_config') || '{"enabled": false, "ip": ""}');
-      } catch(e) {
-        return { enabled: false, ip: "" };
-      }
-    }
+    function getKdsPrinterConfig() {
+      try {
+        return JSON.parse(localStorage.getItem('kds_device_printer_config') || '{"enabled": false, "ip": ""}');
+      } catch(e) {
+        return { enabled: false, ip: "" };
+      }
+    }
 
-    function openKdsSettingsModal() {
-      var cfg = getKdsPrinterConfig();
-      document.getElementById('kdsAutoPrintToggle').checked = !!cfg.enabled;
-      document.getElementById('kdsPrinterIp').value = cfg.ip || '';
-      toggleKdsPrinterFields();
-      document.getElementById('kdsSettingsModal').classList.remove('hidden');
-    }
+    function openKdsSettingsModal() {
+      var cfg = getKdsPrinterConfig();
+      document.getElementById('kdsAutoPrintToggle').checked = !!cfg.enabled;
+      document.getElementById('kdsPrinterIp').value = cfg.ip || '';
+      toggleKdsPrinterFields();
+      document.getElementById('kdsSettingsModal').classList.remove('hidden');
+    }
 
-    function closeKdsSettingsModal() {
-      document.getElementById('kdsSettingsModal').classList.add('hidden');
-      updateKdsPrinterUIState();
-    }
+    function closeKdsSettingsModal() {
+      document.getElementById('kdsSettingsModal').classList.add('hidden');
+      updateKdsPrinterUIState();
+    }
 
-    function toggleKdsPrinterFields() {
-      var isChecked = document.getElementById('kdsAutoPrintToggle').checked;
-      var ipSec = document.getElementById('printerIpSection');
-      if (isChecked) { ipSec.classList.remove('hidden'); } else { ipSec.classList.add('hidden'); }
-    }
+    function toggleKdsPrinterFields() {
+      var isChecked = document.getElementById('kdsAutoPrintToggle').checked;
+      var ipSec = document.getElementById('printerIpSection');
+      if (isChecked) { ipSec.classList.remove('hidden'); } else { ipSec.classList.add('hidden'); }
+    }
 
-    function saveKdsPrinterSetting() {
-      var isEnabled = document.getElementById('kdsAutoPrintToggle').checked;
-      var ipVal = document.getElementById('kdsPrinterIp').value.trim();
-      localStorage.setItem('kds_device_printer_config', JSON.stringify({ enabled: isEnabled, ip: ipVal }));
-      closeKdsSettingsModal();
-      updateKdsPrinterUIState();
-      alert('Printer settings saved successfully for this KDS!');
-    }
+    function saveKdsPrinterSetting() {
+      var isEnabled = document.getElementById('kdsAutoPrintToggle').checked;
+      var ipVal = document.getElementById('kdsPrinterIp').value.trim();
+      localStorage.setItem('kds_device_printer_config', JSON.stringify({ enabled: isEnabled, ip: ipVal }));
+      closeKdsSettingsModal();
+      updateKdsPrinterUIState();
+      alert('Printer settings saved successfully for this KDS!');
+    }
 
-    function updateKdsPrinterUIState() {
-      var cfg = getKdsPrinterConfig();
-      var btnLbl = document.getElementById('lblPrinterStatus');
-      if (btnLbl) {
-        btnLbl.innerText = (cfg.enabled && cfg.ip) ? `Printer: ON (${cfg.ip})` : "Printer: OFF";
-      }
-    }
+    function updateKdsPrinterUIState() {
+      var cfg = getKdsPrinterConfig();
+      var btnLbl = document.getElementById('lblPrinterStatus');
+      if (btnLbl) {
+        btnLbl.innerText = (cfg.enabled && cfg.ip) ? `Printer: ON (${cfg.ip})` : "Printer: OFF";
+      }
+    }
 
-    function printItemReadyToken(order, item) {
-      var printerCfg = getKdsPrinterConfig();
-      if (!printerCfg.enabled || !printerCfg.ip) return;
-      var cleanName = item.name.replace(/\s*\(.*?\)\s*$/, '').trim();
-      var addonsStr = '';
-      if (item.addons && Array.isArray(item.addons)) {
-        addonsStr = item.addons.map(a => a.name).join(', ');
-      } else if (item.notes) {
+    function printItemReadyToken(order, item) {
+      var printerCfg = getKdsPrinterConfig();
+      if (!printerCfg.enabled || !printerCfg.ip) return;
+      var cleanName = item.name.replace(/\s*\(.*?\)\s*$/, '').trim();
+      var addonsStr = '';
+      if (item.addons && Array.isArray(item.addons)) {
+        addonsStr = item.addons.map(a => a.name).join(', ');
+      } else if (item.notes) {
+        addonsStr = item.notes;
+      }
+      var printPayload = {
+        printer_ip: printerCfg.ip,
+        order_id: order.id,
+        table: order.table_no || order.order_type,
+        qty: item.qty,
+        item_name: cleanName,
+        addons: addonsStr,
+        time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+      };
+      showTvStatus("Sending print command...", false);
+      fetch('/api/print-ip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(printPayload)
+      })
+      .then(function(res){ return res.json(); })
+      .then(function(data){
+        if (data.success) { showTvStatus("Print Successful!", false); }
+        else { showTvStatus("Print Error: " + (data.error || "Unknown"), true); }
+      })
+      .catch(function(err) { showTvStatus("Network Error: " + err.message, true); });
+    }
+
+    function initPersistentAudio() {
+      var savedSoundState = localStorage.getItem('kot_sound_enabled');
+      if (savedSoundState === null || savedSoundState === 'true') {
+        isAudioAllowed = true;
+        updateAudioButtonUI(true);
+      } else {
+        isAudioAllowed = false;
+        updateAudioButtonUI(false);
+      }
+    }
+
+    function toggleAudioSetting() {
+      isAudioAllowed = !isAudioAllowed;
+      localStorage.setItem('kot_sound_enabled', isAudioAllowed ? 'true' : 'false');
+      updateAudioButtonUI(isAudioAllowed);
+      if (isAudioAllowed) { unlockAudioEngine(); playKOTBeepSound(); }
+    }
+
+    function updateAudioButtonUI(active) {
+      var btn = document.getElementById('btnAudioToggle');
+      var lbl = document.getElementById('lblAudioStatus');
+      if (!btn || !lbl) return;
+      if (active) {
+        btn.className = "bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition flex items-center gap-1.5 shadow-2xs";
+        lbl.innerText = "Sound Alert Active";
+      } else {
+        btn.className = "bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-3 py-1.5 rounded-lg text-xs transition flex items-center gap-1.5 border border-slate-300 shadow-2xs";
+        lbl.innerText = "Sound Muted";
+      }
+    }
+
+    function unlockAudioEngine() {
+      try {
+        if (!audioCtx) { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+        if (audioCtx.state === 'suspended') { audioCtx.resume(); }
+      } catch (e) { console.warn('Audio context pending interaction:', e); }
+    }
+
+    function playKOTBeepSound() {
+      if (!isAudioAllowed) return;
+      try {
+        unlockAudioEngine();
+        if (!audioCtx) return;
+        var now = audioCtx.currentTime;
+        var osc1 = audioCtx.createOscillator();
+        var gain1 = audioCtx.createGain();
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(880, now);
+        gain1.gain.setValueAtTime(0.35, now);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+        osc1.connect(gain1);
+        gain1.connect(audioCtx.destination);
+        osc1.start(now);
+        osc1.stop(now + 0.3);
+
+        var osc2 = audioCtx.createOscillator();
+        var gain2 = audioCtx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(1318.51, now + 0.12);
+        gain2.gain.setValueAtTime(0.45, now + 0.12);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+        osc2.connect(gain2);
+        gain2.connect(audioCtx.destination);
+        osc2.start(now + 0.12);
+        osc2.stop(now + 0.65);
+      } catch (err) { console.warn('Audio awaiting interaction:', err); }
+    }
+
+    function initCardScale() {
+      var savedScale = localStorage.getItem('kot_display_scale') || '100';
+      var slider = document.getElementById('kotSizeSlider');
+      if (slider) slider.value = savedScale;
+      applyDynamicCardWidthAndScale(savedScale);
+    }
+
+    function changeKOTCardScale(val) {
+      applyDynamicCardWidthAndScale(val);
+      localStorage.setItem('kot_display_scale', val);
+    }
+
+    function applyDynamicCardWidthAndScale(val) {
+      var label = document.getElementById('lblSizePercent');
+      if (label) label.innerText = val + '%';
+      var numericScale = Number(val) / 100;
+      var calculatedWidth = Math.round(300 * numericScale);
+      document.documentElement.style.setProperty('--kot-scale', numericScale);
+      document.documentElement.style.setProperty('--kot-card-min-width', calculatedWidth + 'px');
+    }
+
+    function resetKOTCardScale() {
+      var slider = document.getElementById('kotSizeSlider');
+      if (slider) slider.value = 100;
+      changeKOTCardScale(100);
+    }
+
+    function toggleFullScreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(function(err) { console.warn("Fullscreen error:", err.message); });
+      } else {
+        if (document.exitFullscreen) { document.exitFullscreen(); }
+      }
+    }
+
+    document.addEventListener('fullscreenchange', function() {
+      var icon = document.getElementById('fullScreenIcon');
+      var txt = document.getElementById('fullScreenText');
+      if (document.fullscreenElement) {
+        icon.innerText = "⛷";
+        txt.innerText = "Exit Fullscreen";
+      } else {
+        icon.innerText = "⛶";
+        txt.innerText = "Fullscreen";
+      }
+    });
+
+    function getStoredSnapshots() {
+      try { return JSON.parse(localStorage.getItem('kot_order_snapshots') || '{}'); } catch (e) { return {}; }
+    }
+    function saveStoredSnapshots(snapshots) {
+      localStorage.setItem('kot_order_snapshots', JSON.stringify(snapshots));
+    }
+
+    function getCheckedItemKeys() {
+      try { return JSON.parse(localStorage.getItem('kot_checked_items') || '{}'); } catch (e) { return {}; }
+    }
+    function saveCheckedItemKeys(store) {
+      localStorage.setItem('kot_checked_items', JSON.stringify(store));
+    }
+
+    function getAlertBadges() {
+      try { return JSON.parse(localStorage.getItem('kot_alert_badges') || '{}'); } catch (e) { return {}; }
+    }
+    function saveAlertBadges(badges) {
+      localStorage.setItem('kot_alert_badges', JSON.stringify(badges));
+    }
+
+    function getCancelledItemsStore() {
+      try { return JSON.parse(localStorage.getItem('kot_cancelled_items') || '{}'); } catch (e) { return {}; }
+    }
+    function saveCancelledItemsStore(store) {
+      localStorage.setItem('kot_cancelled_items', JSON.stringify(store));
+    }
+
+    function getReadyForDispatchOrders() {
+      try { return JSON.parse(localStorage.getItem('kot_ready_dispatch') || '{}'); } catch (e) { return {}; }
+    }
+    function saveReadyForDispatchOrders(store) {
+      localStorage.setItem('kot_ready_dispatch', JSON.stringify(store));
+    }
+
+    function extractAddonsList(item) {
+      var addonsList = [];
+      if (item.addons && Array.isArray(item.addons)) {
+        addonsList = item.addons;
+      } else if (item.notes && item.notes.trim() !== '') {
+        var parts = item.notes.split(',');
+        addonsList = parts.map(function(p) {
+          var clean = p.trim().replace(/\s*\(\+?₹?[0-9]+\)\s*$/, '');
+          return { name: clean };
+        }).filter(function(a){ return a.name.length > 0; });
+      } else if (item.name && item.name.includes('(') && item.name.endsWith(')')) {
+        var parts = item.name.match(/\(([^)]+)\)/);
+        if (parts && parts[1]) {
+          addonsList = parts[1].split(',').map(function(s){ 
+            var subClean = s.trim().replace(/\s*\(\+?₹?[0-9]+\)\s*$/, '');
+            return { name: subClean }; 
+          });
+        }
+      }
+      return addonsList;
+    }
+
+    function toggleItemReady(orderId, rowIdentifier, itemObj) {
+      var store = getCheckedItemKeys();
+      var key = orderId + '_' + rowIdentifier;
+      var newState = !store[key];
+      store[key] = newState;
+
+      var addonsList = extractAddonsList(itemObj);
+      if (addonsList.length > 0) {
+        addonsList.forEach(function(_, aIdx) {
+          var addonKey = orderId + '_' + rowIdentifier + '_addon_' + aIdx;
+          store[addonKey] = newState;
+        });
+      }
+      saveCheckedItemKeys(store);
+
+      if (newState) {
+        var targetOrder = liveOrdersData.find(function(o){ return o.id.toString() === orderId.toString(); });
+        if (targetOrder) {
+          var itemIndex = rowIdentifier.replace('row_', '');
+          var targetItem = targetOrder.items[itemIndex];
+          if (targetItem) { printItemReadyToken(targetOrder, targetItem); }
+        }
+      }
+      renderKOTCards();
+    }
+
+    function toggleAddonReady(orderId, rowIdx, addonIdx) {
+      var store = getCheckedItemKeys();
+      var key = orderId + '_row_' + rowIdx + '_addon_' + addonIdx;
+      store[key] = !store[key];
+      saveCheckedItemKeys(store);
+      renderKOTCards();
+    }
+
+    function markReadyStage(id) {
+      var strId = id.toString();
+      var readyStore = getReadyForDispatchOrders();
+      readyStore[strId] = true;
+      saveReadyForDispatchOrders(readyStore);
+
+      var checkedMap = getCheckedItemKeys();
+      var targetOrder = liveOrdersData.find(function(o){ return o.id.toString() === strId; });
+      if (targetOrder) {
+        (targetOrder.items || []).forEach(function(item, idx) {
+          checkedMap[strId + '_row_' + idx] = true;
+          var addonsList = extractAddonsList(item);
+          if (addonsList.length > 0) {
+            addonsList.forEach(function(_, aIdx) {
+              checkedMap[strId + '_row_' + idx + '_addon_' + aIdx] = true;
+            });
+          }
+        });
+        saveCheckedItemKeys(checkedMap);
+      }
+      renderKOTCards();
+    }
+
+    function undoReadyStage(id) {
+      var strId = id.toString();
+      var readyStore = getReadyForDispatchOrders();
+      delete readyStore[strId];
+      saveReadyForDispatchOrders(readyStore);
+      renderKOTCards();
+    }
+
+    function executeDispatch(id) {
+      var strId = id.toString();
+      var snapshots = getStoredSnapshots();
+      var checkedMap = getCheckedItemKeys();
+      var readyStore = getReadyForDispatchOrders();
+      var cancelledStore = getCancelledItemsStore();
+
+      if (snapshots[strId]) {
+        snapshots[strId].wasCompletedBefore = true;
+      }
+      delete cancelledStore[strId];
+      delete readyStore[strId];
+
+      saveStoredSnapshots(snapshots);
+      saveCheckedItemKeys(checkedMap);
+      saveCancelledItemsStore(cancelledStore);
+      saveReadyForDispatchOrders(readyStore);
+
+      fetch('/api/kot/' + id + '/complete', { method: 'POST' })
+        .then(function(res) { return res.json(); })
+        .then(function() { fetchKOT(); });
+    }
+
+    function updateLiveTimers() {
+      var now = Date.now();
+      liveOrdersData.forEach(function(order) {
+        var timerEl = document.getElementById('kotTimer_' + order.id);
+        if (!timerEl) return;
+        var startTime = order.created_at ? new Date(order.created_at).getTime() : now;
+        var diffSec = Math.max(0, Math.floor((now - startTime) / 1000));
+        var mins = Math.floor(diffSec / 60);
+        var secs = diffSec % 60;
+        var formatted = (mins < 10 ? '0' : '') + mins + ':' + (secs < 10 ? '0' : '') + secs;
+        timerEl.innerText = formatted;
+
+        if (mins >= 10) {
+          timerEl.className = "kot-timer text-rose-700 font-mono font-black bg-rose-50 px-2 py-0.5 rounded border border-rose-300 animate-pulse";
+        } else if (mins >= 5) {
+          timerEl.className = "kot-timer text-amber-800 font-mono font-black bg-amber-50 px-2 py-0.5 rounded border border-amber-300";
+        } else {
+          timerEl.className = "kot-timer text-slate-700 font-mono font-bold bg-slate-100 px-2 py-0.5 rounded border border-slate-200";
+        }
+      });
+    }
+
+    function fetchKOT() {
+      fetch('/api/kot')
+        .then(function(res) { return res.json(); })
+        .then(function(orders) {
+          liveOrdersData = orders || [];
+          document.getElementById('pendingCount').innerText = liveOrdersData.length + ' Pending';
+
+          var snapshots = getStoredSnapshots();
+          var persistentBadges = getAlertBadges();
+          var checkedMap = getCheckedItemKeys();
+          var cancelledStore = getCancelledItemsStore();
+          var readyStore = getReadyForDispatchOrders();
+          var shouldPlaySound = false;
+
+          liveOrdersData.forEach(function(order) {
+            var orderId = order.id.toString();
+            var prevSnapshot = snapshots[orderId];
+            var currentItems = order.items || [];
+
+            if (!prevSnapshot) {
+              shouldPlaySound = true;
+              snapshots[orderId] = {
+                itemsMap: currentItems.reduce(function(acc, item, idx) {
+                  acc[item.name] = Number(item.qty) || 1;
+                  return acc;
+                }, {}),
+                wasCompletedBefore: false
+              };
+            } else {
+              var prevItemsMap = prevSnapshot.itemsMap || {};
+              var currentItemsMap = {};
+
+              currentItems.forEach(function(item) {
+                currentItemsMap[item.name] = Number(item.qty) || 1;
+              });
+
+              // Check for new items or increased qty or decreased qty or removed items
+              Object.keys(currentItemsMap).forEach(function(name) {
+                var curQ = currentItemsMap[name];
+                var prevQ = prevItemsMap[name];
+
+                if (prevQ === undefined) {
+                  shouldPlaySound = true;
+                  delete readyStore[orderId];
+                } else if (curQ > prevQ) {
+                  shouldPlaySound = true;
+                  delete readyStore[orderId];
+                  var diff = curQ - prevQ;
+                  // find index in currentItems
+                  var cIdx = currentItems.findIndex(function(i){ return i.name === name; });
+                  if (cIdx !== -1) {
+                    persistentBadges[orderId + '_row_' + cIdx] = '+' + diff + ' QTY';
+                  }
+                } else if (curQ < prevQ) {
+                  shouldPlaySound = true;
+                  var diff = prevQ - curQ;
+                  var cIdx = currentItems.findIndex(function(i){ return i.name === name; });
+                  if (cIdx !== -1) {
+                    persistentBadges[orderId + '_row_' + cIdx] = '-' + diff + ' QTY';
+                  }
+                }
+              });
+
+              // Check for completely removed/cancelled items
+              Object.keys(prevItemsMap).forEach(function(name) {
+                if (currentItemsMap[name] === undefined) {
+                  shouldPlaySound = true;
+                  if (!cancelledStore[orderId]) cancelledStore[orderId] = [];
+                  // Avoid duplicates
+                  if (!cancelledStore[orderId].includes(name)) {
+                    cancelledStore[orderId].push(name);
+                  }
+                }
+              });
+
+              snapshots[orderId].itemsMap = currentItemsMap;
+            }
+          });
+
+          var currentOrderIds = new Set(liveOrdersData.map(function(o){ return o.id.toString(); }));
+          Object.keys(snapshots).forEach(function(id) { if (!currentOrderIds.has(id)) delete snapshots[id]; });
+          Object.keys(persistentBadges).forEach(function(key) {
+            var ordId = key.split('_')[0];
+            if (!currentOrderIds.has(ordId)) delete persistentBadges[key];
+          });
+          Object.keys(cancelledStore).forEach(function(id) { if (!currentOrderIds.has(id)) delete cancelledStore[id]; });
+          Object.keys(readyStore).forEach(function(id) { if (!currentOrderIds.has(id)) delete readyStore[id]; });
+
+          saveStoredSnapshots(snapshots);
+          saveAlertBadges(persistentBadges);
+          saveCheckedItemKeys(checkedMap);
+          saveCancelledItemsStore(cancelledStore);
+          saveReadyForDispatchOrders(readyStore);
+
+          if (shouldPlaySound) { playKOTBeepSound(); }
+          renderKOTCards();
+        })
+        .catch(function(){});
+    }
+
+    function renderKOTCards() {
+      var grid = document.getElementById('kotGrid');
+      if (!liveOrdersData || liveOrdersData.length === 0) {
+        grid.innerHTML = '<div class="col-span-full text-center py-24 text-slate-400 font-bold text-lg">No active orders right now.</div>';
+        return;
+      }
+
+      var persistentBadges = getAlertBadges();
+      var checkedMap = getCheckedItemKeys();
+      var cancelledStore = getCancelledItemsStore();
+      var readyStore = getReadyForDispatchOrders();
+
+      grid.innerHTML = liveOrdersData.map(function(order) {
+        var strId = order.id.toString();
+        var isReadyForDispatch = !!readyStore[strId];
+        var cancelledNames = cancelledStore[strId] || [];
+
+        var allItemsReady = (order.items || []).every(function(item, idx) {
+          var mainItemDone = !!checkedMap[order.id + '_row_' + idx];
+          var addonsDone = true;
+          var addonsList = extractAddonsList(item);
+          if (addonsList.length > 0) {
+            addonsDone = addonsList.every(function(_, aIdx) {
+              return !!checkedMap[order.id + '_row_' + idx + '_addon_' + aIdx];
+            });
+          }
+          return mainItemDone && addonsDone;
+        });
+
+        var theme = {
+          border: 'border-blue-200',
+          badgeBg: 'bg-blue-50 text-blue-700 border-blue-200',
+          headerBg: 'bg-blue-50/50',
+          emoji: '🪑🍽',
+          label: 'Dine-In'
+        };
+
+        var rawType = (order.order_type || '').trim();
+        var displayLabel = rawType;
+        var tableInfo = '';
+
+        if (rawType.toLowerCase().includes('takeaway')) {
+          theme = { border: 'border-emerald-200', badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200', headerBg: 'bg-emerald-50/50', emoji: '🛍️', label: 'Takeaway' };
+          displayLabel = 'Takeaway';
+        } else if (rawType.toLowerCase().includes('delivery')) {
+          theme = { border: 'border-purple-200', badgeBg: 'bg-purple-50 text-purple-700 border-purple-200', headerBg: 'bg-purple-50/50', emoji: '🛵', label: 'Delivery' };
+          displayLabel = 'Delivery';
+        } else if (rawType.toLowerCase().includes('dine')) {
+          displayLabel = 'Dine-In';
+        }
+
+        if (order.table_no && order.table_no.trim() !== '') {
+          var cleanTbl = order.table_no.trim();
+          if (cleanTbl.toLowerCase() !== displayLabel.toLowerCase()) {
+            tableInfo = `<span>• ${cleanTbl}</span>`;
+          }
+        }
+
+        var cardBorderClass = isReadyForDispatch 
+          ? 'border-emerald-500 bg-emerald-50/40 shadow-emerald-100 ring-2 ring-emerald-500/40' 
+          : (allItemsReady ? 'border-emerald-500 shadow-emerald-50' : theme.border);
+
+        return `
+          <div class="kot-card-box bg-white border-2 ${cardBorderClass} rounded-2xl flex flex-col justify-between overflow-hidden shadow-xs hover:shadow-md transition self-start w-full">
+            <div class="p-3.5 border-b border-slate-100 ${theme.headerBg} flex justify-between items-center">
+              <div>
+                <div class="flex items-center gap-2">
+                  <h3 class="font-black text-slate-900">#${order.id}</h3>
+                  <span class="kot-badge font-black px-2 py-0.5 rounded-md border ${theme.badgeBg} flex items-center gap-1 shadow-2xs">
+                    <span>${theme.emoji}</span>
+                    <span>${displayLabel}</span>
+                    ${tableInfo}
+                  </span>
+                </div>
+                <div class="kot-notes text-slate-500 font-mono mt-0.5">Time: ${order.time || ''}</div>
+              </div>
+
+              <div class="flex flex-col items-end">
+                <span class="kot-notes font-bold text-slate-400 uppercase tracking-wider mb-0.5">Elapsed</span>
+                <span id="kotTimer_${order.id}" class="kot-timer text-slate-700 font-mono font-bold bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                  00:00
+                </span>
+              </div>
+            </div>
+
+            ${isReadyForDispatch ? `
+              <div class="bg-emerald-100/70 border-b border-emerald-200 px-3 py-1.5 flex justify-between items-center">
+                <span class="kot-badge font-black text-emerald-800 flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                  READY FOR PICKUP
+                </span>
+                <button onclick="undoReadyStage(${order.id})" class="kot-notes font-bold text-slate-500 hover:text-slate-900 underline">
+                  Undo
+                </button>
+              </div>
+            ` : ''}
+
+            <div class="p-3.5 space-y-3">
+               <!-- ACTIVE ITEMS -->
+               ${(order.items || []).map(function(item, idx) {
+                var rowKey = order.id + '_row_' + idx;
+                var isDone = !!checkedMap[rowKey];
+                var badgeTag = persistentBadges[rowKey];
+                var addonsList = extractAddonsList(item);
+                var cleanBaseName = item.name.replace(/\s*\(.*?\)\s*$/, '').trim();
+
+                var badgeBgClass = (badgeTag && badgeTag.startsWith('-')) ? 'bg-amber-600 border-amber-400' : 'bg-rose-600 border-rose-400';
+
+                return `
+                  <div class="border-b border-slate-100 pb-2.5">
+                    <div onclick='toggleItemReady(${order.id}, "row_${idx}", ${JSON.stringify(item)})' class="flex items-center gap-2.5 cursor-pointer select-none transition ${isDone ? 'opacity-35' : 'hover:bg-slate-50'}">
+                      <div class="kot-check-box rounded-md flex items-center justify-center border shrink-0 transition ${isDone ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-slate-300 bg-white'}">
+                        ${isDone ? '✓' : ''}
+                      </div>
+
+                      <span class="kot-qty-badge font-black text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2 py-1 rounded-md shrink-0 shadow-2xs">
+                        x${item.qty}
+                      </span>
+
+                      <span class="kot-item-title font-bold text-slate-800 flex-1 ${isDone ? 'line-through text-slate-400' : ''}">
+                        ${cleanBaseName}
+                      </span>
+
+                      ${badgeTag ? `
+                        <span class="badge-alert kot-badge ${badgeBgClass} text-white font-black px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 shadow-2xs">
+                          ${badgeTag}
+                        </span>
+                      ` : ''}
+                    </div>
+
+                    ${addonsList.length > 0 ? `
+                      <div class="mt-1.5 ml-8 space-y-1 pl-2 border-l-2 border-slate-200">
+                        ${addonsList.map(function(addon, aIdx) {
+                          var addonKey = order.id + '_row_' + idx + '_addon_' + aIdx;
+                          var isAddonDone = !!checkedMap[addonKey];
+                          return `
+                            <div onclick="toggleAddonReady(${order.id}, ${idx},${aIdx})" class="flex items-center gap-2 cursor-pointer select-none ${isAddonDone ? 'opacity-30 line-through text-slate-400' : 'text-slate-600 hover:text-slate-900'}">
+                              <div class="kot-sub-check-box rounded flex items-center justify-center border shrink-0 transition ${isAddonDone ? 'bg-emerald-600 border-emerald-600 text-white text-[10px]' : 'border-slate-300 bg-white'}">
+                                ${isAddonDone ? '✓' : ''}
+                              </div>
+                              <span class="text-xs font-semibold">+ ${addon.name}</span>
+                            </div>
+                          `;
+                        }).join('')}
+                      </div>
+                    ` : ''}
+                  </div>
+                `;
+              }).join('')}
+
+              <!-- CANCELLED / REMOVED ITEMS -->
+              ${cancelledNames.map(function(cName) {
+                return `
+                  <div class="border-b border-slate-100 pb-2.5 opacity-60 bg-rose-50/50 p-2 rounded-xl">
+                    <div class="flex items-center gap-2.5">
+                      <span class="kot-qty-badge font-black text-rose-700 bg-rose-100 border border-rose-300 px-2 py-1 rounded-md shrink-0">
+                        ✕
+                      </span>
+                      <span class="kot-item-title font-bold text-slate-500 flex-1 line-through">
+                        ${cName}
+                      </span>
+                      <span class="kot-badge bg-rose-600 text-white font-black px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0">
+                        CANCEL
+                      </span>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+
+            <div class="p-3 bg-slate-50 border-t border-slate-100">
+              ${isReadyForDispatch ? `
+                <button onclick="executeDispatch(${order.id})" class="kot-btn w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-black rounded-xl transition flex items-center justify-center gap-2 shadow-sm animate-bounce">
+                  <span>🚀</span>
+                  <span>Dispatch / Handover</span>
+                </button>
+              ` : `
+                <button onclick="markReadyStage(${order.id})" class="kot-btn w-full ${allItemsReady ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-slate-200 hover:bg-emerald-600 text-slate-700 hover:text-white'} font-black rounded-xl transition flex items-center justify-center gap-1.5 shadow-2xs">
+                  <span>✓</span>
+                  <span>Mark Ready</span>
+                </button>
+              `}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      updateLiveTimers();
+    }
+
+    window.addEventListener('click', function() {
+      if (isAudioAllowed) { unlockAudioEngine(); }
+    }, { once: true });
+
+    initPersistentAudio();
+    initCardScale();
+    updateKdsPrinterUIState();
+    fetchKOT();
+    setInterval(fetchKOT, 3500);
+    setInterval(updateLiveTimers, 1000);
+  </script>
+</body>
+</html>
