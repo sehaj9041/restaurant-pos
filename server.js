@@ -429,19 +429,18 @@ app.post('/api/orders/:id/reject', (req, res) => {
   });
 });
 
-// Table Assign API Route (Allows multiple active orders per table without overwriting)
+// Table Assign API Route
 app.post('/api/orders/:id/assign-table', (req, res) => {
   const orderId = req.params.id;
   const { table_no } = req.body;
-  const cleanTable = (table_no || '').trim().toUpperCase();
 
   db.run(
     "UPDATE orders SET table_no = ?, status = 'RUNNING_TABLE' WHERE id = ?",
-    [cleanTable, orderId],
+    [table_no || '', orderId],
     (err) => {
       if (err) return res.status(500).json({ error: err.message });
-      console.log(`[TABLE ASSIGNED] Order #${orderId} assigned to Table ${cleanTable}. Multiple orders allowed.`);
-      res.json({ success: true, table_no: cleanTable });
+      console.log(`[TABLE ASSIGNED] Order #${orderId} assigned to Table ${table_no} and moved to active queue.`);
+      res.json({ success: true });
     }
   );
 });
@@ -644,18 +643,20 @@ app.put('/api/orders/:id', (req, res) => {
     let prevStatus = currentOrder ? currentOrder.status : 'RUNNING_TABLE';
     let prevPaid = currentOrder ? Number(currentOrder.paid_amount) || 0 : 0;
 
-    let incomingPaid = Number(paid_amount) || Number(total) || 0;
+    let incomingPaid = Number(paid_amount) || 0;
     let finalPaid = Math.max(prevPaid, incomingPaid);
     let finalRemaining = Math.max(0, Number(total) - finalPaid);
     let finalMode = payment_mode || (currentOrder ? currentOrder.payment_mode : 'Cash');
 
     let status = prevStatus;
-    if (finalRemaining === 0) {
-      status = 'COMPLETED';
-    } else if (status === 'NEEDS_APPROVAL') {
+    if (status === 'NEEDS_APPROVAL') {
       status = 'RUNNING_TABLE';
     } else if (status === 'COMPLETED') {
       status = 'RUNNING_TABLE';
+    }
+
+    if (finalRemaining === 0 && finalPaid > 0) {
+      status = 'RUNNING_TABLE'; 
     }
 
     db.run(
@@ -676,7 +677,7 @@ app.put('/api/orders/:id', (req, res) => {
               });
             }
           }
-          console.log(`[ORDER UPDATED] Order #${orderId} saved. Status: ${status}`);
+          console.log(`[ORDER APPROVED & UPDATED] Order #${orderId} moved from Needs Approval to Active Queue.`);
           res.json({ success: true, orderId, paid_amount: finalPaid, payable_now: finalRemaining });
         });
       }
@@ -790,30 +791,23 @@ app.post('/api/tables/:id/settle', (req, res) => {
   const orderId = req.params.id;
   const mode = (payment_mode || 'Cash').toUpperCase();
 
-  db.get("SELECT table_no FROM orders WHERE id = ?", [orderId], (err, targetOrder) => {
-    if (err || !targetOrder) return res.status(404).json({ error: 'Order not found' });
+  db.get("SELECT * FROM orders WHERE id = ?", [orderId], (err, order) => {
+    if (err || !order) return res.status(404).json({ error: 'Order not found' });
+    
+    const total = Number(order.total) || 0;
 
-    const tblNo = targetOrder.table_no ? targetOrder.table_no.trim() : '';
-
-    let updateQuery = "";
-    let queryParams = [];
-
-    if (tblNo !== '') {
-      updateQuery = "UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE UPPER(table_no) = ? AND status != 'COMPLETED'";
-      queryParams = [mode, tblNo.toUpperCase()];
-    } else {
-      updateQuery = "UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE id = ?";
-      queryParams = [mode, orderId];
-    }
-
-    db.run(updateQuery, queryParams, (err2) => {
-      if (err2) {
-        console.error('[SETTLE ERROR]:', err2.message);
-        return res.status(500).json({ error: err2.message });
+    db.run(
+      "UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = ? WHERE id = ?",
+      [mode, total, orderId],
+      (err2) => {
+        if (err2) {
+          console.error('[SETTLE ERROR]:', err2.message);
+          return res.status(500).json({ error: err2.message });
+        }
+        console.log(`[SUCCESSFULLY SETTLED] Order #${orderId} marked COMPLETED via ${mode}.`);
+        res.json({ success: true });
       }
-      console.log(`[SUCCESSFULLY SETTLED] Orders for Table/ID cleared via ${mode}. Marked COMPLETED.`);
-      res.json({ success: true });
-    });
+    );
   });
 });
 
@@ -986,7 +980,7 @@ app.post('/api/printer/print-daily-summary', async (req, res) => {
 
 app.get('/api/kot', (req, res) => {
   db.all(
-    `SELECT o.id, o.order_type, o.table_no, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time, o.customer_name 
+    `SELECT o.id, o.order_type, o.table_no, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
      FROM orders o 
      WHERE o.status IN ('RUNNING_TABLE', 'DUE_PENDING', 'RUNNING') 
      ORDER BY o.id ASC`,
@@ -1009,49 +1003,9 @@ app.get('/api/kot', (req, res) => {
             });
           })
         );
-
-        const mergedMap = {};
-        const finalKotList = [];
-
-        fullOrders.forEach(ord => {
-          let tNo = (ord.table_no || '').trim().toUpperCase();
-          let isDineIn = (ord.order_type || '').toLowerCase().includes('dine') && tNo !== '';
-
-          if (isDineIn) {
-            if (!mergedMap[tNo]) {
-              mergedMap[tNo] = {
-                ...ord,
-                id: ord.id,
-                all_merged_ids: ord.id.toString(),
-                display_id_label: `#${ord.id}`,
-                items: [...ord.items]
-              };
-              finalKotList.push(mergedMap[tNo]);
-            } else {
-              ord.items.forEach(newItem => {
-                let existingItem = mergedMap[tNo].items.find(i => i.name === newItem.name && i.notes === newItem.notes);
-                if (existingItem) {
-                  existingItem.qty += newItem.qty;
-                } else {
-                  mergedMap[tNo].items.push({ ...newItem });
-                }
-              });
-              mergedMap[tNo].all_merged_ids += `, ${ord.id}`;
-              mergedMap[tNo].display_id_label += `, #${ord.id}`;
-            }
-          } else {
-            finalKotList.push({
-              ...ord,
-              all_merged_ids: ord.id.toString(),
-              display_id_label: `#${ord.id}`
-            });
-          }
-        });
-
-        res.json(finalKotList);
+        res.json(fullOrders);
       } catch (e) {
-        console.error('KOT merge error:', e.message);
-        res.json(orders.map(o => ({ ...o, all_merged_ids: o.id.toString(), display_id_label: `#${o.id}`, items: [] })));
+        res.json(orders.map(o => ({ ...o, items: [] })));
       }
     }
   );
