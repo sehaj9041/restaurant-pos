@@ -981,7 +981,7 @@ app.post('/api/printer/print-daily-summary', async (req, res) => {
 
 app.get('/api/kot', (req, res) => {
   db.all(
-    `SELECT o.id, o.order_type, o.table_no, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
+    `SELECT o.id, o.order_type, o.table_no, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time, o.customer_name 
      FROM orders o 
      WHERE o.status IN ('RUNNING_TABLE', 'DUE_PENDING', 'RUNNING') 
      ORDER BY o.id ASC`,
@@ -1004,9 +1004,46 @@ app.get('/api/kot', (req, res) => {
             });
           })
         );
-        res.json(fullOrders);
+
+        const mergedMap = {};
+        const finalKotList = [];
+
+        fullOrders.forEach(ord => {
+          let tNo = (ord.table_no || '').trim().toUpperCase();
+          let isDineIn = (ord.order_type || '').toLowerCase().includes('dine') && tNo !== '';
+
+          if (isDineIn) {
+            if (!mergedMap[tNo]) {
+              mergedMap[tNo] = {
+                ...ord,
+                id: ord.id,
+                display_id_label: `#${ord.id}`,
+                items: [...ord.items]
+              };
+              finalKotList.push(mergedMap[tNo]);
+            } else {
+              ord.items.forEach(newItem => {
+                let existingItem = mergedMap[tNo].items.find(i => i.name === newItem.name && i.notes === newItem.notes);
+                if (existingItem) {
+                  existingItem.qty += newItem.qty;
+                } else {
+                  mergedMap[tNo].items.push({ ...newItem });
+                }
+              });
+              mergedMap[tNo].display_id_label += `, #${ord.id}`;
+            }
+          } else {
+            finalKotList.push({
+              ...ord,
+              display_id_label: `#${ord.id}`
+            });
+          }
+        });
+
+        res.json(finalKotList);
       } catch (e) {
-        res.json(orders.map(o => ({ ...o, items: [] })));
+        console.error('KOT merge error:', e.message);
+        res.json(orders.map(o => ({ ...o, display_id_label: `#${o.id}`, items: [] })));
       }
     }
   );
