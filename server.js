@@ -626,14 +626,22 @@ app.put('/api/orders/:id', (req, res) => {
     let prevStatus = currentOrder ? currentOrder.status : 'RUNNING_TABLE';
     let prevPaid = currentOrder ? Number(currentOrder.paid_amount) || 0 : 0;
 
-    let status = prevStatus || 'RUNNING_TABLE';
-    if (status === 'COMPLETED') {
+    let incomingPaid = Number(paid_amount) || 0;
+    let finalPaid = Math.max(prevPaid, incomingPaid);
+    let finalRemaining = Math.max(0, Number(total) - finalPaid);
+    let finalMode = payment_mode || (currentOrder ? currentOrder.payment_mode : 'Cash');
+
+    // FIX: Move order from NEEDS_APPROVAL to active RUNNING_TABLE queue upon payment/update
+    let status = prevStatus;
+    if (status === 'NEEDS_APPROVAL') {
+      status = 'RUNNING_TABLE';
+    } else if (status === 'COMPLETED') {
       status = 'RUNNING_TABLE';
     }
 
-    let finalPaid = Math.min(prevPaid, Number(total));
-    let finalRemaining = Math.max(0, Number(total) - finalPaid);
-    let finalMode = payment_mode || (currentOrder ? currentOrder.payment_mode : 'Cash');
+    if (finalRemaining === 0 && finalPaid > 0) {
+      status = 'RUNNING_TABLE'; 
+    }
 
     db.run(
       `UPDATE orders SET order_type = ?, table_no = ?, customer_name = ?, customer_phone = ?, subtotal = ?, discount = ?, gst = ?, total = ?, payment_mode = ?, status = ?, paid_amount = ? WHERE id = ?`,
@@ -653,7 +661,7 @@ app.put('/api/orders/:id', (req, res) => {
               });
             }
           }
-          console.log(`[ORDER EDIT SAFE] Order #${orderId} quantity updated successfully. Status locked to: ${status}`);
+          console.log(`[ORDER APPROVED & UPDATED] Order #${orderId} moved from Needs Approval to Active Queue.`);
           res.json({ success: true, orderId, paid_amount: finalPaid, payable_now: finalRemaining });
         });
       }
