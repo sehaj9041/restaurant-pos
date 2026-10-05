@@ -644,20 +644,18 @@ app.put('/api/orders/:id', (req, res) => {
     let prevStatus = currentOrder ? currentOrder.status : 'RUNNING_TABLE';
     let prevPaid = currentOrder ? Number(currentOrder.paid_amount) || 0 : 0;
 
-    let incomingPaid = Number(paid_amount) || 0;
+    let incomingPaid = Number(paid_amount) || Number(total) || 0;
     let finalPaid = Math.max(prevPaid, incomingPaid);
     let finalRemaining = Math.max(0, Number(total) - finalPaid);
     let finalMode = payment_mode || (currentOrder ? currentOrder.payment_mode : 'Cash');
 
     let status = prevStatus;
-    if (status === 'NEEDS_APPROVAL') {
+    if (finalRemaining === 0) {
+      status = 'COMPLETED';
+    } else if (status === 'NEEDS_APPROVAL') {
       status = 'RUNNING_TABLE';
     } else if (status === 'COMPLETED') {
       status = 'RUNNING_TABLE';
-    }
-
-    if (finalRemaining === 0 && finalPaid > 0) {
-      status = 'RUNNING_TABLE'; 
     }
 
     db.run(
@@ -678,7 +676,7 @@ app.put('/api/orders/:id', (req, res) => {
               });
             }
           }
-          console.log(`[ORDER APPROVED & UPDATED] Order #${orderId} moved from Needs Approval to Active Queue.`);
+          console.log(`[ORDER UPDATED] Order #${orderId} saved. Status: ${status}`);
           res.json({ success: true, orderId, paid_amount: finalPaid, payable_now: finalRemaining });
         });
       }
@@ -792,23 +790,30 @@ app.post('/api/tables/:id/settle', (req, res) => {
   const orderId = req.params.id;
   const mode = (payment_mode || 'Cash').toUpperCase();
 
-  db.get("SELECT * FROM orders WHERE id = ?", [orderId], (err, order) => {
-    if (err || !order) return res.status(404).json({ error: 'Order not found' });
-    
-    const total = Number(order.total) || 0;
+  db.get("SELECT table_no FROM orders WHERE id = ?", [orderId], (err, targetOrder) => {
+    if (err || !targetOrder) return res.status(404).json({ error: 'Order not found' });
 
-    db.run(
-      "UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = ? WHERE id = ?",
-      [mode, total, orderId],
-      (err2) => {
-        if (err2) {
-          console.error('[SETTLE ERROR]:', err2.message);
-          return res.status(500).json({ error: err2.message });
-        }
-        console.log(`[SUCCESSFULLY SETTLED] Order #${orderId} marked COMPLETED via ${mode}.`);
-        res.json({ success: true });
+    const tblNo = targetOrder.table_no ? targetOrder.table_no.trim() : '';
+
+    let updateQuery = "";
+    let queryParams = [];
+
+    if (tblNo !== '') {
+      updateQuery = "UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE UPPER(table_no) = ? AND status != 'COMPLETED'";
+      queryParams = [mode, tblNo.toUpperCase()];
+    } else {
+      updateQuery = "UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE id = ?";
+      queryParams = [mode, orderId];
+    }
+
+    db.run(updateQuery, queryParams, (err2) => {
+      if (err2) {
+        console.error('[SETTLE ERROR]:', err2.message);
+        return res.status(500).json({ error: err2.message });
       }
-    );
+      console.log(`[SUCCESSFULLY SETTLED] Orders for Table/ID cleared via ${mode}. Marked COMPLETED.`);
+      res.json({ success: true });
+    });
   });
 });
 
