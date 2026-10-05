@@ -414,7 +414,7 @@
           <span>📁</span> Categories Group
         </button>
         <button onclick="openVariationsGroupModal()" class="bg-purple-600 hover:bg-purple-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs">
-          <span>⚙️️</span> Variations Group
+          <span>⚙️</span> Variations Group
         </button>
         <button onclick="openAddonGroupsModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs">
           <span>➕</span> Add-on Groups
@@ -2406,7 +2406,7 @@
               <div class="flex flex-wrap gap-1.5 pt-1.5 border-t border-gray-100 text-[10px] font-bold">
                 <button onclick="promptAssignTable(${o.id})" class="px-2 py-1 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded border border-orange-200 font-black shadow-2xs"><span>🪑</span> Assign table</button>
                 <button onclick="actionViewOrder(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>👁</span> View</button>
-                <button onclick="actionAddPhone(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-orange-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>📞</span> Add phone</button>
+                <button onclick="actionAddPhone(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-orange-700 rounded border border-orange-200 flex items-center gap-1 shadow-2xs"><span>📞</span> Add phone</button>
                 <button onclick="actionPrintKOT(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🍳</span> KOT</button>
                 <button onclick="actionPrintReceipt(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🖨</span> Print Receipt</button>
                 <button onclick="actionEditAddItems(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>+</span> Add Item</button>
@@ -3112,20 +3112,26 @@
           : "border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5";
       });
 
-      var running = null;
+      var matchingRunningOrders = [];
       if (selectedPOSTableId) {
-        running = allActiveOrders.find(function(o) {
+        matchingRunningOrders = allActiveOrders.filter(function(o) {
           var type = (o.order_type || '').toLowerCase();
           return type.includes('dine') && o.table_no && o.table_no.toUpperCase() === selectedPOSTableId.toUpperCase();
         });
       }
 
-      if (running) {
-        editingActiveOrderId = running.id;
-        document.getElementById('posCustPhone').value = running.customer_phone || '';
-        document.getElementById('posCustName').value = running.customer_name || '';
-        posCart = (running.items || []).map(function(i) {
-          return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1 };
+      if (matchingRunningOrders.length > 0) {
+        editingActiveOrderId = matchingRunningOrders[0].id;
+        document.getElementById('posCustPhone').value = matchingRunningOrders[0].customer_phone || '';
+        document.getElementById('posCustName').value = matchingRunningOrders[0].customer_name || '';
+
+        posCart = [];
+        matchingRunningOrders.forEach(function(ord) {
+          if (Array.isArray(ord.items)) {
+            ord.items.forEach(function(i) {
+              posCart.push({ id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1 });
+            });
+          }
         });
       } else {
         document.getElementById('posCustPhone').value = '';
@@ -3148,13 +3154,14 @@
       document.getElementById('menuManagementView').classList.add('hidden');
       document.getElementById('viewPOSOrderScreen').classList.remove('hidden');
 
-      document.getElementById('topPageTitle').innerText = 'New Order';
+      document.getElementById('topPageTitle').innerText = selectedPOSTableId ? 'Table ' + selectedPOSTableId + ' Billing' : 'New Order';
       document.getElementById('btnTopBack').classList.remove('hidden');
       document.getElementById('btnCancelOrderView').classList.add('hidden');
       document.getElementById('topOrderActiveBadge').classList.remove('hidden');
 
       renderPOSCart();
       renderPOSItems();
+      switchRightTab('SUMMARY');
     }
 
     function closePOSOrderView() {
