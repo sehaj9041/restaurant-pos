@@ -317,4 +317,875 @@ app.put('/api/menu/:id', (req, res) => {
   const { name, category, price, stock, image, variations, assigned_addon_groups, is_exempt } = req.body;
   db.run(
     `UPDATE menu SET name = ?, category = ?, price = ?, stock = ?, image = ?, variations = ?, assigned_addon_groups = ?, is_exempt = ? WHERE id = ?`,
-    [name, category, price, stock, image || '', JSON.stringify(variations || []), JSON.stringify(assigned_addon_groups || []), is_exempt ? 1
+    [name, category, price, stock, image || '', JSON.stringify(variations || []), JSON.stringify(assigned_addon_groups || []), is_exempt ? 1 : 0, req.params.id],
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ success: true });
+    }
+  );
+});
+
+app.delete('/api/menu/:id', (req, res) => {
+  db.run("DELETE FROM menu WHERE id = ?", [req.params.id], function (err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ success: true });
+  });
+});
+
+// TODAY STATS API FOR POS DASHBOARD
+app.get('/api/orders/today-stats', (req, res) => {
+  const query = `
+    SELECT 
+      COUNT(*) AS total_orders,
+      COALESCE(SUM(total), 0) AS total_sales,
+      COALESCE(SUM(CASE WHEN UPPER(status) = 'COMPLETED' THEN 1 ELSE 0 END), 0) as completed_today,
+      COALESCE(SUM(CASE WHEN UPPER(order_type) LIKE '%DELIVERY%' THEN 1 ELSE 0 END), 0) as delivery_count,
+      COALESCE(SUM(CASE WHEN UPPER(status) LIKE '%VOID%' THEN 1 ELSE 0 END), 0) as void_count
+    FROM orders 
+    WHERE created_at::date = CURRENT_DATE OR DATE(created_at) = CURRENT_DATE
+  `;
+
+  db.get(query, [], (err, row) => {
+    if (err) {
+      console.error('Today stats error:', err.message);
+      return res.json({ total_orders: 0, total_sales: 0, completed_today: 0, delivery_count: 0, void_count: 0 });
+    }
+    res.json(row || { total_orders: 0, total_sales: 0, completed_today: 0, delivery_count: 0, void_count: 0 });
+  });
+});
+
+// ================= NEEDS APPROVAL (PENDING ORDERS) APIS =================
+app.get('/api/orders/needs-approval', (req, res) => {
+  const query = `
+    SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount, created_at
+    FROM orders 
+    WHERE UPPER(status) = 'NEEDS_APPROVAL'
+    ORDER BY id DESC
+  `;
+
+  db.all(query, [], async (err, orders) => {
+    if (err) {
+      console.error('Needs approval fetch error:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+    if (!orders || orders.length === 0) return res.json([]);
+
+    try {
+      const fullOrders = await Promise.all(
+        orders.map(order => {
+          return new Promise((resolve) => {
+            db.all('SELECT id, name, qty, price, notes FROM order_items WHERE order_id = ?', [order.id], (err2, items) => {
+              resolve({ ...order, items: items || [] });
+            });
+          });
+        })
+      );
+      res.json(fullOrders);
+    } catch (e) {
+      res.json(orders.map(o => ({ ...o, items: [] })));
+    }
+  });
+});
+
+app.post('/api/orders/:id/approve', (req, res) => {
+  const orderId = req.params.id;
+  
+  db.get("SELECT order_type FROM orders WHERE id = ?", [orderId], (err, order) => {
+    if (err || !order) return res.status(404).json({ error: 'Order not found' });
+
+    let type = (order.order_type || '').toLowerCase();
+    let newTableNo = '';
+    let newStatus = 'RUNNING_TABLE';
+
+    if (type.includes('delivery')) {
+      newTableNo = 'Delivery';
+    } else if (type.includes('takeaway')) {
+      newTableNo = 'Takeaway';
+    } else {
+      newTableNo = '';
+    }
+
+    db.run(
+      `UPDATE orders 
+       SET status = ?, 
+           table_no = ? 
+       WHERE id = ?`, 
+      [newStatus, newTableNo, orderId], 
+      (err2) => {
+        if (err2) return res.status(500).json({ error: err2.message });
+        console.log(`[ORDER APPROVED] Order #${orderId} accepted and routed correctly.`);
+        res.json({ success: true });
+      }
+    );
+  });
+});
+
+app.post('/api/orders/:id/reject', (req, res) => {
+  const orderId = req.params.id;
+  db.run("UPDATE orders SET status = 'VOID' WHERE id = ?", [orderId], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    console.log(`[ORDER REJECTED] Order #${orderId} rejected.`);
+    res.json({ success: true });
+  });
+});
+
+// Table Assign API Route
+app.post('/api/orders/:id/assign-table', (req, res) => {
+  const orderId = req.params.id;
+  const { table_no } = req.body;
+
+  db.run(
+    "UPDATE orders SET table_no = ?, status = 'RUNNING_TABLE' WHERE id = ?",
+    [table_no || '', orderId],
+    (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+      console.log(`[TABLE ASSIGNED] Order #${orderId} assigned to Table ${table_no} and moved to active queue.`);
+      res.json({ success: true });
+    }
+  );
+});
+
+// 7. ACTIVE ORDERS (Robust fetch for active, running, and online/kiosk orders)
+app.get('/api/orders/active', (req, res) => {
+  const query = `
+    SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount
+    FROM orders 
+    WHERE UPPER(status) NOT IN ('COMPLETED', 'NEEDS_APPROVAL', 'VOID')
+       OR UPPER(status) = 'RUNNING_TABLE'
+       OR UPPER(status) = 'RUNNING'
+       OR UPPER(status) = 'KOT_READY'
+    ORDER BY id DESC
+  `;
+
+  db.all(query, [], async (err, orders) => {
+    if (err) {
+      console.error('Active orders error:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+    
+    if (!orders || orders.length === 0) {
+      return res.json([]);
+    }
+
+    try {
+      const fullOrders = await Promise.all(
+        orders.map(order => {
+          return new Promise((resolve) => {
+            db.all('SELECT id, name, qty, price, notes FROM order_items WHERE order_id = ?', [order.id], (err2, items) => {
+              resolve({ ...order, items: items || [] });
+            });
+          });
+        })
+      );
+      res.json(fullOrders);
+    } catch (e) {
+      console.error('Items fetch error:', e.message);
+      res.json(orders.map(o => ({ ...o, items: [] })));
+    }
+  });
+});
+
+// ================= DEDICATED DUE (KHATA) APIS =================
+
+app.get('/api/due/orders', (req, res) => {
+  const query = `
+    SELECT 
+      id, order_type, table_no, customer_name, customer_phone, 
+      total, COALESCE(paid_amount, 0) as paid_amount,
+      GREATEST(0, total - COALESCE(paid_amount, 0)) as due_amount,
+      payment_mode, status, created_at
+    FROM orders
+    WHERE status != 'COMPLETED'
+      AND (
+        UPPER(payment_mode) = 'DUE' 
+        OR status = 'DUE_PENDING'
+        OR (status = 'KOT_READY' AND UPPER(payment_mode) = 'DUE')
+        OR (UPPER(payment_mode) LIKE '%PARTIAL%' AND (total - COALESCE(paid_amount, 0)) > 0)
+        OR (UPPER(payment_mode) = 'UNPAID' AND (total - COALESCE(paid_amount, 0)) > 0)
+      )
+    ORDER BY id DESC
+  `;
+
+  db.all(query, [], (err, rows) => {
+    if (err) {
+      console.error('Due orders fetch error:', err.message);
+      return res.json([]);
+    }
+    const now = new Date();
+    const formatted = (rows || []).map(r => {
+      const orderDate = r.created_at ? new Date(r.created_at) : now;
+      const diffMs = Math.max(0, now - orderDate);
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffDays = Math.floor(diffHours / 24);
+      const remainingDue = Math.max(0, Number(r.total) - Number(r.paid_amount || 0));
+
+      return {
+        ...r,
+        due_days: diffDays,
+        due_hours: diffHours,
+        due_amount: remainingDue > 0 ? remainingDue : Number(r.total)
+      };
+    });
+    res.json(formatted);
+  });
+});
+
+app.get('/api/due/customers', (req, res) => {
+  const query = `
+    SELECT 
+      COALESCE(NULLIF(customer_phone, ''), 'WALK-IN') as phone,
+      COALESCE(NULLIF(MAX(customer_name), ''), 'Valued Guest') as name,
+      SUM(GREATEST(0, total - COALESCE(paid_amount, 0))) as total_due,
+      COUNT(id) as total_orders,
+      STRING_AGG(id::text, ',') as order_ids,
+      MIN(created_at) as oldest_order_date
+    FROM orders
+    WHERE status != 'COMPLETED'
+      AND (
+        UPPER(payment_mode) = 'DUE' 
+        OR status = 'DUE_PENDING'
+        OR (status = 'KOT_READY' AND UPPER(payment_mode) = 'DUE')
+        OR (UPPER(payment_mode) LIKE '%PARTIAL%' AND (total - COALESCE(paid_amount, 0)) > 0)
+        OR (UPPER(payment_mode) = 'UNPAID' AND (total - COALESCE(paid_amount, 0)) > 0)
+      )
+    GROUP BY COALESCE(NULLIF(customer_phone, ''), 'WALK-IN')
+    HAVING SUM(GREATEST(0, total - COALESCE(paid_amount, 0))) > 0
+    ORDER BY total_due DESC
+  `;
+
+  db.all(query, [], (err, rows) => {
+    if (err) {
+      console.error('Due customers fetch error:', err.message);
+      return res.json([]);
+    }
+    const now = new Date();
+    const formatted = (rows || []).map(r => {
+      const oldestDate = r.oldest_order_date ? new Date(r.oldest_order_date) : now;
+      const diffDays = Math.floor(Math.max(0, now - oldestDate) / (1000 * 60 * 60 * 24));
+
+      return {
+        phone: r.phone,
+        name: r.name,
+        total_orders: Number(r.total_orders) || 1,
+        total_due: Number(r.total_due) || 0,
+        oldest_days: diffDays,
+        order_ids: r.order_ids ? r.order_ids.split(',').map(s => s.trim()) : []
+      };
+    });
+    res.json(formatted);
+  });
+});
+
+app.post('/api/due/settle-customer', (req, res) => {
+  const { phone, payment_mode } = req.body;
+  if (!phone) return res.status(400).json({ error: 'Customer phone required' });
+
+  const mode = (payment_mode || 'CASH').toUpperCase();
+
+  db.run(
+    `UPDATE orders 
+     SET status = 'COMPLETED', payment_mode = ?, paid_amount = total 
+     WHERE customer_phone = ? 
+       AND status != 'COMPLETED'`,
+    [mode, phone],
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      console.log(`[FULL SETTLEMENT SUCCESS] Customer ${phone} bills cleared via ${mode}`);
+      res.json({ success: true, message: `All bills cleared successfully via ${mode}` });
+    }
+  );
+});
+
+app.get('/api/orders/history', (req, res) => {
+  const { date } = req.query;
+  const filterDate = date ? date : new Date().toISOString().slice(0, 10);
+
+  const query = `
+    SELECT id, order_type, table_no, customer_name, customer_phone, payment_mode, status, subtotal, discount, gst, total, COALESCE(paid_amount, total) as paid_amount, created_at
+    FROM orders 
+    WHERE status = 'COMPLETED' 
+       OR status = 'VOID'
+       OR UPPER(payment_mode) IN ('CASH', 'UPI', 'CARD', 'PAID')
+       OR COALESCE(paid_amount, 0) >= total
+    ORDER BY id DESC
+    LIMIT 200
+  `;
+
+  db.all(query, [], async (err, orders) => {
+    if (err) {
+      console.error('Order history query error:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+    if (!orders || orders.length === 0) return res.json([]);
+
+    try {
+      const fullOrders = await Promise.all(
+        orders.map(order => {
+          return new Promise((resolve) => {
+            db.all('SELECT name, qty, price FROM order_items WHERE order_id = ?', [order.id], (err2, items) => {
+              resolve({ ...order, items: items || [] });
+            });
+          });
+        })
+      );
+      res.json(fullOrders);
+    } catch (e) {
+      res.json(orders.map(o => ({ ...o, items: [] })));
+    }
+  });
+});
+
+app.put('/api/orders/:id', (req, res) => {
+  const orderId = req.params.id;
+  const { order_type, table_no, customer_name, customer_phone, items, subtotal, discount, gst, total, payment_mode, paid_amount } = req.body;
+
+  db.get("SELECT total, paid_amount, payment_mode, status FROM orders WHERE id = ?", [orderId], (errGet, currentOrder) => {
+    let prevStatus = currentOrder ? currentOrder.status : 'RUNNING_TABLE';
+    let prevPaid = currentOrder ? Number(currentOrder.paid_amount) || 0 : 0;
+
+    let incomingPaid = Number(paid_amount) || 0;
+    let finalPaid = Math.max(prevPaid, incomingPaid);
+    let finalRemaining = Math.max(0, Number(total) - finalPaid);
+    let finalMode = payment_mode || (currentOrder ? currentOrder.payment_mode : 'Cash');
+
+    let status = prevStatus;
+    if (status === 'NEEDS_APPROVAL') {
+      status = 'RUNNING_TABLE';
+    } else if (status === 'COMPLETED') {
+      status = 'RUNNING_TABLE';
+    }
+
+    if (finalRemaining === 0 && finalPaid > 0) {
+      status = 'RUNNING_TABLE'; 
+    }
+
+    db.run(
+      `UPDATE orders SET order_type = ?, table_no = ?, customer_name = ?, customer_phone = ?, subtotal = ?, discount = ?, gst = ?, total = ?, payment_mode = ?, status = ?, paid_amount = ? WHERE id = ?`,
+      [order_type, table_no || '', customer_name || '', customer_phone || '', subtotal, discount || 0, gst || 0, total, finalMode, status, finalPaid, orderId],
+      async (err) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        db.run("DELETE FROM order_items WHERE order_id = ?", [orderId], async () => {
+          if (Array.isArray(items) && items.length > 0) {
+            for (const item of items) {
+              await new Promise((resolve) => {
+                db.run(
+                  "INSERT INTO order_items (order_id, name, qty, price, notes) VALUES (?, ?, ?, ?, ?)",
+                  [orderId, item.name, item.qty, item.price, item.notes || ''],
+                  () => resolve()
+                );
+              });
+            }
+          }
+          console.log(`[ORDER APPROVED & UPDATED] Order #${orderId} moved from Needs Approval to Active Queue.`);
+          res.json({ success: true, orderId, paid_amount: finalPaid, payable_now: finalRemaining });
+        });
+      }
+    );
+  });
+});
+
+app.post('/api/orders', async (req, res) => {
+  const { order_type, table_no, customer_name, customer_phone, items, payment_mode, subtotal, discount, is_hold, paid_amount, is_kiosk } = req.body;
+
+  let rawType = (order_type || 'Kiosk').trim();
+  let upperType = rawType.toUpperCase();
+  let normalizedOrderType = rawType;
+
+  if (upperType.includes('DELIVERY')) {
+    normalizedOrderType = 'Delivery';
+  } else if (upperType.includes('TAKEAWAY') || upperType.includes('PICKUP')) {
+    normalizedOrderType = 'Takeaway';
+  } else if (upperType.includes('DINE') || upperType.includes('EAT') || upperType.includes('KIOSK')) {
+    normalizedOrderType = 'Dine-In';
+  }
+
+  let calculatedSubtotal = Number(subtotal) || 0;
+  if (calculatedSubtotal === 0 && Array.isArray(items)) {
+    calculatedSubtotal = items.reduce((sum, i) => sum + (Number(i.price) * Number(i.qty)), 0);
+  }
+
+  let calculatedGst = Math.round((calculatedSubtotal * 5) / 100);
+  let calculatedTotal = Math.round(calculatedSubtotal + calculatedGst - (Number(discount) || 0));
+
+  let initialPaid = 0;
+  const isPayAtCounter = payment_mode === 'PAY_COUNTER' || (payment_mode && payment_mode.toUpperCase().includes('COUNTER'));
+
+  if (payment_mode && payment_mode !== 'UNPAID' && payment_mode !== 'DUE' && !isPayAtCounter) {
+    initialPaid = Number(paid_amount) || calculatedTotal || 0;
+  }
+
+  let status = 'RUNNING_TABLE';
+  if (is_hold) {
+    status = 'RUNNING_TABLE';
+  } else if (is_kiosk || upperType.includes('ONLINE') || upperType.includes('KIOSK') || upperType.includes('SELF') || upperType.includes('DINE-IN') || upperType.includes('TAKEAWAY') || upperType.includes('DELIVERY')) {
+    status = 'NEEDS_APPROVAL';
+  } else if (payment_mode === 'DUE') {
+    status = 'DUE_PENDING';
+  }
+
+  const insertOrderQuery = `
+    INSERT INTO orders (order_type, table_no, customer_name, customer_phone, status, payment_mode, subtotal, discount, gst, total, paid_amount)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    RETURNING id
+  `;
+
+  const orderValues = [
+    normalizedOrderType,
+    table_no || '',
+    customer_name || '',
+    customer_phone || '',
+    status,
+    payment_mode || 'Cash',
+    calculatedSubtotal,
+    discount || 0,
+    calculatedGst,
+    calculatedTotal,
+    initialPaid
+  ];
+
+  db.all(insertOrderQuery, orderValues, async (err, result) => {
+    if (err) {
+      console.error('Order creation error:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+
+    const orderId = (result && result[0]) ? result[0].id : null;
+    if (!orderId) {
+      return res.status(500).json({ error: 'Failed to retrieve order id' });
+    }
+
+    try {
+      if (Array.isArray(items) && items.length > 0) {
+        for (const item of items) {
+          await new Promise((resolve) => {
+            db.run(
+              'INSERT INTO order_items (order_id, name, qty, price, notes) VALUES (?, ?, ?, ?, ?)',
+              [orderId, item.name, item.qty, item.price, item.notes || ''],
+              () => resolve()
+            );
+          });
+
+          if (item.id || item.menu_id) {
+            await new Promise((resolve) => {
+              db.run(
+                'UPDATE menu SET stock = GREATEST(0, stock - ?) WHERE id = ?',
+                [item.qty, item.id || item.menu_id],
+                () => resolve()
+              );
+            });
+          }
+        }
+      }
+
+      res.json({ success: true, orderId: orderId, paid_amount: initialPaid });
+    } catch (itemErr) {
+      console.error('Order items insert error:', itemErr.message);
+      res.json({ success: true, orderId: orderId });
+    }
+  });
+});
+
+app.post('/api/tables/:id/settle', (req, res) => {
+  const { payment_mode } = req.body;
+  const orderId = req.params.id;
+  const mode = (payment_mode || 'Cash').toUpperCase();
+
+  db.get("SELECT * FROM orders WHERE id = ?", [orderId], (err, order) => {
+    if (err || !order) return res.status(404).json({ error: 'Order not found' });
+    
+    const total = Number(order.total) || 0;
+
+    db.run(
+      "UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = ? WHERE id = ?",
+      [mode, total, orderId],
+      (err2) => {
+        if (err2) {
+          console.error('[SETTLE ERROR]:', err2.message);
+          return res.status(500).json({ error: err2.message });
+        }
+        console.log(`[SUCCESSFULLY SETTLED] Order #${orderId} marked COMPLETED via ${mode}.`);
+        res.json({ success: true });
+      }
+    );
+  });
+});
+
+app.post('/api/orders/:id/mark-due', (req, res) => {
+  const orderId = req.params.id;
+  db.run(
+    "UPDATE orders SET status = 'DUE_PENDING', payment_mode = 'DUE' WHERE id = ?",
+    [orderId],
+    (err2) => {
+      if (err2) return res.status(500).json({ error: err2.message });
+      res.json({ success: true });
+    }
+  );
+});
+
+// ================= CLOUD PRINT QUEUE SYSTEM =================
+let printQueue = [];
+
+app.post('/api/print-ip', (req, res) => {
+  const { printer_ip, order_id, table, qty, item_name, addons, time } = req.body;
+  
+  if (!order_id || !item_name) {
+    return res.status(400).json({ success: false, error: 'Missing print details' });
+  }
+
+  const jobId = Date.now() + '-' + Math.random().toString(36).substring(2, 7);
+  
+  const printJob = {
+    id: jobId,
+    printer_ip: printer_ip || '192.168.1.87',
+    order_id,
+    table: table || 'Dine-In',
+    qty,
+    item_name,
+    addons: addons || '',
+    time: time || new Date().toLocaleTimeString()
+  };
+
+  printQueue.push(printJob);
+  console.log(`[PRINT QUEUED] Job #${jobId} added for Order #${order_id} (${item_name})`);
+  
+  res.json({ success: true, message: 'Print job queued for local agent' });
+});
+
+app.get('/api/print/pending-queue', (req, res) => {
+  res.json({ success: true, jobs: printQueue });
+});
+
+app.post('/api/print/acknowledge', (req, res) => {
+  const { jobId } = req.body;
+  printQueue = printQueue.filter(j => j.id !== jobId);
+  console.log(`[PRINT ACKNOWLEDGED] Job #${jobId} completed and removed from queue.`);
+  res.json({ success: true });
+});
+
+let ThermalPrinterClass = null;
+let PrinterTypesObj = null;
+
+try {
+  const NTP = require("node-thermal-printer");
+  ThermalPrinterClass = NTP.ThermalPrinter || NTP.thermalPrinter;
+  PrinterTypesObj = NTP.PrinterTypes || NTP.types;
+} catch (e) {
+  console.log("Thermal library note: using built-in simulator engine.");
+}
+
+app.post('/api/printer/print-bill', async (req, res) => {
+  const { orderId, orderType, tableNo, customerName, items, total, mode } = req.body;
+
+  try {
+    if (ThermalPrinterClass && PrinterTypesObj) {
+      const printer = new ThermalPrinterClass({
+        type: PrinterTypesObj.EPSON,
+        interface: '//localhost/ThermalPrinter',
+        characterSet: 'SLOVENIA'
+      });
+
+      printer.alignCenter();
+      printer.println("VISHAL FOODIEZ");
+      printer.println("Budhlada, Punjab");
+      printer.drawLine();
+      printer.alignLeft();
+      printer.println(`Order: #${orderId} | ${orderType}`);
+      if (tableNo) printer.println(`Table: ${tableNo}`);
+      if (customerName) printer.println(`Guest: ${customerName}`);
+      printer.drawLine();
+
+      if (Array.isArray(items)) {
+        items.forEach(item => {
+          printer.println(`${item.name} x${item.qty} = Rs ${item.price * item.qty}`);
+        });
+      }
+
+      printer.drawLine();
+      printer.println(`Total: Rs ${total}`);
+      printer.println(`Payment Mode: ${mode}`);
+      printer.cut();
+      await printer.execute().catch(() => null);
+    }
+    console.log(`[PRINTER PIPELINE] Bill #${orderId} (Total: Rs ${total}) successfully processed.`);
+    res.json({ success: true });
+  } catch (error) {
+    console.log(`[PRINTER SIMULATOR] Bill #${orderId} buffer created silently.`);
+    res.json({ success: true, simulated: true });
+  }
+});
+
+app.post('/api/printer/print-kot', async (req, res) => {
+  const { orderId, orderType, tableNo, items } = req.body;
+  try {
+    if (ThermalPrinterClass && PrinterTypesObj) {
+      const kotPrinter = new ThermalPrinterClass({
+        type: PrinterTypesObj.EPSON,
+        interface: '//localhost/KOTPrinter',
+        characterSet: 'SLOVENIA'
+      });
+      kotPrinter.alignCenter();
+      kotPrinter.println("*** KITCHEN TICKET (KOT) ***");
+      kotPrinter.println(`Order: #${orderId} | ${orderType} | ${tableNo || ''}`);
+      kotPrinter.drawLine();
+      if (Array.isArray(items)) {
+        items.forEach(i => kotPrinter.println(`[ ] ${i.name} x${i.qty}`));
+      }
+      kotPrinter.cut();
+      await kotPrinter.execute().catch(() => null);
+    }
+    console.log(`[KOT PIPELINE] Kitchen Ticket #${orderId} processed.`);
+    res.json({ success: true });
+  } catch (err) {
+    res.json({ success: true, simulated: true });
+  }
+});
+
+app.post('/api/printer/print-daily-summary', async (req, res) => {
+  const { summary, dateRange } = req.body;
+  try {
+    if (ThermalPrinterClass && PrinterTypesObj) {
+      const printer = new ThermalPrinterClass({
+        type: PrinterTypesObj.EPSON,
+        interface: '//localhost/ThermalPrinter',
+        characterSet: 'SLOVENIA'
+      });
+      printer.alignCenter();
+      printer.setTextDoubleHeight();
+      printer.println("VISHAL FOODIEZ");
+      printer.setTextNormal();
+      printer.println("DAILY SETTLEMENT REPORT");
+      printer.println(`Range: ${dateRange}`);
+      printer.drawLine();
+      printer.alignLeft();
+      printer.println(`Total Orders: ${summary.total_orders}`);
+      printer.println(`Gross Turnover: Rs ${summary.total_sales}`);
+      printer.println(`Cash Inflow: Rs ${summary.cash_sales}`);
+      printer.println(`UPI / Digital: Rs ${summary.upi_sales}`);
+      printer.println(`Unpaid Khata (Due): Rs ${summary.due_sales}`);
+      printer.println(`Total Expenses: Rs ${summary.total_expense}`);
+      printer.drawLine();
+      printer.bold(true);
+      printer.println(`NET CASH IN HAND: Rs ${summary.net_cash_in_hand}`);
+      printer.bold(false);
+      printer.drawLine();
+      printer.cut();
+      await printer.execute().catch(() => null);
+    }
+    res.json({ success: true });
+  } catch(e) {
+    res.json({ success: true, simulated: true });
+  }
+});
+
+app.get('/api/kot', (req, res) => {
+  db.all(
+    `SELECT o.id, o.order_type, o.table_no, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
+     FROM orders o 
+     WHERE o.status IN ('RUNNING_TABLE', 'DUE_PENDING', 'RUNNING') 
+     ORDER BY o.id ASC`,
+    [],
+    async (err, orders) => {
+      if (err) {
+        console.error('KOT error:', err.message);
+        return res.json([]);
+      }
+      if (!orders || orders.length === 0) {
+        return res.json([]);
+      }
+      try {
+        const fullOrders = await Promise.all(
+          orders.map(order => {
+            return new Promise((resolve) => {
+              db.all('SELECT id, name, qty, notes FROM order_items WHERE order_id = ? ORDER BY id ASC', [order.id], (err2, items) => {
+                resolve({ ...order, items: items || [] });
+              });
+            });
+          })
+        );
+        res.json(fullOrders);
+      } catch (e) {
+        res.json(orders.map(o => ({ ...o, items: [] })));
+      }
+    }
+  );
+});
+
+app.post('/api/kot/:id/complete', (req, res) => {
+  const orderId = req.params.id;
+  db.get("SELECT total, COALESCE(paid_amount, 0) as paid_amount, payment_mode, status FROM orders WHERE id = ?", [orderId], (err, order) => {
+    if (err || !order) return res.status(404).json({ error: 'Order not found' });
+
+    const total = Number(order.total) || 0;
+    const paid = Number(order.paid_amount) || 0;
+    const isFullyPaid = (paid >= total && total > 0);
+
+    if (isFullyPaid) {
+      db.run("UPDATE orders SET status = 'COMPLETED' WHERE id = ?", [orderId], () => res.json({ success: true }));
+    } else {
+      db.run("UPDATE orders SET status = 'KOT_READY' WHERE id = ?", [orderId], () => res.json({ success: true }));
+    }
+  });
+});
+
+app.get('/api/customers/:phone', (req, res) => {
+  db.get("SELECT * FROM customers WHERE phone = ?", [req.params.phone], (err, row) => res.json(row || null));
+});
+
+app.get('/api/customers', (req, res) => {
+  db.all("SELECT * FROM customers ORDER BY due_balance DESC, total_spent DESC LIMIT 100", [], (err, rows) => res.json(rows || []));
+});
+
+app.get('/api/expenses/today', (req, res) => {
+  db.all("SELECT id, title, amount, payment_mode, TO_CHAR(created_at, 'HH12:MI AM') as time FROM expenses WHERE created_at::date = CURRENT_DATE ORDER BY id DESC", [], (err, rows) => res.json(rows || []));
+});
+
+app.post('/api/expenses', (req, res) => {
+  const { title, amount, payment_mode } = req.body;
+  db.all(
+    "INSERT INTO expenses (title, amount, payment_mode) VALUES (?, ?, ?) RETURNING id",
+    [title, amount, payment_mode || 'CASH'],
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      const id = result && result[0] ? result[0].id : null;
+      res.json({ success: true, id });
+    }
+  );
+});
+
+app.get('/api/reports/analytics', (req, res) => {
+  const { startDate, endDate } = req.query;
+  const start = startDate ? startDate : new Date().toISOString().slice(0, 10);
+  const end = endDate ? endDate : new Date().toISOString().slice(0, 10);
+
+  const summaryQuery = `
+    SELECT 
+      COUNT(*) AS total_orders,
+      COALESCE(SUM(total), 0) AS total_sales,
+      COALESCE(SUM(subtotal), 0) AS subtotal_sales,
+      COALESCE(SUM(discount), 0) AS total_discount,
+      COALESCE(SUM(gst), 0) AS total_gst,
+      COALESCE(SUM(CASE WHEN payment_mode = 'CASH' AND status != 'DUE_PENDING' THEN total ELSE 0 END), 0) AS cash_sales,
+      COALESCE(SUM(CASE WHEN payment_mode = 'UPI' AND status != 'DUE_PENDING' THEN total ELSE 0 END), 0) AS upi_sales,
+      COALESCE(SUM(CASE WHEN payment_mode = 'DUE' OR status = 'DUE_PENDING' THEN total ELSE 0 END), 0) AS due_sales
+    FROM orders 
+    WHERE (created_at::date BETWEEN ?::date AND ?::date OR DATE(created_at) BETWEEN DATE(?) AND DATE(?))
+      AND status NOT IN ('RUNNING_TABLE', 'KOT_READY', 'NEEDS_APPROVAL')
+  `;
+
+  const expenseQuery = `
+    SELECT 
+      COALESCE(SUM(amount), 0) as total_expense,
+      COALESCE(SUM(CASE WHEN payment_mode = 'CASH' THEN amount ELSE 0 END), 0) as cash_expense
+    FROM expenses 
+    WHERE (created_at::date BETWEEN ?::date AND ?::date OR DATE(created_at) BETWEEN DATE(?) AND DATE(?))
+  `;
+
+  const topItemsQuery = `
+    SELECT oi.name, SUM(oi.qty) as total_qty, SUM(oi.price * oi.qty) as total_revenue
+    FROM order_items oi
+    JOIN orders o ON o.id = oi.order_id
+    WHERE (o.created_at::date BETWEEN ?::date AND ?::date OR DATE(o.created_at) BETWEEN DATE(?) AND DATE(?))
+      AND o.status NOT IN ('RUNNING_TABLE', 'KOT_READY', 'NEEDS_APPROVAL')
+    GROUP BY oi.name
+    ORDER BY total_qty DESC
+    LIMIT 10
+  `;
+
+  const ordersListQuery = `
+    SELECT id, order_type, table_no, customer_name, customer_phone, payment_mode, status, subtotal, discount, gst, total, COALESCE(paid_amount, total) as paid_amount, created_at
+    FROM orders 
+    WHERE (created_at::date BETWEEN ?::date AND ?::date OR DATE(created_at) BETWEEN DATE(?) AND DATE(?))
+      AND status NOT IN ('RUNNING_TABLE', 'KOT_READY', 'NEEDS_APPROVAL')
+    ORDER BY id DESC
+  `;
+
+  db.get(summaryQuery, [start, end, start, end], (err, summary) => {
+    if (err) return res.status(500).json({ error: err.image });
+    db.get(expenseQuery, [start, end, start, end], (err2, exp) => {
+      const summaryData = summary || {};
+      summaryData.total_expense = exp ? exp.total_expense : 0;
+      summaryData.cash_expense = exp ? exp.cash_expense : 0;
+      summaryData.net_cash_in_hand = (summaryData.cash_sales || 0) - (summaryData.cash_expense || 0);
+
+      db.all(topItemsQuery, [start, end, start, end], (err3, topItems) => {
+        db.all(ordersListQuery, [start, end, start, end], async (err4, ordersList) => {
+          let fullOrdersList = [];
+          if (ordersList && ordersList.length > 0) {
+            fullOrdersList = await Promise.all(
+              ordersList.map(ord => {
+                return new Promise(resolve => {
+                  db.all("SELECT name, qty, price FROM order_items WHERE order_id = ?", [ord.id], (errIt, items) => {
+                    resolve({ ...ord, items: items || [] });
+                  });
+                });
+              })
+            );
+          }
+
+          res.json({
+            summary: summaryData,
+            topItems: topItems || [],
+            orders: fullOrdersList,
+            range: { start, end }
+          });
+        });
+      });
+    });
+  });
+});
+
+app.post('/api/verify-pin', (req, res) => {
+  db.get("SELECT admin_pin FROM settings WHERE id = 1", [], (err, row) => {
+    res.json({ valid: req.body.pin === ((row && row.admin_pin) ? row.admin_pin : '1234') });
+  });
+});
+
+app.get('/api/settings', (req, res) => db.get("SELECT * FROM settings WHERE id = 1", [], (err, row) => res.json(row || {})));
+
+app.post('/api/settings', (req, res) => {
+  const { restaurant_name, tagline, address, phone, gstin, default_gst, admin_pin } = req.body;
+  db.run(`
+    INSERT INTO settings (id, restaurant_name, tagline, address, phone, gstin, default_gst, admin_pin)
+    VALUES (1, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      restaurant_name = excluded.restaurant_name, tagline = excluded.tagline, address = excluded.address,
+      phone = excluded.phone, gstin = excluded.gstin, default_gst = excluded.default_gst, admin_pin = COALESCE(excluded.admin_pin, settings.admin_pin)
+  `, [restaurant_name, tagline, address, phone, gstin, default_gst || 5, admin_pin || '1234'], () => res.json({ success: true }));
+});
+
+app.get('/api/system/backup', (req, res) => res.download(path.join(__dirname, 'restaurant.db'), `POS_Backup_${new Date().toISOString().slice(0, 10)}.db`));
+
+app.post('/api/system/reset-orders', (req, res) => {
+  db.run(`DELETE FROM order_items WHERE order_id IN (
+    SELECT id FROM orders WHERE status = 'COMPLETED' AND payment_mode != 'DUE'
+  )`, [], () => {
+    db.run(`DELETE FROM orders WHERE status = 'COMPLETED' AND payment_mode != 'DUE'`, [], () => {
+      db.run("DELETE FROM expenses", [], () => {
+        db.run("DELETE FROM customers WHERE due_balance <= 0", [], () => {
+          console.log("[SAFE RESET] Sales reset completed. Due orders preserved.");
+          res.json({ success: { status: true }, message: "Settled sales deleted. All Due orders preserved." });
+        });
+      });
+    });
+  });
+});
+
+// ================= WHATSAPP INTEGRATION APIS =================
+app.get('/api/whatsapp/status', (req, res) => {
+  res.json({ connected: false, status: 'disconnected', qr: null });
+});
+
+app.post('/api/whatsapp/connect', (req, res) => {
+  res.json({ success: true, message: 'WhatsApp connection initiated' });
+});
+
+app.post('/api/whatsapp/disconnect', (req, res) => {
+  res.json({ success: true, message: 'Disconnected successfully' });
+});
+
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server par port ${PORT} par chal raha hai.`);
+});
