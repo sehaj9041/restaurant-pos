@@ -1981,7 +1981,14 @@
               ? '<span class="bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded text-[10px] font-bold">Delivery</span>'
               : '<span class="bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded text-[10px] font-bold">Takeaway</span>');
 
-        var modeBadge = `<span class="bg-emerald-50 text-emerald-800 font-bold px-1.5 py-0.5 rounded text-[10px]">PAID • ${o.payment_mode || 'Cash'}</span>`;
+        var statusBadge = (o.status === 'VOID')
+          ? '<span class="bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-black px-2 py-0.5 rounded-full">Cancelled</span>'
+          : '<span class="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black px-2 py-0.5 rounded-full">Closed</span>';
+
+        var modeBadge = (o.status === 'VOID')
+          ? '<span class="bg-rose-50 text-rose-800 font-bold px-1.5 py-0.5 rounded text-[10px]">VOID / REJECTED</span>'
+          : `<span class="bg-emerald-50 text-emerald-800 font-bold px-1.5 py-0.5 rounded text-[10px]">PAID • ${o.payment_mode || 'Cash'}</span>`;
+
         var d = new Date(o.created_at);
         var timeFormatted = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) + ' • ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }).toLowerCase();
 
@@ -2007,7 +2014,7 @@
               <div class="text-[10px] text-gray-400 font-mono">${o.customer_phone || '-'}</div>
             </td>
             <td class="p-3">
-              <span class="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black px-2 py-0.5 rounded-full">Closed</span>
+              ${statusBadge}
             </td>
             <td class="p-3 text-[11px] text-gray-500 whitespace-nowrap">${timeFormatted}</td>
             <td class="p-3">
@@ -2016,12 +2023,14 @@
             </td>
             <td class="p-3 text-center" onclick="event.stopPropagation()">
               <div class="flex items-center justify-center gap-1.5">
-                <button onclick="openSettledOrderInPOS(${o.id})" class="border border-orange-200 bg-orange-50 hover:bg-orange-100 text-orange-700 px-2 py-1 rounded-lg text-[11px] font-bold shadow-2xs transition">
-                  Edit / Open
-                </button>
-                <button onclick="actionPrintReceiptFromHistory(${o.id})" class="border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 px-2 py-1 rounded-lg text-[11px] font-bold shadow-2xs transition">
-                  Receipt
-                </button>
+                ${o.status !== 'VOID' ? `
+                  <button onclick="openSettledOrderInPOS(${o.id})" class="border border-orange-200 bg-orange-50 hover:bg-orange-100 text-orange-700 px-2 py-1 rounded-lg text-[11px] font-bold shadow-2xs transition">
+                    Edit / Open
+                  </button>
+                  <button onclick="actionPrintReceiptFromHistory(${o.id})" class="border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 px-2 py-1 rounded-lg text-[11px] font-bold shadow-2xs transition">
+                    Receipt
+                  </button>
+                ` : `<span class="text-xs text-gray-400 italic">No Action</span>`}
               </div>
             </td>
           </tr>
@@ -2031,7 +2040,7 @@
 
     function openSettledOrderInPOS(orderId) {
       var ord = settledHistoryOrders.find(function(o){ return o.id === orderId; });
-      if (!ord) return;
+      if (!ord || ord.status === 'VOID') return;
 
       previousViewBeforePOS = 'HISTORY';
       currentViewMode = 'POS';
@@ -2331,7 +2340,7 @@
               <div class="flex flex-wrap gap-1.5 pt-1.5 border-t border-gray-100 text-[10px] font-bold">
                 <button onclick="promptAssignTable(${o.id})" class="px-2 py-1 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded border border-orange-200 font-black shadow-2xs"><span>🪑</span> Assign table</button>
                 <button onclick="actionViewOrder(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>👁</span> View</button>
-                <button onclick="actionAddPhone(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-orange-700 rounded border border-orange-200 flex items-center gap-1 shadow-2xs"><span>📞</span> Add phone</button>
+                <button onclick="actionAddPhone(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-orange-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>📞</span> Add phone</button>
                 <button onclick="actionPrintKOT(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🍳</span> KOT</button>
                 <button onclick="actionPrintReceipt(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🖨</span> Print Receipt</button>
                 <button onclick="actionEditAddItems(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>+</span> Add Item</button>
