@@ -429,6 +429,22 @@ app.post('/api/orders/:id/reject', (req, res) => {
   });
 });
 
+// Table Assign API Route
+app.post('/api/orders/:id/assign-table', (req, res) => {
+  const orderId = req.params.id;
+  const { table_no } = req.body;
+
+  db.run(
+    "UPDATE orders SET table_no = ?, status = 'RUNNING_TABLE' WHERE id = ?",
+    [table_no || '', orderId],
+    (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+      console.log(`[TABLE ASSIGNED] Order #${orderId} assigned to Table ${table_no} and moved to active queue.`);
+      res.json({ success: true });
+    }
+  );
+});
+
 // 7. ACTIVE ORDERS (Robust fetch for active, running, and online/kiosk orders)
 app.get('/api/orders/active', (req, res) => {
   const query = `
