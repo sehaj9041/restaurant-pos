@@ -429,20 +429,28 @@ app.post('/api/orders/:id/reject', (req, res) => {
   });
 });
 
-// Table Assign API Route
+// Safe Table Assign API Route (Preserves existing running orders on the same table)
 app.post('/api/orders/:id/assign-table', (req, res) => {
   const orderId = req.params.id;
   const { table_no } = req.body;
+  const cleanTable = (table_no || '').trim().toUpperCase();
 
-  db.run(
-    "UPDATE orders SET table_no = ?, status = 'RUNNING_TABLE' WHERE id = ?",
-    [table_no || '', orderId],
-    (err) => {
-      if (err) return res.status(500).json({ error: err.message });
-      console.log(`[TABLE ASSIGNED] Order #${orderId} assigned to Table ${table_no} and moved to active queue.`);
-      res.json({ success: true });
+  db.get("SELECT id FROM orders WHERE UPPER(table_no) = ? AND status IN ('RUNNING_TABLE', 'RUNNING') AND id != ?", [cleanTable, orderId], (err, existingOrder) => {
+    let finalTableNo = cleanTable;
+    if (existingOrder) {
+      finalTableNo = `${cleanTable} (2)`;
     }
-  );
+
+    db.run(
+      "UPDATE orders SET table_no = ?, status = 'RUNNING_TABLE' WHERE id = ?",
+      [finalTableNo, orderId],
+      (err2) => {
+        if (err2) return res.status(500).json({ error: err2.message });
+        console.log(`[TABLE ASSIGNED SAFELY] Order #${orderId} assigned to Table ${finalTableNo}. Existing active orders preserved.`);
+        res.json({ success: true, table_no: finalTableNo });
+      }
+    );
+  });
 });
 
 // 7. ACTIVE ORDERS (Robust fetch for active, running, and online/kiosk orders)
