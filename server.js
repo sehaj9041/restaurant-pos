@@ -588,6 +588,7 @@ app.get('/api/orders/history', (req, res) => {
     SELECT id, order_type, table_no, customer_name, customer_phone, payment_mode, status, subtotal, discount, gst, total, COALESCE(paid_amount, total) as paid_amount, created_at
     FROM orders 
     WHERE status = 'COMPLETED' 
+       OR status = 'VOID'
        OR UPPER(payment_mode) IN ('CASH', 'UPI', 'CARD', 'PAID')
        OR COALESCE(paid_amount, 0) >= total
     ORDER BY id DESC
@@ -631,7 +632,6 @@ app.put('/api/orders/:id', (req, res) => {
     let finalRemaining = Math.max(0, Number(total) - finalPaid);
     let finalMode = payment_mode || (currentOrder ? currentOrder.payment_mode : 'Cash');
 
-    // FIX: Move order from NEEDS_APPROVAL to active RUNNING_TABLE queue upon payment/update
     let status = prevStatus;
     if (status === 'NEEDS_APPROVAL') {
       status = 'RUNNING_TABLE';
