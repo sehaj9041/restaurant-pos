@@ -97,7 +97,7 @@
       </div>
 
       <button onclick="openKdsSettingsModal()" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold px-3 py-1.5 rounded-lg text-xs transition flex items-center gap-1.5 shadow-2xs">
-        <span>🖨</span> <span id="lblPrinterStatus">Printer: OFF</span>
+        <span>🖨️️</span> <span id="lblPrinterStatus">Printer: OFF</span>
       </button>
 
       <button id="btnFullScreen" onclick="toggleFullScreen()" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold px-3 py-1.5 rounded-lg text-xs transition flex items-center gap-1.5 shadow-2xs">
@@ -449,65 +449,58 @@
       renderKOTCards();
     }
 
-    function markReadyStage(orderIdsString) {
-      var ids = orderIdsString.toString().split(',').map(function(s){ return s.trim(); });
-      
-      ids.forEach(function(strId) {
-        var readyStore = getReadyForDispatchOrders();
-        readyStore[strId] = true;
-        saveReadyForDispatchOrders(readyStore);
+    function markReadyStage(id) {
+      var strId = id.toString();
+      var readyStore = getReadyForDispatchOrders();
+      readyStore[strId] = true;
+      saveReadyForDispatchOrders(readyStore);
 
-        var checkedMap = getCheckedItemKeys();
-        var targetOrder = liveOrdersData.find(function(o){ return o.id.toString() === strId; });
-        if (targetOrder) {
-          (targetOrder.items || []).forEach(function(item, idx) {
-            checkedMap[strId + '_row_' + idx] = true;
-            var addonsList = extractAddonsList(item);
-            if (addonsList.length > 0) {
-              addonsList.forEach(function(_, aIdx) {
-                checkedMap[strId + '_row_' + idx + '_addon_' + aIdx] = true;
-              });
-            }
-          });
-          saveCheckedItemKeys(checkedMap);
-        }
-      });
+      var checkedMap = getCheckedItemKeys();
+      var targetOrder = liveOrdersData.find(function(o){ return o.id.toString() === strId; });
+      if (targetOrder) {
+        (targetOrder.items || []).forEach(function(item, idx) {
+          checkedMap[strId + '_row_' + idx] = true;
+          var addonsList = extractAddonsList(item);
+          if (addonsList.length > 0) {
+            addonsList.forEach(function(_, aIdx) {
+              checkedMap[strId + '_row_' + idx + '_addon_' + aIdx] = true;
+            });
+          }
+        });
+        saveCheckedItemKeys(checkedMap);
+      }
       renderKOTCards();
     }
 
-    function undoReadyStage(orderIdsString) {
-      var ids = orderIdsString.toString().split(',').map(function(s){ return s.trim(); });
-      ids.forEach(function(strId) {
-        var readyStore = getReadyForDispatchOrders();
-        delete readyStore[strId];
-        saveReadyForDispatchOrders(readyStore);
-      });
+    function undoReadyStage(id) {
+      var strId = id.toString();
+      var readyStore = getReadyForDispatchOrders();
+      delete readyStore[strId];
+      saveReadyForDispatchOrders(readyStore);
       renderKOTCards();
     }
 
-    function executeDispatch(orderIdsString) {
-      var ids = orderIdsString.toString().split(',').map(function(s){ return s.trim(); });
+    function executeDispatch(id) {
+      var strId = id.toString();
       var snapshots = getStoredSnapshots();
       var checkedMap = getCheckedItemKeys();
       var readyStore = getReadyForDispatchOrders();
       var cancelledStore = getCancelledItemsStore();
 
-      ids.forEach(function(strId) {
-        if (snapshots[strId]) {
-          snapshots[strId].wasCompletedBefore = true;
-        }
-        delete cancelledStore[strId];
-        delete readyStore[strId];
-
-        fetch('/api/kot/' + strId + '/complete', { method: 'POST' })
-          .then(function(res) { return res.json(); })
-          .then(function() { fetchKOT(); });
-      });
+      if (snapshots[strId]) {
+        snapshots[strId].wasCompletedBefore = true;
+      }
+      delete cancelledStore[strId];
+      delete readyStore[strId];
 
       saveStoredSnapshots(snapshots);
       saveCheckedItemKeys(checkedMap);
       saveCancelledItemsStore(cancelledStore);
       saveReadyForDispatchOrders(readyStore);
+
+      fetch('/api/kot/' + id + '/complete', { method: 'POST' })
+        .then(function(res) { return res.json(); })
+        .then(function() { fetchKOT(); });
     }
 
     function updateLiveTimers() {
@@ -568,6 +561,7 @@
                 currentItemsMap[item.name] = Number(item.qty) || 1;
               });
 
+              // Check for new items or increased qty or decreased qty or removed items
               Object.keys(currentItemsMap).forEach(function(name) {
                 var curQ = currentItemsMap[name];
                 var prevQ = prevItemsMap[name];
@@ -579,6 +573,7 @@
                   shouldPlaySound = true;
                   delete readyStore[orderId];
                   var diff = curQ - prevQ;
+                  // find index in currentItems
                   var cIdx = currentItems.findIndex(function(i){ return i.name === name; });
                   if (cIdx !== -1) {
                     persistentBadges[orderId + '_row_' + cIdx] = '+' + diff + ' QTY';
@@ -593,10 +588,12 @@
                 }
               });
 
+              // Check for completely removed/cancelled items
               Object.keys(prevItemsMap).forEach(function(name) {
                 if (currentItemsMap[name] === undefined) {
                   shouldPlaySound = true;
                   if (!cancelledStore[orderId]) cancelledStore[orderId] = [];
+                  // Avoid duplicates
                   if (!cancelledStore[orderId].includes(name)) {
                     cancelledStore[orderId].push(name);
                   }
@@ -695,7 +692,7 @@
             <div class="p-3.5 border-b border-slate-100 ${theme.headerBg} flex justify-between items-center">
               <div>
                 <div class="flex items-center gap-2">
-                  <h3 class="font-black text-slate-900">${order.display_id_label || ('#' + order.id)}</h3>
+                  <h3 class="font-black text-slate-900">#${order.id}</h3>
                   <span class="kot-badge font-black px-2 py-0.5 rounded-md border ${theme.badgeBg} flex items-center gap-1 shadow-2xs">
                     <span>${theme.emoji}</span>
                     <span>${displayLabel}</span>
@@ -719,7 +716,7 @@
                   <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
                   READY FOR PICKUP
                 </span>
-                <button onclick="undoReadyStage('${order.all_merged_ids || order.id}')" class="kot-notes font-bold text-slate-500 hover:text-slate-900 underline">
+                <button onclick="undoReadyStage(${order.id})" class="kot-notes font-bold text-slate-500 hover:text-slate-900 underline">
                   Undo
                 </button>
               </div>
@@ -800,12 +797,12 @@
 
             <div class="p-3 bg-slate-50 border-t border-slate-100">
               ${isReadyForDispatch ? `
-                <button onclick="executeDispatch('${order.all_merged_ids || order.id}')" class="kot-btn w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-black rounded-xl transition flex items-center justify-center gap-2 shadow-sm animate-bounce">
+                <button onclick="executeDispatch(${order.id})" class="kot-btn w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-black rounded-xl transition flex items-center justify-center gap-2 shadow-sm animate-bounce">
                   <span>🚀</span>
                   <span>Dispatch / Handover</span>
                 </button>
               ` : `
-                <button onclick="markReadyStage('${order.all_merged_ids || order.id}')" class="kot-btn w-full ${allItemsReady ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-slate-200 hover:bg-emerald-600 text-slate-700 hover:text-white'} font-black rounded-xl transition flex items-center justify-center gap-1.5 shadow-2xs">
+                <button onclick="markReadyStage(${order.id})" class="kot-btn w-full ${allItemsReady ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-slate-200 hover:bg-emerald-600 text-slate-700 hover:text-white'} font-black rounded-xl transition flex items-center justify-center gap-1.5 shadow-2xs">
                   <span>✓</span>
                   <span>Mark Ready</span>
                 </button>
