@@ -474,6 +474,27 @@
     </div>
   </div>
 
+  <!-- ================= TABLE ASSIGNMENT SELECTION MODAL ================= -->
+  <div id="modalAssignTableSelect" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-5 space-y-4 border border-gray-200">
+      <div class="flex justify-between items-center border-b pb-2">
+        <div>
+          <h3 class="font-black text-gray-900 text-sm">Select Table for Order</h3>
+          <p class="text-[10px] text-gray-500">Kripya table select karein</p>
+        </div>
+        <button onclick="closeAssignTableModal()" class="text-gray-400 hover:text-black font-bold text-base">✕</button>
+      </div>
+
+      <div id="assignTableModalGrid" class="grid grid-cols-2 gap-2.5 max-h-60 overflow-y-auto pr-1">
+        <!-- Dynamic table buttons will load here -->
+      </div>
+
+      <div class="pt-2 text-right border-t">
+        <button onclick="closeAssignTableModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-xl text-xs font-bold transition">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ================= CATEGORIES GROUP MODAL ================= -->
   <div id="modalCategoriesGroup" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl p-5 space-y-4 border border-gray-200">
@@ -500,7 +521,7 @@
   <div id="modalVariationsGroup" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl p-5 space-y-4 border border-gray-200">
       <div class="flex justify-between items-center border-b pb-2">
-        <span class="font-black text-gray-800 text-sm flex items-center gap-1.5"><span>⚙️</span> Variations Group Management (Sizes)</span>
+        <span class="font-black text-gray-800 text-sm flex items-center gap-1.5"><span>⚙️️</span> Variations Group Management (Sizes)</span>
         <button onclick="closeVariationsGroupModal()" class="text-gray-400 hover:text-gray-600 font-black text-base">✕</button>
       </div>
       <div class="space-y-3 text-xs max-h-[60vh] overflow-y-auto">
@@ -1843,6 +1864,48 @@
       window.open(`https://wa.me/91${cleanPhone.slice(-10)}?text=${text}`, '_blank');
     }
 
+    // ================= TABLE ASSIGNMENT MODAL LOGIC =================
+    var activeAssignOrderId = null;
+
+    function promptAssignTable(orderId) {
+      activeAssignOrderId = orderId;
+      var grid = document.getElementById('assignTableModalGrid');
+      
+      grid.innerHTML = defaultFloorTables.map(function(t) {
+        return `
+          <button onclick="confirmAssignTable('${t.id}')" class="p-3 bg-emerald-50 hover:bg-emerald-500 hover:text-white border-2 border-emerald-300 rounded-xl font-black text-emerald-950 text-xs transition flex flex-col items-center justify-center shadow-2xs">
+            <span class="text-sm">${t.label}</span>
+            <span class="text-[9px] opacity-80 font-normal">${t.seats} seats</span>
+          </button>
+        `;
+      }).join('');
+
+      document.getElementById('modalAssignTableSelect').classList.remove('hidden');
+    }
+
+    function closeAssignTableModal() {
+      activeAssignOrderId = null;
+      document.getElementById('modalAssignTableSelect').classList.add('hidden');
+    }
+
+    function confirmAssignTable(tableNo) {
+      if (!activeAssignOrderId) return;
+      
+      fetch('/api/orders/' + activeAssignOrderId + '/assign-table', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ table_no: tableNo })
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        closeAssignTableModal();
+        fetchActiveOrders();
+      })
+      .catch(function(err) {
+        console.error('Table assign error:', err);
+      });
+    }
+
     // ================= SINGLE ORDER QUICK SETTLE LOGIC =================
     function actionSettlePopup(orderId) {
       actionEditAddItems(orderId);
@@ -2967,16 +3030,6 @@
     function openCashDrawer() {
       fetch('http://127.0.0.1:4567/kick-drawer', { method: 'POST' })
       .catch(function(err) { console.error('Agent offline!', err); });
-    }
-
-    function promptAssignTable(orderId) {
-      var tbl = prompt("Table Number daalein (e.g. T01, T02):");
-      if (!tbl) return;
-      fetch('/api/orders/' + orderId + '/assign-table', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ table_no: tbl.trim().toUpperCase() })
-      }).then(function(){ fetchActiveOrders(); });
     }
 
     function settleActiveOrder(orderId, mode) {
