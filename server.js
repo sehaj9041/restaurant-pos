@@ -626,7 +626,6 @@ app.put('/api/orders/:id', (req, res) => {
     let prevStatus = currentOrder ? currentOrder.status : 'RUNNING_TABLE';
     let prevPaid = currentOrder ? Number(currentOrder.paid_amount) || 0 : 0;
 
-    // CRITICAL FIX: Lock the status so quantity reduction/editing never auto-completes or removes it from KDS/Active Queue
     let status = prevStatus || 'RUNNING_TABLE';
     if (status === 'COMPLETED') {
       status = 'RUNNING_TABLE';
@@ -686,7 +685,9 @@ app.post('/api/orders', async (req, res) => {
   let calculatedTotal = Math.round(calculatedSubtotal + calculatedGst - (Number(discount) || 0));
 
   let initialPaid = 0;
-  if (payment_mode && payment_mode !== 'UNPAID' && payment_mode !== 'DUE') {
+  const isPayAtCounter = payment_mode === 'PAY_COUNTER' || (payment_mode && payment_mode.toUpperCase().includes('COUNTER'));
+
+  if (payment_mode && payment_mode !== 'UNPAID' && payment_mode !== 'DUE' && !isPayAtCounter) {
     initialPaid = Number(paid_amount) || calculatedTotal || 0;
   }
 
