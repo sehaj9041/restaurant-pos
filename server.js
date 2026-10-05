@@ -1017,6 +1017,7 @@ app.get('/api/kot', (req, res) => {
               mergedMap[tNo] = {
                 ...ord,
                 id: ord.id,
+                all_merged_ids: ord.id.toString(),
                 display_id_label: `#${ord.id}`,
                 items: [...ord.items]
               };
@@ -1030,11 +1031,13 @@ app.get('/api/kot', (req, res) => {
                   mergedMap[tNo].items.push({ ...newItem });
                 }
               });
+              mergedMap[tNo].all_merged_ids += `, ${ord.id}`;
               mergedMap[tNo].display_id_label += `, #${ord.id}`;
             }
           } else {
             finalKotList.push({
               ...ord,
+              all_merged_ids: ord.id.toString(),
               display_id_label: `#${ord.id}`
             });
           }
@@ -1043,7 +1046,7 @@ app.get('/api/kot', (req, res) => {
         res.json(finalKotList);
       } catch (e) {
         console.error('KOT merge error:', e.message);
-        res.json(orders.map(o => ({ ...o, display_id_label: `#${o.id}`, items: [] })));
+        res.json(orders.map(o => ({ ...o, all_merged_ids: o.id.toString(), display_id_label: `#${o.id}`, items: [] })));
       }
     }
   );
