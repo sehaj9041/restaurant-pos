@@ -414,7 +414,7 @@
           <span>📁</span> Categories Group
         </button>
         <button onclick="openVariationsGroupModal()" class="bg-purple-600 hover:bg-purple-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs">
-          <span>⚙️</span> Variations Group
+          <span>⚙️️</span> Variations Group
         </button>
         <button onclick="openAddonGroupsModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs">
           <span>➕</span> Add-on Groups
@@ -521,7 +521,7 @@
   <div id="modalVariationsGroup" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl p-5 space-y-4 border border-gray-200">
       <div class="flex justify-between items-center border-b pb-2">
-        <span class="font-black text-gray-800 text-sm flex items-center gap-1.5"><span>⚙️️</span> Variations Group Management (Sizes)</span>
+        <span class="font-black text-gray-800 text-sm flex items-center gap-1.5"><span>⚙️</span> Variations Group Management (Sizes)</span>
         <button onclick="closeVariationsGroupModal()" class="text-gray-400 hover:text-gray-600 font-black text-base">✕</button>
       </div>
       <div class="space-y-3 text-xs max-h-[60vh] overflow-y-auto">
@@ -2301,17 +2301,20 @@
       if (!grid) return;
 
       grid.innerHTML = defaultFloorTables.map(function(t) {
-        var busy = allActiveOrders.find(function(o) {
+        var tableOrders = allActiveOrders.filter(function(o) {
           var type = (o.order_type || '').toLowerCase();
-          return type.includes('dine') && o.table_no && (o.table_no.toUpperCase() === t.id || o.table_no === t.label);
+          return type.includes('dine') && o.table_no && (o.table_no.toUpperCase() === t.id || o.table_no.toUpperCase() === t.label);
         });
-        var isBusy = !!busy;
+
+        var isBusy = tableOrders.length > 0;
+        var totalAmount = tableOrders.reduce(function(sum, o) { return sum + (Number(o.total) || 0); }, 0);
+        var orderCountLabel = tableOrders.length > 1 ? ` (${tableOrders.length} orders)` : '';
 
         return `
           <div onclick="openPOSOrderView('Dine-In', '${t.id}')" class="cursor-pointer border-2 rounded-2xl p-3 flex flex-col items-center justify-center transition-all duration-150 transform active:scale-95 shadow-xs ${isBusy ? 'bg-orange-50 border-orange-400 text-orange-950 shadow-orange-100' : 'bg-emerald-50 border-emerald-300 text-emerald-950 hover:border-emerald-500'}">
-            <span class="font-black text-sm tracking-wide">${t.label}</span>
+            <span class="font-black text-sm tracking-wide">${t.label}${orderCountLabel}</span>
             <span class="text-[10px] font-bold opacity-75">${t.seats} seats</span>
-            ${isBusy ? `<span class="text-xs font-black text-orange-700 mt-1">₹${busy.total}</span>` : `<span class="text-[9px] text-emerald-600 font-bold mt-1">Free</span>`}
+            ${isBusy ? `<span class="text-xs font-black text-orange-700 mt-1">₹${totalAmount}</span>` : `<span class="text-[9px] text-emerald-600 font-bold mt-1">Free</span>`}
           </div>
         `;
       }).join('');
