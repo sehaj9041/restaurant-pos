@@ -429,18 +429,19 @@ app.post('/api/orders/:id/reject', (req, res) => {
   });
 });
 
-// Table Assign API Route
+// Table Assign API Route (Allows multiple active orders per table without overwriting)
 app.post('/api/orders/:id/assign-table', (req, res) => {
   const orderId = req.params.id;
   const { table_no } = req.body;
+  const cleanTable = (table_no || '').trim().toUpperCase();
 
   db.run(
     "UPDATE orders SET table_no = ?, status = 'RUNNING_TABLE' WHERE id = ?",
-    [table_no || '', orderId],
+    [cleanTable, orderId],
     (err) => {
       if (err) return res.status(500).json({ error: err.message });
-      console.log(`[TABLE ASSIGNED] Order #${orderId} assigned to Table ${table_no} and moved to active queue.`);
-      res.json({ success: true });
+      console.log(`[TABLE ASSIGNED] Order #${orderId} assigned to Table ${cleanTable}. Multiple orders allowed.`);
+      res.json({ success: true, table_no: cleanTable });
     }
   );
 });
@@ -643,20 +644,18 @@ app.put('/api/orders/:id', (req, res) => {
     let prevStatus = currentOrder ? currentOrder.status : 'RUNNING_TABLE';
     let prevPaid = currentOrder ? Number(currentOrder.paid_amount) || 0 : 0;
 
-    let incomingPaid = Number(paid_amount) || 0;
+    let incomingPaid = Number(paid_amount) || Number(total) || 0;
     let finalPaid = Math.max(prevPaid, incomingPaid);
     let finalRemaining = Math.max(0, Number(total) - finalPaid);
     let finalMode = payment_mode || (currentOrder ? currentOrder.payment_mode : 'Cash');
 
     let status = prevStatus;
-    if (status === 'NEEDS_APPROVAL') {
+    if (finalRemaining === 0) {
+      status = 'COMPLETED';
+    } else if (status === 'NEEDS_APPROVAL') {
       status = 'RUNNING_TABLE';
     } else if (status === 'COMPLETED') {
       status = 'RUNNING_TABLE';
-    }
-
-    if (finalRemaining === 0 && finalPaid > 0) {
-      status = 'RUNNING_TABLE'; 
     }
 
     db.run(
@@ -677,7 +676,7 @@ app.put('/api/orders/:id', (req, res) => {
               });
             }
           }
-          console.log(`[ORDER APPROVED & UPDATED] Order #${orderId} moved from Needs Approval to Active Queue.`);
+          console.log(`[ORDER UPDATED] Order #${orderId} saved. Status: ${status}`);
           res.json({ success: true, orderId, paid_amount: finalPaid, payable_now: finalRemaining });
         });
       }
@@ -791,23 +790,30 @@ app.post('/api/tables/:id/settle', (req, res) => {
   const orderId = req.params.id;
   const mode = (payment_mode || 'Cash').toUpperCase();
 
-  db.get("SELECT * FROM orders WHERE id = ?", [orderId], (err, order) => {
-    if (err || !order) return res.status(404).json({ error: 'Order not found' });
-    
-    const total = Number(order.total) || 0;
+  db.get("SELECT table_no FROM orders WHERE id = ?", [orderId], (err, targetOrder) => {
+    if (err || !targetOrder) return res.status(404).json({ error: 'Order not found' });
 
-    db.run(
-      "UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = ? WHERE id = ?",
-      [mode, total, orderId],
-      (err2) => {
-        if (err2) {
-          console.error('[SETTLE ERROR]:', err2.message);
-          return res.status(500).json({ error: err2.message });
-        }
-        console.log(`[SUCCESSFULLY SETTLED] Order #${orderId} marked COMPLETED via ${mode}.`);
-        res.json({ success: true });
+    const tblNo = targetOrder.table_no ? targetOrder.table_no.trim() : '';
+
+    let updateQuery = "";
+    let queryParams = [];
+
+    if (tblNo !== '') {
+      updateQuery = "UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE UPPER(table_no) = ? AND status != 'COMPLETED'";
+      queryParams = [mode, tblNo.toUpperCase()];
+    } else {
+      updateQuery = "UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE id = ?";
+      queryParams = [mode, orderId];
+    }
+
+    db.run(updateQuery, queryParams, (err2) => {
+      if (err2) {
+        console.error('[SETTLE ERROR]:', err2.message);
+        return res.status(500).json({ error: err2.message });
       }
-    );
+      console.log(`[SUCCESSFULLY SETTLED] Orders for Table/ID cleared via ${mode}. Marked COMPLETED.`);
+      res.json({ success: true });
+    });
   });
 });
 
@@ -975,3 +981,257 @@ app.post('/api/printer/print-daily-summary', async (req, res) => {
     res.json({ success: true });
   } catch(e) {
     res.json({ success: true, simulated: true });
+  }
+});
+
+app.get('/api/kot', (req, res) => {
+  db.all(
+    `SELECT o.id, o.order_type, o.table_no, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time, o.customer_name 
+     FROM orders o 
+     WHERE o.status NOT IN ('COMPLETED', 'VOID', 'NEEDS_APPROVAL')
+     ORDER BY o.id ASC`,
+    [],
+    async (err, orders) => {
+      if (err) {
+        console.error('KOT error:', err.message);
+        return res.json([]);
+      }
+      if (!orders || orders.length === 0) {
+        return res.json([]);
+      }
+      try {
+        const fullOrders = await Promise.all(
+          orders.map(order => {
+            return new Promise((resolve) => {
+              db.all('SELECT id, name, qty, notes FROM order_items WHERE order_id = ? ORDER BY id ASC', [order.id], (err2, items) => {
+                resolve({ ...order, items: items || [] });
+              });
+            });
+          })
+        );
+
+        const mergedMap = {};
+        const finalKotList = [];
+
+        fullOrders.forEach(ord => {
+          let tNo = (ord.table_no || '').trim().toUpperCase();
+          let isDineIn = (ord.order_type || '').toLowerCase().includes('dine') && tNo !== '';
+
+          if (isDineIn) {
+            if (!mergedMap[tNo]) {
+              mergedMap[tNo] = {
+                ...ord,
+                id: ord.id,
+                all_merged_ids: ord.id.toString(),
+                display_id_label: `#${ord.id}`,
+                items: [...ord.items]
+              };
+              finalKotList.push(mergedMap[tNo]);
+            } else {
+              ord.items.forEach(newItem => {
+                let existingItem = mergedMap[tNo].items.find(i => i.name === newItem.name && i.notes === newItem.notes);
+                if (existingItem) {
+                  existingItem.qty += newItem.qty;
+                } else {
+                  mergedMap[tNo].items.push({ ...newItem });
+                }
+              });
+              mergedMap[tNo].all_merged_ids += `, ${ord.id}`;
+              mergedMap[tNo].display_id_label += `, #${ord.id}`;
+            }
+          } else {
+            finalKotList.push({
+              ...ord,
+              all_merged_ids: ord.id.toString(),
+              display_id_label: `#${ord.id}`
+            });
+          }
+        });
+
+        res.json(finalKotList);
+      } catch (e) {
+        console.error('KOT merge error:', e.message);
+        res.json(orders.map(o => ({ ...o, all_merged_ids: o.id.toString(), display_id_label: `#${o.id}`, items: [] })));
+      }
+    }
+  );
+});
+
+app.post('/api/kot/:id/complete', (req, res) => {
+  const orderId = req.params.id;
+  db.get("SELECT total, COALESCE(paid_amount, 0) as paid_amount, payment_mode, status FROM orders WHERE id = ?", [orderId], (err, order) => {
+    if (err || !order) return res.status(404).json({ error: 'Order not found' });
+
+    const total = Number(order.total) || 0;
+    const paid = Number(order.paid_amount) || 0;
+    const isFullyPaid = (paid >= total && total > 0);
+
+    if (isFullyPaid) {
+      db.run("UPDATE orders SET status = 'COMPLETED' WHERE id = ?", [orderId], () => res.json({ success: true }));
+    } else {
+      db.run("UPDATE orders SET status = 'KOT_READY' WHERE id = ?", [orderId], () => res.json({ success: true }));
+    }
+  });
+});
+
+app.get('/api/customers/:phone', (req, res) => {
+  db.get("SELECT * FROM customers WHERE phone = ?", [req.params.phone], (err, row) => res.json(row || null));
+});
+
+app.get('/api/customers', (req, res) => {
+  db.all("SELECT * FROM customers ORDER BY due_balance DESC, total_spent DESC LIMIT 100", [], (err, rows) => res.json(rows || []));
+});
+
+app.get('/api/expenses/today', (req, res) => {
+  db.all("SELECT id, title, amount, payment_mode, TO_CHAR(created_at, 'HH12:MI AM') as time FROM expenses WHERE created_at::date = CURRENT_DATE ORDER BY id DESC", [], (err, rows) => res.json(rows || []));
+});
+
+app.post('/api/expenses', (req, res) => {
+  const { title, amount, payment_mode } = req.body;
+  db.all(
+    "INSERT INTO expenses (title, amount, payment_mode) VALUES (?, ?, ?) RETURNING id",
+    [title, amount, payment_mode || 'CASH'],
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err.message });
+      const id = result && result[0] ? result[0].id : null;
+      res.json({ success: true, id });
+    }
+  );
+});
+
+app.get('/api/reports/analytics', (req, res) => {
+  const { startDate, endDate } = req.query;
+  const start = startDate ? startDate : new Date().toISOString().slice(0, 10);
+  const end = endDate ? endDate : new Date().toISOString().slice(0, 10);
+
+  const summaryQuery = `
+    SELECT 
+      COUNT(*) AS total_orders,
+      COALESCE(SUM(total), 0) AS total_sales,
+      COALESCE(SUM(subtotal), 0) AS subtotal_sales,
+      COALESCE(SUM(discount), 0) AS total_discount,
+      COALESCE(SUM(gst), 0) AS total_gst,
+      COALESCE(SUM(CASE WHEN payment_mode = 'CASH' AND status != 'DUE_PENDING' THEN total ELSE 0 END), 0) AS cash_sales,
+      COALESCE(SUM(CASE WHEN payment_mode = 'UPI' AND status != 'DUE_PENDING' THEN total ELSE 0 END), 0) AS upi_sales,
+      COALESCE(SUM(CASE WHEN payment_mode = 'DUE' OR status = 'DUE_PENDING' THEN total ELSE 0 END), 0) AS due_sales
+    FROM orders 
+    WHERE (created_at::date BETWEEN ?::date AND ?::date OR DATE(created_at) BETWEEN DATE(?) AND DATE(?))
+      AND status NOT IN ('RUNNING_TABLE', 'KOT_READY', 'NEEDS_APPROVAL')
+  `;
+
+  const expenseQuery = `
+    SELECT 
+      COALESCE(SUM(amount), 0) as total_expense,
+      COALESCE(SUM(CASE WHEN payment_mode = 'CASH' THEN amount ELSE 0 END), 0) as cash_expense
+    FROM expenses 
+    WHERE (created_at::date BETWEEN ?::date AND ?::date OR DATE(created_at) BETWEEN DATE(?) AND DATE(?))
+  `;
+
+  const topItemsQuery = `
+    SELECT oi.name, SUM(oi.qty) as total_qty, SUM(oi.price * oi.qty) as total_revenue
+    FROM order_items oi
+    JOIN orders o ON o.id = oi.order_id
+    WHERE (o.created_at::date BETWEEN ?::date AND ?::date OR DATE(o.created_at) BETWEEN DATE(?) AND DATE(?))
+      AND o.status NOT IN ('RUNNING_TABLE', 'KOT_READY', 'NEEDS_APPROVAL')
+    GROUP BY oi.name
+    ORDER BY total_qty DESC
+    LIMIT 10
+  `;
+
+  const ordersListQuery = `
+    SELECT id, order_type, table_no, customer_name, customer_phone, payment_mode, status, subtotal, discount, gst, total, COALESCE(paid_amount, total) as paid_amount, created_at
+    FROM orders 
+    WHERE (created_at::date BETWEEN ?::date AND ?::date OR DATE(created_at) BETWEEN DATE(?) AND DATE(?))
+      AND status NOT IN ('RUNNING_TABLE', 'KOT_READY', 'NEEDS_APPROVAL')
+    ORDER BY id DESC
+  `;
+
+  db.get(summaryQuery, [start, end, start, end], (err, summary) => {
+    if (err) return res.status(500).json({ error: err.image });
+    db.get(expenseQuery, [start, end, start, end], (err2, exp) => {
+      const summaryData = summary || {};
+      summaryData.total_expense = exp ? exp.total_expense : 0;
+      summaryData.cash_expense = exp ? exp.cash_expense : 0;
+      summaryData.net_cash_in_hand = (summaryData.cash_sales || 0) - (summaryData.cash_expense || 0);
+
+      db.all(topItemsQuery, [start, end, start, end], (err3, topItems) => {
+        db.all(ordersListQuery, [start, end, start, end], async (err4, ordersList) => {
+          let fullOrdersList = [];
+          if (ordersList && ordersList.length > 0) {
+            fullOrdersList = await Promise.all(
+              ordersList.map(ord => {
+                return new Promise(resolve => {
+                  db.all("SELECT name, qty, price FROM order_items WHERE order_id = ?", [ord.id], (errIt, items) => {
+                    resolve({ ...ord, items: items || [] });
+                  });
+                });
+              })
+            );
+          }
+
+          res.json({
+            summary: summaryData,
+            topItems: topItems || [],
+            orders: fullOrdersList,
+            range: { start, end }
+          });
+        });
+      });
+    });
+  });
+});
+
+app.post('/api/verify-pin', (req, res) => {
+  db.get("SELECT admin_pin FROM settings WHERE id = 1", [], (err, row) => {
+    res.json({ valid: req.body.pin === ((row && row.admin_pin) ? row.admin_pin : '1234') });
+  });
+});
+
+app.get('/api/settings', (req, res) => db.get("SELECT * FROM settings WHERE id = 1", [], (err, row) => res.json(row || {})));
+
+app.post('/api/settings', (req, res) => {
+  const { restaurant_name, tagline, address, phone, gstin, default_gst, admin_pin } = req.body;
+  db.run(`
+    INSERT INTO settings (id, restaurant_name, tagline, address, phone, gstin, default_gst, admin_pin)
+    VALUES (1, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      restaurant_name = excluded.restaurant_name, tagline = excluded.tagline, address = excluded.address,
+      phone = excluded.phone, gstin = excluded.gstin, default_gst = excluded.default_gst, admin_pin = COALESCE(excluded.admin_pin, settings.admin_pin)
+  `, [restaurant_name, tagline, address, phone, gstin, default_gst || 5, admin_pin || '1234'], () => res.json({ success: true }));
+});
+
+app.get('/api/system/backup', (req, res) => res.download(path.join(__dirname, 'restaurant.db'), `POS_Backup_${new Date().toISOString().slice(0, 10)}.db`));
+
+app.post('/api/system/reset-orders', (req, res) => {
+  db.run(`DELETE FROM order_items WHERE order_id IN (
+    SELECT id FROM orders WHERE status = 'COMPLETED' AND payment_mode != 'DUE'
+  )`, [], () => {
+    db.run(`DELETE FROM orders WHERE status = 'COMPLETED' AND payment_mode != 'DUE'`, [], () => {
+      db.run("DELETE FROM expenses", [], () => {
+        db.run("DELETE FROM customers WHERE due_balance <= 0", [], () => {
+          console.log("[SAFE RESET] Sales reset completed. Due orders preserved.");
+          res.json({ success: { status: true }, message: "Settled sales deleted. All Due orders preserved." });
+        });
+      });
+    });
+  });
+});
+
+// ================= WHATSAPP INTEGRATION APIS =================
+app.get('/api/whatsapp/status', (req, res) => {
+  res.json({ connected: false, status: 'disconnected', qr: null });
+});
+
+app.post('/api/whatsapp/connect', (req, res) => {
+  res.json({ success: true, message: 'WhatsApp connection initiated' });
+});
+
+app.post('/api/whatsapp/disconnect', (req, res) => {
+  res.json({ success: true, message: 'Disconnected successfully' });
+});
+
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server par port ${PORT} par chal raha hai.`);
+});
