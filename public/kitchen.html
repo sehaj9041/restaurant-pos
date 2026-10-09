@@ -568,13 +568,17 @@
                 currentItemsMap[item.name] = Number(item.qty) || 1;
               });
 
-              Object.keys(currentItemsMap).forEach(function(name) {
+             Object.keys(currentItemsMap).forEach(function(name) {
                 var curQ = currentItemsMap[name];
                 var prevQ = prevItemsMap[name];
 
                 if (prevQ === undefined) {
                   shouldPlaySound = true;
                   delete readyStore[orderId];
+                  var cIdx = currentItems.findIndex(function(i){ return i.name === name; });
+                  if (cIdx !== -1) {
+                    persistentBadges[orderId + '_row_' + cIdx] = 'NEW';
+                  }
                 } else if (curQ > prevQ) {
                   shouldPlaySound = true;
                   delete readyStore[orderId];
@@ -734,8 +738,7 @@
                 var addonsList = extractAddonsList(item);
                 var cleanBaseName = item.name.replace(/\s*\(.*?\)\s*$/, '').trim();
 
-                var badgeBgClass = (badgeTag && badgeTag.startsWith('-')) ? 'bg-amber-600 border-amber-400' : 'bg-rose-600 border-rose-400';
-
+              var badgeBgClass = (badgeTag === 'NEW') ? 'bg-orange-600 border-orange-400' : ((badgeTag && badgeTag.startsWith('-')) ? 'bg-amber-600 border-amber-400' : 'bg-rose-600 border-rose-400');
                 return `
                   <div class="border-b border-slate-100 pb-2.5">
                     <div onclick='toggleItemReady(${order.id}, "row_${idx}", ${JSON.stringify(item)})' class="flex items-center gap-2.5 cursor-pointer select-none transition ${isDone ? 'opacity-35' : 'hover:bg-slate-50'}">
