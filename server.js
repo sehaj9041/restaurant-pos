@@ -984,12 +984,11 @@ app.post('/api/printer/print-daily-summary', async (req, res) => {
   }
 });
 
-// 📌 FIXED KOT ROUTE: Only active running or ready orders will show. Completed/Void orders are strictly excluded.
 app.get('/api/kot', (req, res) => {
   db.all(
     `SELECT o.id, o.order_type, o.table_no, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time, o.customer_name 
      FROM orders o 
-     WHERE o.status IN ('RUNNING_TABLE', 'DUE_PENDING', 'RUNNING', 'KOT_READY')
+     WHERE o.status IN ('RUNNING_TABLE', 'DUE_PENDING', 'RUNNING') 
      ORDER BY o.id ASC`,
     [],
     async (err, orders) => {
