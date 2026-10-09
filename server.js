@@ -1060,20 +1060,16 @@ app.get('/api/kot', (req, res) => {
   );
 });
 
+// 📌 FIXED KOT COMPLETE ROUTE: Marks order COMPLETED directly without payment loops
 app.post('/api/kot/:id/complete', (req, res) => {
   const orderId = req.params.id;
-  db.get("SELECT total, COALESCE(paid_amount, 0) as paid_amount, payment_mode, status FROM orders WHERE id = ?", [orderId], (err, order) => {
-    if (err || !order) return res.status(404).json({ error: 'Order not found' });
-
-    const total = Number(order.total) || 0;
-    const paid = Number(order.paid_amount) || 0;
-    const isFullyPaid = (paid >= total && total > 0);
-
-    if (isFullyPaid) {
-      db.run("UPDATE orders SET status = 'COMPLETED' WHERE id = ?", [orderId], () => res.json({ success: true }));
-    } else {
-      db.run("UPDATE orders SET status = 'KOT_READY' WHERE id = ?", [orderId], () => res.json({ success: true }));
+  db.run("UPDATE orders SET status = 'COMPLETED' WHERE id = ?", [orderId], (err) => {
+    if (err) {
+      console.error('[KOT COMPLETE ERROR]:', err.message);
+      return res.status(500).json({ error: err.message });
     }
+    console.log(`[KOT COMPLETED] Order #${orderId} marked COMPLETED and removed from KDS.`);
+    res.json({ success: true });
   });
 });
 
