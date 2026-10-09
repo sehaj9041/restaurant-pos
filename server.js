@@ -717,10 +717,12 @@ app.post('/api/orders', async (req, res) => {
   let status = 'RUNNING_TABLE';
   if (is_hold) {
     status = 'RUNNING_TABLE';
-  } else if (is_kiosk || upperType.includes('ONLINE') || upperType.includes('KIOSK') || upperType.includes('SELF') || upperType.includes('DINE-IN') || upperType.includes('TAKEAWAY') || upperType.includes('DELIVERY')) {
+  } else if (is_kiosk || upperType.includes('ONLINE') || upperType.includes('SELF')) {
     status = 'NEEDS_APPROVAL';
   } else if (payment_mode === 'DUE') {
     status = 'DUE_PENDING';
+  } else {
+    status = 'RUNNING_TABLE';
   }
 
   const insertOrderQuery = `
@@ -984,11 +986,12 @@ app.post('/api/printer/print-daily-summary', async (req, res) => {
   }
 });
 
+// 📌 KOT ROUTE: Active running or ready orders.
 app.get('/api/kot', (req, res) => {
   db.all(
     `SELECT o.id, o.order_type, o.table_no, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time, o.customer_name 
      FROM orders o 
-     WHERE o.status IN ('RUNNING_TABLE', 'DUE_PENDING', 'RUNNING') 
+     WHERE o.status IN ('RUNNING_TABLE', 'DUE_PENDING', 'RUNNING', 'KOT_READY')
      ORDER BY o.id ASC`,
     [],
     async (err, orders) => {
