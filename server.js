@@ -644,18 +644,24 @@ app.put('/api/orders/:id', (req, res) => {
     let prevStatus = currentOrder ? currentOrder.status : 'RUNNING_TABLE';
     let prevPaid = currentOrder ? Number(currentOrder.paid_amount) || 0 : 0;
 
-    let incomingPaid = Number(paid_amount) || Number(total) || 0;
+    // Fix: Default to prevPaid instead of total so adding items doesn't auto-complete the order
+    let incomingPaid = paid_amount !== undefined ? Number(paid_amount) || 0 : prevPaid;
     let finalPaid = Math.max(prevPaid, incomingPaid);
     let finalRemaining = Math.max(0, Number(total) - finalPaid);
     let finalMode = payment_mode || (currentOrder ? currentOrder.payment_mode : 'Cash');
 
     let status = prevStatus;
-    if (finalRemaining === 0) {
-      status = 'COMPLETED';
-    } else if (status === 'NEEDS_APPROVAL') {
+    if (status === 'NEEDS_APPROVAL') {
       status = 'RUNNING_TABLE';
     } else if (status === 'COMPLETED') {
       status = 'RUNNING_TABLE';
+    }
+
+    // Only set to COMPLETED if explicitly settled/paid in full
+    if (finalRemaining === 0 && finalPaid > 0 && payment_mode && payment_mode !== 'UNPAID' && payment_mode !== 'DUE') {
+      status = 'COMPLETED';
+    } else {
+      status = prevStatus === 'COMPLETED' ? 'RUNNING_TABLE' : prevStatus;
     }
 
     db.run(
@@ -683,7 +689,6 @@ app.put('/api/orders/:id', (req, res) => {
     );
   });
 });
-
 app.post('/api/orders', async (req, res) => {
   const { order_type, table_no, customer_name, customer_phone, items, payment_mode, subtotal, discount, is_hold, paid_amount, is_kiosk } = req.body;
 
