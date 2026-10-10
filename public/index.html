@@ -2047,10 +2047,11 @@
           ? '<span class="bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-black px-2 py-0.5 rounded-full">Cancelled</span>'
           : '<span class="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black px-2 py-0.5 rounded-full">Closed</span>';
 
-        var modeBadge = (o.status === 'VOID')
+       var modeBadge = (o.status === 'VOID')
           ? '<span class="bg-rose-50 text-rose-800 font-bold px-1.5 py-0.5 rounded text-[10px]">VOID / REJECTED</span>'
-          : `<span class="bg-emerald-50 text-emerald-800 font-bold px-1.5 py-0.5 rounded text-[10px]">PAID • ${o.payment_mode || 'Cash'}</span>`;
-
+          : (String(o.payment_mode).toUpperCase() === 'DUE' || Number(o.paid_amount || 0) < Number(o.total || 0)
+              ? '<span class="bg-rose-50 text-rose-800 font-bold px-1.5 py-0.5 rounded text-[10px]">DUE (Khata)</span>'
+              : `<span class="bg-emerald-50 text-emerald-800 font-bold px-1.5 py-0.5 rounded text-[10px]">PAID • ${o.payment_mode || 'Cash'}</span>`);
         var d = new Date(o.created_at);
         var timeFormatted = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) + ' • ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }).toLowerCase();
 
