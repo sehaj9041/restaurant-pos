@@ -488,38 +488,41 @@ app.get('/api/orders/active', (req, res) => {
 
 // ================= DEDICATED DUE (KHATA) APIS =================
 
-app.get('/api/due/orders', (req, res) => {
+app.get('/api/due/customers', (req, res) => {
   const query = `
     SELECT 
-      id, order_type, table_no, customer_name, customer_phone, 
-      total, COALESCE(paid_amount, 0) as paid_amount,
-      GREATEST(0, total - COALESCE(paid_amount, 0)) as due_amount,
-      payment_mode, status, created_at
+      COALESCE(NULLIF(customer_phone, ''), 'WALK-IN') as phone,
+      COALESCE(NULLIF(MAX(customer_name), ''), 'Valued Guest') as name,
+      SUM(GREATEST(0, total - COALESCE(paid_amount, 0))) as total_due,
+      COUNT(id) as total_orders,
+      GROUP_CONCAT(id) as order_ids,
+      MIN(created_at) as oldest_order_date
     FROM orders
     WHERE status != 'COMPLETED' 
       AND status != 'VOID'
       AND (total - COALESCE(paid_amount, 0)) > 0
-    ORDER BY id DESC
+    GROUP BY COALESCE(NULLIF(customer_phone, ''), 'WALK-IN')
+    HAVING SUM(GREATEST(0, total - COALESCE(paid_amount, 0))) > 0
+    ORDER BY total_due DESC
   `;
 
   db.all(query, [], (err, rows) => {
     if (err) {
-      console.error('Due orders fetch error:', err.message);
+      console.error('Due customers fetch error:', err.message);
       return res.json([]);
     }
     const now = new Date();
     const formatted = (rows || []).map(r => {
-      const orderDate = r.created_at ? new Date(r.created_at) : now;
-      const diffMs = Math.max(0, now - orderDate);
-      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-      const diffDays = Math.floor(diffHours / 24);
-      const remainingDue = Math.max(0, Number(r.total) - Number(r.paid_amount || 0));
+      const oldestDate = r.oldest_order_date ? new Date(r.oldest_order_date) : now;
+      const diffDays = Math.floor(Math.max(0, now - oldestDate) / (1000 * 60 * 60 * 24));
 
       return {
-        ...r,
-        due_days: diffDays,
-        due_hours: diffHours,
-        due_amount: remainingDue
+        phone: r.phone,
+        name: r.name,
+        total_orders: Number(r.total_orders) || 1,
+        total_due: Number(r.total_due) || 0,
+        oldest_days: diffDays,
+        order_ids: r.order_ids ? r.order_ids.split(',').map(s => s.trim()) : []
       };
     });
     res.json(formatted);
@@ -704,10 +707,11 @@ app.post('/api/orders', async (req, res) => {
   let calculatedGst = Math.round((calculatedSubtotal * 5) / 100);
   let calculatedTotal = Math.round(calculatedSubtotal + calculatedGst - (Number(discount) || 0));
 
- let initialPaid = 0;
+  let initialPaid = 0;
   const isPayAtCounter = payment_mode === 'PAY_COUNTER' || (payment_mode && payment_mode.toUpperCase().includes('COUNTER'));
 
-  if (payment_mode && payment_mode !== 'UNPAID' && payment_mode !== 'DUE' && !isPayAtCounter) {
+  // Fix: Due ya Unpaid hone par initialPaid hamesha 0 rahega
+  if (payment_mode && payment_mode !== 'UNPAID' && payment_mode !== 'DUE' && !isPayAtCounter && !payment_mode.includes('DUE')) {
     initialPaid = Number(paid_amount) || calculatedTotal || 0;
   } else {
     initialPaid = 0;
@@ -718,7 +722,7 @@ app.post('/api/orders', async (req, res) => {
     status = 'RUNNING_TABLE';
   } else if (is_kiosk || upperType.includes('ONLINE') || upperType.includes('SELF')) {
     status = 'NEEDS_APPROVAL';
-  } else if (payment_mode === 'DUE' || payment_mode === 'UNPAID') {
+  } else if (payment_mode === 'DUE' || payment_mode === 'UNPAID' || payment_mode.includes('DUE')) {
     status = 'DUE_PENDING';
   } else {
     status = 'RUNNING_TABLE';
@@ -785,7 +789,6 @@ app.post('/api/orders', async (req, res) => {
     }
   });
 });
-
 app.post('/api/tables/:id/settle', (req, res) => {
   const { payment_mode } = req.body;
   const orderId = req.params.id;
