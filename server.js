@@ -496,13 +496,9 @@ app.get('/api/due/orders', (req, res) => {
       GREATEST(0, total - COALESCE(paid_amount, 0)) as due_amount,
       payment_mode, status, created_at
     FROM orders
-    WHERE status != 'COMPLETED'
-      AND (
-        UPPER(payment_mode) = 'DUE' 
-        OR status = 'DUE_PENDING'
-        OR UPPER(payment_mode) = 'UNPAID'
-        OR (total - COALESCE(paid_amount, 0)) > 0
-      )
+    WHERE status != 'COMPLETED' 
+      AND status != 'VOID'
+      AND (total - COALESCE(paid_amount, 0)) > 0
     ORDER BY id DESC
   `;
 
@@ -523,7 +519,7 @@ app.get('/api/due/orders', (req, res) => {
         ...r,
         due_days: diffDays,
         due_hours: diffHours,
-        due_amount: remainingDue > 0 ? remainingDue : Number(r.total)
+        due_amount: remainingDue
       };
     });
     res.json(formatted);
