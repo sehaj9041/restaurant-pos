@@ -500,9 +500,8 @@ app.get('/api/due/orders', (req, res) => {
       AND (
         UPPER(payment_mode) = 'DUE' 
         OR status = 'DUE_PENDING'
-        OR (status = 'KOT_READY' AND UPPER(payment_mode) = 'DUE')
-        OR (UPPER(payment_mode) LIKE '%PARTIAL%' AND (total - COALESCE(paid_amount, 0)) > 0)
-        OR (UPPER(payment_mode) = 'UNPAID' AND (total - COALESCE(paid_amount, 0)) > 0)
+        OR UPPER(payment_mode) = 'UNPAID'
+        OR (total - COALESCE(paid_amount, 0)) > 0
       )
     ORDER BY id DESC
   `;
@@ -724,7 +723,7 @@ app.post('/api/orders', async (req, res) => {
     status = 'RUNNING_TABLE';
   } else if (is_kiosk || upperType.includes('ONLINE') || upperType.includes('SELF')) {
     status = 'NEEDS_APPROVAL';
-  } else if (payment_mode === 'DUE') {
+  } else if (payment_mode === 'DUE' || payment_mode === 'UNPAID') {
     status = 'DUE_PENDING';
   } else {
     status = 'RUNNING_TABLE';
