@@ -451,7 +451,7 @@ app.get('/api/orders/active', (req, res) => {
   const query = `
     SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount
     FROM orders 
-    WHERE UPPER(status) NOT IN ('COMPLETED', 'NEEDS_APPROVAL', 'VOID')
+    WHERE UPPER(status) NOT IN ('COMPLETED', 'NEEDS_APPROVAL', 'VOID', 'DUE_PENDING')
        OR UPPER(status) = 'RUNNING_TABLE'
        OR UPPER(status) = 'RUNNING'
        OR UPPER(status) = 'KOT_READY'
@@ -538,7 +538,7 @@ app.get('/api/due/customers', (req, res) => {
       COALESCE(NULLIF(MAX(customer_name), ''), 'Valued Guest') as name,
       SUM(GREATEST(0, total - COALESCE(paid_amount, 0))) as total_due,
       COUNT(id) as total_orders,
-      GROUP_CONCAT(id) as order_ids,
+      STRING_AGG(id::text, ',') as order_ids,
       MIN(created_at) as oldest_order_date
     FROM orders
     WHERE status != 'COMPLETED' 
