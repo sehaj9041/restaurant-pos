@@ -525,7 +525,6 @@ app.get('/api/due/orders', (req, res) => {
     res.json(formatted);
   });
 });
-
 app.get('/api/due/customers', (req, res) => {
   const query = `
     SELECT 
@@ -601,8 +600,6 @@ app.get('/api/orders/history', (req, res) => {
     FROM orders 
     WHERE status = 'COMPLETED' 
        OR status = 'VOID'
-       OR UPPER(payment_mode) IN ('CASH', 'UPI', 'CARD', 'PAID')
-       OR COALESCE(paid_amount, 0) >= total
     ORDER BY id DESC
     LIMIT 200
   `;
@@ -707,11 +704,13 @@ app.post('/api/orders', async (req, res) => {
   let calculatedGst = Math.round((calculatedSubtotal * 5) / 100);
   let calculatedTotal = Math.round(calculatedSubtotal + calculatedGst - (Number(discount) || 0));
 
-  let initialPaid = 0;
+ let initialPaid = 0;
   const isPayAtCounter = payment_mode === 'PAY_COUNTER' || (payment_mode && payment_mode.toUpperCase().includes('COUNTER'));
 
   if (payment_mode && payment_mode !== 'UNPAID' && payment_mode !== 'DUE' && !isPayAtCounter) {
     initialPaid = Number(paid_amount) || calculatedTotal || 0;
+  } else {
+    initialPaid = 0;
   }
 
   let status = 'RUNNING_TABLE';
