@@ -1302,9 +1302,7 @@
     }
 
    function approveNeedsApprovalOrder(orderId) {
-      if (!confirm('Kya aap is order ko accept karke kitchen mein bhejna chahte hain?')) return;
-      
-      fetch('/api/orders/' + orderId + '/approve', {
+    fetch('/api/orders/' + orderId + '/approve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       })
