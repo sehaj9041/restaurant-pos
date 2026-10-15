@@ -1273,29 +1273,7 @@
         })
         .catch(function(err) { console.error('Approval fetch error:', err); });
     }
-
- function approveNeedsApprovalOrder(orderId) {
-      // 1. पहले बैकएंड पर आर्डर को अप्रूव करके नीड्स-अप्रूवल लिस्ट से हटाओ
-      fetch('/api/orders/' + orderId + '/approve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      })
-      .then(function(res) { return res.json(); })
-      .then(function(data) {
-        if (data.success) {
-          fetchNeedsApprovalOrders();
-          fetchActiveOrders();
-          
-          // 2. फिर उसे POS कार्ट में रिव्यू के लिए खोलो
-          fetch('/api/orders/needs-approval')
-            .then(function(res) { return res.json(); })
-            .then(function(orders) {
-              // अगर वह आर्डर नीड्स-अप्रूवल से हट चूका है, तो हम सीधे उसकी डिटेल्स पास कर सकते हैं
-            });
-        }
-      });
-
-      // या सीधा यह तरीका अपनाओ जो बिना झंझट के काम करे:
+function approveNeedsApprovalOrder(orderId) {
       fetch('/api/orders/needs-approval')
         .then(function(res) { return res.json(); })
         .then(function(orders) {
@@ -1305,8 +1283,8 @@
           previousViewBeforePOS = 'DASHBOARD';
           openPOSOrderView(targetOrder.order_type || 'Takeaway', targetOrder.table_no || '');
           
-          // इसे null रखो ताकि यह नया आर्डर बने और PUT के बजाय POST /api/orders/ पर जाए!
-          editingActiveOrderId = null; 
+          // यहाँ इसे null के बजाय targetOrder.id रखो ताकि नया आइटम जोड़ते वक्त इसी आर्डर में अपडेट हो!
+          editingActiveOrderId = targetOrder.id; 
 
           document.getElementById('posCustPhone').value = targetOrder.customer_phone || '';
           document.getElementById('posCustName').value = targetOrder.customer_name || '';
@@ -1322,12 +1300,8 @@
 
           renderPOSCart();
           switchRightTab('SUMMARY');
-
-          // और साथ ही उस पुराने आर्डर को डिलीट या अप्रूव कर दो ताकि वो लिस्ट से गायब हो जाए
-          fetch('/api/orders/' + orderId + '/approve', { method: 'POST' });
         });
-    }
-
+    } 
     // ================= INTEGRATED MENU MANAGEMENT FUNCTIONS =================
     function openMenuManagement() {
       currentViewMode = 'MENU_MGMT';
