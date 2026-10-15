@@ -2874,26 +2874,39 @@ function approveNeedsApprovalOrder(orderId) {
         split_details: splitDetails
       };
 
-   if (editingActiveOrderId) {
-      // 1. Pehle order ko update karo
+  if (editingActiveOrderId) {
       fetch('/api/orders/' + editingActiveOrderId, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       })
+      .then(function(res) { return res.json(); })
       .then(function() {
-        // 2. Uske baad usko approve/clear karne ke liye endpoint hit karo taaki needs-approval se hat jaye
+        // Order update hone ke baad usko approve bhi kar do taaki needs-approval se hat jaye
         return fetch('/api/orders/' + editingActiveOrderId + '/approve', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' }
         });
       })
+      .then(function(res) { return res.json(); })
       .then(function() {
-        if (newlyPaidAmount > 0) dispatchDirectPrintReceipt(editingActiveOrderId, payload, calc);
+        if (newlyPaidAmount > 0) {
+          dispatchDirectPrintReceipt(editingActiveOrderId, payload, calc);
+        }
         editingActiveOrderId = null;
         closePOSOrderView();
-        fetchNeedsApprovalOrders();
         fetchActiveOrders();
+        fetchNeedsApprovalOrders();
+        loadFloorTables(); // Tables wapas load karne ke liye
+      })
+      .catch(function(err) {
+        console.error("Error updating order:", err);
+        // Fallback taaki UI kharab na ho
+        editingActiveOrderId = null;
+        closePOSOrderView();
+        fetchActiveOrders();
+        fetchNeedsApprovalOrders();
+        loadFloorTables();
       });
     }
 
