@@ -1274,48 +1274,32 @@
         .catch(function(err) { console.error('Approval fetch error:', err); });
     }
 
-  function approveNeedsApprovalOrder(orderId) {
-      // Pehle backend par approve endpoint hit karo taaki needs-approval list se hat jaye
-      fetch('/api/orders/' + orderId + '/approve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      })
-      .then(function(res) { return res.json(); })
-      .then(function(data) {
-        if (data.success) {
-          fetchNeedsApprovalOrders();
-          fetchActiveOrders();
-          
-          // Uske baad order details fetch karke cart mein review ke liye khol lo
-          fetch('/api/orders/needs-approval')
-            .then(function(res) { return res.json(); })
-            .then(function(orders) {
-              var targetOrder = orders.find(function(o) { return o.id === orderId; });
-              if (!targetOrder) return;
+ function approveNeedsApprovalOrder(orderId) {
+      fetch('/api/orders/needs-approval')
+        .then(function(res) { return res.json(); })
+        .then(function(orders) {
+          var targetOrder = orders.find(function(o) { return o.id === orderId; });
+          if (!targetOrder) return;
 
-              previousViewBeforePOS = 'DASHBOARD';
-              openPOSOrderView(targetOrder.order_type || 'Takeaway', targetOrder.table_no || '');
-              editingActiveOrderId = targetOrder.id;
+          previousViewBeforePOS = 'DASHBOARD';
+          openPOSOrderView(targetOrder.order_type || 'Takeaway', targetOrder.table_no || '');
+          editingActiveOrderId = targetOrder.id;
 
-              document.getElementById('posCustPhone').value = targetOrder.customer_phone || '';
-              document.getElementById('posCustName').value = targetOrder.customer_name || '';
+          document.getElementById('posCustPhone').value = targetOrder.customer_phone || '';
+          document.getElementById('posCustName').value = targetOrder.customer_name || '';
 
-              posCart = (targetOrder.items || []).map(function(i) {
-                return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1 };
-              });
+          posCart = (targetOrder.items || []).map(function(i) {
+            return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1 };
+          });
 
-              alreadyPaidAmount = 0;
-              alreadyPaidMode = '';
-              selectedPaymentMode = null;
-              document.getElementById('boxAlreadyPaidBanner').classList.add('hidden');
+          alreadyPaidAmount = 0;
+          alreadyPaidMode = '';
+          selectedPaymentMode = null;
+          document.getElementById('boxAlreadyPaidBanner').classList.add('hidden');
 
-              renderPOSCart();
-              switchRightTab('SUMMARY');
-            });
-        } else {
-          alert('Order approve karne mein error aayi!');
-        }
-      });
+          renderPOSCart();
+          switchRightTab('SUMMARY');
+        });
     }
   
 
