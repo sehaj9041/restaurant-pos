@@ -2818,6 +2818,10 @@
       if (!posCart.length) return alert('Kripya cart mein item add karein!');
       if (!currentPOSOrderType) return alert('Kripya pehle Order Type (Dine-In, Takeaway, Delivery) select karein!');
 
+      if (!selectedPaymentMode && alreadyPaidAmount === 0) {
+        selectedPaymentMode = 'COUNTER';
+      }
+
       var calc = calculatePOSBillTotals();
       var custPhone = document.getElementById('posCustPhone').value.trim();
       var custName = document.getElementById('posCustName').value.trim();
