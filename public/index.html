@@ -1301,9 +1301,10 @@
         });
     }
 
-    function rejectNeedsApprovalOrder(orderId) {
-      if (!confirm('Kya aap is order ko reject karna chahte hain?')) return;
-      fetch('/api/orders/' + orderId + '/reject', {
+   function approveNeedsApprovalOrder(orderId) {
+      if (!confirm('Kya aap is order ko accept karke kitchen mein bhejna chahte hain?')) return;
+      
+      fetch('/api/orders/' + orderId + '/approve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       })
@@ -1311,6 +1312,9 @@
       .then(function(data) {
         if (data.success) {
           fetchNeedsApprovalOrders();
+          fetchActiveOrders();
+        } else {
+          alert('Order approve karne mein error aayi!');
         }
       });
     }
