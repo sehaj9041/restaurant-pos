@@ -390,19 +390,24 @@ app.get('/api/orders/needs-approval', (req, res) => {
 app.post('/api/orders/:id/approve', (req, res) => {
   const orderId = req.params.id;
   
-  db.get("SELECT order_type FROM orders WHERE id = ?", [orderId], (err, order) => {
+  db.get("SELECT order_type, table_no FROM orders WHERE id = ?", [orderId], (err, order) => {
     if (err || !order) return res.status(404).json({ error: 'Order not found' });
 
     let type = (order.order_type || '').toLowerCase();
-    let newTableNo = '';
+    let currentTable = (order.table_no || '').trim();
+    let newTableNo = currentTable;
     let newStatus = 'RUNNING_TABLE';
 
+    // Agar delivery ya takeaway hai toh uska table fix kar do
     if (type.includes('delivery')) {
       newTableNo = 'Delivery';
     } else if (type.includes('takeaway')) {
       newTableNo = 'Takeaway';
     } else {
-      newTableNo = '';
+      // Dine-in / Kiosk ke case mein agar table nahi hai, toh table khali chhodo taaki "needs a table" queue mein jaye
+      if (!currentTable || currentTable === '' || currentTable.toUpperCase() === 'DIRECT') {
+        newTableNo = '';
+      }
     }
 
     db.run(
@@ -413,13 +418,12 @@ app.post('/api/orders/:id/approve', (req, res) => {
       [newStatus, newTableNo, orderId], 
       (err2) => {
         if (err2) return res.status(500).json({ error: err2.message });
-        console.log(`[ORDER APPROVED] Order #${orderId} accepted and routed correctly.`);
+        console.log(`[ORDER APPROVED] Order #${orderId} accepted into active queue. Table: ${newTableNo || 'Needs Table'}`);
         res.json({ success: true });
       }
     );
   });
 });
-
 app.post('/api/orders/:id/reject', (req, res) => {
   const orderId = req.params.id;
   db.run("UPDATE orders SET status = 'VOID' WHERE id = ?", [orderId], (err) => {
