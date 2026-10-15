@@ -2874,27 +2874,27 @@ function approveNeedsApprovalOrder(orderId) {
         split_details: splitDetails
       };
 
-      if (editingActiveOrderId) {
-        fetch('/api/orders/' + editingActiveOrderId, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        }).then(function(){
-          if (newlyPaidAmount > 0) dispatchDirectPrintReceipt(editingActiveOrderId, payload, calc);
-          closePOSOrderView();
-        });
-      } else {
-        fetch('/api/orders', {
+   if (editingActiveOrderId) {
+      // 1. Pehle order ko update karo
+      fetch('/api/orders/' + editingActiveOrderId, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      .then(function() {
+        // 2. Uske baad usko approve/clear karne ke liye endpoint hit karo taaki needs-approval se hat jaye
+        return fetch('/api/orders/' + editingActiveOrderId + '/approve', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          if (newlyPaidAmount > 0) dispatchDirectPrintReceipt(data.orderId, payload, calc);
-          closePOSOrderView();
+          headers: { 'Content-Type': 'application/json' }
         });
-      }
+      })
+      .then(function() {
+        if (newlyPaidAmount > 0) dispatchDirectPrintReceipt(editingActiveOrderId, payload, calc);
+        editingActiveOrderId = null;
+        closePOSOrderView();
+        fetchNeedsApprovalOrders();
+        fetchActiveOrders();
+      });
     }
 
     function dispatchDirectPrintReceipt(orderId, payload, calc) {
