@@ -1283,7 +1283,9 @@
 
           previousViewBeforePOS = 'DASHBOARD';
           openPOSOrderView(targetOrder.order_type || 'Takeaway', targetOrder.table_no || '');
-          editingActiveOrderId = targetOrder.id;
+          
+          // Yahin par editingActiveOrderId ko null kar do taaki yeh naye order ki tarah treat ho
+          editingActiveOrderId = null; 
 
           document.getElementById('posCustPhone').value = targetOrder.customer_phone || '';
           document.getElementById('posCustName').value = targetOrder.customer_name || '';
@@ -1294,6 +1296,7 @@
 
           alreadyPaidAmount = 0;
           alreadyPaidMode = '';
+          selectedPaymentMode = null; // Payment mode ko bhi reset kar do taaki zaroori ho select karna
           document.getElementById('boxAlreadyPaidBanner').classList.add('hidden');
 
           renderPOSCart();
