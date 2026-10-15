@@ -1274,7 +1274,7 @@
         .catch(function(err) { console.error('Approval fetch error:', err); });
     }
 
-    function approveNeedsApprovalOrder(orderId) {
+   function approveNeedsApprovalOrder(orderId) {
       fetch('/api/orders/needs-approval')
         .then(function(res) { return res.json(); })
         .then(function(orders) {
