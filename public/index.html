@@ -2809,7 +2809,7 @@
       if (!currentPOSOrderType) return alert('Kripya pehle Order Type (Dine-In, Takeaway, Delivery) select karein!');
 
       if (!selectedPaymentMode) {
-        selectedPaymentMode = 'Cash';
+        selectedPaymentMode = 'UNPAID';
       }
 
       var calc = calculatePOSBillTotals();
