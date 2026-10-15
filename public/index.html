@@ -1300,21 +1300,7 @@
           switchRightTab('SUMMARY');
         });
     }
-   function approveNeedsApprovalOrder(orderId) {
-    fetch('/api/orders/' + orderId + '/approve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      })
-      .then(function(res) { return res.json(); })
-      .then(function(data) {
-        if (data.success) {
-          fetchNeedsApprovalOrders();
-          fetchActiveOrders();
-        } else {
-          alert('Order approve karne mein error aayi!');
-        }
-      });
-    }
+  
 
     // ================= INTEGRATED MENU MANAGEMENT FUNCTIONS =================
     function openMenuManagement() {
