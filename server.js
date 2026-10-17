@@ -390,24 +390,19 @@ app.get('/api/orders/needs-approval', (req, res) => {
 app.post('/api/orders/:id/approve', (req, res) => {
   const orderId = req.params.id;
   
-  db.get("SELECT order_type, table_no FROM orders WHERE id = ?", [orderId], (err, order) => {
+  db.get("SELECT order_type FROM orders WHERE id = ?", [orderId], (err, order) => {
     if (err || !order) return res.status(404).json({ error: 'Order not found' });
 
     let type = (order.order_type || '').toLowerCase();
-    let currentTable = (order.table_no || '').trim();
-    let newTableNo = currentTable;
+    let newTableNo = '';
     let newStatus = 'RUNNING_TABLE';
 
-    // Agar delivery ya takeaway hai toh uska table fix kar do
     if (type.includes('delivery')) {
       newTableNo = 'Delivery';
     } else if (type.includes('takeaway')) {
       newTableNo = 'Takeaway';
     } else {
-      // Dine-in / Kiosk ke case mein agar table nahi hai, toh table khali chhodo taaki "needs a table" queue mein jaye
-      if (!currentTable || currentTable === '' || currentTable.toUpperCase() === 'DIRECT') {
-        newTableNo = '';
-      }
+      newTableNo = '';
     }
 
     db.run(
@@ -418,12 +413,13 @@ app.post('/api/orders/:id/approve', (req, res) => {
       [newStatus, newTableNo, orderId], 
       (err2) => {
         if (err2) return res.status(500).json({ error: err2.message });
-        console.log(`[ORDER APPROVED] Order #${orderId} accepted into active queue. Table: ${newTableNo || 'Needs Table'}`);
+        console.log(`[ORDER APPROVED] Order #${orderId} accepted and routed correctly.`);
         res.json({ success: true });
       }
     );
   });
 });
+
 app.post('/api/orders/:id/reject', (req, res) => {
   const orderId = req.params.id;
   db.run("UPDATE orders SET status = 'VOID' WHERE id = ?", [orderId], (err) => {
@@ -433,19 +429,18 @@ app.post('/api/orders/:id/reject', (req, res) => {
   });
 });
 
-// Table Assign API Route (Allows multiple active orders per table without overwriting)
+// Table Assign API Route
 app.post('/api/orders/:id/assign-table', (req, res) => {
   const orderId = req.params.id;
   const { table_no } = req.body;
-  const cleanTable = (table_no || '').trim().toUpperCase();
 
   db.run(
     "UPDATE orders SET table_no = ?, status = 'RUNNING_TABLE' WHERE id = ?",
-    [cleanTable, orderId],
+    [table_no || '', orderId],
     (err) => {
       if (err) return res.status(500).json({ error: err.message });
-      console.log(`[TABLE ASSIGNED] Order #${orderId} assigned to Table ${cleanTable}. Multiple orders allowed.`);
-      res.json({ success: true, table_no: cleanTable });
+      console.log(`[TABLE ASSIGNED] Order #${orderId} assigned to Table ${table_no} and moved to active queue.`);
+      res.json({ success: true });
     }
   );
 });
@@ -455,7 +450,7 @@ app.get('/api/orders/active', (req, res) => {
   const query = `
     SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount
     FROM orders 
-    WHERE UPPER(status) NOT IN ('COMPLETED', 'NEEDS_APPROVAL', 'VOID', 'DUE_PENDING')
+    WHERE UPPER(status) NOT IN ('COMPLETED', 'NEEDS_APPROVAL', 'VOID')
        OR UPPER(status) = 'RUNNING_TABLE'
        OR UPPER(status) = 'RUNNING'
        OR UPPER(status) = 'KOT_READY'
@@ -500,13 +495,13 @@ app.get('/api/due/orders', (req, res) => {
       GREATEST(0, total - COALESCE(paid_amount, 0)) as due_amount,
       payment_mode, status, created_at
     FROM orders
-    WHERE status != 'COMPLETED' 
-      AND status != 'VOID'
+    WHERE status != 'COMPLETED'
       AND (
-        UPPER(payment_mode) LIKE '%DUE%' 
-        OR UPPER(payment_mode) LIKE '%KHATA%'
+        UPPER(payment_mode) = 'DUE' 
         OR status = 'DUE_PENDING'
-        OR (total - COALESCE(paid_amount, 0)) > 0
+        OR (status = 'KOT_READY' AND UPPER(payment_mode) = 'DUE')
+        OR (UPPER(payment_mode) LIKE '%PARTIAL%' AND (total - COALESCE(paid_amount, 0)) > 0)
+        OR (UPPER(payment_mode) = 'UNPAID' AND (total - COALESCE(paid_amount, 0)) > 0)
       )
     ORDER BY id DESC
   `;
@@ -545,13 +540,13 @@ app.get('/api/due/customers', (req, res) => {
       STRING_AGG(id::text, ',') as order_ids,
       MIN(created_at) as oldest_order_date
     FROM orders
-    WHERE status != 'COMPLETED' 
-      AND status != 'VOID'
+    WHERE status != 'COMPLETED'
       AND (
-        UPPER(payment_mode) LIKE '%DUE%' 
-        OR UPPER(payment_mode) LIKE '%KHATA%'
+        UPPER(payment_mode) = 'DUE' 
         OR status = 'DUE_PENDING'
-        OR (total - COALESCE(paid_amount, 0)) > 0
+        OR (status = 'KOT_READY' AND UPPER(payment_mode) = 'DUE')
+        OR (UPPER(payment_mode) LIKE '%PARTIAL%' AND (total - COALESCE(paid_amount, 0)) > 0)
+        OR (UPPER(payment_mode) = 'UNPAID' AND (total - COALESCE(paid_amount, 0)) > 0)
       )
     GROUP BY COALESCE(NULLIF(customer_phone, ''), 'WALK-IN')
     HAVING SUM(GREATEST(0, total - COALESCE(paid_amount, 0))) > 0
@@ -608,10 +603,10 @@ app.get('/api/orders/history', (req, res) => {
   const query = `
     SELECT id, order_type, table_no, customer_name, customer_phone, payment_mode, status, subtotal, discount, gst, total, COALESCE(paid_amount, total) as paid_amount, created_at
     FROM orders 
-    WHERE status = 'COMPLETED'
-      AND UPPER(payment_mode) NOT LIKE '%DUE%'
-      AND UPPER(payment_mode) NOT LIKE '%KHATA%'
-      AND (total - COALESCE(paid_amount, 0)) <= 0
+    WHERE status = 'COMPLETED' 
+       OR status = 'VOID'
+       OR UPPER(payment_mode) IN ('CASH', 'UPI', 'CARD', 'PAID')
+       OR COALESCE(paid_amount, 0) >= total
     ORDER BY id DESC
     LIMIT 200
   `;
@@ -648,7 +643,7 @@ app.put('/api/orders/:id', (req, res) => {
     let prevStatus = currentOrder ? currentOrder.status : 'RUNNING_TABLE';
     let prevPaid = currentOrder ? Number(currentOrder.paid_amount) || 0 : 0;
 
-    let incomingPaid = paid_amount !== undefined ? Number(paid_amount) || 0 : prevPaid;
+    let incomingPaid = Number(paid_amount) || 0;
     let finalPaid = Math.max(prevPaid, incomingPaid);
     let finalRemaining = Math.max(0, Number(total) - finalPaid);
     let finalMode = payment_mode || (currentOrder ? currentOrder.payment_mode : 'Cash');
@@ -660,13 +655,8 @@ app.put('/api/orders/:id', (req, res) => {
       status = 'RUNNING_TABLE';
     }
 
-    if (finalRemaining === 0 && finalPaid > 0 && payment_mode && payment_mode !== 'UNPAID' && payment_mode !== 'DUE' && !payment_mode.toUpperCase().includes('DUE')) {
-      status = 'COMPLETED';
-    } else if (payment_mode && (payment_mode === 'DUE' || payment_mode.toUpperCase().includes('DUE'))) {
-      status = 'DUE_PENDING';
-      finalPaid = 0;
-    } else {
-      status = prevStatus === 'COMPLETED' ? 'RUNNING_TABLE' : prevStatus;
+    if (finalRemaining === 0 && finalPaid > 0) {
+      status = 'RUNNING_TABLE'; 
     }
 
     db.run(
@@ -687,7 +677,7 @@ app.put('/api/orders/:id', (req, res) => {
               });
             }
           }
-          console.log(`[ORDER UPDATED] Order #${orderId} saved. Status: ${status}`);
+          console.log(`[ORDER APPROVED & UPDATED] Order #${orderId} moved from Needs Approval to Active Queue.`);
           res.json({ success: true, orderId, paid_amount: finalPaid, payable_now: finalRemaining });
         });
       }
@@ -721,21 +711,17 @@ app.post('/api/orders', async (req, res) => {
   let initialPaid = 0;
   const isPayAtCounter = payment_mode === 'PAY_COUNTER' || (payment_mode && payment_mode.toUpperCase().includes('COUNTER'));
 
-  if (payment_mode && payment_mode !== 'UNPAID' && payment_mode !== 'DUE' && !isPayAtCounter && !payment_mode.toUpperCase().includes('DUE')) {
+  if (payment_mode && payment_mode !== 'UNPAID' && payment_mode !== 'DUE' && !isPayAtCounter) {
     initialPaid = Number(paid_amount) || calculatedTotal || 0;
-  } else {
-    initialPaid = 0;
   }
 
   let status = 'RUNNING_TABLE';
   if (is_hold) {
     status = 'RUNNING_TABLE';
-  } else if (is_kiosk || upperType.includes('ONLINE') || upperType.includes('SELF')) {
+  } else if (is_kiosk || upperType.includes('ONLINE') || upperType.includes('KIOSK') || upperType.includes('SELF') || upperType.includes('DINE-IN') || upperType.includes('TAKEAWAY') || upperType.includes('DELIVERY')) {
     status = 'NEEDS_APPROVAL';
-  } else if (payment_mode === 'DUE' || payment_mode === 'UNPAID' || payment_mode.toUpperCase().includes('DUE')) {
+  } else if (payment_mode === 'DUE') {
     status = 'DUE_PENDING';
-  } else {
-    status = 'RUNNING_TABLE';
   }
 
   const insertOrderQuery = `
@@ -805,37 +791,30 @@ app.post('/api/tables/:id/settle', (req, res) => {
   const orderId = req.params.id;
   const mode = (payment_mode || 'Cash').toUpperCase();
 
-  db.get("SELECT table_no FROM orders WHERE id = ?", [orderId], (err, targetOrder) => {
-    if (err || !targetOrder) return res.status(404).json({ error: 'Order not found' });
+  db.get("SELECT * FROM orders WHERE id = ?", [orderId], (err, order) => {
+    if (err || !order) return res.status(404).json({ error: 'Order not found' });
+    
+    const total = Number(order.total) || 0;
 
-    const tblNo = targetOrder.table_no ? targetOrder.table_no.trim() : '';
-
-    let updateQuery = "";
-    let queryParams = [];
-
-    if (tblNo !== '') {
-      updateQuery = "UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE UPPER(table_no) = ? AND status != 'COMPLETED'";
-      queryParams = [mode, tblNo.toUpperCase()];
-    } else {
-      updateQuery = "UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE id = ?";
-      queryParams = [mode, orderId];
-    }
-
-    db.run(updateQuery, queryParams, (err2) => {
-      if (err2) {
-        console.error('[SETTLE ERROR]:', err2.message);
-        return res.status(500).json({ error: err2.message });
+    db.run(
+      "UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = ? WHERE id = ?",
+      [mode, total, orderId],
+      (err2) => {
+        if (err2) {
+          console.error('[SETTLE ERROR]:', err2.message);
+          return res.status(500).json({ error: err2.message });
+        }
+        console.log(`[SUCCESSFULLY SETTLED] Order #${orderId} marked COMPLETED via ${mode}.`);
+        res.json({ success: true });
       }
-      console.log(`[SUCCESSFULLY SETTLED] Orders for Table/ID cleared via ${mode}. Marked COMPLETED.`);
-      res.json({ success: true });
-    });
+    );
   });
 });
 
 app.post('/api/orders/:id/mark-due', (req, res) => {
   const orderId = req.params.id;
   db.run(
-    "UPDATE orders SET status = 'DUE_PENDING', payment_mode = 'DUE', paid_amount = 0 WHERE id = ?",
+    "UPDATE orders SET status = 'DUE_PENDING', payment_mode = 'DUE' WHERE id = ?",
     [orderId],
     (err2) => {
       if (err2) return res.status(500).json({ error: err2.message });
@@ -999,12 +978,11 @@ app.post('/api/printer/print-daily-summary', async (req, res) => {
   }
 });
 
-// 📌 KOT ROUTE: Active running or ready orders.
 app.get('/api/kot', (req, res) => {
   db.all(
-    `SELECT o.id, o.order_type, o.table_no, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time, o.customer_name 
+    `SELECT o.id, o.order_type, o.table_no, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
      FROM orders o 
-     WHERE o.status IN ('RUNNING_TABLE', 'DUE_PENDING', 'RUNNING', 'KOT_READY')
+     WHERE o.status IN ('RUNNING_TABLE', 'DUE_PENDING', 'RUNNING') 
      ORDER BY o.id ASC`,
     [],
     async (err, orders) => {
@@ -1025,64 +1003,28 @@ app.get('/api/kot', (req, res) => {
             });
           })
         );
-
-        const mergedMap = {};
-        const finalKotList = [];
-
-        fullOrders.forEach(ord => {
-          let tNo = (ord.table_no || '').trim().toUpperCase();
-          let isDineIn = (ord.order_type || '').toLowerCase().includes('dine') && tNo !== '';
-
-          if (isDineIn) {
-            if (!mergedMap[tNo]) {
-              mergedMap[tNo] = {
-                ...ord,
-                id: ord.id,
-                all_merged_ids: ord.id.toString(),
-                display_id_label: `#${ord.id}`,
-                items: [...ord.items]
-              };
-              finalKotList.push(mergedMap[tNo]);
-            } else {
-              ord.items.forEach(newItem => {
-                let existingItem = mergedMap[tNo].items.find(i => i.name === newItem.name && i.notes === newItem.notes);
-                if (existingItem) {
-                  existingItem.qty += newItem.qty;
-                } else {
-                  mergedMap[tNo].items.push({ ...newItem });
-                }
-              });
-              mergedMap[tNo].all_merged_ids += `, ${ord.id}`;
-              mergedMap[tNo].display_id_label += `, #${ord.id}`;
-            }
-          } else {
-            finalKotList.push({
-              ...ord,
-              all_merged_ids: ord.id.toString(),
-              display_id_label: `#${ord.id}`
-            });
-          }
-        });
-
-        res.json(finalKotList);
+        res.json(fullOrders);
       } catch (e) {
-        console.error('KOT merge error:', e.message);
-        res.json(orders.map(o => ({ ...o, all_merged_ids: o.id.toString(), display_id_label: `#${o.id}`, items: [] })));
+        res.json(orders.map(o => ({ ...o, items: [] })));
       }
     }
   );
 });
 
-// 📌 FIXED KOT COMPLETE ROUTE: Marks order COMPLETED directly without payment loops
 app.post('/api/kot/:id/complete', (req, res) => {
   const orderId = req.params.id;
-  db.run("UPDATE orders SET status = 'COMPLETED' WHERE id = ?", [orderId], (err) => {
-    if (err) {
-      console.error('[KOT COMPLETE ERROR]:', err.message);
-      return res.status(500).json({ error: err.message });
+  db.get("SELECT total, COALESCE(paid_amount, 0) as paid_amount, payment_mode, status FROM orders WHERE id = ?", [orderId], (err, order) => {
+    if (err || !order) return res.status(404).json({ error: 'Order not found' });
+
+    const total = Number(order.total) || 0;
+    const paid = Number(order.paid_amount) || 0;
+    const isFullyPaid = (paid >= total && total > 0);
+
+    if (isFullyPaid) {
+      db.run("UPDATE orders SET status = 'COMPLETED' WHERE id = ?", [orderId], () => res.json({ success: true }));
+    } else {
+      db.run("UPDATE orders SET status = 'KOT_READY' WHERE id = ?", [orderId], () => res.json({ success: true }));
     }
-    console.log(`[KOT COMPLETED] Order #${orderId} marked COMPLETED and removed from KDS.`);
-    res.json({ success: true });
   });
 });
 
