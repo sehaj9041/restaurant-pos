@@ -819,27 +819,28 @@ app.post('/api/tables/:id/settle', (req, res) => {
   const targetId = req.params.id;
   const mode = (payment_mode || 'Cash').toUpperCase();
 
-  db.run(
-    `UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE id = ? OR table_no = ? AND status != 'COMPLETED'`,
-    [mode, targetId, targetId],
-    function (err) {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json({ success: true, changes: this.changes });
-    }
-  );
-});
-app.post('/api/orders/:id/mark-due', (req, res) => {
-  const orderId = req.params.id;
-  db.run(
-    "UPDATE orders SET status = 'DUE_PENDING', payment_mode = 'DUE' WHERE id = ?",
-    [orderId],
-    (err2) => {
-      if (err2) return res.status(500).json({ error: err2.message });
-      res.json({ success: true });
-    }
-  );
-});
+  console.log(`[SETTLE REQUEST] Settling table target ID/No: ${targetId} via ${mode}`);
 
+  // Step 1: Pehle pata lagao ki kya yeh targetId floor_tables ki ID hai, taaki uska table_no mil sake
+  db.get("SELECT table_no FROM floor_tables WHERE id = ? OR table_no = ?", [targetId, targetId], (err, tableRow) => {
+    const actualTableNo = tableRow ? tableRow.table_no : targetId;
+
+    // Step 2: Ab us table_no ya order id ke saare active orders ko COMPLETED kar do taaki table turant free ho jaye
+    db.run(
+      `UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE (table_no = ? OR id = ?) AND status != 'COMPLETED'`,
+      [mode, actualTableNo, targetId],
+      function (err2) {
+        if (err2) {
+          console.error('[SETTLE UPDATE ERROR]:', err2.message);
+          return res.status(500).json({ error: err2.message });
+        }
+
+        console.log(`[SETTLE SUCCESS] Table ${actualTableNo} settled successfully. Orders updated: ${this.changes}`);
+        res.json({ success: true, changes: this.changes });
+      }
+    );
+  });
+});
 // ================= KDS API ROUTE (STRICT FILTER) =================
 app.get('/api/kot', (req, res) => {
   // FIX: KDS ab RUNNING_TABLE ke sath-sath un COMPLETED orders ko bhi dikhayega jo abhi tak DISPATCH nahi hue hain
