@@ -780,6 +780,7 @@ app.post('/api/orders', async (req, res) => {
 });
 
 // FULL TABLE SETTLEMENT ROUTE (Foolproof: Handles Table ID, Table Number, and Order ID Perfectly)
+// FULL TABLE SETTLEMENT ROUTE (Universal Cast & Foolproof Match)
 app.post('/api/tables/:id/settle', (req, res) => {
   const { payment_mode } = req.body;
   const targetId = req.params.id;
@@ -788,25 +789,20 @@ app.post('/api/tables/:id/settle', (req, res) => {
   const cleanTbl = targetId.toString().trim();
   const rawTblNum = cleanTbl.replace(/^T-?/i, '');
 
-  db.get("SELECT table_no FROM floor_tables WHERE id::text = ? OR table_no = ? OR table_no = ?", [cleanTbl, cleanTbl, `T-${rawTblNum}`], (errTable, tblRow) => {
-    let exactTableNo = tblRow ? tblRow.table_no : '';
-    let rawTblName = exactTableNo ? exactTableNo.replace(/^T-?/i, '') : '';
+  const query = `
+    UPDATE orders 
+    SET status = 'COMPLETED', payment_mode = ?, paid_amount = total 
+    WHERE (CAST(id AS TEXT) = ? OR table_no = ? OR table_no = ? OR table_no = ? OR table_no = ? OR table_no = ?) 
+      AND status != 'COMPLETED'
+  `;
 
-    db.run(
-      `UPDATE orders 
-       SET status = 'COMPLETED', payment_mode = ?, paid_amount = total 
-       WHERE (id::text = ? OR table_no = ? OR table_no = ? OR table_no = ? OR table_no = ? OR table_no = ?) 
-         AND status != 'COMPLETED'`,
-      [mode, cleanTbl, cleanTbl, `T-${rawTblNum}`, rawTblNum, exactTableNo, rawTblName],
-      function (err) {
-        if (err) {
-          console.error('[SETTLE ERROR DB]:', err.message);
-          return res.status(500).json({ error: err.message });
-        }
-        console.log(`[TABLE FULLY SETTLED] All active orders for Table/ID #${targetId} (TableNo: ${exactTableNo}) marked COMPLETED via ${mode}. Rows updated: ${this.changes}`);
-        res.json({ success: true, changes: this.changes });
-      }
-    );
+  db.run(query, [mode, cleanTbl, cleanTbl, `T-${rawTblNum}`, rawTblNum, `T0${rawTblNum}`, `0${rawTblNum}`], function (err) {
+    if (err) {
+      console.error('[SETTLE ERROR DB]:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+    console.log(`[TABLE FULLY SETTLED] Table/ID #${targetId} marked COMPLETED via ${mode}. Rows updated: ${this.changes}`);
+    res.json({ success: total => total, changes: this.changes });
   });
 });
 
