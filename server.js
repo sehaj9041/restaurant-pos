@@ -684,9 +684,12 @@ app.put('/api/orders/:id', (req, res) => {
     let finalRemaining = Math.max(0, finalTotal - finalPaid);
     let finalMode = payment_mode || (currentOrder ? currentOrder.payment_mode : 'UNPAID');
 
+    // FIX: Check if fully paid, then mark as COMPLETED so it never returns to KDS
     let status = 'RUNNING_TABLE';
     if (payment_mode && payment_mode.toUpperCase() === 'DUE') {
       status = 'DUE_PENDING';
+    } else if (finalPaid >= finalTotal && finalTotal > 0) {
+      status = 'COMPLETED';
     }
 
     db.run(
@@ -707,7 +710,7 @@ app.put('/api/orders/:id', (req, res) => {
               });
             }
           }
-          console.log(`[ORDER APPROVED & MOVED TO TABLE QUEUE] Order #${orderId} moved to active queue with status ${status}.`);
+          console.log(`[ORDER UPDATED] Order #${orderId} updated with status ${status}.`);
           res.json({ success: true, orderId, paid_amount: finalPaid, payable_now: finalRemaining, status });
         });
       }
