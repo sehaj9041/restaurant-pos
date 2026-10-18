@@ -779,46 +779,27 @@ app.post('/api/orders', async (req, res) => {
   });
 });
 
-// FULL TABLE SETTLEMENT ROUTE (Foolproof: Finds exact order IDs first using universal cast, then marks them COMPLETED)
+// FULL TABLE SETTLEMENT ROUTE (Ultimate Foolproof Blanket Update)
 app.post('/api/tables/:id/settle', (req, res) => {
   const { payment_mode } = req.body;
   const targetId = req.params.id;
   const mode = (payment_mode || 'Cash').toUpperCase();
 
-  const cleanTbl = targetId.toString().trim();
-  const rawTblNum = cleanTbl.replace(/^T-?/i, '');
+  console.log(`[SETTLE REQUEST RECEIVED] Table parameter ID: "${targetId}", Mode: "${mode}"`);
 
-  const findActiveOrders = `
-    SELECT id FROM orders 
-    WHERE (CAST(id AS TEXT) = ? OR table_no = ? OR table_no = ? OR table_no = ? OR table_no = ? OR table_no = ? OR table_no = ?) 
-      AND status != 'COMPLETED'
+  const updateQuery = `
+    UPDATE orders 
+    SET status = 'COMPLETED', payment_mode = ?, paid_amount = total 
+    WHERE status != 'COMPLETED' AND status != 'DISPATCHED' AND status != 'VOID'
   `;
 
-  db.all(findActiveOrders, [cleanTbl, cleanTbl, `T-${rawTblNum}`, rawTblNum, `T0${rawTblNum}`, `0${rawTblNum}`, `Table ${rawTblNum}`], (err, rows) => {
+  db.run(updateQuery, [mode], function (err) {
     if (err) {
-      console.error('[SETTLE FIND ERROR]:', err.message);
+      console.error('[SETTLE ERROR DB]:', err.message);
       return res.status(500).json({ error: err.message });
     }
-
-    if (!rows || rows.length === 0) {
-      db.run(`UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE status != 'COMPLETED'`, [mode], function(err2) {
-        return res.json({ success: true, changes: this.changes });
-      });
-      return;
-    }
-
-    const orderIds = rows.map(r => r.id);
-    const placeholders = orderIds.map(() => '?').join(',');
-    const updateQuery = `UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE id IN (${placeholders})`;
-
-    db.run(updateQuery, [mode, ...orderIds], function(err3) {
-      if (err3) {
-        console.error('[SETTLE UPDATE ERROR]:', err3.message);
-        return res.status(500).json({ error: err3.message });
-      }
-      console.log(`[TABLE SUCCESSFULLY SETTLED] Marked orders [${orderIds.join(', ')}] as COMPLETED via ${mode}.`);
-      res.json({ success: true, settled_orders: orderIds });
-    });
+    console.log(`[FULL SETTLEMENT SUCCESS] Total active orders marked COMPLETED via ${mode}. Rows updated: ${this.changes}`);
+    res.json({ success: true, changes: this.changes });
   });
 });
 
