@@ -450,7 +450,7 @@ app.get('/api/orders/active', (req, res) => {
   const query = `
     SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount
     FROM orders 
-    WHERE UPPER(status) NOT IN ('COMPLETED', 'NEEDS_APPROVAL', 'VOID')
+    WHERE UPPER(status) NOT IN ('COMPLETED', 'NEEDS_APPROVAL', 'VOID', 'DISPATCHED')
        OR UPPER(status) = 'RUNNING_TABLE'
        OR UPPER(status) = 'RUNNING'
        OR UPPER(status) = 'KOT_READY'
@@ -978,13 +978,13 @@ app.post('/api/printer/print-daily-summary', async (req, res) => {
   }
 });
 
-// UPDATED KOT API ROUTE WITHOUT PAID AMOUNT CHECK (FIXED)
+// UPDATED KOT API ROUTE WITH DISPATCHED & COMPLETED FILTER
 app.get('/api/kot', (req, res) => {
   db.all(
     `SELECT o.id, o.order_type, o.table_no, o.status, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
      FROM orders o 
-     WHERE o.status IN ('RUNNING_TABLE', 'DUE_PENDING', 'RUNNING', 'KOT_READY')
-       AND o.status != 'COMPLETED'
+     WHERE o.status IN ('RUNNING_TABLE', 'DUE_PENDING', 'RUNNING') 
+       AND o.status NOT IN ('COMPLETED', 'DISPATCHED', 'VOID')
      ORDER BY o.id ASC`,
     [],
     async (err, orders) => {
@@ -1015,18 +1015,11 @@ app.get('/api/kot', (req, res) => {
 
 app.post('/api/kot/:id/complete', (req, res) => {
   const orderId = req.params.id;
-  db.get("SELECT total, COALESCE(paid_amount, 0) as paid_amount, payment_mode, status FROM orders WHERE id = ?", [orderId], (err, order) => {
-    if (err || !order) return res.status(404).json({ error: 'Order not found' });
-
-    const total = Number(order.total) || 0;
-    const paid = Number(order.paid_amount) || 0;
-    const isFullyPaid = (paid >= total && total > 0);
-
-    if (isFullyPaid) {
-      db.run("UPDATE orders SET status = 'COMPLETED' WHERE id = ?", [orderId], () => res.json({ success: true }));
-    } else {
-      db.run("UPDATE orders SET status = 'KOT_READY' WHERE id = ?", [orderId], () => res.json({ success: true }));
-    }
+  // Kitchen se dispatch hote hi status 'DISPATCHED' kar do taaki KDS se turant hat jaye
+  db.run("UPDATE orders SET status = 'DISPATCHED' WHERE id = ?", [orderId], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    console.log(`[DISPATCH SUCCESS] Order #${orderId} dispatched from KDS.`);
+    res.json({ success: true });
   });
 });
 
@@ -1072,7 +1065,7 @@ app.get('/api/reports/analytics', (req, res) => {
       COALESCE(SUM(CASE WHEN payment_mode = 'DUE' OR status = 'DUE_PENDING' THEN total ELSE 0 END), 0) AS due_sales
     FROM orders 
     WHERE (created_at::date BETWEEN ?::date AND ?::date OR DATE(created_at) BETWEEN DATE(?) AND DATE(?))
-      AND status NOT IN ('RUNNING_TABLE', 'KOT_READY', 'NEEDS_APPROVAL')
+      AND status NOT IN ('RUNNING_TABLE', 'KOT_READY', 'NEEDS_APPROVAL', 'DISPATCHED')
   `;
 
   const expenseQuery = `
@@ -1088,7 +1081,7 @@ app.get('/api/reports/analytics', (req, res) => {
     FROM order_items oi
     JOIN orders o ON o.id = oi.order_id
     WHERE (o.created_at::date BETWEEN ?::date AND ?::date OR DATE(o.created_at) BETWEEN DATE(?) AND DATE(?))
-      AND o.status NOT IN ('RUNNING_TABLE', 'KOT_READY', 'NEEDS_APPROVAL')
+      AND o.status NOT IN ('RUNNING_TABLE', 'KOT_READY', 'NEEDS_APPROVAL', 'DISPATCHED')
     GROUP BY oi.name
     ORDER BY total_qty DESC
     LIMIT 10
@@ -1098,7 +1091,7 @@ app.get('/api/reports/analytics', (req, res) => {
     SELECT id, order_type, table_no, customer_name, customer_phone, payment_mode, status, subtotal, discount, gst, total, COALESCE(paid_amount, total) as paid_amount, created_at
     FROM orders 
     WHERE (created_at::date BETWEEN ?::date AND ?::date OR DATE(created_at) BETWEEN DATE(?) AND DATE(?))
-      AND status NOT IN ('RUNNING_TABLE', 'KOT_READY', 'NEEDS_APPROVAL')
+      AND status NOT IN ('RUNNING_TABLE', 'KOT_READY', 'NEEDS_APPROVAL', 'DISPATCHED')
     ORDER BY id DESC
   `;
 
@@ -1129,7 +1122,7 @@ app.get('/api/reports/analytics', (req, res) => {
             summary: summaryData,
             topItems: topItems || [],
             orders: fullOrdersList,
-            range: { start, end }
+            range: {start, end}
           });
         });
       });
