@@ -445,7 +445,7 @@ app.post('/api/orders/:id/assign-table', (req, res) => {
   );
 });
 
-// 7. ACTIVE ORDERS (POS par tab tak dikhega jab tak status COMPLETED ya VOID na ho jaye)
+// 7. ACTIVE ORDERS
 app.get('/api/orders/active', (req, res) => {
   const query = `
     SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount
@@ -785,26 +785,51 @@ app.post('/api/orders', async (req, res) => {
   });
 });
 
+// ROBUST SETTLEMENT ROUTE (Handles both Order ID and Table Number seamlessly)
 app.post('/api/tables/:id/settle', (req, res) => {
   const { payment_mode } = req.body;
-  const orderId = req.params.id;
+  const targetId = req.params.id;
   const mode = (payment_mode || 'Cash').toUpperCase();
 
-  db.get("SELECT * FROM orders WHERE id = ?", [orderId], (err, order) => {
-    if (err || !order) return res.status(404).json({ error: 'Order not found' });
+  // Check if targetId is a number (Order ID) or Table No (like T-1 or 1)
+  const isNumeric = /^\d+$/.test(targetId);
+
+  let findQuery = "";
+  let queryParam = [];
+
+  if (isNumeric) {
+    findQuery = "SELECT * FROM orders WHERE id = ? AND status != 'COMPLETED'";
+    queryParam = [targetId];
+  } else {
+    findQuery = "SELECT * FROM orders WHERE (table_no = ? OR table_no = ? OR order_type = ?) AND status != 'COMPLETED' ORDER BY id DESC LIMIT 1";
+    queryParam = [targetId, targetId.replace('T-', ''), targetId];
+  }
+
+  db.get(findQuery, queryParam, (err, order) => {
+    if (err || !order) {
+      // Fallback: try updating directly by ID if passed as parameter
+      db.run("UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE id = ?", [mode, targetId], function(errFallback) {
+        if (errFallback || this.changes === 0) {
+          return res.status(404).json({ error: 'Order not found for settlement' });
+        }
+        console.log(`[SUCCESSFULLY SETTLED FALLBACK] Order/Table #${targetId} marked COMPLETED via ${mode}.`);
+        return res.json({ success: true });
+      });
+      return;
+    }
     
     const total = Number(order.total) || 0;
+    const orderIdToSettle = order.id;
 
-    // Payment settle hote hi status 100% 'COMPLETED' kar do taaki table aur active queue se foran hat jaye
     db.run(
       "UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = ? WHERE id = ?",
-      [mode, total, orderId],
+      [mode, total, orderIdToSettle],
       (err2) => {
         if (err2) {
           console.error('[SETTLE ERROR]:', err2.message);
           return res.status(500).json({ error: err2.message });
         }
-        console.log(`[SUCCESSFULLY SETTLED] Order #${orderId} marked COMPLETED via ${mode}.`);
+        console.log(`[SUCCESSFULLY SETTLED] Order #${orderIdToSettle} marked COMPLETED via ${mode}.`);
         res.json({ success: true });
       }
     );
@@ -978,7 +1003,7 @@ app.post('/api/printer/print-daily-summary', async (req, res) => {
   }
 });
 
-// KDS API ROUTE (DISPATCHED ya COMPLETED orders kabhi wapas KDS par nahi aayenge)
+// KDS API ROUTE (DISPATCHED ya COMPLETED orders kabhi wapas nahi aayenge)
 app.get('/api/kot', (req, res) => {
   db.all(
     `SELECT o.id, o.order_type, o.table_no, o.status, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
@@ -1015,7 +1040,6 @@ app.get('/api/kot', (req, res) => {
 
 app.post('/api/kot/:id/complete', (req, res) => {
   const orderId = req.params.id;
-  // Kitchen se dispatch hone par status 'DISPATCHED' ho jayega taaki KDS se hamesha ke liye hat jaye aur wapas na aaye
   db.run("UPDATE orders SET status = 'DISPATCHED' WHERE id = ?", [orderId], (err) => {
     if (err) return res.status(500).json({ error: err.message });
     console.log(`[DISPATCH SUCCESS] Order #${orderId} permanently removed from KDS queue.`);
@@ -1091,7 +1115,7 @@ app.get('/api/reports/analytics', (req, res) => {
     SELECT id, order_type, table_no, customer_name, customer_phone, payment_mode, status, subtotal, discount, gst, total, COALESCE(paid_amount, total) as paid_amount, created_at
     FROM orders 
     WHERE (created_at::date BETWEEN ?::date AND ?::date OR DATE(created_at) BETWEEN DATE(?) AND DATE(?))
-      AND o.status = 'COMPLETED'
+      AND status = 'COMPLETED'
     ORDER BY id DESC
   `;
 
