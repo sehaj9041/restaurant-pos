@@ -785,32 +785,28 @@ app.post('/api/orders', async (req, res) => {
   });
 });
 
-// ROBUST SETTLEMENT ROUTE (Handles both Order ID and Table Number seamlessly)
+// ROBUST FIXED SETTLEMENT ROUTE (Handles both Order ID and Table ID/Name perfectly)
 app.post('/api/tables/:id/settle', (req, res) => {
   const { payment_mode } = req.body;
   const targetId = req.params.id;
   const mode = (payment_mode || 'Cash').toUpperCase();
 
-  // Check if targetId is a number (Order ID) or Table No (like T-1 or 1)
-  const isNumeric = /^\d+$/.test(targetId);
+  const cleanTbl = targetId.toString().trim();
+  const rawTblNum = cleanTbl.replace(/^T-?/i, '');
 
-  let findQuery = "";
-  let queryParam = [];
+  const findQuery = `
+    SELECT * FROM orders 
+    WHERE (id::text = ? OR table_no = ? OR table_no = ? OR table_no = ? OR order_type = ?) 
+      AND status != 'COMPLETED' 
+    ORDER BY id DESC 
+    LIMIT 1
+  `;
 
-  if (isNumeric) {
-    findQuery = "SELECT * FROM orders WHERE id = ? AND status != 'COMPLETED'";
-    queryParam = [targetId];
-  } else {
-    findQuery = "SELECT * FROM orders WHERE (table_no = ? OR table_no = ? OR order_type = ?) AND status != 'COMPLETED' ORDER BY id DESC LIMIT 1";
-    queryParam = [targetId, targetId.replace('T-', ''), targetId];
-  }
-
-  db.get(findQuery, queryParam, (err, order) => {
+  db.get(findQuery, [cleanTbl, cleanTbl, `T-${rawTblNum}`, rawTblNum, cleanTbl], (err, order) => {
     if (err || !order) {
-      // Fallback: try updating directly by ID if passed as parameter
-      db.run("UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE id = ?", [mode, targetId], function(errFallback) {
+      db.run("UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE id = ? OR table_no = ?", [mode, targetId, targetId], function(errFallback) {
         if (errFallback || this.changes === 0) {
-          return res.status(404).json({ error: 'Order not found for settlement' });
+          return res.status(404).json({ error: 'Active order not found for settlement' });
         }
         console.log(`[SUCCESSFULLY SETTLED FALLBACK] Order/Table #${targetId} marked COMPLETED via ${mode}.`);
         return res.json({ success: true });
@@ -826,7 +822,7 @@ app.post('/api/tables/:id/settle', (req, res) => {
       [mode, total, orderIdToSettle],
       (err2) => {
         if (err2) {
-          console.error('[SETTLE ERROR]:', err2.message);
+          console.error('[SETTLE ERROR DB]:', err2.message);
           return res.status(500).json({ error: err2.message });
         }
         console.log(`[SUCCESSFULLY SETTLED] Order #${orderIdToSettle} marked COMPLETED via ${mode}.`);
