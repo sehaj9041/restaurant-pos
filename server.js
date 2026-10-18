@@ -873,12 +873,32 @@ app.get('/api/kot', (req, res) => {
   );
 });
 
+// FIXED KDS COMPLETE (DISPATCH) ROUTE: Check if order is paid before letting it complete/settle automatically, or keep unpaid orders in pending/due state
 app.post('/api/kot/:id/complete', (req, res) => {
   const orderId = req.params.id;
-  db.run("UPDATE orders SET status = 'DISPATCHED' WHERE id = ?", [orderId], (err) => {
-    if (err) return res.status(500).json({ error: err.message });
-    console.log(`[DISPATCH SUCCESS] Order #${orderId} permanently removed from KDS queue.`);
-    res.json({ success: true });
+
+  // Pehle order ki payment check karo
+  db.get("SELECT total, COALESCE(paid_amount, 0) as paid_amount, payment_mode FROM orders WHERE id = ?", [orderId], (err, order) => {
+    if (err || !order) return res.status(404).json({ error: 'Order not found' });
+
+    const total = Number(order.total) || 0;
+    const paid = Number(order.paid_amount) || 0;
+    const mode = (order.payment_mode || '').toUpperCase();
+
+    // Agar order fully paid hai, tabhi COMPLETED/DISPATCHED hoga. 
+    // Agar unpaid/due hai, toh status 'COMPLETED' nahi hoga balki 'DUE_PENDING' (unpaid queue) rahega taaki settle na ho jaye.
+    let newStatus = 'DISPATCHED';
+    if (paid >= total && mode !== 'UNPAID' && mode !== 'DUE' && mode !== 'PAY_COUNTER') {
+      newStatus = 'DISPATCHED'; // KDS se hat jayega kyunki status DISPATCHED ho gaya
+    } else {
+      newStatus = 'DUE_PENDING'; // Unpaid orders KDS se hatne par DUE/UNPAID queue mein chale jayenge aur settle nahi honge
+    }
+
+    db.run("UPDATE orders SET status = ? WHERE id = ?", [newStatus, orderId], (err2) => {
+      if (err2) return res.status(500).json({ error: err2.message });
+      console.log(`[KDS DISPATCH] Order #${orderId} processed with status: ${newStatus}`);
+      res.json({ success: true });
+    });
   });
 });
 
