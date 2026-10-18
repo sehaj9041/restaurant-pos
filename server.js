@@ -445,7 +445,7 @@ app.post('/api/orders/:id/assign-table', (req, res) => {
   );
 });
 
-// 7. ACTIVE ORDERS (Yeh POS par tab tak dikhega jab tak settle ya COMPLETED na ho jaye, chahe DISPATCH ho chuka ho)
+// 7. ACTIVE ORDERS (POS par tab tak dikhega jab tak status COMPLETED ya VOID na ho jaye)
 app.get('/api/orders/active', (req, res) => {
   const query = `
     SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount
@@ -795,6 +795,7 @@ app.post('/api/tables/:id/settle', (req, res) => {
     
     const total = Number(order.total) || 0;
 
+    // Payment settle hote hi status 100% 'COMPLETED' kar do taaki table aur active queue se foran hat jaye
     db.run(
       "UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = ? WHERE id = ?",
       [mode, total, orderId],
@@ -977,7 +978,7 @@ app.post('/api/printer/print-daily-summary', async (req, res) => {
   }
 });
 
-// KDS API ROUTE (DISPATCHED orders hat jayenge, baaki active rahenge)
+// KDS API ROUTE (DISPATCHED ya COMPLETED orders kabhi wapas KDS par nahi aayenge)
 app.get('/api/kot', (req, res) => {
   db.all(
     `SELECT o.id, o.order_type, o.table_no, o.status, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
@@ -1014,10 +1015,10 @@ app.get('/api/kot', (req, res) => {
 
 app.post('/api/kot/:id/complete', (req, res) => {
   const orderId = req.params.id;
-  // Kitchen se dispatch hone par status 'DISPATCHED' hoga taaki KDS se hat jaye, par POS active queue mein rahega
+  // Kitchen se dispatch hone par status 'DISPATCHED' ho jayega taaki KDS se hamesha ke liye hat jaye aur wapas na aaye
   db.run("UPDATE orders SET status = 'DISPATCHED' WHERE id = ?", [orderId], (err) => {
     if (err) return res.status(500).json({ error: err.message });
-    console.log(`[DISPATCH SUCCESS] Order #${orderId} dispatched from KDS (Pending payment settlement).`);
+    console.log(`[DISPATCH SUCCESS] Order #${orderId} permanently removed from KDS queue.`);
     res.json({ success: true });
   });
 });
@@ -1064,7 +1065,7 @@ app.get('/api/reports/analytics', (req, res) => {
       COALESCE(SUM(CASE WHEN payment_mode = 'DUE' OR status = 'DUE_PENDING' THEN total ELSE 0 END), 0) AS due_sales
     FROM orders 
     WHERE (created_at::date BETWEEN ?::date AND ?::date OR DATE(created_at) BETWEEN DATE(?) AND DATE(?))
-      AND status NOT IN ('RUNNING_TABLE', 'KOT_READY', 'NEEDS_APPROVAL', 'DISPATCHED')
+      AND status = 'COMPLETED'
   `;
 
   const expenseQuery = `
@@ -1080,7 +1081,7 @@ app.get('/api/reports/analytics', (req, res) => {
     FROM order_items oi
     JOIN orders o ON o.id = oi.order_id
     WHERE (o.created_at::date BETWEEN ?::date AND ?::date OR DATE(o.created_at) BETWEEN DATE(?) AND DATE(?))
-      AND o.status NOT IN ('RUNNING_TABLE', 'KOT_READY', 'NEEDS_APPROVAL', 'DISPATCHED')
+      AND o.status = 'COMPLETED'
     GROUP BY oi.name
     ORDER BY total_qty DESC
     LIMIT 10
@@ -1090,7 +1091,7 @@ app.get('/api/reports/analytics', (req, res) => {
     SELECT id, order_type, table_no, customer_name, customer_phone, payment_mode, status, subtotal, discount, gst, total, COALESCE(paid_amount, total) as paid_amount, created_at
     FROM orders 
     WHERE (created_at::date BETWEEN ?::date AND ?::date OR DATE(created_at) BETWEEN DATE(?) AND DATE(?))
-      AND status NOT IN ('RUNNING_TABLE', 'KOT_READY', 'NEEDS_APPROVAL', 'DISPATCHED')
+      AND o.status = 'COMPLETED'
     ORDER BY id DESC
   `;
 
