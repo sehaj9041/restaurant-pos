@@ -779,7 +779,7 @@ app.post('/api/orders', async (req, res) => {
   });
 });
 
-// BULLETPROOF SETTLEMENT ROUTE (Strictly marks COMPLETED and clears from active/KDS queues)
+// FULL TABLE SETTLEMENT ROUTE (Marks all active orders for this table/ID as COMPLETED)
 app.post('/api/tables/:id/settle', (req, res) => {
   const { payment_mode } = req.body;
   const targetId = req.params.id;
@@ -788,42 +788,21 @@ app.post('/api/tables/:id/settle', (req, res) => {
   const cleanTbl = targetId.toString().trim();
   const rawTblNum = cleanTbl.replace(/^T-?/i, '');
 
-  const findQuery = `
-    SELECT * FROM orders 
-    WHERE (id::text = ? OR table_no = ? OR table_no = ? OR table_no = ? OR order_type = ?) 
-      AND status != 'COMPLETED' 
-    ORDER BY id DESC 
-    LIMIT 1
-  `;
-
-  db.get(findQuery, [cleanTbl, cleanTbl, `T-${rawTblNum}`, rawTblNum, cleanTbl], (err, order) => {
-    if (err || !order) {
-      db.run("UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE id::text = ? OR table_no = ? OR table_no = ?", [mode, cleanTbl, cleanTbl, rawTblNum], function(errFallback) {
-        if (errFallback || this.changes === 0) {
-          return res.status(404).json({ error: 'Active order not found for settlement' });
-        }
-        console.log(`[SUCCESSFULLY SETTLED FALLBACK] Order/Table #${targetId} marked COMPLETED via ${mode}.`);
-        return res.json({ success: true });
-      });
-      return;
-    }
-    
-    const total = Number(order.total) || 0;
-    const orderIdToSettle = order.id;
-
-    db.run(
-      "UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = ? WHERE id = ?",
-      [mode, total, orderIdToSettle],
-      (err2) => {
-        if (err2) {
-          console.error('[SETTLE ERROR DB]:', err2.message);
-          return res.status(500).json({ error: err2.message });
-        }
-        console.log(`[SUCCESSFULLY SETTLED] Order #${orderIdToSettle} marked COMPLETED via ${mode}.`);
-        res.json({ success: true });
+  db.run(
+    `UPDATE orders 
+     SET status = 'COMPLETED', payment_mode = ?, paid_amount = total 
+     WHERE (id::text = ? OR table_no = ? OR table_no = ? OR table_no = ? OR order_type = ?) 
+       AND status != 'COMPLETED'`,
+    [mode, cleanTbl, cleanTbl, `T-${rawTblNum}`, rawTblNum, cleanTbl],
+    function (err) {
+      if (err) {
+        console.error('[SETTLE ERROR DB]:', err.message);
+        return res.status(500).json({ error: err.message });
       }
-    );
-  });
+      console.log(`[TABLE FULLY SETTLED] All active orders for Table/ID #${targetId} marked COMPLETED via ${mode}.`);
+      res.json({ success: true, changes: this.changes });
+    }
+  );
 });
 
 app.post('/api/orders/:id/mark-due', (req, res) => {
@@ -838,7 +817,7 @@ app.post('/api/orders/:id/mark-due', (req, res) => {
   );
 });
 
-// ================= KDS API ROUTE (STRICT FILTER: Completed/Dispatched orders will never come back) =================
+// ================= KDS API ROUTE (STRICT FILTER) =================
 app.get('/api/kot', (req, res) => {
   db.all(
     `SELECT o.id, o.order_type, o.table_no, o.status, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
@@ -873,11 +852,9 @@ app.get('/api/kot', (req, res) => {
   );
 });
 
-// FIXED KDS COMPLETE (DISPATCH) ROUTE: Check if order is paid before letting it complete/settle automatically, or keep unpaid orders in pending/due state
 app.post('/api/kot/:id/complete', (req, res) => {
   const orderId = req.params.id;
 
-  // Pehle order ki payment check karo
   db.get("SELECT total, COALESCE(paid_amount, 0) as paid_amount, payment_mode FROM orders WHERE id = ?", [orderId], (err, order) => {
     if (err || !order) return res.status(404).json({ error: 'Order not found' });
 
@@ -885,13 +862,11 @@ app.post('/api/kot/:id/complete', (req, res) => {
     const paid = Number(order.paid_amount) || 0;
     const mode = (order.payment_mode || '').toUpperCase();
 
-    // Agar order fully paid hai, tabhi COMPLETED/DISPATCHED hoga. 
-    // Agar unpaid/due hai, toh status 'COMPLETED' nahi hoga balki 'DUE_PENDING' (unpaid queue) rahega taaki settle na ho jaye.
     let newStatus = 'DISPATCHED';
     if (paid >= total && mode !== 'UNPAID' && mode !== 'DUE' && mode !== 'PAY_COUNTER') {
-      newStatus = 'DISPATCHED'; // KDS se hat jayega kyunki status DISPATCHED ho gaya
+      newStatus = 'DISPATCHED';
     } else {
-      newStatus = 'DUE_PENDING'; // Unpaid orders KDS se hatne par DUE/UNPAID queue mein chale jayenge aur settle nahi honge
+      newStatus = 'DUE_PENDING';
     }
 
     db.run("UPDATE orders SET status = ? WHERE id = ?", [newStatus, orderId], (err2) => {
