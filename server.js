@@ -821,10 +821,10 @@ app.post('/api/tables/:id/settle', (req, res) => {
 
   console.log(`[SETTLE REQUEST] Settling table/order #${targetId} via ${mode}`);
 
-  // Sirf payment update karo, status ko 'COMPLETED' mat karo aur na hi order delete karo
-  // Taaki order KDS par tab tak dikhta rahe jab tak chef khud use dispatch/complete na kar de.
+  // FIX: Payment update karo, aur table ko free karne ke liye table_no ko blank ya clear kar do 
+  // taaki POS screen par table free dikhe, par status RUNNING_TABLE rahe taaki KDS par dikhta rahe.
   db.run(
-    `UPDATE orders SET payment_mode = ?, paid_amount = total WHERE id = ? OR table_no = ?`,
+    `UPDATE orders SET payment_mode = ?, paid_amount = total, table_no = '' WHERE id = ? OR table_no = ?`,
     [mode, targetId, targetId],
     function (err) {
       if (err) {
@@ -832,7 +832,7 @@ app.post('/api/tables/:id/settle', (req, res) => {
         return res.status(500).json({ error: err.message });
       }
 
-      console.log(`[SETTLE SUCCESS] Payment updated for table/order #${targetId} via ${mode}. Order remains active on KDS.`);
+      console.log(`[SETTLE SUCCESS] Payment updated and table freed for #${targetId} via ${mode}.`);
       res.json({ success: true, changes: this.changes });
     }
   );
