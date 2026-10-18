@@ -620,18 +620,31 @@
       });
     }
 
-  function fetchKOT() {
+ function fetchKOT() {
       fetch('/api/kot')
         .then(function(res) { return res.json(); })
         .then(function(orders) {
-          // Billed, completed ya void ho chuke orders ko KDS se hatane ke liye filter
+          // AAKHRI FIX: Agar server se empty ya settled list aayi hai, toh local storage ka kachra saaf kar do
+          if (!orders || orders.length === 0) {
+            localStorage.removeItem('kot_order_snapshots');
+            localStorage.removeItem('kot_checked_items');
+            localStorage.removeItem('kot_alert_badges');
+            localStorage.removeItem('kot_ready_dispatch');
+            liveOrdersData = [];
+            document.getElementById('pendingCount').innerText = '0 Pending';
+            renderKOTCards();
+            return;
+          }
+          
           var pendingOrders = (orders || []).filter(function(o) {
             var st = (o.status || '').toUpperCase();
             return st !== 'BILLED' && st !== 'COMPLETED' && st !== 'VOID' && st !== 'DISPATCHED';
           });
-
+          
           liveOrdersData = pendingOrders;
           document.getElementById('pendingCount').innerText = liveOrdersData.length + ' Pending';
+          
+          // Baaki ka sara purana logic wahi rahega...
 
           var snapshots = getStoredSnapshots();
           var persistentBadges = getAlertBadges();
