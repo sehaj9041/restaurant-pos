@@ -821,13 +821,13 @@ app.post('/api/tables/:id/settle', (req, res) => {
 
   console.log(`[SETTLE REQUEST] Settling table target ID/No: ${targetId} via ${mode}`);
 
-  // Step 1: Pehle pata lagao ki kya yeh targetId floor_tables ki ID hai, taaki uska table_no mil sake
   db.get("SELECT table_no FROM floor_tables WHERE id = ? OR table_no = ?", [targetId, targetId], (err, tableRow) => {
     const actualTableNo = tableRow ? tableRow.table_no : targetId;
 
-    // Step 2: Ab us table_no ya order id ke saare active orders ko COMPLETED kar do taaki table turant free ho jaye
+    // FIX: Status COMPLETED karo, payment update karo, AUR table_no ko blank kar do 
+    // taaki frontend ki active orders list mein wo table match na kare aur table turant green (free) ho jaye!
     db.run(
-      `UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE (table_no = ? OR id = ?) AND status != 'COMPLETED'`,
+      `UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total, table_no = '' WHERE (table_no = ? OR id = ?) AND status != 'COMPLETED'`,
       [mode, actualTableNo, targetId],
       function (err2) {
         if (err2) {
@@ -835,7 +835,7 @@ app.post('/api/tables/:id/settle', (req, res) => {
           return res.status(500).json({ error: err2.message });
         }
 
-        console.log(`[SETTLE SUCCESS] Table ${actualTableNo} settled successfully. Orders updated: ${this.changes}`);
+        console.log(`[SETTLE SUCCESS] Table ${actualTableNo} settled and freed. Orders updated: ${this.changes}`);
         res.json({ success: true, changes: this.changes });
       }
     );
