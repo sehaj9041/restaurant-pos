@@ -811,6 +811,7 @@ app.post('/api/orders', async (req, res) => {
 });
 
 // ================= FULL TABLE SETTLEMENT ROUTE (FOOLPROOF FIX) =================
+// ================= FULL TABLE SETTLEMENT ROUTE (FOOLPROOF FIX) =================
 app.post('/api/tables/:id/settle', (req, res) => {
   const { payment_mode } = req.body;
   const targetId = req.params.id;
@@ -818,27 +819,26 @@ app.post('/api/tables/:id/settle', (req, res) => {
 
   console.log(`[SETTLE REQUEST] Settling table/order #${targetId} via ${mode}`);
 
-  // Step 1: Mark all running or active table/takeaway orders as COMPLETED
+  // Step 1: Mark the target running/active table order as COMPLETED
   db.run(
-    `UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE status != 'COMPLETED' AND status != 'DISPATCHED' AND status != 'VOID'`,
-    [mode],
+    `UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE id = ? OR table_no = ? AND status != 'COMPLETED'`,
+    [mode, targetId, targetId],
     function (err) {
       if (err) {
         console.error('[SETTLE UPDATE ERROR]:', err.message);
         return res.status(500).json({ error: err.message });
       }
 
-      // Step 2: Permanently delete completed orders so KDS SQL query can never fetch them again
-      db.run(`DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE status = 'COMPLETED')`, [], () => {
+      // Step 2: Clean up items and completed orders instantly so KDS never fetches them again
+      db.run(`DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE status = 'COMPLETED' AND payment_mode != 'DUE')`, [], () => {
         db.run(`DELETE FROM orders WHERE status = 'COMPLETED' AND payment_mode != 'DUE'`, [], () => {
-          console.log(`[PERMANENT CLEANUP] Settled orders completely wiped from active database.`);
+          console.log(`[PERMANENT CLEANUP] Settled order/table completely wiped from active database.`);
           res.json({ success: true, changes: this.changes });
         });
       });
     }
   );
 });
-
 app.post('/api/orders/:id/mark-due', (req, res) => {
   const orderId = req.params.id;
   db.run(
