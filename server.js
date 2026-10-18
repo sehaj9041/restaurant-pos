@@ -978,14 +978,13 @@ app.post('/api/printer/print-daily-summary', async (req, res) => {
   }
 });
 
-// UPDATED KOT API ROUTE WITH COMPLETED & PAID FILTER
+// UPDATED KOT API ROUTE WITHOUT PAID AMOUNT CHECK (FIXED)
 app.get('/api/kot', (req, res) => {
   db.all(
     `SELECT o.id, o.order_type, o.table_no, o.status, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
      FROM orders o 
      WHERE o.status IN ('RUNNING_TABLE', 'DUE_PENDING', 'RUNNING', 'KOT_READY')
        AND o.status != 'COMPLETED'
-       AND (o.paid_amount < o.total OR o.payment_mode = 'DUE')
      ORDER BY o.id ASC`,
     [],
     async (err, orders) => {
