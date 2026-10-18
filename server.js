@@ -782,29 +782,33 @@ app.post('/api/orders', async (req, res) => {
 // FULL TABLE SETTLEMENT ROUTE (Ultimate Foolproof Blanket Update)
 // FULL TABLE SETTLEMENT ROUTE (Ultimate Fix: Deletes/Completes active orders so they vanish from KDS forever)
 // ULTIMATE SETTLEMENT ROUTE: Dine-in ho ya Takeaway, settle hote hi KDS se hamesha ke liye gayab
+// HARDCORE SETTLE ROUTE: Table settle hote hi order ko database se hata do taaki KDS par kabhi na dikhe
 app.post('/api/tables/:id/settle', (req, res) => {
   const { payment_mode } = req.body;
   const targetId = req.params.id;
   const mode = (payment_mode || 'Cash').toUpperCase();
 
-  const cleanTbl = targetId ? targetId.toString().trim() : '';
+  console.log(`[HARDCORE SETTLE] Settling table/order #${targetId} via ${mode}`);
 
-  // Yeh query table reference, table ID, ya kisi bhi active order ko ek hi jhatke mein COMPLETED aur DISPATCHED kar degi
-  const settleQuery = `
-    UPDATE orders 
-    SET status = 'COMPLETED', payment_mode = ?, paid_amount = total 
-    WHERE (CAST(id AS TEXT) = ? OR table_no = ? OR order_type ILIKE ?) 
-       OR (status != 'COMPLETED' AND status != 'DISPATCHED')
-  `;
+  // Step 1: Mark all running table orders as COMPLETED
+  db.run(
+    `UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE status = 'RUNNING_TABLE'`,
+    [mode],
+    function (err) {
+      if (err) {
+        console.error('[SETTLE UPDATE ERROR]:', err.message);
+        return res.status(500).json({ error: err.message });
+      }
 
-  db.run(settleQuery, [mode, cleanTbl, cleanTbl, `%${cleanTbl}%`], function (err) {
-    if (err) {
-      console.error('[UNIVERSAL SETTLE ERROR]:', err.message);
-      return res.status(500).json({ error: err.message });
+      // Step 2: Permanently delete completed orders so KDS SQL query can never fetch them again
+      db.run(`DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE status = 'COMPLETED')`, [], () => {
+        db.run(`DELETE FROM orders WHERE status = 'COMPLETED' AND payment_mode != 'DUE'`, [], () => {
+          console.log(`[PERMANENT CLEANUP] Settled orders completely wiped from active database.`);
+          res.json({ success: true, changes: this.changes });
+        });
+      });
     }
-    console.log(`[SETTLEMENT SUCCESS] All active/ready orders cleared from KDS via ${mode}. Rows updated: ${this.changes}`);
-    res.json({ success: true, changes: this.changes });
-  });
+  );
 });
 
 app.post('/api/orders/:id/mark-due', (req, res) => {
@@ -820,45 +824,41 @@ app.post('/api/orders/:id/mark-due', (req, res) => {
 });
 
 // ================= KDS API ROUTE (STRICT FILTER) =================
+// HARDCORE KOT ROUTE: Sirf wahi orders aayenge jo 100% active hain aur jinka status COMPLETED nahi hai
 app.get('/api/kot', (req, res) => {
-  db.all(
-    `SELECT o.id, o.order_type, o.table_no, o.status, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
-     FROM orders o 
-     WHERE UPPER(o.status) = 'RUNNING_TABLE' 
-       AND UPPER(o.status) NOT IN ('COMPLETED', 'DISPATCHED', 'VOID', 'NEEDS_APPROVAL')
-     ORDER BY o.id ASC`,
-    [],
-    async (err, orders) => {
-      if (err) {
-        console.error('KOT error:', err.message);
-        return res.json([]);
-      }
-      
-      const activeOrders = (orders || []).filter(o => {
-        const st = (o.status || '').toUpperCase();
-        return st === 'RUNNING_TABLE';
-      });
+  const query = `
+    SELECT o.id, o.order_type, o.table_no, o.status, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
+    FROM orders o 
+    WHERE UPPER(o.status) = 'RUNNING_TABLE'
+      AND UPPER(o.status) NOT IN ('COMPLETED', 'DISPATCHED', 'VOID', 'BILLED', 'DUE_PENDING', 'NEEDS_APPROVAL')
+    ORDER BY o.id ASC
+  `;
 
-      if (activeOrders.length === 0) {
-        return res.json([]);
-      }
-
-      try {
-        const fullOrders = await Promise.all(
-          activeOrders.map(order => {
-            return new Promise((resolve) => {
-              db.all('SELECT id, name, qty, notes FROM order_items WHERE order_id = ? ORDER BY id ASC', [order.id], (err2, items) => {
-                resolve({ ...order, items: items || [] });
-              });
-            });
-          })
-        );
-        res.json(fullOrders);
-      } catch (e) {
-        res.json(activeOrders.map(o => ({ ...o, items: [] })));
-      }
+  db.all(query, [], async (err, orders) => {
+    if (err) {
+      console.error('KOT fetch error:', err.message);
+      return res.json([]);
     }
-  );
+
+    if (!orders || orders.length === 0) {
+      return res.json([]);
+    }
+
+    try {
+      const fullOrders = await Promise.all(
+        orders.map(order => {
+          return new Promise((resolve) => {
+            db.all('SELECT id, name, qty, notes FROM order_items WHERE order_id = ? ORDER BY id ASC', [order.id], (err2, items) => {
+              resolve({ ...order, items: items || [] });
+            });
+          });
+        })
+      );
+      res.json(fullOrders);
+    } catch (e) {
+      res.json(orders.map(o => ({ ...o, items: [] })));
+    }
+  });
 });
 
 app.post('/api/kot/:id/complete', (req, res) => {
