@@ -141,6 +141,63 @@ const triggerDrawerKick = (req, res) => {
 app.post('/api/drawer/open', triggerDrawerKick);
 app.post('/api/open-drawer', triggerDrawerKick);
 
+// ================= KDS IP PRINTER ROUTE (FIXED) =================
+app.post('/api/print-ip', (req, res) => {
+  const { printer_ip, order_id, table, qty, item_name, addons, time } = req.body;
+  
+  if (!printer_ip) {
+    return res.status(400).json({ success: false, error: 'Printer IP is required' });
+  }
+
+  const client = new net.Socket();
+  const PORT = 9100;
+
+  client.setTimeout(3000);
+
+  client.connect(PORT, printer_ip, () => {
+    let ESC = '\x1B';
+    let GS = '\x1D';
+    let INIT = ESC + '@';
+    let BOLD_ON = ESC + 'E\x01';
+    let BOLD_OFF = ESC + 'E\x00';
+    let CENTER = ESC + 'a\x01';
+    let LEFT = ESC + 'a\x00';
+    let CUT = GS + 'V\x41\x03';
+
+    let printData = INIT +
+      CENTER + BOLD_ON + '** ITEM READY TOKEN **\n' + BOLD_OFF +
+      '--------------------------------\n' +
+      LEFT +
+      `Order ID : #${order_id}\n` +
+      `Table/Type: ${table}\n` +
+      `Time     : ${time}\n` +
+      '--------------------------------\n' +
+      CENTER + BOLD_ON +
+      `\nQTY: [ ${qty} ]  ${item_name}\n` +
+      (addons ? `Addons: ${addons}\n` : '') +
+      BOLD_OFF + '\n' +
+      '--------------------------------\n' +
+      CENTER + 'Kitchen Dispatch Slip\n\n\n' +
+      CUT;
+
+    client.write(printData, () => {
+      client.destroy();
+      res.json({ success: true });
+    });
+  });
+
+  client.on('error', (err) => {
+    client.destroy();
+    console.error('[PRINTER IP ERROR]:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  });
+
+  client.on('timeout', () => {
+    client.destroy();
+    res.status(500).json({ success: false, error: 'Printer connection timeout' });
+  });
+});
+
 // 3. INTERACTIVE FLOOR PLAN APIS
 app.get('/api/floor-tables', (req, res) => {
   db.all("SELECT * FROM floor_tables ORDER BY id ASC", [], async (err, rows) => {
@@ -779,20 +836,17 @@ app.post('/api/orders', async (req, res) => {
   });
 });
 
-// FULL TABLE SETTLEMENT ROUTE (Ultimate Foolproof Blanket Update)
-// FULL TABLE SETTLEMENT ROUTE (Ultimate Fix: Deletes/Completes active orders so they vanish from KDS forever)
-// ULTIMATE SETTLEMENT ROUTE: Dine-in ho ya Takeaway, settle hote hi KDS se hamesha ke liye gayab
-// HARDCORE SETTLE ROUTE: Table settle hote hi order ko database se hata do taaki KDS par kabhi na dikhe
+// ================= FULL TABLE SETTLEMENT ROUTE (FOOLPROOF FIX) =================
 app.post('/api/tables/:id/settle', (req, res) => {
   const { payment_mode } = req.body;
   const targetId = req.params.id;
   const mode = (payment_mode || 'Cash').toUpperCase();
 
-  console.log(`[HARDCORE SETTLE] Settling table/order #${targetId} via ${mode}`);
+  console.log(`[SETTLE REQUEST] Settling table/order #${targetId} via ${mode}`);
 
-  // Step 1: Mark all running table orders as COMPLETED
+  // Step 1: Mark all running or active table/takeaway orders as COMPLETED
   db.run(
-    `UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE status = 'RUNNING_TABLE'`,
+    `UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE status != 'COMPLETED' AND status != 'DISPATCHED' AND status != 'VOID'`,
     [mode],
     function (err) {
       if (err) {
@@ -824,7 +878,6 @@ app.post('/api/orders/:id/mark-due', (req, res) => {
 });
 
 // ================= KDS API ROUTE (STRICT FILTER) =================
-// HARDCORE KOT ROUTE: Sirf wahi orders aayenge jo 100% active hain aur jinka status COMPLETED nahi hai
 app.get('/api/kot', (req, res) => {
   const query = `
     SELECT o.id, o.order_type, o.table_no, o.status, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
