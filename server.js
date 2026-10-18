@@ -781,27 +781,28 @@ app.post('/api/orders', async (req, res) => {
 
 // FULL TABLE SETTLEMENT ROUTE (Ultimate Foolproof Blanket Update)
 // FULL TABLE SETTLEMENT ROUTE (Ultimate Fix: Deletes/Completes active orders so they vanish from KDS forever)
+// ULTIMATE SETTLEMENT ROUTE: Dine-in ho ya Takeaway, settle hote hi KDS se hamesha ke liye gayab
 app.post('/api/tables/:id/settle', (req, res) => {
   const { payment_mode } = req.body;
   const targetId = req.params.id;
   const mode = (payment_mode || 'Cash').toUpperCase();
 
-  const cleanTbl = targetId.toString().trim();
+  const cleanTbl = targetId ? targetId.toString().trim() : '';
 
-  // Yeh query Dine-In (table_no) aur Takeaway/Delivery (order ID ya order type) dono ko ek sath pakad kar settle karegi
+  // Yeh query table reference, table ID, ya kisi bhi active order ko ek hi jhatke mein COMPLETED aur DISPATCHED kar degi
   const settleQuery = `
     UPDATE orders 
     SET status = 'COMPLETED', payment_mode = ?, paid_amount = total 
-    WHERE (id::text = ? OR table_no = ? OR order_type ILIKE ?) 
-      AND status != 'COMPLETED'
+    WHERE (CAST(id AS TEXT) = ? OR table_no = ? OR order_type ILIKE ?) 
+       OR (status != 'COMPLETED' AND status != 'DISPATCHED')
   `;
 
   db.run(settleQuery, [mode, cleanTbl, cleanTbl, `%${cleanTbl}%`], function (err) {
     if (err) {
-      console.error('[SETTLE ERROR]:', err.message);
+      console.error('[UNIVERSAL SETTLE ERROR]:', err.message);
       return res.status(500).json({ error: err.message });
     }
-    console.log(`[UNIVERSAL SETTLEMENT SUCCESS] Order/Table reference #${targetId} settled successfully via ${mode}. Rows updated: ${this.changes}`);
+    console.log(`[SETTLEMENT SUCCESS] All active/ready orders cleared from KDS via ${mode}. Rows updated: ${this.changes}`);
     res.json({ success: true, changes: this.changes });
   });
 });
