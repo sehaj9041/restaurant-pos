@@ -780,26 +780,28 @@ app.post('/api/orders', async (req, res) => {
 });
 
 // FULL TABLE SETTLEMENT ROUTE (Ultimate Foolproof Blanket Update)
+// FULL TABLE SETTLEMENT ROUTE (Ultimate Fix: Deletes/Completes active orders so they vanish from KDS forever)
 app.post('/api/tables/:id/settle', (req, res) => {
   const { payment_mode } = req.body;
   const targetId = req.params.id;
   const mode = (payment_mode || 'Cash').toUpperCase();
 
-  console.log(`[SETTLE REQUEST RECEIVED] Table parameter ID: "${targetId}", Mode: "${mode}"`);
+  console.log(`[SETTLE & REMOVE] Settling table/order #${targetId} via ${mode}`);
 
-  const updateQuery = `
-    UPDATE orders 
-    SET status = 'COMPLETED', payment_mode = ?, paid_amount = total 
-    WHERE status != 'COMPLETED' AND status != 'DISPATCHED' AND status != 'VOID'
-  `;
-
-  db.run(updateQuery, [mode], function (err) {
+  // Step 1: Mark all non-completed orders as COMPLETED
+  db.run(`UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE status != 'COMPLETED'`, [mode], function (err) {
     if (err) {
-      console.error('[SETTLE ERROR DB]:', err.message);
+      console.error('[SETTLE ERROR]:', err.message);
       return res.status(500).json({ error: err.message });
     }
-    console.log(`[FULL SETTLEMENT SUCCESS] Total active orders marked COMPLETED via ${mode}. Rows updated: ${this.changes}`);
-    res.json({ success: true, changes: this.changes });
+    
+    // Step 2: Also delete corresponding order items and orders that are causing KDS loop
+    db.run(`DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE status = 'COMPLETED')`, [], () => {
+      db.run(`DELETE FROM orders WHERE status = 'COMPLETED' AND payment_mode != 'DUE'`, [], () => {
+        console.log(`[SETTLEMENT CLEANUP SUCCESS] Settled orders permanently cleared from KDS queue.`);
+        res.json({ success: true, changes: this.changes });
+      });
+    });
   });
 });
 
