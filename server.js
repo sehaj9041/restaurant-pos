@@ -786,22 +786,23 @@ app.post('/api/tables/:id/settle', (req, res) => {
   const targetId = req.params.id;
   const mode = (payment_mode || 'Cash').toUpperCase();
 
-  console.log(`[SETTLE & REMOVE] Settling table/order #${targetId} via ${mode}`);
+  const cleanTbl = targetId.toString().trim();
 
-  // Step 1: Mark all non-completed orders as COMPLETED
-  db.run(`UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE status != 'COMPLETED'`, [mode], function (err) {
+  // Yeh query Dine-In (table_no) aur Takeaway/Delivery (order ID ya order type) dono ko ek sath pakad kar settle karegi
+  const settleQuery = `
+    UPDATE orders 
+    SET status = 'COMPLETED', payment_mode = ?, paid_amount = total 
+    WHERE (id::text = ? OR table_no = ? OR order_type ILIKE ?) 
+      AND status != 'COMPLETED'
+  `;
+
+  db.run(settleQuery, [mode, cleanTbl, cleanTbl, `%${cleanTbl}%`], function (err) {
     if (err) {
       console.error('[SETTLE ERROR]:', err.message);
       return res.status(500).json({ error: err.message });
     }
-    
-    // Step 2: Also delete corresponding order items and orders that are causing KDS loop
-    db.run(`DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE status = 'COMPLETED')`, [], () => {
-      db.run(`DELETE FROM orders WHERE status = 'COMPLETED' AND payment_mode != 'DUE'`, [], () => {
-        console.log(`[SETTLEMENT CLEANUP SUCCESS] Settled orders permanently cleared from KDS queue.`);
-        res.json({ success: true, changes: this.changes });
-      });
-    });
+    console.log(`[UNIVERSAL SETTLEMENT SUCCESS] Order/Table reference #${targetId} settled successfully via ${mode}. Rows updated: ${this.changes}`);
+    res.json({ success: true, changes: this.changes });
   });
 });
 
