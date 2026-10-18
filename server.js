@@ -822,8 +822,8 @@ app.get('/api/kot', (req, res) => {
   db.all(
     `SELECT o.id, o.order_type, o.table_no, o.status, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
      FROM orders o 
-     WHERE o.status = 'RUNNING_TABLE' 
-       AND o.status NOT IN ('COMPLETED', 'DISPATCHED', 'VOID', 'NEEDS_APPROVAL')
+     WHERE UPPER(o.status) = 'RUNNING_TABLE' 
+       AND UPPER(o.status) NOT IN ('COMPLETED', 'DISPATCHED', 'VOID', 'NEEDS_APPROVAL')
      ORDER BY o.id ASC`,
     [],
     async (err, orders) => {
@@ -831,12 +831,19 @@ app.get('/api/kot', (req, res) => {
         console.error('KOT error:', err.message);
         return res.json([]);
       }
-      if (!orders || orders.length === 0) {
+      
+      const activeOrders = (orders || []).filter(o => {
+        const st = (o.status || '').toUpperCase();
+        return st === 'RUNNING_TABLE';
+      });
+
+      if (activeOrders.length === 0) {
         return res.json([]);
       }
+
       try {
         const fullOrders = await Promise.all(
-          orders.map(order => {
+          activeOrders.map(order => {
             return new Promise((resolve) => {
               db.all('SELECT id, name, qty, notes FROM order_items WHERE order_id = ? ORDER BY id ASC', [order.id], (err2, items) => {
                 resolve({ ...order, items: items || [] });
@@ -846,7 +853,7 @@ app.get('/api/kot', (req, res) => {
         );
         res.json(fullOrders);
       } catch (e) {
-        res.json(orders.map(o => ({ ...o, items: [] })));
+        res.json(activeOrders.map(o => ({ ...o, items: [] })));
       }
     }
   );
