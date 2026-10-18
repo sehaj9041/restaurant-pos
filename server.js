@@ -634,23 +634,26 @@ app.get('/api/orders/history', (req, res) => {
   });
 });
 
-// FIXED PUT SETTLEMENT & UPDATE ROUTE
+// ROBUST FIXED PUT ROUTE (Keeps status safe & prevents order from disappearing when adding items)
 app.put('/api/orders/:id', (req, res) => {
   const orderId = req.params.id;
   const { order_type, table_no, customer_name, customer_phone, items, subtotal, discount, gst, total, payment_mode, paid_amount } = req.body;
 
   db.get("SELECT total, paid_amount, payment_mode, status FROM orders WHERE id = ?", [orderId], (errGet, currentOrder) => {
     let prevStatus = currentOrder ? currentOrder.status : 'RUNNING_TABLE';
-    let prevPaid = currentOrder ? Number(currentOrder.paid_amount) || 0 : 0;
+    if (!prevStatus || prevStatus === 'COMPLETED' || prevStatus === 'DISPATCHED') {
+      prevStatus = 'RUNNING_TABLE';
+    }
 
-    let incomingPaid = Number(paid_amount) || Number(total) || 0;
+    let prevPaid = currentOrder ? Number(currentOrder.paid_amount) || 0 : 0;
+    let incomingPaid = Number(paid_amount) || 0;
     let finalPaid = Math.max(prevPaid, incomingPaid);
     let finalTotal = Number(total) || (currentOrder ? Number(currentOrder.total) : 0);
     let finalRemaining = Math.max(0, finalTotal - finalPaid);
     let finalMode = payment_mode || (currentOrder ? currentOrder.payment_mode : 'Cash');
 
     let status = prevStatus;
-    if (finalRemaining === 0) {
+    if (finalRemaining === 0 && finalPaid > 0) {
       status = 'COMPLETED';
     } else if (payment_mode && payment_mode.toUpperCase() === 'DUE') {
       status = 'DUE_PENDING';
@@ -674,7 +677,7 @@ app.put('/api/orders/:id', (req, res) => {
               });
             }
           }
-          console.log(`[ORDER UPDATED & SETTLED] Order #${orderId} set to status ${status}.`);
+          console.log(`[ORDER UPDATED SAFELY] Order #${orderId} modified successfully with status ${status}.`);
           res.json({ success: true, orderId, paid_amount: finalPaid, payable_now: finalRemaining, status });
         });
       }
