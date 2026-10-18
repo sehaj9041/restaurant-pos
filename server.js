@@ -445,15 +445,14 @@ app.post('/api/orders/:id/assign-table', (req, res) => {
   );
 });
 
-// 7. ACTIVE ORDERS (Robust fetch for active, running, and online/kiosk orders)
+// 7. ACTIVE ORDERS (Yeh POS par tab tak dikhega jab tak settle ya COMPLETED na ho jaye, chahe DISPATCH ho chuka ho)
 app.get('/api/orders/active', (req, res) => {
   const query = `
     SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount
     FROM orders 
-    WHERE UPPER(status) NOT IN ('COMPLETED', 'NEEDS_APPROVAL', 'VOID', 'DISPATCHED')
-       OR UPPER(status) = 'RUNNING_TABLE'
-       OR UPPER(status) = 'RUNNING'
-       OR UPPER(status) = 'KOT_READY'
+    WHERE status != 'COMPLETED'
+      AND status != 'VOID'
+      AND status != 'NEEDS_APPROVAL'
     ORDER BY id DESC
   `;
 
@@ -978,7 +977,7 @@ app.post('/api/printer/print-daily-summary', async (req, res) => {
   }
 });
 
-// UPDATED KOT API ROUTE WITH DISPATCHED & COMPLETED FILTER
+// KDS API ROUTE (DISPATCHED orders hat jayenge, baaki active rahenge)
 app.get('/api/kot', (req, res) => {
   db.all(
     `SELECT o.id, o.order_type, o.table_no, o.status, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
@@ -1015,10 +1014,10 @@ app.get('/api/kot', (req, res) => {
 
 app.post('/api/kot/:id/complete', (req, res) => {
   const orderId = req.params.id;
-  // Kitchen se dispatch hote hi status 'DISPATCHED' kar do taaki KDS se turant hat jaye
+  // Kitchen se dispatch hone par status 'DISPATCHED' hoga taaki KDS se hat jaye, par POS active queue mein rahega
   db.run("UPDATE orders SET status = 'DISPATCHED' WHERE id = ?", [orderId], (err) => {
     if (err) return res.status(500).json({ error: err.message });
-    console.log(`[DISPATCH SUCCESS] Order #${orderId} dispatched from KDS.`);
+    console.log(`[DISPATCH SUCCESS] Order #${orderId} dispatched from KDS (Pending payment settlement).`);
     res.json({ success: true });
   });
 });
