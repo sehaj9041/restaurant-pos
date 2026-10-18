@@ -819,20 +819,11 @@ app.post('/api/tables/:id/settle', (req, res) => {
   const targetId = req.params.id;
   const mode = (payment_mode || 'Cash').toUpperCase();
 
-  console.log(`[SETTLE REQUEST] Settling table/order #${targetId} via ${mode}`);
-
-  // FIX: Payment update karo, aur table ko free karne ke liye table_no ko blank ya clear kar do 
-  // taaki POS screen par table free dikhe, par status RUNNING_TABLE rahe taaki KDS par dikhta rahe.
   db.run(
-    `UPDATE orders SET payment_mode = ?, paid_amount = total, table_no = '' WHERE id = ? OR table_no = ?`,
+    `UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE id = ? OR table_no = ? AND status != 'COMPLETED'`,
     [mode, targetId, targetId],
     function (err) {
-      if (err) {
-        console.error('[SETTLE UPDATE ERROR]:', err.message);
-        return res.status(500).json({ error: err.message });
-      }
-
-      console.log(`[SETTLE SUCCESS] Payment updated and table freed for #${targetId} via ${mode}.`);
+      if (err) return res.status(500).json({ error: err.message });
       res.json({ success: true, changes: this.changes });
     }
   );
@@ -851,11 +842,12 @@ app.post('/api/orders/:id/mark-due', (req, res) => {
 
 // ================= KDS API ROUTE (STRICT FILTER) =================
 app.get('/api/kot', (req, res) => {
+  // FIX: KDS ab RUNNING_TABLE ke sath-sath un COMPLETED orders ko bhi dikhayega jo abhi tak DISPATCH nahi hue hain
   const query = `
     SELECT o.id, o.order_type, o.table_no, o.status, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
     FROM orders o 
-    WHERE UPPER(o.status) = 'RUNNING_TABLE'
-      AND UPPER(o.status) NOT IN ('COMPLETED', 'DISPATCHED', 'VOID', 'BILLED', 'DUE_PENDING', 'NEEDS_APPROVAL')
+    WHERE (UPPER(o.status) = 'RUNNING_TABLE' OR UPPER(o.status) = 'COMPLETED')
+      AND UPPER(o.status) NOT IN ('DISPATCHED', 'VOID', 'BILLED', 'DUE_PENDING', 'NEEDS_APPROVAL')
     ORDER BY o.id ASC
   `;
 
