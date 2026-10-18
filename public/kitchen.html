@@ -620,14 +620,14 @@
       });
     }
 
-    function fetchKOT() {
+  function fetchKOT() {
       fetch('/api/kot')
         .then(function(res) { return res.json(); })
         .then(function(orders) {
           // Billed, completed ya void ho chuke orders ko KDS se hatane ke liye filter
           var pendingOrders = (orders || []).filter(function(o) {
             var st = (o.status || '').toUpperCase();
-            return st !== 'BILLED' && st !== 'COMPLETED' && st !== 'VOID';
+            return st !== 'BILLED' && st !== 'COMPLETED' && st !== 'VOID' && st !== 'DISPATCHED';
           });
 
           liveOrdersData = pendingOrders;
@@ -638,6 +638,27 @@
           var checkedMap = getCheckedItemKeys();
           var readyStore = getReadyForDispatchOrders();
           var shouldPlaySound = false;
+
+          var currentOrderIds = new Set(liveOrdersData.map(function(o){ return o.id.toString(); }));
+
+          // FIX: Jo orders server se hat chuke hain (settle ho gaye hain), unka saara local cache turant saaf karo
+          Object.keys(snapshots).forEach(function(id) {
+            if (!currentOrderIds.has(id)) {
+              delete snapshots[id];
+              delete readyStore[id];
+            }
+          });
+          Object.keys(persistentBadges).forEach(function(key) {
+            var ordId = key.split('_')[0];
+            if (!currentOrderIds.has(ordId)) delete persistentBadges[key];
+          });
+          Object.keys(checkedMap).forEach(function(key) {
+            var ordId = key.split('_')[0];
+            if (!currentOrderIds.has(ordId)) delete checkedMap[key];
+          });
+          Object.keys(readyStore).forEach(function(id) {
+            if (!currentOrderIds.has(id)) delete readyStore[id];
+          });
 
           liveOrdersData.forEach(function(order) {
             var orderId = order.id.toString();
@@ -679,31 +700,9 @@
                 }
               });
 
-              if (prevSnapshot.wasCompletedBefore && (currentItems.length > prevRowsCount || shouldPlaySound)) {
-                for (var p = 0; p < prevRowsCount; p++) {
-                  var rKey = orderId + '_row_' + p;
-                  if (!persistentBadges[rKey]) {
-                    checkedMap[rKey] = true;
-                  }
-                }
-                prevSnapshot.wasCompletedBefore = false;
-              }
-
               snapshots[orderId].rowsCount = currentItems.length;
               snapshots[orderId].rowsQty = currentItems.map(function(i){ return Number(i.qty) || 1; });
             }
-          });
-
-          var currentOrderIds = new Set(liveOrdersData.map(function(o){ return o.id.toString(); }));
-          Object.keys(snapshots).forEach(function(id) {
-            if (!currentOrderIds.has(id)) delete snapshots[id];
-          });
-          Object.keys(persistentBadges).forEach(function(key) {
-            var ordId = key.split('_')[0];
-            if (!currentOrderIds.has(ordId)) delete persistentBadges[key];
-          });
-          Object.keys(readyStore).forEach(function(id) {
-            if (!currentOrderIds.has(id)) delete readyStore[id];
           });
 
           saveStoredSnapshots(snapshots);
@@ -719,7 +718,6 @@
         })
         .catch(function(){});
     }
-
     function renderKOTCards() {
       var grid = document.getElementById('kotGrid');
       if (!liveOrdersData || liveOrdersData.length === 0) {
