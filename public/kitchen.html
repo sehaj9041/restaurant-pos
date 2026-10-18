@@ -624,7 +624,13 @@
       fetch('/api/kot')
         .then(function(res) { return res.json(); })
         .then(function(orders) {
-          liveOrdersData = orders || [];
+          // Billed, completed ya void ho chuke orders ko KDS se hatane ke liye filter
+          var pendingOrders = (orders || []).filter(function(o) {
+            var st = (o.status || '').toUpperCase();
+            return st !== 'BILLED' && st !== 'COMPLETED' && st !== 'VOID';
+          });
+
+          liveOrdersData = pendingOrders;
           document.getElementById('pendingCount').innerText = liveOrdersData.length + ' Pending';
 
           var snapshots = getStoredSnapshots();
