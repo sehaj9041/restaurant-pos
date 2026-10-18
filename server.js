@@ -453,6 +453,7 @@ app.get('/api/orders/active', (req, res) => {
     WHERE status != 'COMPLETED'
       AND status != 'VOID'
       AND status != 'NEEDS_APPROVAL'
+      AND status != 'DISPATCHED'
     ORDER BY id DESC
   `;
 
@@ -495,6 +496,7 @@ app.get('/api/due/orders', (req, res) => {
       payment_mode, status, created_at
     FROM orders
     WHERE status != 'COMPLETED'
+      AND status != 'DISPATCHED'
       AND (
         UPPER(payment_mode) = 'DUE' 
         OR status = 'DUE_PENDING'
@@ -540,6 +542,7 @@ app.get('/api/due/customers', (req, res) => {
       MIN(created_at) as oldest_order_date
     FROM orders
     WHERE status != 'COMPLETED'
+      AND status != 'DISPATCHED'
       AND (
         UPPER(payment_mode) = 'DUE' 
         OR status = 'DUE_PENDING'
@@ -634,7 +637,6 @@ app.get('/api/orders/history', (req, res) => {
   });
 });
 
-// ROBUST FIXED PUT ROUTE (Handles approval acceptance and cart submission to move order to active queue with correct payment state without completing/settling)
 app.put('/api/orders/:id', (req, res) => {
   const orderId = req.params.id;
   const { order_type, table_no, customer_name, customer_phone, items, subtotal, discount, gst, total, payment_mode, paid_amount } = req.body;
@@ -651,7 +653,6 @@ app.put('/api/orders/:id', (req, res) => {
     let finalRemaining = Math.max(0, finalTotal - finalPaid);
     let finalMode = payment_mode || (currentOrder ? currentOrder.payment_mode : 'UNPAID');
 
-    // IMPORTANT: Status MUST always be 'RUNNING_TABLE' (Dine-in needs table queue), NEVER 'COMPLETED' on approval update
     let status = 'RUNNING_TABLE';
     if (payment_mode && payment_mode.toUpperCase() === 'DUE') {
       status = 'DUE_PENDING';
@@ -675,7 +676,7 @@ app.put('/api/orders/:id', (req, res) => {
               });
             }
           }
-          console.log(`[ORDER APPROVED & MOVED TO TABLE QUEUE] Order #${orderId} moved to active queue with status ${status} and payment mode ${finalMode}.`);
+          console.log(`[ORDER APPROVED & MOVED TO TABLE QUEUE] Order #${orderId} moved to active queue with status ${status}.`);
           res.json({ success: true, orderId, paid_amount: finalPaid, payable_now: finalRemaining, status });
         });
       }
@@ -778,7 +779,7 @@ app.post('/api/orders', async (req, res) => {
   });
 });
 
-// BULLETPROOF SETTLEMENT ROUTE (Strictly for explicit final settlement from POS)
+// BULLETPROOF SETTLEMENT ROUTE (Strictly marks COMPLETED and clears from active/KDS queues)
 app.post('/api/tables/:id/settle', (req, res) => {
   const { payment_mode } = req.body;
   const targetId = req.params.id;
