@@ -779,7 +779,7 @@ app.post('/api/orders', async (req, res) => {
   });
 });
 
-// FULL TABLE SETTLEMENT ROUTE (Handles Table ID, Table Number, and Order ID Perfectly)
+// FULL TABLE SETTLEMENT ROUTE (Foolproof: Handles Table ID, Table Number, and Order ID Perfectly)
 app.post('/api/tables/:id/settle', (req, res) => {
   const { payment_mode } = req.body;
   const targetId = req.params.id;
