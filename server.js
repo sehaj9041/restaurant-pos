@@ -673,7 +673,7 @@ app.put('/api/orders/:id', (req, res) => {
   const { order_type, table_no, customer_name, customer_phone, items, subtotal, discount, gst, total, payment_mode, paid_amount } = req.body;
 
   db.get("SELECT total, paid_amount, payment_mode, status FROM orders WHERE id = ?", [orderId], (errGet, currentOrder) => {
-    let prevStatus = currentOrder ? currentOrder.status : 'NEEDS_APPROVAL';
+    let prevStatus = currentOrder ? currentOrder.status : 'RUNNING_TABLE';
 
     let incomingPaid = Number(paid_amount) || 0;
     let finalTotal = Number(total) || (currentOrder ? Number(currentOrder.total) : 0);
@@ -684,12 +684,12 @@ app.put('/api/orders/:id', (req, res) => {
     let finalRemaining = Math.max(0, finalTotal - finalPaid);
     let finalMode = payment_mode || (currentOrder ? currentOrder.payment_mode : 'UNPAID');
 
-    // FIX: Check if fully paid, then mark as COMPLETED so it never returns to KDS
-    let status = 'RUNNING_TABLE';
+    // FIX: Payment hone par bhi status COMPLETED mat karo, purana status maintain rakho taaki KDS se na hate
+    let status = prevStatus;
     if (payment_mode && payment_mode.toUpperCase() === 'DUE') {
       status = 'DUE_PENDING';
-    } else if (finalPaid >= finalTotal && finalTotal > 0) {
-      status = 'COMPLETED';
+    } else if (!status || status === 'NEEDS_APPROVAL') {
+      status = 'RUNNING_TABLE';
     }
 
     db.run(
@@ -710,14 +710,13 @@ app.put('/api/orders/:id', (req, res) => {
               });
             }
           }
-          console.log(`[ORDER UPDATED] Order #${orderId} updated with status ${status}.`);
+          console.log(`[ORDER UPDATED] Order #${orderId} updated with payment, status preserved as ${status}.`);
           res.json({ success: true, orderId, paid_amount: finalPaid, payable_now: finalRemaining, status });
         });
       }
     );
   });
 });
-
 app.post('/api/orders', async (req, res) => {
   const { order_type, table_no, customer_name, customer_phone, items, payment_mode, subtotal, discount, is_hold, paid_amount, is_kiosk } = req.body;
 
