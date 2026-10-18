@@ -822,9 +822,10 @@ app.post('/api/tables/:id/settle', (req, res) => {
 
   console.log(`[SETTLE REQUEST] Settling table/order #${targetId} via ${mode}`);
 
-  // Step 1: Mark the target running/active table order as COMPLETED
+  // Sirf payment update karo, status ko 'COMPLETED' mat karo aur na hi order delete karo
+  // Taaki order KDS par tab tak dikhta rahe jab tak chef khud use dispatch/complete na kar de.
   db.run(
-    `UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE id = ? OR table_no = ? AND status != 'COMPLETED'`,
+    `UPDATE orders SET payment_mode = ?, paid_amount = total WHERE id = ? OR table_no = ?`,
     [mode, targetId, targetId],
     function (err) {
       if (err) {
@@ -832,13 +833,8 @@ app.post('/api/tables/:id/settle', (req, res) => {
         return res.status(500).json({ error: err.message });
       }
 
-      // Step 2: Clean up items and completed orders instantly so KDS never fetches them again
-      db.run(`DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE status = 'COMPLETED' AND payment_mode != 'DUE')`, [], () => {
-        db.run(`DELETE FROM orders WHERE status = 'COMPLETED' AND payment_mode != 'DUE'`, [], () => {
-          console.log(`[PERMANENT CLEANUP] Settled order/table completely wiped from active database.`);
-          res.json({ success: true, changes: this.changes });
-        });
-      });
+      console.log(`[SETTLE SUCCESS] Payment updated for table/order #${targetId} via ${mode}. Order remains active on KDS.`);
+      res.json({ success: true, changes: this.changes });
     }
   );
 });
