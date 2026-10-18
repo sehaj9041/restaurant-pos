@@ -500,7 +500,7 @@ app.get('/api/due/orders', (req, res) => {
         OR status = 'DUE_PENDING'
         OR (status = 'KOT_READY' AND UPPER(payment_mode) = 'DUE')
         OR (UPPER(payment_mode) LIKE '%PARTIAL%' AND (total - COALESCE(paid_amount, 0)) > 0)
-        OR (UPPER(payment_mode) = 'UNPAID' AND (total - COALESCE(paid_amount, 0)) > 0)
+        OR (UPPER(payment_mode) LIKE '%UNPAID%' AND (total - COALESCE(paid_amount, 0)) > 0)
       )
     ORDER BY id DESC
   `;
@@ -545,7 +545,7 @@ app.get('/api/due/customers', (req, res) => {
         OR status = 'DUE_PENDING'
         OR (status = 'KOT_READY' AND UPPER(payment_mode) = 'DUE')
         OR (UPPER(payment_mode) LIKE '%PARTIAL%' AND (total - COALESCE(paid_amount, 0)) > 0)
-        OR (UPPER(payment_mode) = 'UNPAID' AND (total - COALESCE(paid_amount, 0)) > 0)
+        OR (UPPER(payment_mode) LIKE '%UNPAID%' AND (total - COALESCE(paid_amount, 0)) > 0)
       )
     GROUP BY COALESCE(NULLIF(customer_phone, ''), 'WALK-IN')
     HAVING SUM(GREATEST(0, total - COALESCE(paid_amount, 0))) > 0
@@ -634,27 +634,29 @@ app.get('/api/orders/history', (req, res) => {
   });
 });
 
-// ROBUST FIXED PUT ROUTE (Keeps status safe & prevents order from disappearing when adding items)
+// ROBUST FIXED PUT ROUTE (Handles approval acceptance and cart submission to move order to active queue with correct payment state)
 app.put('/api/orders/:id', (req, res) => {
   const orderId = req.params.id;
   const { order_type, table_no, customer_name, customer_phone, items, subtotal, discount, gst, total, payment_mode, paid_amount } = req.body;
 
   db.get("SELECT total, paid_amount, payment_mode, status FROM orders WHERE id = ?", [orderId], (errGet, currentOrder) => {
-    let prevStatus = currentOrder ? currentOrder.status : 'RUNNING_TABLE';
-    if (!prevStatus || prevStatus === 'COMPLETED' || prevStatus === 'DISPATCHED') {
-      prevStatus = 'RUNNING_TABLE';
-    }
+    let prevStatus = currentOrder ? currentOrder.status : 'NEEDS_APPROVAL';
 
-    let prevPaid = currentOrder ? Number(currentOrder.paid_amount) || 0 : 0;
     let incomingPaid = Number(paid_amount) || 0;
-    let finalPaid = Math.max(prevPaid, incomingPaid);
     let finalTotal = Number(total) || (currentOrder ? Number(currentOrder.total) : 0);
+    
+    // Check if payment mode is selected (Paid) or Unpaid / Pay at counter
+    const hasPaymentSelected = payment_mode && payment_mode !== 'UNPAID' && payment_mode !== 'PAY_COUNTER' && payment_mode !== '';
+    
+    let finalPaid = hasPaymentSelected ? (incomingPaid > 0 ? incomingPaid : finalTotal) : 0;
     let finalRemaining = Math.max(0, finalTotal - finalPaid);
-    let finalMode = payment_mode || (currentOrder ? currentOrder.payment_mode : 'Cash');
+    let finalMode = payment_mode || (currentOrder ? currentOrder.payment_mode : 'UNPAID');
 
-    let status = prevStatus;
-    if (finalRemaining === 0 && finalPaid > 0) {
-      status = 'COMPLETED';
+    // When order is approved and submitted from cart, it must move to 'RUNNING_TABLE' (Dine-in needs table queue)
+    let status = 'RUNNING_TABLE';
+    if (finalRemaining === 0 && finalPaid > 0 && hasPaymentSelected) {
+      // Note: As requested, even if paid, it goes to dine-in needs table queue with paid status, NOT completed/settled
+      status = 'RUNNING_TABLE';
     } else if (payment_mode && payment_mode.toUpperCase() === 'DUE') {
       status = 'DUE_PENDING';
     }
@@ -677,14 +679,13 @@ app.put('/api/orders/:id', (req, res) => {
               });
             }
           }
-          console.log(`[ORDER UPDATED SAFELY] Order #${orderId} modified successfully with status ${status}.`);
+          console.log(`[ORDER APPROVED & MOVED TO QUEUE] Order #${orderId} moved to active queue with status ${status} and payment ${finalMode}.`);
           res.json({ success: true, orderId, paid_amount: finalPaid, payable_now: finalRemaining, status });
         });
       }
     );
   });
-  
-}); // Added missing closing brace here for PUT route
+});
 
 app.post('/api/orders', async (req, res) => {
   const { order_type, table_no, customer_name, customer_phone, items, payment_mode, subtotal, discount, is_hold, paid_amount, is_kiosk } = req.body;
@@ -709,21 +710,13 @@ app.post('/api/orders', async (req, res) => {
   let calculatedGst = Math.round((calculatedSubtotal * 5) / 100);
   let calculatedTotal = Math.round(calculatedSubtotal + calculatedGst - (Number(discount) || 0));
 
+  // Step 1: Kiosk orders ALWAYS land in NEEDS_APPROVAL first for notification/review
   let initialPaid = 0;
   let status = 'NEEDS_APPROVAL';
 
-  // Check if order is coming with explicit payment or pay at counter / unpaid status from kiosk
-  const isPaidOrDue = payment_mode && payment_mode !== 'UNPAID' && payment_mode !== 'PAY_COUNTER' && payment_mode !== '';
-
   if (is_hold) {
     status = 'RUNNING_TABLE';
-  } else if (isPaidOrDue && payment_mode !== 'DUE') {
-    initialPaid = Number(paid_amount) || calculatedTotal || 0;
-    status = 'RUNNING_TABLE';
-  } else if (payment_mode === 'DUE') {
-    status = 'DUE_PENDING';
   } else {
-    // Kiosk orders with UNPAID or PAY_COUNTER should always stay in NEEDS_APPROVAL for review
     status = 'NEEDS_APPROVAL';
   }
 
@@ -781,7 +774,7 @@ app.post('/api/orders', async (req, res) => {
         }
       }
 
-      console.log(`[ORDER CREATED] Order #${orderId} created with status ${status}.`);
+      console.log(`[ORDER CREATED] Kiosk order #${orderId} placed into NEEDS_APPROVAL queue.`);
       res.json({ success: true, orderId: orderId, paid_amount: initialPaid });
     } catch (itemErr) {
       console.error('Order items insert error:', itemErr.message);
