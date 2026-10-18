@@ -779,7 +779,7 @@ app.post('/api/orders', async (req, res) => {
   });
 });
 
-// FULL TABLE SETTLEMENT ROUTE (Marks all active orders for this table/ID as COMPLETED)
+// FULL TABLE SETTLEMENT ROUTE (Handles Table ID, Table Number, and Order ID Perfectly)
 app.post('/api/tables/:id/settle', (req, res) => {
   const { payment_mode } = req.body;
   const targetId = req.params.id;
@@ -788,21 +788,26 @@ app.post('/api/tables/:id/settle', (req, res) => {
   const cleanTbl = targetId.toString().trim();
   const rawTblNum = cleanTbl.replace(/^T-?/i, '');
 
-  db.run(
-    `UPDATE orders 
-     SET status = 'COMPLETED', payment_mode = ?, paid_amount = total 
-     WHERE (id::text = ? OR table_no = ? OR table_no = ? OR table_no = ? OR order_type = ?) 
-       AND status != 'COMPLETED'`,
-    [mode, cleanTbl, cleanTbl, `T-${rawTblNum}`, rawTblNum, cleanTbl],
-    function (err) {
-      if (err) {
-        console.error('[SETTLE ERROR DB]:', err.message);
-        return res.status(500).json({ error: err.message });
+  db.get("SELECT table_no FROM floor_tables WHERE id::text = ? OR table_no = ? OR table_no = ?", [cleanTbl, cleanTbl, `T-${rawTblNum}`], (errTable, tblRow) => {
+    let exactTableNo = tblRow ? tblRow.table_no : '';
+    let rawTblName = exactTableNo ? exactTableNo.replace(/^T-?/i, '') : '';
+
+    db.run(
+      `UPDATE orders 
+       SET status = 'COMPLETED', payment_mode = ?, paid_amount = total 
+       WHERE (id::text = ? OR table_no = ? OR table_no = ? OR table_no = ? OR table_no = ? OR table_no = ?) 
+         AND status != 'COMPLETED'`,
+      [mode, cleanTbl, cleanTbl, `T-${rawTblNum}`, rawTblNum, exactTableNo, rawTblName],
+      function (err) {
+        if (err) {
+          console.error('[SETTLE ERROR DB]:', err.message);
+          return res.status(500).json({ error: err.message });
+        }
+        console.log(`[TABLE FULLY SETTLED] All active orders for Table/ID #${targetId} (TableNo: ${exactTableNo}) marked COMPLETED via ${mode}. Rows updated: ${this.changes}`);
+        res.json({ success: true, changes: this.changes });
       }
-      console.log(`[TABLE FULLY SETTLED] All active orders for Table/ID #${targetId} marked COMPLETED via ${mode}.`);
-      res.json({ success: true, changes: this.changes });
-    }
-  );
+    );
+  });
 });
 
 app.post('/api/orders/:id/mark-due', (req, res) => {
