@@ -141,61 +141,35 @@ const triggerDrawerKick = (req, res) => {
 app.post('/api/drawer/open', triggerDrawerKick);
 app.post('/api/open-drawer', triggerDrawerKick);
 
-// ================= KDS IP PRINTER ROUTE (FIXED) =================
+// ================= CLOUD PRINT QUEUE FOR LOCAL POWERSHELL AGENT =================
+let cloudPrintQueue = [];
+
 app.post('/api/print-ip', (req, res) => {
-  const { printer_ip, order_id, table, qty, item_name, addons, time } = req.body;
+  const { order_id, table, qty, item_name, addons, time } = req.body;
   
-  if (!printer_ip) {
-    return res.status(400).json({ success: false, error: 'Printer IP is required' });
-  }
+  const newJob = {
+    id: Date.now(),
+    order_id: order_id,
+    table: table || 'Dine-In',
+    qty: qty || 1,
+    item_name: item_name || '',
+    addons: addons || '',
+    time: time || new Date().toLocaleTimeString()
+  };
 
-  const client = new net.Socket();
-  const PORT = 9100;
+  cloudPrintQueue.push(newJob);
+  console.log(`[PRINT QUEUE ADDED] Order #${order_id} - ${item_name} added for local agent.`);
+  res.json({ success: true, message: 'Job added to queue' });
+});
 
-  client.setTimeout(3000);
+app.get('/api/print/pending-queue', (req, res) => {
+  res.json({ success: true, jobs: cloudPrintQueue });
+});
 
-  client.connect(PORT, printer_ip, () => {
-    let ESC = '\x1B';
-    let GS = '\x1D';
-    let INIT = ESC + '@';
-    let BOLD_ON = ESC + 'E\x01';
-    let BOLD_OFF = ESC + 'E\x00';
-    let CENTER = ESC + 'a\x01';
-    let LEFT = ESC + 'a\x00';
-    let CUT = GS + 'V\x41\x03';
-
-    let printData = INIT +
-      CENTER + BOLD_ON + '** ITEM READY TOKEN **\n' + BOLD_OFF +
-      '--------------------------------\n' +
-      LEFT +
-      `Order ID : #${order_id}\n` +
-      `Table/Type: ${table}\n` +
-      `Time     : ${time}\n` +
-      '--------------------------------\n' +
-      CENTER + BOLD_ON +
-      `\nQTY: [ ${qty} ]  ${item_name}\n` +
-      (addons ? `Addons: ${addons}\n` : '') +
-      BOLD_OFF + '\n' +
-      '--------------------------------\n' +
-      CENTER + 'Kitchen Dispatch Slip\n\n\n' +
-      CUT;
-
-    client.write(printData, () => {
-      client.destroy();
-      res.json({ success: true });
-    });
-  });
-
-  client.on('error', (err) => {
-    client.destroy();
-    console.error('[PRINTER IP ERROR]:', err.message);
-    res.status(500).json({ success: false, error: err.message });
-  });
-
-  client.on('timeout', () => {
-    client.destroy();
-    res.status(500).json({ success: false, error: 'Printer connection timeout' });
-  });
+app.post('/api/print/acknowledge', (req, res) => {
+  const { jobId } = req.body;
+  cloudPrintQueue = cloudPrintQueue.filter(job => job.id !== jobId);
+  res.json({ success: true });
 });
 
 // 3. INTERACTIVE FLOOR PLAN APIS
