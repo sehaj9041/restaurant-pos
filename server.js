@@ -634,6 +634,7 @@ app.get('/api/orders/history', (req, res) => {
   });
 });
 
+// FIXED PUT SETTLEMENT & UPDATE ROUTE
 app.put('/api/orders/:id', (req, res) => {
   const orderId = req.params.id;
   const { order_type, table_no, customer_name, customer_phone, items, subtotal, discount, gst, total, payment_mode, paid_amount } = req.body;
@@ -642,25 +643,22 @@ app.put('/api/orders/:id', (req, res) => {
     let prevStatus = currentOrder ? currentOrder.status : 'RUNNING_TABLE';
     let prevPaid = currentOrder ? Number(currentOrder.paid_amount) || 0 : 0;
 
-    let incomingPaid = Number(paid_amount) || 0;
+    let incomingPaid = Number(paid_amount) || Number(total) || 0;
     let finalPaid = Math.max(prevPaid, incomingPaid);
-    let finalRemaining = Math.max(0, Number(total) - finalPaid);
+    let finalTotal = Number(total) || (currentOrder ? Number(currentOrder.total) : 0);
+    let finalRemaining = Math.max(0, finalTotal - finalPaid);
     let finalMode = payment_mode || (currentOrder ? currentOrder.payment_mode : 'Cash');
 
     let status = prevStatus;
-    if (status === 'NEEDS_APPROVAL') {
-      status = 'RUNNING_TABLE';
-    } else if (status === 'COMPLETED') {
-      status = 'RUNNING_TABLE';
-    }
-
-    if (finalRemaining === 0 && finalPaid > 0) {
-      status = 'RUNNING_TABLE'; 
+    if (finalRemaining === 0) {
+      status = 'COMPLETED';
+    } else if (payment_mode && payment_mode.toUpperCase() === 'DUE') {
+      status = 'DUE_PENDING';
     }
 
     db.run(
       `UPDATE orders SET order_type = ?, table_no = ?, customer_name = ?, customer_phone = ?, subtotal = ?, discount = ?, gst = ?, total = ?, payment_mode = ?, status = ?, paid_amount = ? WHERE id = ?`,
-      [order_type, table_no || '', customer_name || '', customer_phone || '', subtotal, discount || 0, gst || 0, total, finalMode, status, finalPaid, orderId],
+      [order_type, table_no || '', customer_name || '', customer_phone || '', subtotal, discount || 0, gst || 0, finalTotal, finalMode, status, finalPaid, orderId],
       async (err) => {
         if (err) return res.status(500).json({ error: err.message });
 
@@ -676,8 +674,8 @@ app.put('/api/orders/:id', (req, res) => {
               });
             }
           }
-          console.log(`[ORDER APPROVED & UPDATED] Order #${orderId} moved from Needs Approval to Active Queue.`);
-          res.json({ success: true, orderId, paid_amount: finalPaid, payable_now: finalRemaining });
+          console.log(`[ORDER UPDATED & SETTLED] Order #${orderId} set to status ${status}.`);
+          res.json({ success: true, orderId, paid_amount: finalPaid, payable_now: finalRemaining, status });
         });
       }
     );
@@ -785,7 +783,7 @@ app.post('/api/orders', async (req, res) => {
   });
 });
 
-// ROBUST FIXED SETTLEMENT ROUTE (Handles both Order ID and Table ID/Name perfectly)
+// BULLETPROOF SETTLEMENT ROUTE (Handles Table Name, Table Number, and Order ID Perfectly)
 app.post('/api/tables/:id/settle', (req, res) => {
   const { payment_mode } = req.body;
   const targetId = req.params.id;
@@ -804,7 +802,7 @@ app.post('/api/tables/:id/settle', (req, res) => {
 
   db.get(findQuery, [cleanTbl, cleanTbl, `T-${rawTblNum}`, rawTblNum, cleanTbl], (err, order) => {
     if (err || !order) {
-      db.run("UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE id = ? OR table_no = ?", [mode, targetId, targetId], function(errFallback) {
+      db.run("UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE id::text = ? OR table_no = ? OR table_no = ?", [mode, cleanTbl, cleanTbl, rawTblNum], function(errFallback) {
         if (errFallback || this.changes === 0) {
           return res.status(404).json({ error: 'Active order not found for settlement' });
         }
