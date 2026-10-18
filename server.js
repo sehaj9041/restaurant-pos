@@ -708,19 +708,17 @@ app.post('/api/orders', async (req, res) => {
   let calculatedGst = Math.round((calculatedSubtotal * 5) / 100);
   let calculatedTotal = Math.round(calculatedSubtotal + calculatedGst - (Number(discount) || 0));
 
+  // Kiosk or Dine-In orders should never auto-settle or set initial paid to total unless explicitly settled at counter
   let initialPaid = 0;
-  const isPayAtCounter = payment_mode === 'PAY_COUNTER' || (payment_mode && payment_mode.toUpperCase().includes('COUNTER'));
+  const isKioskOrder = is_kiosk || upperType.includes('KIOSK') || upperType.includes('ONLINE') || upperType.includes('SELF') || upperType.includes('DINE-IN');
 
-  if (payment_mode && payment_mode !== 'UNPAID' && payment_mode !== 'DUE' && !isPayAtCounter) {
+  if (!isKioskOrder && payment_mode && payment_mode !== 'UNPAID' && payment_mode !== 'DUE') {
     initialPaid = Number(paid_amount) || calculatedTotal || 0;
   }
 
+  // All kiosk/dine-in orders should go directly to active table queue ('RUNNING_TABLE') without needing approval or auto-settling
   let status = 'RUNNING_TABLE';
-  if (is_hold) {
-    status = 'RUNNING_TABLE';
-  } else if (is_kiosk || upperType.includes('ONLINE') || upperType.includes('KIOSK') || upperType.includes('SELF') || upperType.includes('DINE-IN') || upperType.includes('TAKEAWAY') || upperType.includes('DELIVERY')) {
-    status = 'NEEDS_APPROVAL';
-  } else if (payment_mode === 'DUE') {
+  if (payment_mode === 'DUE') {
     status = 'DUE_PENDING';
   }
 
@@ -778,6 +776,7 @@ app.post('/api/orders', async (req, res) => {
         }
       }
 
+      console.log(`[ORDER CREATED] Order #${orderId} successfully routed to Active Table Queue.`);
       res.json({ success: true, orderId: orderId, paid_amount: initialPaid });
     } catch (itemErr) {
       console.error('Order items insert error:', itemErr.message);
