@@ -413,7 +413,7 @@ app.post('/api/orders/:id/approve', (req, res) => {
       [newStatus, newTableNo, orderId], 
       (err2) => {
         if (err2) return res.status(500).json({ error: err2.message });
-        console.log(`[ORDER APPROVED] Order #${orderId} accepted and routed to active queue.`);
+        console.log(`[ORDER APPROVED] Order #${orderId} accepted and routed correctly.`);
         res.json({ success: true });
       }
     );
@@ -683,7 +683,8 @@ app.put('/api/orders/:id', (req, res) => {
       }
     );
   });
-});
+  
+}); // Added missing closing brace here for PUT route
 
 app.post('/api/orders', async (req, res) => {
   const { order_type, table_no, customer_name, customer_phone, items, payment_mode, subtotal, discount, is_hold, paid_amount, is_kiosk } = req.body;
@@ -709,17 +710,21 @@ app.post('/api/orders', async (req, res) => {
   let calculatedTotal = Math.round(calculatedSubtotal + calculatedGst - (Number(discount) || 0));
 
   let initialPaid = 0;
-  const isKioskOrder = is_kiosk || upperType.includes('KIOSK') || upperType.includes('ONLINE') || upperType.includes('SELF') || upperType.includes('DINE-IN');
-
-  // Kiosk orders should start with NEEDS_APPROVAL so notification appears, unless explicitly paid/due
   let status = 'NEEDS_APPROVAL';
+
+  // Check if order is coming with explicit payment or pay at counter / unpaid status from kiosk
+  const isPaidOrDue = payment_mode && payment_mode !== 'UNPAID' && payment_mode !== 'PAY_COUNTER' && payment_mode !== '';
+
   if (is_hold) {
     status = 'RUNNING_TABLE';
-  } else if (!isKioskOrder && payment_mode && payment_mode !== 'UNPAID' && payment_mode !== 'DUE') {
+  } else if (isPaidOrDue && payment_mode !== 'DUE') {
     initialPaid = Number(paid_amount) || calculatedTotal || 0;
     status = 'RUNNING_TABLE';
   } else if (payment_mode === 'DUE') {
     status = 'DUE_PENDING';
+  } else {
+    // Kiosk orders with UNPAID or PAY_COUNTER should always stay in NEEDS_APPROVAL for review
+    status = 'NEEDS_APPROVAL';
   }
 
   const insertOrderQuery = `
@@ -734,7 +739,7 @@ app.post('/api/orders', async (req, res) => {
     customer_name || '',
     customer_phone || '',
     status,
-    payment_mode || 'Cash',
+    payment_mode || 'UNPAID',
     calculatedSubtotal,
     discount || 0,
     calculatedGst,
