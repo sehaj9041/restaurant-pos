@@ -634,7 +634,7 @@ app.get('/api/orders/history', (req, res) => {
   });
 });
 
-// ROBUST FIXED PUT ROUTE (Handles approval acceptance and cart submission to move order to active queue with correct payment state)
+// ROBUST FIXED PUT ROUTE (Handles approval acceptance and cart submission to move order to active queue with correct payment state without completing/settling)
 app.put('/api/orders/:id', (req, res) => {
   const orderId = req.params.id;
   const { order_type, table_no, customer_name, customer_phone, items, subtotal, discount, gst, total, payment_mode, paid_amount } = req.body;
@@ -645,19 +645,15 @@ app.put('/api/orders/:id', (req, res) => {
     let incomingPaid = Number(paid_amount) || 0;
     let finalTotal = Number(total) || (currentOrder ? Number(currentOrder.total) : 0);
     
-    // Check if payment mode is selected (Paid) or Unpaid / Pay at counter
     const hasPaymentSelected = payment_mode && payment_mode !== 'UNPAID' && payment_mode !== 'PAY_COUNTER' && payment_mode !== '';
     
     let finalPaid = hasPaymentSelected ? (incomingPaid > 0 ? incomingPaid : finalTotal) : 0;
     let finalRemaining = Math.max(0, finalTotal - finalPaid);
     let finalMode = payment_mode || (currentOrder ? currentOrder.payment_mode : 'UNPAID');
 
-    // When order is approved and submitted from cart, it must move to 'RUNNING_TABLE' (Dine-in needs table queue)
+    // IMPORTANT: Status MUST always be 'RUNNING_TABLE' (Dine-in needs table queue), NEVER 'COMPLETED' on approval update
     let status = 'RUNNING_TABLE';
-    if (finalRemaining === 0 && finalPaid > 0 && hasPaymentSelected) {
-      // Note: As requested, even if paid, it goes to dine-in needs table queue with paid status, NOT completed/settled
-      status = 'RUNNING_TABLE';
-    } else if (payment_mode && payment_mode.toUpperCase() === 'DUE') {
+    if (payment_mode && payment_mode.toUpperCase() === 'DUE') {
       status = 'DUE_PENDING';
     }
 
@@ -679,7 +675,7 @@ app.put('/api/orders/:id', (req, res) => {
               });
             }
           }
-          console.log(`[ORDER APPROVED & MOVED TO QUEUE] Order #${orderId} moved to active queue with status ${status} and payment ${finalMode}.`);
+          console.log(`[ORDER APPROVED & MOVED TO TABLE QUEUE] Order #${orderId} moved to active queue with status ${status} and payment mode ${finalMode}.`);
           res.json({ success: true, orderId, paid_amount: finalPaid, payable_now: finalRemaining, status });
         });
       }
@@ -710,7 +706,6 @@ app.post('/api/orders', async (req, res) => {
   let calculatedGst = Math.round((calculatedSubtotal * 5) / 100);
   let calculatedTotal = Math.round(calculatedSubtotal + calculatedGst - (Number(discount) || 0));
 
-  // Step 1: Kiosk orders ALWAYS land in NEEDS_APPROVAL first for notification/review
   let initialPaid = 0;
   let status = 'NEEDS_APPROVAL';
 
@@ -783,7 +778,7 @@ app.post('/api/orders', async (req, res) => {
   });
 });
 
-// BULLETPROOF SETTLEMENT ROUTE (Handles Table Name, Table Number, and Order ID Perfectly)
+// BULLETPROOF SETTLEMENT ROUTE (Strictly for explicit final settlement from POS)
 app.post('/api/tables/:id/settle', (req, res) => {
   const { payment_mode } = req.body;
   const targetId = req.params.id;
@@ -842,168 +837,13 @@ app.post('/api/orders/:id/mark-due', (req, res) => {
   );
 });
 
-// ================= CLOUD PRINT QUEUE SYSTEM =================
-let printQueue = [];
-
-app.post('/api/print-ip', (req, res) => {
-  const { printer_ip, order_id, table, qty, item_name, addons, time } = req.body;
-  
-  if (!order_id || !item_name) {
-    return res.status(400).json({ success: false, error: 'Missing print details' });
-  }
-
-  const jobId = Date.now() + '-' + Math.random().toString(36).substring(2, 7);
-  
-  const printJob = {
-    id: jobId,
-    printer_ip: printer_ip || '192.168.1.87',
-    order_id,
-    table: table || 'Dine-In',
-    qty,
-    item_name,
-    addons: addons || '',
-    time: time || new Date().toLocaleTimeString()
-  };
-
-  printQueue.push(printJob);
-  console.log(`[PRINT QUEUED] Job #${jobId} added for Order #${order_id} (${item_name})`);
-  
-  res.json({ success: true, message: 'Print job queued for local agent' });
-});
-
-app.get('/api/print/pending-queue', (req, res) => {
-  res.json({ success: true, jobs: printQueue });
-});
-
-app.post('/api/print/acknowledge', (req, res) => {
-  const { jobId } = req.body;
-  printQueue = printQueue.filter(j => j.id !== jobId);
-  console.log(`[PRINT ACKNOWLEDGED] Job #${jobId} completed and removed from queue.`);
-  res.json({ success: true });
-});
-
-let ThermalPrinterClass = null;
-let PrinterTypesObj = null;
-
-try {
-  const NTP = require("node-thermal-printer");
-  ThermalPrinterClass = NTP.ThermalPrinter || NTP.thermalPrinter;
-  PrinterTypesObj = NTP.PrinterTypes || NTP.types;
-} catch (e) {
-  console.log("Thermal library note: using built-in simulator engine.");
-}
-
-app.post('/api/printer/print-bill', async (req, res) => {
-  const { orderId, orderType, tableNo, customerName, items, total, mode } = req.body;
-
-  try {
-    if (ThermalPrinterClass && PrinterTypesObj) {
-      const printer = new ThermalPrinterClass({
-        type: PrinterTypesObj.EPSON,
-        interface: '//localhost/ThermalPrinter',
-        characterSet: 'SLOVENIA'
-      });
-
-      printer.alignCenter();
-      printer.println("VISHAL FOODIEZ");
-      printer.println("Budhlada, Punjab");
-      printer.drawLine();
-      printer.alignLeft();
-      printer.println(`Order: #${orderId} | ${orderType}`);
-      if (tableNo) printer.println(`Table: ${tableNo}`);
-      if (customerName) printer.println(`Guest: ${customerName}`);
-      printer.drawLine();
-
-      if (Array.isArray(items)) {
-        items.forEach(item => {
-          printer.println(`${item.name} x${item.qty} = Rs ${item.price * item.qty}`);
-        });
-      }
-
-      printer.drawLine();
-      printer.println(`Total: Rs ${total}`);
-      printer.println(`Payment Mode: ${mode}`);
-      printer.cut();
-      await printer.execute().catch(() => null);
-    }
-    console.log(`[PRINTER PIPELINE] Bill #${orderId} (Total: Rs ${total}) successfully processed.`);
-    res.json({ success: true });
-  } catch (error) {
-    console.log(`[PRINTER SIMULATOR] Bill #${orderId} buffer created silently.`);
-    res.json({ success: true, simulated: true });
-  }
-});
-
-app.post('/api/printer/print-kot', async (req, res) => {
-  const { orderId, orderType, tableNo, items } = req.body;
-  try {
-    if (ThermalPrinterClass && PrinterTypesObj) {
-      const kotPrinter = new ThermalPrinterClass({
-        type: PrinterTypesObj.EPSON,
-        interface: '//localhost/KOTPrinter',
-        characterSet: 'SLOVENIA'
-      });
-      kotPrinter.alignCenter();
-      kotPrinter.println("*** KITCHEN TICKET (KOT) ***");
-      kotPrinter.println(`Order: #${orderId} | ${orderType} | ${tableNo || ''}`);
-      kotPrinter.drawLine();
-      if (Array.isArray(items)) {
-        items.forEach(i => kotPrinter.println(`[ ] ${i.name} x${i.qty}`));
-      }
-      kotPrinter.cut();
-      await kotPrinter.execute().catch(() => null);
-    }
-    console.log(`[KOT PIPELINE] Kitchen Ticket #${orderId} processed.`);
-    res.json({ success: true });
-  } catch (err) {
-    res.json({ success: true, simulated: true });
-  }
-});
-
-app.post('/api/printer/print-daily-summary', async (req, res) => {
-  const { summary, dateRange } = req.body;
-  try {
-    if (ThermalPrinterClass && PrinterTypesObj) {
-      const printer = new ThermalPrinterClass({
-        type: PrinterTypesObj.EPSON,
-        interface: '//localhost/ThermalPrinter',
-        characterSet: 'SLOVENIA'
-      });
-      printer.alignCenter();
-      printer.setTextDoubleHeight();
-      printer.println("VISHAL FOODIEZ");
-      printer.setTextNormal();
-      printer.println("DAILY SETTLEMENT REPORT");
-      printer.println(`Range: ${dateRange}`);
-      printer.drawLine();
-      printer.alignLeft();
-      printer.println(`Total Orders: ${summary.total_orders}`);
-      printer.println(`Gross Turnover: Rs ${summary.total_sales}`);
-      printer.println(`Cash Inflow: Rs ${summary.cash_sales}`);
-      printer.println(`UPI / Digital: Rs ${summary.upi_sales}`);
-      printer.println(`Unpaid Khata (Due): Rs ${summary.due_sales}`);
-      printer.println(`Total Expenses: Rs ${summary.total_expense}`);
-      printer.drawLine();
-      printer.bold(true);
-      printer.println(`NET CASH IN HAND: Rs ${summary.net_cash_in_hand}`);
-      printer.bold(false);
-      printer.drawLine();
-      printer.cut();
-      await printer.execute().catch(() => null);
-    }
-    res.json({ success: true });
-  } catch(e) {
-    res.json({ success: true, simulated: true });
-  }
-});
-
-// KDS API ROUTE (DISPATCHED ya COMPLETED orders kabhi wapas nahi aayenge)
+// ================= KDS API ROUTE (STRICT FILTER: Completed/Dispatched orders will never come back) =================
 app.get('/api/kot', (req, res) => {
   db.all(
     `SELECT o.id, o.order_type, o.table_no, o.status, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
      FROM orders o 
-     WHERE o.status IN ('RUNNING_TABLE', 'DUE_PENDING', 'RUNNING') 
-       AND o.status NOT IN ('COMPLETED', 'DISPATCHED', 'VOID')
+     WHERE o.status = 'RUNNING_TABLE' 
+       AND o.status NOT IN ('COMPLETED', 'DISPATCHED', 'VOID', 'NEEDS_APPROVAL')
      ORDER BY o.id ASC`,
     [],
     async (err, orders) => {
