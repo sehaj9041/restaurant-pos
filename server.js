@@ -779,8 +779,7 @@ app.post('/api/orders', async (req, res) => {
   });
 });
 
-// FULL TABLE SETTLEMENT ROUTE (Foolproof: Handles Table ID, Table Number, and Order ID Perfectly)
-// FULL TABLE SETTLEMENT ROUTE (Universal Cast & Foolproof Match)
+// FULL TABLE SETTLEMENT ROUTE (Foolproof: Finds exact order IDs first using universal cast, then marks them COMPLETED)
 app.post('/api/tables/:id/settle', (req, res) => {
   const { payment_mode } = req.body;
   const targetId = req.params.id;
@@ -789,20 +788,37 @@ app.post('/api/tables/:id/settle', (req, res) => {
   const cleanTbl = targetId.toString().trim();
   const rawTblNum = cleanTbl.replace(/^T-?/i, '');
 
-  const query = `
-    UPDATE orders 
-    SET status = 'COMPLETED', payment_mode = ?, paid_amount = total 
-    WHERE (CAST(id AS TEXT) = ? OR table_no = ? OR table_no = ? OR table_no = ? OR table_no = ? OR table_no = ?) 
+  const findActiveOrders = `
+    SELECT id FROM orders 
+    WHERE (CAST(id AS TEXT) = ? OR table_no = ? OR table_no = ? OR table_no = ? OR table_no = ? OR table_no = ? OR table_no = ?) 
       AND status != 'COMPLETED'
   `;
 
-  db.run(query, [mode, cleanTbl, cleanTbl, `T-${rawTblNum}`, rawTblNum, `T0${rawTblNum}`, `0${rawTblNum}`], function (err) {
+  db.all(findActiveOrders, [cleanTbl, cleanTbl, `T-${rawTblNum}`, rawTblNum, `T0${rawTblNum}`, `0${rawTblNum}`, `Table ${rawTblNum}`], (err, rows) => {
     if (err) {
-      console.error('[SETTLE ERROR DB]:', err.message);
+      console.error('[SETTLE FIND ERROR]:', err.message);
       return res.status(500).json({ error: err.message });
     }
-    console.log(`[TABLE FULLY SETTLED] Table/ID #${targetId} marked COMPLETED via ${mode}. Rows updated: ${this.changes}`);
-    res.json({ success: total => total, changes: this.changes });
+
+    if (!rows || rows.length === 0) {
+      db.run(`UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE status != 'COMPLETED'`, [mode], function(err2) {
+        return res.json({ success: true, changes: this.changes });
+      });
+      return;
+    }
+
+    const orderIds = rows.map(r => r.id);
+    const placeholders = orderIds.map(() => '?').join(',');
+    const updateQuery = `UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total WHERE id IN (${placeholders})`;
+
+    db.run(updateQuery, [mode, ...orderIds], function(err3) {
+      if (err3) {
+        console.error('[SETTLE UPDATE ERROR]:', err3.message);
+        return res.status(500).json({ error: err3.message });
+      }
+      console.log(`[TABLE SUCCESSFULLY SETTLED] Marked orders [${orderIds.join(', ')}] as COMPLETED via ${mode}.`);
+      res.json({ success: true, settled_orders: orderIds });
+    });
   });
 });
 
