@@ -40,6 +40,7 @@
     .kot-card-box .kot-item-title {
       font-size: calc(15px * var(--kot-scale));
     }
+    /* BIGGER & PROMINENT QUANTITY FONT */
     .kot-card-box .kot-qty-badge {
       font-size: calc(18px * var(--kot-scale));
       line-height: 1;
@@ -619,10 +620,11 @@
       });
     }
 
-    function fetchKOT() {
+ function fetchKOT() {
       fetch('/api/kot')
         .then(function(res) { return res.json(); })
         .then(function(orders) {
+          // AAKHRI FIX: Agar server se empty ya settled list aayi hai, toh local storage ka kachra saaf kar do
           if (!orders || orders.length === 0) {
             localStorage.removeItem('kot_order_snapshots');
             localStorage.removeItem('kot_checked_items');
@@ -642,6 +644,8 @@
           liveOrdersData = pendingOrders;
           document.getElementById('pendingCount').innerText = liveOrdersData.length + ' Pending';
           
+          // Baaki ka sara purana logic wahi rahega...
+
           var snapshots = getStoredSnapshots();
           var persistentBadges = getAlertBadges();
           var checkedMap = getCheckedItemKeys();
@@ -650,6 +654,7 @@
 
           var currentOrderIds = new Set(liveOrdersData.map(function(o){ return o.id.toString(); }));
 
+          // FIX: Jo orders server se hat chuke hain (settle ho gaye hain), unka saara local cache turant saaf karo
           Object.keys(snapshots).forEach(function(id) {
             if (!currentOrderIds.has(id)) {
               delete snapshots[id];
@@ -675,62 +680,41 @@
 
             if (!prevSnapshot) {
               shouldPlaySound = true;
-              var initMap = {};
-              currentItems.forEach(function(item) {
-                initMap[item.id || item.name] = Number(item.qty) || 1;
-              });
               snapshots[orderId] = {
-                itemsMap: initMap,
-                cancelledItems: {},
+                rowsCount: currentItems.length,
+                rowsQty: currentItems.map(function(i){ return Number(i.qty) || 1; }),
                 wasCompletedBefore: false
               };
             } else {
-              var prevItemsMap = prevSnapshot.itemsMap || {};
-              var newItemsMap = {};
-              var cancelledMap = prevSnapshot.cancelledItems || {};
+              var prevRowsCount = prevSnapshot.rowsCount || 0;
+              var prevRowsQty = prevSnapshot.rowsQty || [];
 
-              currentItems.forEach(function(item) {
-                var key = item.id || item.name;
+              if (currentItems.length > prevRowsCount) {
+                shouldPlaySound = true;
+                delete readyStore[orderId];
+                for (var idx = prevRowsCount; idx < currentItems.length; idx++) {
+                  var itemRowKey = orderId + '_row_' + idx;
+                  persistentBadges[itemRowKey] = 'NEW';
+                  delete checkedMap[itemRowKey];
+                }
+              }
+
+              currentItems.forEach(function(item, idx) {
                 var currentQty = Number(item.qty) || 1;
-                newItemsMap[key] = currentQty;
+                var prevQty = prevRowsQty[idx];
 
-                if (prevItemsMap[key] !== undefined) {
-                  var prevQty = prevItemsMap[key];
-                  if (currentQty > prevQty) {
-                    var diff = currentQty - prevQty;
-                    var rowKey = orderId + '_' + key;
-                    persistentBadges[rowKey] = '+' + diff + ' QTY';
-                    delete checkedMap[rowKey];
-                    delete readyStore[orderId];
-                    shouldPlaySound = true;
-                  } else if (currentQty < prevQty) {
-                    var diff = prevQty - currentQty;
-                    var rowKey = orderId + '_' + key;
-                    persistentBadges[rowKey] = '-' + diff + ' QTY';
-                    delete checkedMap[rowKey];
-                    delete readyStore[orderId];
-                    shouldPlaySound = true;
-                  }
-                } else {
-                  var rowKey = orderId + '_' + key;
-                  persistentBadges[rowKey] = 'NEW';
+                if (prevQty !== undefined && currentQty > prevQty) {
+                  var diff = currentQty - prevQty;
+                  var rowKey = orderId + '_row_' + idx;
+                  persistentBadges[rowKey] = '+' + diff + ' QTY';
                   delete checkedMap[rowKey];
                   delete readyStore[orderId];
                   shouldPlaySound = true;
                 }
               });
 
-              // Check for completely deleted/cancelled items
-              Object.keys(prevItemsMap).forEach(function(oldKey) {
-                if (newItemsMap[oldKey] === undefined) {
-                  cancelledMap[oldKey] = true;
-                  shouldPlaySound = true;
-                  delete readyStore[orderId];
-                }
-              });
-
-              snapshots[orderId].itemsMap = newItemsMap;
-              snapshots[orderId].cancelledItems = cancelledMap;
+              snapshots[orderId].rowsCount = currentItems.length;
+              snapshots[orderId].rowsQty = currentItems.map(function(i){ return Number(i.qty) || 1; });
             }
           });
 
@@ -747,7 +731,6 @@
         })
         .catch(function(){});
     }
-
     function renderKOTCards() {
       var grid = document.getElementById('kotGrid');
       if (!liveOrdersData || liveOrdersData.length === 0) {
@@ -758,22 +741,17 @@
       var persistentBadges = getAlertBadges();
       var checkedMap = getCheckedItemKeys();
       var readyStore = getReadyForDispatchOrders();
-      var snapshots = getStoredSnapshots();
 
       grid.innerHTML = liveOrdersData.map(function(order) {
         var strId = order.id.toString();
         var isReadyForDispatch = !!readyStore[strId];
-        var orderSnap = snapshots[strId] || {};
-        var cancelledItemsMap = orderSnap.cancelledItems || {};
 
         var allItemsReady = (order.items || []).every(function(item, idx) {
-          var itemKey = item.id || item.name;
-          if (cancelledItemsMap[itemKey]) return true;
-          
           var mainItemDone = !!checkedMap[order.id + '_row_' + idx];
           var addonsDone = true;
           
           var addonsList = extractAddonsList(item);
+
           if (addonsList.length > 0) {
             addonsDone = addonsList.every(function(_, aIdx) {
               return !!checkedMap[order.id + '_row_' + idx + '_addon_' + aIdx];
@@ -827,9 +805,6 @@
           ? 'border-emerald-500 bg-emerald-50/40 shadow-emerald-100 ring-2 ring-emerald-500/40' 
           : (allItemsReady ? 'border-emerald-500 shadow-emerald-50' : theme.border);
 
-        var activeItems = order.items || [];
-        var cancelledKeysArray = Object.keys(cancelledItemsMap);
-
         return `
           <!-- LIGHT THEME KOT CARD -->
           <div class="kot-card-box bg-white border-2 ${cardBorderClass} rounded-2xl flex flex-col justify-between overflow-hidden shadow-xs hover:shadow-md transition self-start w-full">
@@ -871,8 +846,7 @@
 
             <!-- ITEMS LIST -->
             <div class="p-3.5 space-y-3">
-               ${activeItems.map(function(item, idx) {
-                var itemKey = item.id || item.name;
+               ${(order.items || []).map(function(item, idx) {
                 var rowKey = order.id + '_row_' + idx;
                 var isDone = !!checkedMap[rowKey];
                 var badgeTag = persistentBadges[rowKey];
@@ -887,6 +861,7 @@
                         ${isDone ? '✓' : ''}
                       </div>
 
+                      <!-- BIGGER & BOLDER QUANTITY BADGE -->
                       <span class="kot-qty-badge font-black text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2 py-1 rounded-md shrink-0 shadow-2xs">
                         x${item.qty}
                       </span>
@@ -902,6 +877,7 @@
                       ` : ''}
                     </div>
 
+                    <!-- INDIVIDUAL ADD-ONS TICK BOXES (No Duplicate Text Below) -->
                     ${addonsList.length > 0 ? `
                       <div class="mt-1.5 ml-8 space-y-1 pl-2 border-l-2 border-slate-200">
                         ${addonsList.map(function(addon, aIdx) {
@@ -918,22 +894,6 @@
                         }).join('')}
                       </div>
                     ` : ''}
-                  </div>
-                `;
-              }).join('')}
-
-              <!-- RENDER CANCELLED ITEMS STRIKE-THROUGH -->
-              ${cancelledKeysArray.map(function(cKey) {
-                return `
-                  <div class="border-b border-rose-100 pb-2.5 bg-rose-50/60 p-2 rounded-xl">
-                    <div class="flex items-center gap-2.5 select-none opacity-80">
-                      <span class="kot-item-title font-bold text-rose-600 flex-1 line-through">
-                        ${cKey}
-                      </span>
-                      <span class="kot-badge bg-rose-600 text-white font-black px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 shadow-2xs border border-rose-400">
-                        CANCELLED
-                      </span>
-                    </div>
                   </div>
                 `;
               }).join('')}
