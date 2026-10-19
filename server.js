@@ -738,7 +738,17 @@ app.post('/api/orders', async (req, res) => {
   let calculatedTotal = Math.round(calculatedSubtotal + calculatedGst - (Number(discount) || 0));
 
   let initialPaid = 0;
-  let status = 'RUNNING_TABLE'; // Hamesha RUNNING_TABLE rahega taaki table turant table grid par dikhe
+  
+  // FIX: Sirf Kiosk ya online/external orders hi 'NEEDS_APPROVAL' mein aayenge. 
+  // Jo order hum index (POS counter) se khud laga rahe hain, wo seedha 'RUNNING_TABLE' banenge!
+  let status = 'RUNNING_TABLE';
+  const isKioskOrOnline = is_kiosk || upperType.includes('KIOSK') || upperType.includes('ONLINE') || upperType.includes('SWIGGY') || upperType.includes('ZOMATO');
+  
+  if (isKioskOrOnline && !is_hold) {
+    status = 'NEEDS_APPROVAL';
+  } else {
+    status = 'RUNNING_TABLE';
+  }
 
   // FIX: Agar payment mode nahi diya gaya hai, toh strict tarike se 'UNPAID' set hoga, 'DUE' kabhi nahi!
   let finalPaymentMode = 'UNPAID';
@@ -800,7 +810,7 @@ app.post('/api/orders', async (req, res) => {
         }
       }
 
-      console.log(`[ORDER CREATED] Order #${orderId} placed with status RUNNING_TABLE and mode ${finalPaymentMode}.`);
+      console.log(`[ORDER CREATED] Order #${orderId} placed with status ${status} and mode ${finalPaymentMode}.`);
       res.json({ success: true, orderId: orderId, paid_amount: initialPaid });
     } catch (itemErr) {
       console.error('Order items insert error:', itemErr.message);
