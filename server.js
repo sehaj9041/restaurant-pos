@@ -484,8 +484,9 @@ app.get('/api/orders/active', (req, res) => {
     SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount
     FROM orders 
     WHERE (UPPER(status) = 'RUNNING_TABLE' OR UPPER(status) = 'KOT_DONE')
-      AND table_no IS NOT NULL 
-      AND TRIM(table_no) != ''
+      AND status != 'COMPLETED'
+      AND status != 'DISPATCHED'
+      AND status != 'VOID'
     ORDER BY id DESC
   `;
 
