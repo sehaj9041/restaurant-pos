@@ -673,8 +673,6 @@ app.put('/api/orders/:id', (req, res) => {
   const { order_type, table_no, customer_name, customer_phone, items, subtotal, discount, gst, total, payment_mode, paid_amount } = req.body;
 
   db.get("SELECT total, paid_amount, payment_mode, status FROM orders WHERE id = ?", [orderId], (errGet, currentOrder) => {
-    let prevStatus = currentOrder ? currentOrder.status : 'RUNNING_TABLE';
-
     let incomingPaid = Number(paid_amount) || 0;
     let finalTotal = Number(total) || (currentOrder ? Number(currentOrder.total) : 0);
     
@@ -684,12 +682,11 @@ app.put('/api/orders/:id', (req, res) => {
     let finalRemaining = Math.max(0, finalTotal - finalPaid);
     let finalMode = payment_mode || (currentOrder ? currentOrder.payment_mode : 'UNPAID');
 
-    // FIX: Payment hone par bhi status COMPLETED mat karo, purana status maintain rakho taaki KDS se na hate
-    let status = prevStatus;
+    let status = 'RUNNING_TABLE';
     if (payment_mode && payment_mode.toUpperCase() === 'DUE') {
       status = 'DUE_PENDING';
-    } else if (!status || status === 'NEEDS_APPROVAL') {
-      status = 'RUNNING_TABLE';
+    } else if (finalPaid >= finalTotal && finalTotal > 0) {
+      status = 'DISPATCHED'; // FIX: Payment poori hote hi status DISPATCHED ho jayega, jisse table turant free ho jayegi!
     }
 
     db.run(
@@ -710,7 +707,6 @@ app.put('/api/orders/:id', (req, res) => {
               });
             }
           }
-          console.log(`[ORDER UPDATED] Order #${orderId} updated with payment, status preserved as ${status}.`);
           res.json({ success: true, orderId, paid_amount: finalPaid, payable_now: finalRemaining, status });
         });
       }
@@ -819,23 +815,15 @@ app.post('/api/tables/:id/settle', (req, res) => {
   const targetId = req.params.id;
   const mode = (payment_mode || 'Cash').toUpperCase();
 
-  console.log(`[SETTLE REQUEST] Settling table target ID/No: ${targetId} via ${mode}`);
-
   db.get("SELECT table_no FROM floor_tables WHERE id = ? OR table_no = ?", [targetId, targetId], (err, tableRow) => {
     const actualTableNo = tableRow ? tableRow.table_no : targetId;
 
-    // FIX: Status COMPLETED karo, payment update karo, AUR table_no ko blank kar do 
-    // taaki frontend ki active orders list mein wo table match na kare aur table turant green (free) ho jaye!
+    // FIX: Jaise hi payment settle hogi, status DISPATCHED ho jayega taaki table turant free ho jaye!
     db.run(
-      `UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total, table_no = '' WHERE (table_no = ? OR id = ?) AND status != 'COMPLETED'`,
+      `UPDATE orders SET status = 'DISPATCHED', payment_mode = ?, paid_amount = total WHERE (table_no = ? OR id = ?) AND status != 'COMPLETED'`,
       [mode, actualTableNo, targetId],
       function (err2) {
-        if (err2) {
-          console.error('[SETTLE UPDATE ERROR]:', err2.message);
-          return res.status(500).json({ error: err2.message });
-        }
-
-        console.log(`[SETTLE SUCCESS] Table ${actualTableNo} settled and freed. Orders updated: ${this.changes}`);
+        if (err2) return res.status(500).json({ error: err2.message });
         res.json({ success: true, changes: this.changes });
       }
     );
