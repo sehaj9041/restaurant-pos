@@ -478,12 +478,14 @@ app.post('/api/orders/:id/assign-table', (req, res) => {
 
 // 7. ACTIVE ORDERS
 app.get('/api/orders/active', (req, res) => {
-  // Yahan hum strict check laga rahe hain ki sirf wahi orders active maane jayein jinka status RUNNING_TABLE ya NEEDS_APPROVAL hai.
-  // Jaise hi order DISPATCHED ya COMPLETED hoga, woh yahan se hat jayega aur table turant green (free) ho jayegi.
+  // FINAL FIX: Active orders sirf wahi honge jinka status 'RUNNING_TABLE' hai aur table_no khali nahi hai.
+  // Jaise hi order dispatch ya settle hoga, ye turant active list se nikal jayega aur table free ho jayegi.
   const query = `
     SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount
     FROM orders 
-    WHERE UPPER(status) IN ('RUNNING_TABLE', 'NEEDS_APPROVAL', 'DUE_PENDING')
+    WHERE UPPER(status) = 'RUNNING_TABLE'
+      AND table_no IS NOT NULL 
+      AND TRIM(table_no) != ''
     ORDER BY id DESC
   `;
 
