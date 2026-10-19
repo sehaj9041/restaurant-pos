@@ -491,6 +491,12 @@ app.get('/api/orders/active', (req, res) => {
       return res.status(500).json({ error: err.message });
     }
     
+    // DEBUG LOG: Yeh check karne ke liye ki active orders mein abhi kaun-kaun se orders bache hain aur unka status kya hai
+    console.log('[DEBUG /api/orders/active] Active orders count:', orders ? orders.length : 0);
+    if (orders && orders.length > 0) {
+      orders.forEach(o => console.log(`-> Order #${o.id}, Table: ${o.table_no}, Status: ${o.status}`));
+    }
+
     if (!orders || orders.length === 0) {
       return res.json([]);
     }
