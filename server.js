@@ -478,10 +478,12 @@ app.post('/api/orders/:id/assign-table', (req, res) => {
 
 // 7. ACTIVE ORDERS
 app.get('/api/orders/active', (req, res) => {
+  // Yahan hum strict check laga rahe hain ki sirf wahi orders active maane jayein jinka status RUNNING_TABLE ya NEEDS_APPROVAL hai.
+  // Jaise hi order DISPATCHED ya COMPLETED hoga, woh yahan se hat jayega aur table turant green (free) ho jayegi.
   const query = `
     SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount
     FROM orders 
-    WHERE status NOT IN ('COMPLETED', 'VOID', 'NEEDS_APPROVAL', 'DISPATCHED')
+    WHERE UPPER(status) IN ('RUNNING_TABLE', 'NEEDS_APPROVAL', 'DUE_PENDING')
     ORDER BY id DESC
   `;
 
@@ -491,12 +493,6 @@ app.get('/api/orders/active', (req, res) => {
       return res.status(500).json({ error: err.message });
     }
     
-    // DEBUG LOG: Yeh check karne ke liye ki active orders mein abhi kaun-kaun se orders bache hain aur unka status kya hai
-    console.log('[DEBUG /api/orders/active] Active orders count:', orders ? orders.length : 0);
-    if (orders && orders.length > 0) {
-      orders.forEach(o => console.log(`-> Order #${o.id}, Table: ${o.table_no}, Status: ${o.status}`));
-    }
-
     if (!orders || orders.length === 0) {
       return res.json([]);
     }
