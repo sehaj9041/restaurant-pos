@@ -421,19 +421,22 @@ app.get('/api/orders/needs-approval', (req, res) => {
 app.post('/api/orders/:id/approve', (req, res) => {
   const orderId = req.params.id;
   
-  db.get("SELECT order_type FROM orders WHERE id = ?", [orderId], (err, order) => {
+  db.get("SELECT order_type, table_no FROM orders WHERE id = ?", [orderId], (err, order) => {
     if (err || !order) return res.status(404).json({ error: 'Order not found' });
 
     let type = (order.order_type || '').toLowerCase();
-    let newTableNo = '';
+    let newTableNo = order.table_no || '';
     let newStatus = 'RUNNING_TABLE';
 
     if (type.includes('delivery')) {
       newTableNo = 'Delivery';
-    } else if (type.includes('takeaway')) {
+    } else if (type.includes('takeaway') || type.includes('pickup')) {
       newTableNo = 'Takeaway';
     } else {
-      newTableNo = '';
+      // Dine-in ke liye agar table pehle se nahi hai, toh khali chhod do taaki POS active queue / 'Needs Table' mein dikhe
+      if (!newTableNo || newTableNo.toUpperCase() === 'KIOSK') {
+        newTableNo = ''; 
+      }
     }
 
     db.run(
@@ -444,13 +447,12 @@ app.post('/api/orders/:id/approve', (req, res) => {
       [newStatus, newTableNo, orderId], 
       (err2) => {
         if (err2) return res.status(500).json({ error: err2.message });
-        console.log(`[ORDER APPROVED] Order #${orderId} accepted and routed correctly.`);
+        console.log(`[ORDER APPROVED] Order #${orderId} accepted with table/queue '${newTableNo}'.`);
         res.json({ success: true });
       }
     );
   });
 });
-
 app.post('/api/orders/:id/reject', (req, res) => {
   const orderId = req.params.id;
   db.run("UPDATE orders SET status = 'VOID' WHERE id = ?", [orderId], (err) => {
@@ -720,13 +722,19 @@ app.post('/api/orders', async (req, res) => {
   let rawType = (order_type || 'Kiosk').trim();
   let upperType = rawType.toUpperCase();
   let normalizedOrderType = rawType;
+  let finalTableNo = table_no || '';
 
   if (upperType.includes('DELIVERY')) {
     normalizedOrderType = 'Delivery';
+    finalTableNo = 'Delivery';
   } else if (upperType.includes('TAKEAWAY') || upperType.includes('PICKUP')) {
     normalizedOrderType = 'Takeaway';
+    finalTableNo = 'Takeaway';
   } else if (upperType.includes('DINE') || upperType.includes('EAT') || upperType.includes('KIOSK')) {
     normalizedOrderType = 'Dine-In';
+    if (!table_no || table_no.trim() === '' || table_no.toUpperCase() === 'KIOSK') {
+      finalTableNo = ''; // Isse POS active queues / table assignment mein 'Needs Table' ke roop mein dikhega
+    }
   }
 
   let calculatedSubtotal = Number(subtotal) || 0;
@@ -764,7 +772,7 @@ app.post('/api/orders', async (req, res) => {
 
   const orderValues = [
     normalizedOrderType,
-    table_no || '',
+    finalTableNo,
     customer_name || '',
     customer_phone || '',
     status,
