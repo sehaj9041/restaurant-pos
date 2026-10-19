@@ -478,16 +478,12 @@ app.post('/api/orders/:id/assign-table', (req, res) => {
 
 // 7. ACTIVE ORDERS
 app.get('/api/orders/active', (req, res) => {
-  // STRICT QUERY: Wahi orders active rahenge jinka status RUNNING_TABLE hai, 
-  // aur jinki payment poori tarah PENDING hai (yani paid_amount < total ya payment_mode DUE/UNPAID hai).
-  // Jo settle ho chuke hain ya dispatch ho chuke hain, wo yahan kabhi nahi aayenge!
   const query = `
     SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount
     FROM orders 
-    WHERE UPPER(status) = 'RUNNING_TABLE'
+    WHERE (UPPER(status) = 'RUNNING_TABLE' OR UPPER(status) = 'KOT_DONE')
       AND table_no IS NOT NULL 
       AND TRIM(table_no) != ''
-      AND (COALESCE(paid_amount, 0) < total OR UPPER(payment_mode) IN ('DUE', 'UNPAID', 'PAY_COUNTER'))
     ORDER BY id DESC
   `;
 
@@ -833,12 +829,10 @@ app.post('/api/tables/:id/settle', (req, res) => {
 });
 // ================= KDS API ROUTE (STRICT FILTER) =================
 app.get('/api/kot', (req, res) => {
-  // FIX: KDS ab RUNNING_TABLE ke sath-sath un COMPLETED orders ko bhi dikhayega jo abhi tak DISPATCH nahi hue hain
   const query = `
     SELECT o.id, o.order_type, o.table_no, o.status, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
     FROM orders o 
-    WHERE (UPPER(o.status) = 'RUNNING_TABLE' OR UPPER(o.status) = 'COMPLETED')
-      AND UPPER(o.status) NOT IN ('DISPATCHED', 'VOID', 'BILLED', 'DUE_PENDING', 'NEEDS_APPROVAL')
+    WHERE UPPER(o.status) = 'RUNNING_TABLE'
     ORDER BY o.id ASC
   `;
 
@@ -868,35 +862,17 @@ app.get('/api/kot', (req, res) => {
     }
   });
 });
-
 app.post('/api/kot/:id/complete', (req, res) => {
   const orderId = req.params.id;
 
-  // KDS se KOT complete (Mark Ready) hone par hum sirf itna chahte hain ki kitchen ki screen se order hat jaye.
-  // Lekin agar payment nahi hui hai, toh iska status 'RUNNING_TABLE' hi rehna chahiye taaki table laal rahe aur order Due mein na bhage!
-  db.get("SELECT total, COALESCE(paid_amount, 0) as paid_amount, payment_mode FROM orders WHERE id = ?", [orderId], (err, order) => {
-    if (err || !order) return res.status(404).json({ error: 'Order not found' });
-
-    const total = Number(order.total) || 0;
-    const paid = Number(order.paid_amount) || 0;
-    const mode = (order.payment_mode || '').toUpperCase();
-
-    let targetStatus = 'RUNNING_TABLE';
-
-    // Agar poori payment ho chuki hai, tabhi status COMPLETED hoga (taaki table free ho aur history mein jaye).
-    // Agar payment nahi hui hai, toh status RUNNING_TABLE rahega (taaki KDS se to order hat jaye, par table laal rahe aur Due mein na jaye).
-    if (paid >= total && total > 0 && mode !== 'DUE' && mode !== 'UNPAID' && mode !== 'PAY_COUNTER') {
-      targetStatus = 'COMPLETED';
-      console.log(`[KDS COMPLETE] Order #${orderId} is fully paid. Marked as COMPLETED.`);
-    } else {
-      targetStatus = 'RUNNING_TABLE';
-      console.log(`[KDS COMPLETE] Order #${orderId} payment pending. Removed from KDS, but table remains RUNNING_TABLE.`);
+  // Chef ke 'Mark Ready' karte hi status KOT_DONE kar do taaki KDS se order hat jaye, par table laal rahe
+  db.run("UPDATE orders SET status = 'KOT_DONE' WHERE id = ?", [orderId], (err2) => {
+    if (err2) {
+      console.error('[KDS COMPLETE ERROR]:', err2.message);
+      return res.status(500).json({ error: err2.message });
     }
-
-    db.run("UPDATE orders SET status = ? WHERE id = ?", [targetStatus, orderId], (err2) => {
-      if (err2) return res.status(500).json({ error: err2.message });
-      res.json({ success: true, status: targetStatus });
-    });
+    console.log(`[KDS COMPLETE] Order #${orderId} marked as KOT_DONE and removed from KDS screen.`);
+    res.json({ success: true });
   });
 });
 app.get('/api/customers/:phone', (req, res) => {
