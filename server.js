@@ -478,13 +478,16 @@ app.post('/api/orders/:id/assign-table', (req, res) => {
 
 // 7. ACTIVE ORDERS
 app.get('/api/orders/active', (req, res) => {
-  // Table tab tak busy rahegi jab tak ya toh order running hai YA phir payment pending (due/unpaid) hai
+  // STRICT QUERY: Wahi orders active rahenge jinka status RUNNING_TABLE hai, 
+  // aur jinki payment poori tarah PENDING hai (yani paid_amount < total ya payment_mode DUE/UNPAID hai).
+  // Jo settle ho chuke hain ya dispatch ho chuke hain, wo yahan kabhi nahi aayenge!
   const query = `
     SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount
     FROM orders 
-    WHERE (UPPER(status) = 'RUNNING_TABLE' OR UPPER(status) = 'DUE_PENDING' OR (UPPER(status) = 'DISPATCHED' AND COALESCE(paid_amount, 0) < total AND UPPER(payment_mode) = 'DUE'))
+    WHERE UPPER(status) = 'RUNNING_TABLE'
       AND table_no IS NOT NULL 
       AND TRIM(table_no) != ''
+      AND (COALESCE(paid_amount, 0) < total OR UPPER(payment_mode) IN ('DUE', 'UNPAID', 'PAY_COUNTER'))
     ORDER BY id DESC
   `;
 
