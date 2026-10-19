@@ -517,6 +517,8 @@ app.get('/api/orders/active', (req, res) => {
 // ================= DEDICATED DUE (KHATA) APIS =================
 
 app.get('/api/due/orders', (req, res) => {
+  // STRICT FIX: Due mein sirf wahi orders aayenge jinka payment_mode 'DUE' hai ya status 'DUE_PENDING' hai. 
+  // RUNNING_TABLE ya naye UNPAID orders yahan kabhi nahi aayenge!
   const query = `
     SELECT 
       id, order_type, table_no, customer_name, customer_phone, 
@@ -526,12 +528,11 @@ app.get('/api/due/orders', (req, res) => {
     FROM orders
     WHERE status != 'COMPLETED'
       AND status != 'DISPATCHED'
+      AND status != 'VOID'
       AND (
         UPPER(payment_mode) = 'DUE' 
         OR status = 'DUE_PENDING'
-        OR (status = 'KOT_READY' AND UPPER(payment_mode) = 'DUE')
         OR (UPPER(payment_mode) LIKE '%PARTIAL%' AND (total - COALESCE(paid_amount, 0)) > 0)
-        OR (UPPER(payment_mode) LIKE '%UNPAID%' AND (total - COALESCE(paid_amount, 0)) > 0)
       )
     ORDER BY id DESC
   `;
@@ -572,12 +573,11 @@ app.get('/api/due/customers', (req, res) => {
     FROM orders
     WHERE status != 'COMPLETED'
       AND status != 'DISPATCHED'
+      AND status != 'VOID'
       AND (
         UPPER(payment_mode) = 'DUE' 
         OR status = 'DUE_PENDING'
-        OR (status = 'KOT_READY' AND UPPER(payment_mode) = 'DUE')
         OR (UPPER(payment_mode) LIKE '%PARTIAL%' AND (total - COALESCE(paid_amount, 0)) > 0)
-        OR (UPPER(payment_mode) LIKE '%UNPAID%' AND (total - COALESCE(paid_amount, 0)) > 0)
       )
     GROUP BY COALESCE(NULLIF(customer_phone, ''), 'WALK-IN')
     HAVING SUM(GREATEST(0, total - COALESCE(paid_amount, 0))) > 0
@@ -585,6 +585,9 @@ app.get('/api/due/customers', (req, res) => {
   `;
 
   db.all(query, [], (err, rows) => {
+    if (err, rows) {
+      // safe fallback if err
+    }
     if (err) {
       console.error('Due customers fetch error:', err.message);
       return res.json([]);
