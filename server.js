@@ -872,7 +872,8 @@ app.get('/api/kot', (req, res) => {
 app.post('/api/kot/:id/complete', (req, res) => {
   const orderId = req.params.id;
 
-  // Sabse pehle check karo ki is order ki payment ki kya sthiti hai
+  // KDS se KOT complete (Mark Ready) hone par hum sirf itna chahte hain ki kitchen ki screen se order hat jaye.
+  // Lekin agar payment nahi hui hai, toh iska status 'RUNNING_TABLE' hi rehna chahiye taaki table laal rahe aur order Due mein na bhage!
   db.get("SELECT total, COALESCE(paid_amount, 0) as paid_amount, payment_mode FROM orders WHERE id = ?", [orderId], (err, order) => {
     if (err || !order) return res.status(404).json({ error: 'Order not found' });
 
@@ -880,23 +881,21 @@ app.post('/api/kot/:id/complete', (req, res) => {
     const paid = Number(order.paid_amount) || 0;
     const mode = (order.payment_mode || '').toUpperCase();
 
-    let finalStatus = 'COMPLETED';
+    let targetStatus = 'RUNNING_TABLE';
 
-    // FIX: Agar payment poori nahi hui hai (yani unpaid, due, ya less paid hai), 
-    // toh KDS se 'Done' hote hi order seedha DUE_PENDING mein jana chahiye (Khata), 
-    // aur table laal hi rehni chahiye. 
-    // Aur agar payment ho chuki hai, toh seedha COMPLETED ho jayega taaki Recent Orders mein dikhne lage!
-    if (mode === 'DUE' || paid < total || mode === 'UNPAID' || mode === 'PAY_COUNTER') {
-      finalStatus = 'DUE_PENDING';
-      console.log(`[KDS COMPLETE] Order #${orderId} marked done by chef, payment pending. Moving to DUE_PENDING.`);
+    // Agar poori payment ho chuki hai, tabhi status COMPLETED hoga (taaki table free ho aur history mein jaye).
+    // Agar payment nahi hui hai, toh status RUNNING_TABLE rahega (taaki KDS se to order hat jaye, par table laal rahe aur Due mein na jaye).
+    if (paid >= total && total > 0 && mode !== 'DUE' && mode !== 'UNPAID' && mode !== 'PAY_COUNTER') {
+      targetStatus = 'COMPLETED';
+      console.log(`[KDS COMPLETE] Order #${orderId} is fully paid. Marked as COMPLETED.`);
     } else {
-      finalStatus = 'COMPLETED';
-      console.log(`[KDS COMPLETE] Order #${orderId} fully paid. Marked as COMPLETED for History/Reports.`);
+      targetStatus = 'RUNNING_TABLE';
+      console.log(`[KDS COMPLETE] Order #${orderId} payment pending. Removed from KDS, but table remains RUNNING_TABLE.`);
     }
 
-    db.run("UPDATE orders SET status = ? WHERE id = ?", [finalStatus, orderId], (err2) => {
+    db.run("UPDATE orders SET status = ? WHERE id = ?", [targetStatus, orderId], (err2) => {
       if (err2) return res.status(500).json({ error: err2.message });
-      res.json({ success: true, status: finalStatus });
+      res.json({ success: true, status: targetStatus });
     });
   });
 });
