@@ -870,6 +870,7 @@ app.get('/api/kot', (req, res) => {
 app.post('/api/kot/:id/complete', (req, res) => {
   const orderId = req.params.id;
 
+  // Pehle check karo ki order ki payment hui hai ya nahi
   db.get("SELECT total, COALESCE(paid_amount, 0) as paid_amount, payment_mode FROM orders WHERE id = ?", [orderId], (err, order) => {
     if (err || !order) return res.status(404).json({ error: 'Order not found' });
 
@@ -879,11 +880,15 @@ app.post('/api/kot/:id/complete', (req, res) => {
 
     let newStatus = 'DISPATCHED';
 
-    if (mode === 'DUE' || paid < total) {
-      newStatus = 'DUE_PENDING';
-      console.log(`[KDS COMPLETE] Order #${orderId} marked complete by chef, but payment pending (Due). Table remains occupied.`);
+    // STRICT RULE: Agar payment poori nahi hui hai (yani unpaid hai, due hai, ya paid < total hai), 
+    // toh KDS se 'Done' karne par bhi status 'RUNNING_TABLE' hi rehna chahiye! 
+    // Isse order KDS se toh hat jayega (kitchen ka kaam khatam), lekin table par laal hi rahega aur due mein nahi jayega!
+    if (mode === 'DUE' || paid < total || mode === 'UNPAID' || mode === 'PAY_COUNTER') {
+      newStatus = 'RUNNING_TABLE';
+      console.log(`[KDS COMPLETE] Order #${orderId} marked done by chef, but payment pending. Forcing status to RUNNING_TABLE so table stays occupied.`);
     } else {
-      console.log(`[KDS COMPLETE] Order #${orderId} fully paid and dispatched. Table and KDS freed.`);
+      newStatus = 'DISPATCHED';
+      console.log(`[KDS COMPLETE] Order #${orderId} fully paid. Marked as DISPATCHED.`);
     }
 
     db.run("UPDATE orders SET status = ? WHERE id = ?", [newStatus, orderId], (err2) => {
