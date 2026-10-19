@@ -735,12 +735,12 @@ app.post('/api/orders', async (req, res) => {
   let calculatedTotal = Math.round(calculatedSubtotal + calculatedGst - (Number(discount) || 0));
 
   let initialPaid = 0;
-  let status = 'NEEDS_APPROVAL';
+  let status = 'RUNNING_TABLE'; // Hamesha RUNNING_TABLE rahega taaki table turant table grid par dikhe
 
-  if (is_hold) {
-    status = 'RUNNING_TABLE';
-  } else {
-    status = 'NEEDS_APPROVAL';
+  // FIX: Agar payment mode nahi diya gaya hai, toh strict tarike se 'UNPAID' set hoga, 'DUE' kabhi nahi!
+  let finalPaymentMode = 'UNPAID';
+  if (payment_mode && payment_mode.trim() !== '' && payment_mode.toUpperCase() !== 'PAY_COUNTER') {
+    finalPaymentMode = payment_mode.toUpperCase();
   }
 
   const insertOrderQuery = `
@@ -755,7 +755,7 @@ app.post('/api/orders', async (req, res) => {
     customer_name || '',
     customer_phone || '',
     status,
-    payment_mode || 'UNPAID',
+    finalPaymentMode,
     calculatedSubtotal,
     discount || 0,
     calculatedGst,
@@ -797,7 +797,7 @@ app.post('/api/orders', async (req, res) => {
         }
       }
 
-      console.log(`[ORDER CREATED] Kiosk order #${orderId} placed into NEEDS_APPROVAL queue.`);
+      console.log(`[ORDER CREATED] Order #${orderId} placed with status RUNNING_TABLE and mode ${finalPaymentMode}.`);
       res.json({ success: true, orderId: orderId, paid_amount: initialPaid });
     } catch (itemErr) {
       console.error('Order items insert error:', itemErr.message);
@@ -805,7 +805,6 @@ app.post('/api/orders', async (req, res) => {
     }
   });
 });
-
 // ================= FULL TABLE SETTLEMENT ROUTE (FOOLPROOF FIX) =================
 // ================= FULL TABLE SETTLEMENT ROUTE (FOOLPROOF FIX) =================
 app.post('/api/tables/:id/settle', (req, res) => {
@@ -816,12 +815,13 @@ app.post('/api/tables/:id/settle', (req, res) => {
   db.get("SELECT table_no FROM floor_tables WHERE id = ? OR table_no = ?", [targetId, targetId], (err, tableRow) => {
     const actualTableNo = tableRow ? tableRow.table_no : targetId;
 
-    // FIX: Jaise hi payment settle hogi, status DISPATCHED ho jayega taaki table turant free ho jaye!
+    // FIX: Counter se settle hote hi status 'COMPLETED' ho jayega, table_no khali ho jayega taaki table turant green (free) ho jaye!
     db.run(
-      `UPDATE orders SET status = 'DISPATCHED', payment_mode = ?, paid_amount = total WHERE (table_no = ? OR id = ?) AND status != 'COMPLETED'`,
+      `UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total, table_no = '' WHERE (table_no = ? OR id = ?) AND status != 'COMPLETED'`,
       [mode, actualTableNo, targetId],
       function (err2) {
         if (err2) return res.status(500).json({ error: err2.message });
+        console.log(`[SETTLE SUCCESS] Table ${actualTableNo} settled via ${mode}. Table freed.`);
         res.json({ success: true, changes: this.changes });
       }
     );
@@ -865,7 +865,8 @@ app.get('/api/kot', (req, res) => {
 app.post('/api/kot/:id/complete', (req, res) => {
   const orderId = req.params.id;
 
-  // Chef ke 'Mark Ready' karte hi status KOT_DONE kar do taaki KDS se order hat jaye, par table laal rahe
+  // FIX: Chef ke 'Mark Ready' karte hi status 'KOT_DONE' ho jayega. 
+  // Isse order KDS screen se hamesha ke liye hat jayega, par table RUNNING_TABLE hi rehne ke karan laal (occupied) rahegi aur Due mein nahi jayegi!
   db.run("UPDATE orders SET status = 'KOT_DONE' WHERE id = ?", [orderId], (err2) => {
     if (err2) {
       console.error('[KDS COMPLETE ERROR]:', err2.message);
