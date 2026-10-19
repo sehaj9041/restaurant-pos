@@ -481,10 +481,7 @@ app.get('/api/orders/active', (req, res) => {
   const query = `
     SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount
     FROM orders 
-    WHERE status != 'COMPLETED'
-      AND status != 'VOID'
-      AND status != 'NEEDS_APPROVAL'
-      AND status != 'DISPATCHED'
+    WHERE status NOT IN ('COMPLETED', 'VOID', 'NEEDS_APPROVAL', 'DISPATCHED')
     ORDER BY id DESC
   `;
 
@@ -515,7 +512,6 @@ app.get('/api/orders/active', (req, res) => {
     }
   });
 });
-
 // ================= DEDICATED DUE (KHATA) APIS =================
 
 app.get('/api/due/orders', (req, res) => {
@@ -890,16 +886,17 @@ app.post('/api/kot/:id/complete', (req, res) => {
     const mode = (order.payment_mode || '').toUpperCase();
 
     let newStatus = 'DISPATCHED';
-    if (paid >= total && mode !== 'UNPAID' && mode !== 'DUE' && mode !== 'PAY_COUNTER') {
-      newStatus = 'DISPATCHED';
-    } else {
+
+    if (mode === 'DUE' || paid < total) {
       newStatus = 'DUE_PENDING';
+      console.log(`[KDS COMPLETE] Order #${orderId} marked complete by chef, but payment pending (Due). Table remains occupied.`);
+    } else {
+      console.log(`[KDS COMPLETE] Order #${orderId} fully paid and dispatched. Table and KDS freed.`);
     }
 
     db.run("UPDATE orders SET status = ? WHERE id = ?", [newStatus, orderId], (err2) => {
       if (err2) return res.status(500).json({ error: err2.message });
-      console.log(`[KDS DISPATCH] Order #${orderId} processed with status: ${newStatus}`);
-      res.json({ success: true });
+      res.json({ success: true, status: newStatus });
     });
   });
 });
