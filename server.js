@@ -478,12 +478,11 @@ app.post('/api/orders/:id/assign-table', (req, res) => {
 
 // 7. ACTIVE ORDERS
 app.get('/api/orders/active', (req, res) => {
-  // FINAL FIX: Active orders sirf wahi honge jinka status 'RUNNING_TABLE' hai aur table_no khali nahi hai.
-  // Jaise hi order dispatch ya settle hoga, ye turant active list se nikal jayega aur table free ho jayegi.
+  // Table tab tak busy rahegi jab tak ya toh order running hai YA phir payment pending (due/unpaid) hai
   const query = `
     SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount
     FROM orders 
-    WHERE UPPER(status) = 'RUNNING_TABLE'
+    WHERE (UPPER(status) = 'RUNNING_TABLE' OR UPPER(status) = 'DUE_PENDING' OR (UPPER(status) = 'DISPATCHED' AND COALESCE(paid_amount, 0) < total AND UPPER(payment_mode) = 'DUE'))
       AND table_no IS NOT NULL 
       AND TRIM(table_no) != ''
     ORDER BY id DESC
@@ -870,34 +869,16 @@ app.get('/api/kot', (req, res) => {
 app.post('/api/kot/:id/complete', (req, res) => {
   const orderId = req.params.id;
 
-  // Pehle check karo ki order ki payment hui hai ya nahi
-  db.get("SELECT total, COALESCE(paid_amount, 0) as paid_amount, payment_mode FROM orders WHERE id = ?", [orderId], (err, order) => {
-    if (err || !order) return res.status(404).json({ error: 'Order not found' });
-
-    const total = Number(order.total) || 0;
-    const paid = Number(order.paid_amount) || 0;
-    const mode = (order.payment_mode || '').toUpperCase();
-
-    let newStatus = 'DISPATCHED';
-
-    // STRICT RULE: Agar payment poori nahi hui hai (yani unpaid hai, due hai, ya paid < total hai), 
-    // toh KDS se 'Done' karne par bhi status 'RUNNING_TABLE' hi rehna chahiye! 
-    // Isse order KDS se toh hat jayega (kitchen ka kaam khatam), lekin table par laal hi rahega aur due mein nahi jayega!
-    if (mode === 'DUE' || paid < total || mode === 'UNPAID' || mode === 'PAY_COUNTER') {
-      newStatus = 'RUNNING_TABLE';
-      console.log(`[KDS COMPLETE] Order #${orderId} marked done by chef, but payment pending. Forcing status to RUNNING_TABLE so table stays occupied.`);
-    } else {
-      newStatus = 'DISPATCHED';
-      console.log(`[KDS COMPLETE] Order #${orderId} fully paid. Marked as DISPATCHED.`);
+  // KDS se 'Mark Ready' hote hi status seedhe DISPATCHED kar do taaki wo KDS se hamesha ke liye hat jaye
+  db.run("UPDATE orders SET status = 'DISPATCHED' WHERE id = ?", [orderId], (err2) => {
+    if (err2) {
+      console.error('[KDS COMPLETE ERROR]:', err2.message);
+      return res.status(500).json({ error: err2.message });
     }
-
-    db.run("UPDATE orders SET status = ? WHERE id = ?", [newStatus, orderId], (err2) => {
-      if (err2) return res.status(500).json({ error: err2.message });
-      res.json({ success: true, status: newStatus });
-    });
+    console.log(`[KDS COMPLETE] Order #${orderId} marked as DISPATCHED and removed from KDS screen.`);
+    res.json({ success: true });
   });
 });
-
 app.get('/api/customers/:phone', (req, res) => {
   db.get("SELECT * FROM customers WHERE phone = ?", [req.params.phone], (err, row) => res.json(row || null));
 });
