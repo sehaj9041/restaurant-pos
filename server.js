@@ -872,14 +872,32 @@ app.get('/api/kot', (req, res) => {
 app.post('/api/kot/:id/complete', (req, res) => {
   const orderId = req.params.id;
 
-  // KDS se 'Mark Ready' hote hi status seedhe DISPATCHED kar do taaki wo KDS se hamesha ke liye hat jaye
-  db.run("UPDATE orders SET status = 'DISPATCHED' WHERE id = ?", [orderId], (err2) => {
-    if (err2) {
-      console.error('[KDS COMPLETE ERROR]:', err2.message);
-      return res.status(500).json({ error: err2.message });
+  // Sabse pehle check karo ki is order ki payment ki kya sthiti hai
+  db.get("SELECT total, COALESCE(paid_amount, 0) as paid_amount, payment_mode FROM orders WHERE id = ?", [orderId], (err, order) => {
+    if (err || !order) return res.status(404).json({ error: 'Order not found' });
+
+    const total = Number(order.total) || 0;
+    const paid = Number(order.paid_amount) || 0;
+    const mode = (order.payment_mode || '').toUpperCase();
+
+    let finalStatus = 'COMPLETED';
+
+    // FIX: Agar payment poori nahi hui hai (yani unpaid, due, ya less paid hai), 
+    // toh KDS se 'Done' hote hi order seedha DUE_PENDING mein jana chahiye (Khata), 
+    // aur table laal hi rehni chahiye. 
+    // Aur agar payment ho chuki hai, toh seedha COMPLETED ho jayega taaki Recent Orders mein dikhne lage!
+    if (mode === 'DUE' || paid < total || mode === 'UNPAID' || mode === 'PAY_COUNTER') {
+      finalStatus = 'DUE_PENDING';
+      console.log(`[KDS COMPLETE] Order #${orderId} marked done by chef, payment pending. Moving to DUE_PENDING.`);
+    } else {
+      finalStatus = 'COMPLETED';
+      console.log(`[KDS COMPLETE] Order #${orderId} fully paid. Marked as COMPLETED for History/Reports.`);
     }
-    console.log(`[KDS COMPLETE] Order #${orderId} marked as DISPATCHED and removed from KDS screen.`);
-    res.json({ success: true });
+
+    db.run("UPDATE orders SET status = ? WHERE id = ?", [finalStatus, orderId], (err2) => {
+      if (err2) return res.status(500).json({ error: err2.message });
+      res.json({ success: true, status: finalStatus });
+    });
   });
 });
 app.get('/api/customers/:phone', (req, res) => {
