@@ -837,13 +837,18 @@ app.post('/api/tables/:id/settle', (req, res) => {
   db.get("SELECT table_no FROM floor_tables WHERE id = ? OR table_no = ?", [targetId, targetId], (err, tableRow) => {
     const actualTableNo = tableRow ? tableRow.table_no : targetId;
 
-    // FIX: Counter se settle hote hi status 'COMPLETED' ho jayega, table_no khali ho jayega taaki table turant green (free) ho jaye!
     db.run(
-      `UPDATE orders SET status = 'COMPLETED', payment_mode = ?, paid_amount = total, table_no = '' WHERE (table_no = ? OR id = ?) AND status != 'COMPLETED'`,
+      `UPDATE orders 
+       SET payment_mode = ?, 
+           paid_amount = total,
+           table_no = CASE WHEN status = 'KOT_DONE' OR status = 'COMPLETED' THEN '' ELSE table_no END
+       WHERE (table_no = ? OR id = ?) 
+         AND status != 'COMPLETED' 
+         AND status != 'VOID'`,
       [mode, actualTableNo, targetId],
       function (err2) {
         if (err2) return res.status(500).json({ error: err2.message });
-        console.log(`[SETTLE SUCCESS] Table ${actualTableNo} settled via ${mode}. Table freed.`);
+        console.log(`[SETTLE SUCCESS] Table ${actualTableNo} settled via ${mode}. Table freed only if KDS task is complete.`);
         res.json({ success: true, changes: this.changes });
       }
     );
@@ -887,15 +892,23 @@ app.get('/api/kot', (req, res) => {
 app.post('/api/kot/:id/complete', (req, res) => {
   const orderId = req.params.id;
 
-  // FIX: Chef ke 'Mark Ready' karte hi status 'KOT_DONE' ho jayega. 
-  // Isse order KDS screen se hamesha ke liye hat jayega, par table RUNNING_TABLE hi rehne ke karan laal (occupied) rahegi aur Due mein nahi jayegi!
-  db.run("UPDATE orders SET status = 'KOT_DONE' WHERE id = ?", [orderId], (err2) => {
-    if (err2) {
-      console.error('[KDS COMPLETE ERROR]:', err2.message);
-      return res.status(500).json({ error: err2.message });
-    }
-    console.log(`[KDS COMPLETE] Order #${orderId} marked as KOT_DONE and removed from KDS screen.`);
-    res.json({ success: true });
+  db.get("SELECT total, paid_amount FROM orders WHERE id = ?", [orderId], (err, order) => {
+    let isFullyPaid = order && Number(order.paid_amount) >= Number(order.total) && Number(order.total) > 0;
+    let newStatus = isFullyPaid ? 'COMPLETED' : 'KOT_DONE';
+
+    let updateQuery = isFullyPaid 
+      ? "UPDATE orders SET status = ?, table_no = '' WHERE id = ?"
+      : "UPDATE orders SET status = ? WHERE id = ?";
+    let queryParams = isFullyPaid ? [newStatus, orderId] : [newStatus, orderId];
+
+    db.run(updateQuery, queryParams, (err2) => {
+      if (err2) {
+        console.error('[KDS COMPLETE ERROR]:', err2.message);
+        return res.status(500).json({ error: err2.message });
+      }
+      console.log(`[KDS COMPLETE] Order #${orderId} marked ready. Status: ${newStatus}`);
+      res.json({ success: true });
+    });
   });
 });
 app.get('/api/customers/:phone', (req, res) => {
