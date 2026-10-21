@@ -837,18 +837,20 @@ app.post('/api/tables/:id/settle', (req, res) => {
   db.get("SELECT table_no FROM floor_tables WHERE id = ? OR table_no = ?", [targetId, targetId], (err, tableRow) => {
     const actualTableNo = tableRow ? tableRow.table_no : targetId;
 
+    // STRICT RULE: Counter se settle karne par sirf payment save hogi aur table free hogi. 
+    // Status ko bilkul nahi badlenge taaki KDS par KOT tab tak bani rahe jab tak chef khud na hataye!
     db.run(
       `UPDATE orders 
        SET payment_mode = ?, 
            paid_amount = total,
-           table_no = CASE WHEN status = 'KOT_DONE' OR status = 'COMPLETED' THEN '' ELSE table_no END
+           table_no = ''
        WHERE (table_no = ? OR id = ?) 
          AND status != 'COMPLETED' 
          AND status != 'VOID'`,
       [mode, actualTableNo, targetId],
       function (err2) {
         if (err2) return res.status(500).json({ error: err2.message });
-        console.log(`[SETTLE SUCCESS] Table ${actualTableNo} settled via ${mode}. Table freed only if KDS task is complete.`);
+        console.log(`[SETTLE SUCCESS] Table ${actualTableNo} settled via ${mode}. KDS KOT remains untouched.`);
         res.json({ success: true, changes: this.changes });
       }
     );
