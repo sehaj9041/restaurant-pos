@@ -734,11 +734,11 @@ app.post('/api/orders', async (req, res) => {
   } else if (upperType.includes('DINE') || upperType.includes('EAT') || upperType.includes('KIOSK')) {
     normalizedOrderType = 'Dine-In';
     if (!table_no || table_no.trim() === '' || table_no.toUpperCase() === 'KIOSK') {
-      finalTableNo = ''; // Isse POS active queues / table assignment mein 'Needs Table' ke roop mein dikhega
+      finalTableNo = ''; 
     }
   }
 
- let calculatedSubtotal = Number(subtotal) || 0;
+  let calculatedSubtotal = Number(subtotal) || 0;
   if (calculatedSubtotal === 0 && Array.isArray(items)) {
     calculatedSubtotal = items.reduce((sum, i) => sum + (Number(i.price) * Number(i.qty)), 0);
   }
@@ -746,17 +746,13 @@ app.post('/api/orders', async (req, res) => {
   let calculatedGst = Math.round((calculatedSubtotal * 5) / 100);
   let calculatedTotal = Math.round(calculatedSubtotal + calculatedGst - (Number(discount) || 0));
 
-  // ================= FIXED HERE =================
   let initialPaid = 0;
   let finalPaymentMode = 'UNPAID';
 
   if (payment_mode && payment_mode.trim() !== '' && payment_mode.toUpperCase() !== 'PAY_COUNTER') {
     finalPaymentMode = payment_mode.toUpperCase();
-    // Agar order place karte waqt hi Cash/UPI/Card select kar liya hai, 
-    // toh paid_amount me poora total chala jayega taaki table par koi Payable Amount na bache!
-    initialPaid = calculatedTotal;
+    initialPaid = calculatedTotal; // Direct settlement paid amount
   }
-  // =============================================
 
   let status = 'RUNNING_TABLE';
   const isKioskOrOnline = is_kiosk || upperType.includes('KIOSK') || upperType.includes('ONLINE') || upperType.includes('SWIGGY') || upperType.includes('ZOMATO');
@@ -765,12 +761,6 @@ app.post('/api/orders', async (req, res) => {
     status = 'NEEDS_APPROVAL';
   } else {
     status = 'RUNNING_TABLE';
-  }
-
-  // FIX: Agar payment mode nahi diya gaya hai, toh strict tarike se 'UNPAID' set hoga, 'DUE' kabhi nahi!
-  let finalPaymentMode = 'UNPAID';
-  if (payment_mode && payment_mode.trim() !== '' && payment_mode.toUpperCase() !== 'PAY_COUNTER') {
-    finalPaymentMode = payment_mode.toUpperCase();
   }
 
   const insertOrderQuery = `
