@@ -506,9 +506,24 @@ app.get('/api/orders/active', (req, res) => {
         orders.map(order => {
           return new Promise((resolve) => {
             db.all('SELECT id, name, qty, price, notes FROM order_items WHERE order_id = ?', [order.id], (err2, items) => {
-              // FIX: Agar paid_amount >= total hai, toh frontend ke liye total/remaining ko 0 bhej do taaki table par amount na dikhe!
-              let effectiveTotal = Number(order.paid_amount) >= Number(order.total) ? 0 : Number(order.remaining_balance);
-              resolve({ ...order, total: effectiveTotal, items: items || [] });
+              // RULE: 
+              // Agar paid_amount >= total hai (Yaani poora pay ho chuka hai), tab subtotal/gst/total ko 0 kar do.
+              // Lekin agar unpaid hai (jaise paid_amount = 0), toh poora remaining_balance aur original total dikhao!
+              let paid = Number(order.paid_amount) || 0;
+              let tot = Number(order.total) || 0;
+              let isFullyPaid = paid >= tot && tot > 0;
+
+              let effectiveTotal = isFullyPaid ? 0 : Number(order.remaining_balance);
+              let effectiveSubtotal = isFullyPaid ? 0 : Number(order.subtotal);
+              let effectiveGst = isFullyPaid ? 0 : Number(order.gst);
+
+              resolve({ 
+                ...order, 
+                subtotal: effectiveSubtotal,
+                gst: effectiveGst,
+                total: effectiveTotal, 
+                items: items || [] 
+              });
             });
           });
         })
@@ -516,7 +531,18 @@ app.get('/api/orders/active', (req, res) => {
       res.json(fullOrders);
     } catch (e) {
       console.error('Items fetch error:', e.message);
-      res.json(orders.map(o => ({ ...o, total: Number(o.paid_amount) >= Number(o.total) ? 0 : o.remaining_balance, items: [] })));
+      res.json(orders.map(o => {
+        let paid = Number(o.paid_amount) || 0;
+        let tot = Number(o.total) || 0;
+        let isFullyPaid = paid >= tot && tot > 0;
+        return { 
+          ...o, 
+          subtotal: isFullyPaid ? 0 : o.subtotal,
+          gst: isFullyPaid ? 0 : o.gst,
+          total: isFullyPaid ? 0 : o.remaining_balance, 
+          items: [] 
+        };
+      }));
     }
   });
 });
