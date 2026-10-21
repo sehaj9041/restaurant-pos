@@ -481,7 +481,8 @@ app.post('/api/orders/:id/assign-table', (req, res) => {
 // 7. ACTIVE ORDERS
 app.get('/api/orders/active', (req, res) => {
   const query = `
-    SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount
+    SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount,
+           GREATEST(0, total - COALESCE(paid_amount, 0)) as remaining_balance
     FROM orders 
     WHERE (UPPER(status) = 'RUNNING_TABLE' OR UPPER(status) = 'KOT_DONE')
       AND status != 'COMPLETED'
@@ -505,7 +506,9 @@ app.get('/api/orders/active', (req, res) => {
         orders.map(order => {
           return new Promise((resolve) => {
             db.all('SELECT id, name, qty, price, notes FROM order_items WHERE order_id = ?', [order.id], (err2, items) => {
-              resolve({ ...order, items: items || [] });
+              // FIX: Agar paid_amount >= total hai, toh frontend ke liye total/remaining ko 0 bhej do taaki table par amount na dikhe!
+              let effectiveTotal = Number(order.paid_amount) >= Number(order.total) ? 0 : Number(order.remaining_balance);
+              resolve({ ...order, total: effectiveTotal, items: items || [] });
             });
           });
         })
@@ -513,7 +516,7 @@ app.get('/api/orders/active', (req, res) => {
       res.json(fullOrders);
     } catch (e) {
       console.error('Items fetch error:', e.message);
-      res.json(orders.map(o => ({ ...o, items: [] })));
+      res.json(orders.map(o => ({ ...o, total: Number(o.paid_amount) >= Number(o.total) ? 0 : o.remaining_balance, items: [] })));
     }
   });
 });
