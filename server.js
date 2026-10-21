@@ -506,9 +506,6 @@ app.get('/api/orders/active', (req, res) => {
         orders.map(order => {
           return new Promise((resolve) => {
             db.all('SELECT id, name, qty, price, notes FROM order_items WHERE order_id = ?', [order.id], (err2, items) => {
-              // FOOLPROOF LOGIC:
-              // Agar paid_amount >= total hai, YA PHIR payment_mode me CASH/UPI/CARD/PAID hai, 
-              // toh iska matlab order settled (paid) hai! 
               let paid = Number(order.paid_amount) || 0;
               let tot = Number(order.total) || 0;
               let mode = (order.payment_mode || '').toUpperCase();
@@ -519,12 +516,18 @@ app.get('/api/orders/active', (req, res) => {
               let effectiveSubtotal = isPaid ? 0 : Number(order.subtotal);
               let effectiveGst = isPaid ? 0 : Number(order.gst);
 
+              // FIX: Agar order paid hai, toh items ka price bhi 0 bhej do taaki frontend ka JS jab total calculate kare, toh wo bhi 0 aaye!
+              let adjustedItems = (items || []).map(item => ({
+                ...item,
+                price: isPaid ? 0 : item.price
+              }));
+
               resolve({ 
                 ...order, 
                 subtotal: effectiveSubtotal,
                 gst: effectiveGst,
                 total: effectiveTotal, 
-                items: items || [] 
+                items: adjustedItems 
               });
             });
           });
