@@ -718,6 +718,7 @@ app.put('/api/orders/:id', (req, res) => {
   });
 });
 app.post('/api/orders', async (req, res) => {
+  console.log('[DEBUG ORDER PAYLOAD]:', req.body);
   const { order_type, table_no, customer_name, customer_phone, items, payment_mode, subtotal, discount, is_hold, paid_amount, is_kiosk } = req.body;
 
   let rawType = (order_type || 'Kiosk').trim();
