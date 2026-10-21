@@ -506,16 +506,18 @@ app.get('/api/orders/active', (req, res) => {
         orders.map(order => {
           return new Promise((resolve) => {
             db.all('SELECT id, name, qty, price, notes FROM order_items WHERE order_id = ?', [order.id], (err2, items) => {
-              // RULE: 
-              // Agar paid_amount >= total hai (Yaani poora pay ho chuka hai), tab subtotal/gst/total ko 0 kar do.
-              // Lekin agar unpaid hai (jaise paid_amount = 0), toh poora remaining_balance aur original total dikhao!
+              // FOOLPROOF LOGIC:
+              // Agar paid_amount >= total hai, YA PHIR payment_mode me CASH/UPI/CARD/PAID hai, 
+              // toh iska matlab order settled (paid) hai! 
               let paid = Number(order.paid_amount) || 0;
               let tot = Number(order.total) || 0;
-              let isFullyPaid = paid >= tot && tot > 0;
+              let mode = (order.payment_mode || '').toUpperCase();
+              
+              let isPaid = (paid >= tot && tot > 0) || (mode === 'CASH' || mode === 'UPI' || mode === 'CARD' || mode === 'PAID');
 
-              let effectiveTotal = isFullyPaid ? 0 : Number(order.remaining_balance);
-              let effectiveSubtotal = isFullyPaid ? 0 : Number(order.subtotal);
-              let effectiveGst = isFullyPaid ? 0 : Number(order.gst);
+              let effectiveTotal = isPaid ? 0 : Number(order.remaining_balance);
+              let effectiveSubtotal = isPaid ? 0 : Number(order.subtotal);
+              let effectiveGst = isPaid ? 0 : Number(order.gst);
 
               resolve({ 
                 ...order, 
@@ -534,12 +536,14 @@ app.get('/api/orders/active', (req, res) => {
       res.json(orders.map(o => {
         let paid = Number(o.paid_amount) || 0;
         let tot = Number(o.total) || 0;
-        let isFullyPaid = paid >= tot && tot > 0;
+        let mode = (o.payment_mode || '').toUpperCase();
+        let isPaid = (paid >= tot && tot > 0) || (mode === 'CASH' || mode === 'UPI' || mode === 'CARD' || mode === 'PAID');
+
         return { 
           ...o, 
-          subtotal: isFullyPaid ? 0 : o.subtotal,
-          gst: isFullyPaid ? 0 : o.gst,
-          total: isFullyPaid ? 0 : o.remaining_balance, 
+          subtotal: isPaid ? 0 : o.subtotal,
+          gst: isPaid ? 0 : o.gst,
+          total: isPaid ? 0 : o.remaining_balance, 
           items: [] 
         };
       }));
