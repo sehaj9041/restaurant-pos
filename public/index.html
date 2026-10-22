@@ -2594,7 +2594,7 @@
     }
 
     // ================= PAYMENT MODE SELECTION & CASH MODAL =================
-    function handlePaymentModeClick(mode) {
+   function handlePaymentModeClick(mode) {
       var calc = calculatePOSBillTotals();
       var payableAmount = calc.payableNow;
 
@@ -2626,13 +2626,22 @@
       document.getElementById('splitPaymentPanel').classList.add('hidden');
       selectPaymentMode(mode);
       
+      // FIX: Jaise hi Cash/UPI/Card select ho, alreadyPaidAmount ko grand total ke barabar kar do taaki Payable Now zero ho jaye!
+      if (mode === 'Cash' || mode === 'UPI' || mode === 'Card') {
+        alreadyPaidAmount = calc.grandTotal;
+        alreadyPaidMode = mode.toUpperCase();
+        document.getElementById('boxAlreadyPaidBanner').classList.remove('hidden');
+        document.getElementById('lblAlreadyPaidAmount').innerText = '₹' + alreadyPaidAmount.toFixed(2);
+        document.getElementById('lblAlreadyPaidMode').innerText = alreadyPaidMode;
+        calculatePOSBillTotals(); // Turant re-calculate karke zero kar dega!
+      }
+
       var placeBtn = document.getElementById('btnPOSPlaceOrder');
       if (placeBtn) {
         placeBtn.disabled = false;
         placeBtn.className = "flex-1 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5";
       }
     }
-
     function closeCashReceivedModal() {
       closeVirtualKeyboards();
       document.getElementById('modalCashReceived').classList.add('hidden');
@@ -2744,6 +2753,22 @@
             ? "border-2 border-rose-600 bg-rose-50 text-rose-800 py-1.5 rounded-lg text-xs font-black flex items-center justify-center gap-0.5"
             : "border-2 border-emerald-600 bg-emerald-50 text-emerald-800 py-1.5 rounded-lg text-xs font-black flex items-center justify-center gap-0.5";
         }
+        
+        // FIX: Agar Cash, UPI ya Card button active hua hai, toh Payable Now ko turant zero dikhao!
+        if (selectedPaymentMode === 'Cash' || selectedPaymentMode === 'UPI' || selectedPaymentMode === 'Card') {
+          var calc = calculatePOSBillTotals();
+          alreadyPaidAmount = calc.grandTotal;
+          alreadyPaidMode = selectedPaymentMode.toUpperCase();
+          document.getElementById('boxAlreadyPaidBanner').classList.remove('hidden');
+          document.getElementById('lblAlreadyPaidAmount').innerText = '₹' + alreadyPaidAmount.toFixed(2);
+          document.getElementById('lblAlreadyPaidMode').innerText = alreadyPaidMode;
+          calculatePOSBillTotals();
+        }
+      } else {
+        // Agar selection hata di, toh alreadyPaidAmount wapas zero kar do
+        alreadyPaidAmount = 0;
+        document.getElementById('boxAlreadyPaidBanner').classList.add('hidden');
+        calculatePOSBillTotals();
       }
 
       if (selectedPaymentMode !== 'Split') {
