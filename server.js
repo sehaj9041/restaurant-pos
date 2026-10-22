@@ -512,22 +512,19 @@ app.get('/api/orders/active', (req, res) => {
               
               let isPaid = (paid >= tot && tot > 0) || (mode === 'CASH' || mode === 'UPI' || mode === 'CARD' || mode === 'PAID');
 
-              let effectiveTotal = isPaid ? 0 : Number(order.remaining_balance);
-              let effectiveSubtotal = isPaid ? 0 : Number(order.subtotal);
-              let effectiveGst = isPaid ? 0 : Number(order.gst);
-
-              // FIX: Agar order paid hai, toh items ka price bhi 0 bhej do taaki frontend ka JS jab total calculate kare, toh wo bhi 0 aaye!
-              let adjustedItems = (items || []).map(item => ({
-                ...item,
-                price: isPaid ? 0 : item.price
-              }));
+              // FIX: 
+              // 1. Agar paid hai, toh bahar tile ke liye effectiveTotal ko 0 rakho.
+              // 2. Lekin agar koi frontend ya cart screen pure order object ko padhti hai, 
+              //    toh hum asli totals (subtotal, gst, total) aur items ke prices bhej rahe hain taaki andar item list aur Grand Total zero na ho!
+              let tileDisplayTotal = isPaid ? 0 : Number(order.remaining_balance);
 
               resolve({ 
                 ...order, 
-                subtotal: effectiveSubtotal,
-                gst: effectiveGst,
-                total: effectiveTotal, 
-                items: adjustedItems 
+                subtotal: Number(order.subtotal),
+                gst: Number(order.gst),
+                total: tileDisplayTotal, // Bahar tile ke liye zero, par andar ke liye original total bhej sakte hain agar frontend `grand_total` ya alag field use kare
+                actual_total: Number(order.total),
+                items: items || [] 
               });
             });
           });
@@ -544,9 +541,10 @@ app.get('/api/orders/active', (req, res) => {
 
         return { 
           ...o, 
-          subtotal: isPaid ? 0 : o.subtotal,
-          gst: isPaid ? 0 : o.gst,
+          subtotal: o.subtotal,
+          gst: o.gst,
           total: isPaid ? 0 : o.remaining_balance, 
+          actual_total: o.total,
           items: [] 
         };
       }));
