@@ -3142,6 +3142,20 @@
         posCart = (running.items || []).map(function(i) {
           return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1 };
         });
+
+        // FIX: Agar already paid hai, toh banner dikhao
+        var recordedPaid = Number(running.paid_amount) || Number(running.already_paid) || 0;
+        if (recordedPaid === 0 && running.payment_mode && running.payment_mode !== 'UNPAID' && running.payment_mode !== 'DUE' && running.payment_mode !== 'PAY_COUNTER') {
+          recordedPaid = Number(running.total) || 0;
+        }
+
+        if (recordedPaid > 0) {
+          alreadyPaidAmount = recordedPaid;
+          alreadyPaidMode = running.already_paid_mode || running.payment_mode || 'Paid';
+          document.getElementById('boxAlreadyPaidBanner').classList.remove('hidden');
+          document.getElementById('lblAlreadyPaidAmount').innerText = '₹' + alreadyPaidAmount.toFixed(2);
+          document.getElementById('lblAlreadyPaidMode').innerText = alreadyPaidMode;
+        }
       } else {
         document.getElementById('posCustPhone').value = '';
         document.getElementById('posCustName').value = '';
