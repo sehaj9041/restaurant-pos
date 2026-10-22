@@ -2354,7 +2354,7 @@
           var totalAmount = Number(o.total) || 0;
           var paidAmount = Number(o.paid_amount) || Number(o.already_paid) || 0;
 
-          if (paidAmount === 0 && o.payment_mode && o.payment_mode !== 'UNPAID' && o.payment_mode !== 'DUE' && o.status !== 'RUNNING_TABLE') {
+          if (paidAmount === 0 && o.payment_mode && o.payment_mode !== 'UNPAID' && o.payment_mode !== 'DUE' && o.payment_mode !== 'PAY_COUNTER') {
             paidAmount = totalAmount;
           }
 
@@ -2422,7 +2422,7 @@
         var totalAmount = Number(o.total) || 0;
         var paidAmount = Number(o.paid_amount) || Number(o.already_paid) || 0;
 
-        if (paidAmount === 0 && o.payment_mode && o.payment_mode !== 'UNPAID' && o.payment_mode !== 'DUE' && o.status !== 'RUNNING_TABLE') {
+        if (paidAmount === 0 && o.payment_mode && o.payment_mode !== 'UNPAID' && o.payment_mode !== 'DUE' && o.payment_mode !== 'PAY_COUNTER') {
           paidAmount = totalAmount;
         }
 
@@ -2545,7 +2545,7 @@
       
       var recordedPaid = Number(ord.paid_amount) || Number(ord.already_paid) || 0;
       
-      if (recordedPaid === 0 && ord.payment_mode && ord.payment_mode !== 'UNPAID' && ord.payment_mode !== 'DUE' && ord.status !== 'RUNNING_TABLE') {
+      if (recordedPaid === 0 && ord.payment_mode && ord.payment_mode !== 'UNPAID' && ord.payment_mode !== 'DUE' && ord.payment_mode !== 'PAY_COUNTER') {
         recordedPaid = Number(ord.total) || 0;
       }
 
