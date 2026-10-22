@@ -937,23 +937,28 @@ app.get('/api/kot', (req, res) => {
 app.post('/api/kot/:id/complete', (req, res) => {
   const orderId = req.params.id;
 
-  db.get("SELECT total, paid_amount FROM orders WHERE id = ?", [orderId], (err, order) => {
-    let isFullyPaid = order && Number(order.paid_amount) >= Number(order.total) && Number(order.total) > 0;
-    let newStatus = isFullyPaid ? 'COMPLETED' : 'KOT_DONE';
+  // AUTO-DISPATCH REMOVED: Status sirf 'KOT_DONE' set hoga, 'COMPLETED' nahi.
+  db.run("UPDATE orders SET status = 'KOT_DONE' WHERE id = ?", [orderId], (err2) => {
+    if (err2) {
+      console.error('[KDS COMPLETE ERROR]:', err2.message);
+      return res.status(500).json({ error: err2.message });
+    }
+    console.log(`[KDS COMPLETE] Order #${orderId} marked KOT_DONE.`);
+    res.json({ success: true });
+  });
+});
 
-    let updateQuery = isFullyPaid 
-      ? "UPDATE orders SET status = ?, table_no = '' WHERE id = ?"
-      : "UPDATE orders SET status = ? WHERE id = ?";
-    let queryParams = isFullyPaid ? [newStatus, orderId] : [newStatus, orderId];
+app.post('/api/kot/:id/dispatch', (req, res) => {
+  const orderId = req.params.id;
 
-    db.run(updateQuery, queryParams, (err2) => {
-      if (err2) {
-        console.error('[KDS COMPLETE ERROR]:', err2.message);
-        return res.status(500).json({ error: err2.message });
-      }
-      console.log(`[KDS COMPLETE] Order #${orderId} marked ready. Status: ${newStatus}`);
-      res.json({ success: true });
-    });
+  // Manual dispatch: Order ko explicitly DISPATCHED status par set karo taaki KDS se hat jaye
+  db.run("UPDATE orders SET status = 'DISPATCHED' WHERE id = ?", [orderId], (err) => {
+    if (err) {
+      console.error('[KDS DISPATCH ERROR]:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+    console.log(`[KDS DISPATCH] Order #${orderId} manually dispatched.`);
+    res.json({ success: true });
   });
 });
 app.get('/api/customers/:phone', (req, res) => {

@@ -556,43 +556,29 @@
 
     function executeDispatch(id) {
       var strId = id.toString();
-      var snapshots = getStoredSnapshots();
-      var checkedMap = getCheckedItemKeys();
-      var readyStore = getReadyForDispatchOrders();
 
-      if (snapshots[strId]) {
-        snapshots[strId].wasCompletedBefore = true;
-        var targetOrder = liveOrdersData.find(function(o){ return o.id.toString() === strId; });
-        if (targetOrder && targetOrder.items) {
-          targetOrder.items.forEach(function(item, idx) {
-            checkedMap[strId + '_row_' + idx] = true;
-            
-            var addonsList = extractAddonsList(item);
-
-            if (addonsList.length > 0) {
-              addonsList.forEach(function(_, aIdx) {
-                checkedMap[strId + '_row_' + idx + '_addon_' + aIdx] = true;
-              });
-            }
-          });
-        }
-      }
-
-      var badges = getAlertBadges();
-      Object.keys(badges).forEach(function(k) {
-        if (k.startsWith(strId + '_')) delete badges[k];
-      });
-
-      delete readyStore[strId];
-
-      saveStoredSnapshots(snapshots);
-      saveCheckedItemKeys(checkedMap);
-      saveAlertBadges(badges);
-      saveReadyForDispatchOrders(readyStore);
-
-      fetch('/api/kot/' + id + '/complete', { method: 'POST' })
+      // DISPATCH API CALL (New implementation)
+      fetch('/api/kot/' + id + '/dispatch', { method: 'POST' })
         .then(function(res) { return res.json(); })
-        .then(function() { fetchKOT(); });
+        .then(function() {
+          // Local storage cleanup
+          var snapshots = getStoredSnapshots();
+          var checkedMap = getCheckedItemKeys();
+          var readyStore = getReadyForDispatchOrders();
+          var badges = getAlertBadges();
+
+          delete snapshots[strId];
+          delete readyStore[strId];
+          Object.keys(badges).forEach(function(k) { if (k.startsWith(strId + '_')) delete badges[k]; });
+          Object.keys(checkedMap).forEach(function(k) { if (k.startsWith(strId + '_')) delete checkedMap[k]; });
+
+          saveStoredSnapshots(snapshots);
+          saveCheckedItemKeys(checkedMap);
+          saveAlertBadges(badges);
+          saveReadyForDispatchOrders(readyStore);
+
+          fetchKOT();
+        });
     }
 
     function updateLiveTimers() {
