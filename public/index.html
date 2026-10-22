@@ -2420,11 +2420,14 @@
       function buildOrderActionCard(o) {
         var itemsText = (o.items || []).map(function(i){ return i.name + ' x' + i.qty; }).join(', ');
         var totalAmount = Number(o.total) || 0;
-        // FIX: Paid amount check ko strict banaya hai. Sirf tabhi consider karein jab payment_mode genuine ho aur amount 0 se bada ho.
+        var rawPaid = Number(o.paid_amount) || Number(o.already_paid) || 0;
+        var mode = (o.payment_mode || 'UNPAID').toUpperCase();
+
+        // FIX: Sirf tabhi 'already paid' consider karo jab amount positive ho
+        // AUR mode 'UNPAID' ya 'DUE' na ho.
         var paidAmount = 0;
-        if (o.payment_mode && o.payment_mode !== 'UNPAID' && o.payment_mode !== 'DUE' && o.payment_mode !== 'PAY_COUNTER') {
-          paidAmount = Number(o.paid_amount) || Number(o.already_paid) || 0;
-          if (paidAmount === 0) paidAmount = totalAmount; // Agar mode valid hai aur amount 0 hai, toh total maano
+        if (rawPaid > 0 && mode !== 'UNPAID' && mode !== 'DUE' && mode !== 'PAY_COUNTER') {
+          paidAmount = rawPaid;
         }
 
         var remainingDue = Math.max(0, totalAmount - paidAmount);
