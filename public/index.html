@@ -2821,20 +2821,22 @@
       var custName = document.getElementById('posCustName').value.trim();
 
       // FIX: Agar user ne payment mode (Cash/UPI/Card) select kiya hai, toh payment poori maani jayegi!
+// SAFE PAYMENT CAPTURE FIX:
       var finalPaymentMode = 'UNPAID';
       var initialPaid = alreadyPaidAmount;
 
-      if (selectedPaymentMode && selectedPaymentMode !== 'Split' && selectedPaymentMode !== 'DUE') {
-        finalPaymentMode = selectedPaymentMode.toUpperCase();
-        initialPaid = calc.grandTotal; // Poora total paid set kar do!
-      } else if (selectedPaymentMode === 'DUE') {
-        finalPaymentMode = 'DUE';
-        initialPaid = alreadyPaidAmount;
-      } else if (selectedPaymentMode === 'Split') {
+      if (selectedPaymentMode && selectedPaymentMode === 'Split') {
         var a1 = parseFloat(document.getElementById('splitAmount1').value) || 0;
         var a2 = parseFloat(document.getElementById('splitAmount2').value) || 0;
         initialPaid = alreadyPaidAmount + a1 + a2;
         finalPaymentMode = 'SPLIT';
+      } else if (selectedPaymentMode === 'DUE') {
+        finalPaymentMode = 'DUE';
+        initialPaid = 0;
+      } else if (selectedPaymentMode) {
+        // Agar Cash, UPI ya Card select kiya hai, toh poora grandTotal paid ho jayega!
+        finalPaymentMode = selectedPaymentMode.toUpperCase();
+        initialPaid = calc.grandTotal;
       } else if (alreadyPaidAmount > 0) {
         initialPaid = alreadyPaidAmount;
         finalPaymentMode = alreadyPaidMode || 'PAID';
