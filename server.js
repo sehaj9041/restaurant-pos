@@ -781,12 +781,19 @@ app.post('/api/orders', async (req, res) => {
   let calculatedGst = Math.round((calculatedSubtotal * 5) / 100);
   let calculatedTotal = Math.round(calculatedSubtotal + calculatedGst - (Number(discount) || 0));
 
-  let initialPaid = 0;
+  // SAFE & FOOLPROOF PAYMENT LOGIC:
   let finalPaymentMode = 'UNPAID';
+  let initialPaid = Number(paid_amount) || 0;
 
   if (payment_mode && payment_mode.trim() !== '' && payment_mode.toUpperCase() !== 'PAY_COUNTER') {
     finalPaymentMode = payment_mode.toUpperCase();
-    initialPaid = calculatedTotal; // Direct settlement paid amount
+    // Agar payment mode select hai lekin paid_amount nahi bheja, toh poora total paid man lo!
+    if (initialPaid <= 0) {
+      initialPaid = calculatedTotal;
+    }
+  } else if (initialPaid > 0) {
+    // Agar paid_amount bhej diya hai par payment_mode nahi bheja, toh default CASH maan lo
+    finalPaymentMode = 'CASH';
   }
 
   let status = 'RUNNING_TABLE';
@@ -852,7 +859,7 @@ app.post('/api/orders', async (req, res) => {
         }
       }
 
-      console.log(`[ORDER CREATED] Order #${orderId} placed with status ${status} and mode ${finalPaymentMode}.`);
+      console.log(`[ORDER CREATED] Order #${orderId} placed with status ${status}, mode ${finalPaymentMode}, and paid amount ${initialPaid}.`);
       res.json({ success: true, orderId: orderId, paid_amount: initialPaid });
     } catch (itemErr) {
       console.error('Order items insert error:', itemErr.message);
