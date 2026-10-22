@@ -2420,10 +2420,11 @@
       function buildOrderActionCard(o) {
         var itemsText = (o.items || []).map(function(i){ return i.name + ' x' + i.qty; }).join(', ');
         var totalAmount = Number(o.total) || 0;
-        var paidAmount = Number(o.paid_amount) || Number(o.already_paid) || 0;
-
-        if (paidAmount === 0 && o.payment_mode && o.payment_mode !== 'UNPAID' && o.payment_mode !== 'DUE' && o.payment_mode !== 'PAY_COUNTER') {
-          paidAmount = totalAmount;
+        // FIX: Paid amount check ko strict banaya hai. Sirf tabhi consider karein jab payment_mode genuine ho aur amount 0 se bada ho.
+        var paidAmount = 0;
+        if (o.payment_mode && o.payment_mode !== 'UNPAID' && o.payment_mode !== 'DUE' && o.payment_mode !== 'PAY_COUNTER') {
+          paidAmount = Number(o.paid_amount) || Number(o.already_paid) || 0;
+          if (paidAmount === 0) paidAmount = totalAmount; // Agar mode valid hai aur amount 0 hai, toh total maano
         }
 
         var remainingDue = Math.max(0, totalAmount - paidAmount);
