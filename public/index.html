@@ -2811,6 +2811,7 @@
     }
 
     // ================= ROBUST PLACE ORDER =================
+  // ================= ROBUST PLACE ORDER =================
     function executePlaceOrder() {
       if (!posCart.length) return alert('Kripya cart mein item add karein!');
       if (!currentPOSOrderType) return alert('Kripya pehle Order Type (Dine-In, Takeaway, Delivery) select karein!');
@@ -2819,37 +2820,28 @@
       var custPhone = document.getElementById('posCustPhone').value.trim();
       var custName = document.getElementById('posCustName').value.trim();
 
-      var newlyPaidAmount = 0;
-      var newPaymentModeLabel = selectedPaymentMode;
+      // FIX: Agar user ne payment mode (Cash/UPI/Card) select kiya hai, toh payment poori maani jayegi!
+      var finalPaymentMode = 'UNPAID';
+      var initialPaid = alreadyPaidAmount;
 
-      if (selectedPaymentMode === 'Cash' || selectedPaymentMode === 'UPI' || selectedPaymentMode === 'Card') {
-        newlyPaidAmount = calc.payableNow;
+      if (selectedPaymentMode && selectedPaymentMode !== 'Split' && selectedPaymentMode !== 'DUE') {
+        finalPaymentMode = selectedPaymentMode.toUpperCase();
+        initialPaid = calc.grandTotal; // Poora total paid set kar do!
+      } else if (selectedPaymentMode === 'DUE') {
+        finalPaymentMode = 'DUE';
+        initialPaid = alreadyPaidAmount;
       } else if (selectedPaymentMode === 'Split') {
         var a1 = parseFloat(document.getElementById('splitAmount1').value) || 0;
         var a2 = parseFloat(document.getElementById('splitAmount2').value) || 0;
-        newlyPaidAmount = a1 + a2;
-        newPaymentModeLabel = `SPLIT (${splitMethod1}: ₹${a1}, ${splitMethod2}: ₹${a2})`;
+        initialPaid = alreadyPaidAmount + a1 + a2;
+        finalPaymentMode = 'SPLIT';
+      } else if (alreadyPaidAmount > 0) {
+        initialPaid = alreadyPaidAmount;
+        finalPaymentMode = alreadyPaidMode || 'PAID';
       }
 
-      var cumulativeTotalPaid = alreadyPaidAmount + newlyPaidAmount;
-      var remainingDue = Math.max(0, calc.grandTotal - cumulativeTotalPaid);
-
-      var finalMode = '';
-      var isHoldOrder = false;
-
-      if (remainingDue === 0) {
-        finalMode = alreadyPaidAmount > 0 
-          ? (newlyPaidAmount > 0 ? `${alreadyPaidMode} + ${newPaymentModeLabel}` : alreadyPaidMode)
-          : (newPaymentModeLabel || 'PAID');
-        isHoldOrder = false;
-      } else {
-        if (cumulativeTotalPaid > 0) {
-          finalMode = `PARTIAL (${alreadyPaidMode || 'Paid'}: ₹${cumulativeTotalPaid}, Due: ₹${remainingDue})`;
-        } else {
-          finalMode = (selectedPaymentMode === 'DUE') ? 'DUE' : 'UNPAID';
-        }
-        isHoldOrder = !selectedPaymentMode && remainingDue > 0;
-      }
+      var remainingDue = Math.max(0, calc.grandTotal - initialPaid);
+      var isHoldOrder = !selectedPaymentMode && remainingDue > 0 && initialPaid === 0;
 
       var splitDetails = null;
       if (selectedPaymentMode === 'Split') {
@@ -2865,13 +2857,13 @@
         customer_name: custName,
         customer_phone: custPhone,
         items: [...posCart],
-        payment_mode: finalMode,
+        payment_mode: finalPaymentMode, // Yeh ab seedha CASH, UPI, CARD ya DUE jayega
         subtotal: calc.subtotal,
         gst: calc.gst,
         total: calc.grandTotal,
-        paid_amount: cumulativeTotalPaid,
-        already_paid: cumulativeTotalPaid,
-        already_paid_mode: finalMode,
+        paid_amount: initialPaid,       // Yeh ab poora grandTotal bhejega taaki backend turant payment catch kar le!
+        already_paid: initialPaid,
+        already_paid_mode: finalPaymentMode,
         payable_now: remainingDue,
         guests: currentGuestCount,
         is_hold: isHoldOrder,
@@ -2886,7 +2878,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         }).then(function(){
-          if (newlyPaidAmount > 0) dispatchDirectPrintReceipt(editingActiveOrderId, payload, calc);
+          if (initialPaid > 0) dispatchDirectPrintReceipt(editingActiveOrderId, payload, calc);
           closePOSOrderView();
         });
       } else {
@@ -2897,12 +2889,11 @@
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {
-          if (newlyPaidAmount > 0) dispatchDirectPrintReceipt(data.orderId, payload, calc);
+          if (initialPaid > 0) dispatchDirectPrintReceipt(data.orderId, payload, calc);
           closePOSOrderView();
         });
       }
     }
-
     function dispatchDirectPrintReceipt(orderId, payload, calc) {
       var itemsRows = (payload.items || []).map(function(item) {
         return `
