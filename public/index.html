@@ -2856,6 +2856,8 @@
         finalPaymentMode = alreadyPaidMode || 'PAID';
       }
 
+      // Bill sirf tab print hoga jab abhi payment collect karke order settle ho rha ho
+      var paymentCollectedNow = !!selectedPaymentMode && selectedPaymentMode !== 'DUE' && (initialPaid - recordedPaidAmount) > 0;
       var remainingDue = Math.max(0, calc.grandTotal - initialPaid);
       var isHoldOrder = !selectedPaymentMode && remainingDue > 0 && initialPaid === 0;
 
@@ -2881,6 +2883,7 @@
         already_paid: initialPaid,
         already_paid_mode: finalPaymentMode,
         payable_now: remainingDue,
+        previously_paid: recordedPaidAmount,
         guests: currentGuestCount,
         is_hold: isHoldOrder,
         cash_received: currentCashReceived,
@@ -2894,7 +2897,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         }).then(function(){
-          if (initialPaid > 0) dispatchDirectPrintReceipt(editingActiveOrderId, payload, calc);
+          if (paymentCollectedNow) dispatchDirectPrintReceipt(editingActiveOrderId, payload, calc);
           closePOSOrderView();
         });
       } else {
@@ -2905,7 +2908,7 @@
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {
-          if (initialPaid > 0) dispatchDirectPrintReceipt(data.orderId, payload, calc);
+          if (paymentCollectedNow) dispatchDirectPrintReceipt(data.orderId, payload, calc);
           closePOSOrderView();
         });
       }
@@ -2921,10 +2924,11 @@
       }).join('');
 
       var diffSection = '';
-      if (alreadyPaidAmount > 0) {
+      var prevPaid = Number(payload.previously_paid) || 0;
+      if (prevPaid > 0) {
         diffSection = `
-          <div class="row" style="color:#047857;"><span>Previously Paid:</span><span>-₹${alreadyPaidAmount.toFixed(2)}</span></div>
-          <div class="row" style="font-weight:900;"><span>Balance Paid Now:</span><span>₹${(calc.payableNow || 0).toFixed(2)}</span></div>
+          <div class="row" style="color:#047857;"><span>Previously Paid:</span><span>-₹${prevPaid.toFixed(2)}</span></div>
+          <div class="row" style="font-weight:900;"><span>Balance Paid Now:</span><span>₹${Math.max(0, calc.grandTotal - prevPaid).toFixed(2)}</span></div>
         `;
       }
 
