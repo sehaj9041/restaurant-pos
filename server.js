@@ -716,6 +716,7 @@ app.put('/api/orders/:id', (req, res) => {
   const { order_type, table_no, customer_name, customer_phone, items, subtotal, discount, gst, total, payment_mode, paid_amount } = req.body;
 
   db.get("SELECT total, paid_amount, payment_mode, status FROM orders WHERE id = ?", [orderId], (errGet, currentOrder) => {
+   db.all("SELECT name, qty FROM order_items WHERE order_id = ?", [orderId], (errItems, existingItems) => {
     let incomingPaid = Number(paid_amount) || 0;
     let finalTotal = Number(total) || (currentOrder ? Number(currentOrder.total) : 0);
     
@@ -729,16 +730,27 @@ app.put('/api/orders/:id', (req, res) => {
     let finalRemaining = Math.max(0, finalTotal - finalPaid);
     let finalMode = payment_mode || (currentOrder ? currentOrder.payment_mode : 'UNPAID');
 
+    // Naye items ya badhi hui qty kitchen ko phir se bhejni hai
+    const existingQty = {};
+    (existingItems || []).forEach(i => { existingQty[i.name] = (existingQty[i.name] || 0) + (Number(i.qty) || 0); });
+    const incomingQty = {};
+    (Array.isArray(items) ? items : []).forEach(i => { incomingQty[i.name] = (incomingQty[i.name] || 0) + (Number(i.qty) || 0); });
+    const hasNewItems = Object.keys(incomingQty).some(name => incomingQty[name] > (existingQty[name] || 0));
+
     // Payment se kitchen status nahi badalta: jab tak KDS se KOT done na ho, order RUNNING_TABLE (active + KDS par) rahega.
-    // Sirf tab final status do jab kitchen pehle hi order complete kar chuka ho.
+    // Kitchen done ho chuka ho (aur naye items na hon) tabhi final status do.
     const prevStatus = String(currentOrder ? currentOrder.status : '').toUpperCase();
-    const kitchenDone = ['KOT_DONE', 'DISPATCHED', 'DUE_PENDING'].includes(prevStatus);
+    const kitchenDone = ['KOT_DONE', 'DISPATCHED', 'DUE_PENDING'].includes(prevStatus) && !hasNewItems;
 
     let status = 'RUNNING_TABLE';
-    if (kitchenDone && requestedMode === 'DUE') {
-      status = 'DUE_PENDING';
-    } else if (kitchenDone && finalPaid >= finalTotal && finalTotal > 0) {
-      status = 'DISPATCHED';
+    if (kitchenDone) {
+      if (requestedMode === 'DUE') {
+        status = 'DUE_PENDING';
+      } else if (finalPaid >= finalTotal && finalTotal > 0) {
+        status = 'DISPATCHED';
+      } else {
+        status = 'KOT_DONE'; // Kitchen done par payment baaki: active list me rahega, KDS par nahi
+      }
     }
 
     db.run(
@@ -763,6 +775,7 @@ app.put('/api/orders/:id', (req, res) => {
         });
       }
     );
+   });
   });
 });
 app.post('/api/orders', async (req, res) => {
@@ -900,16 +913,20 @@ app.post('/api/tables/:id/settle', (req, res) => {
     // 1. paid_amount = total kar diya taaki table par koi payable amount (balance) na bache!
     // 2. payment_mode update ho gaya.
     // 3. table_no ko khali ('') kar diya taaki table green (free) ho jaye.
-    // 4. Status ko bilkul nahi chhuda taaki KDS par KOT tab tak bani rahe jab tak chef khud na hataye!
+    // 4. Kitchen pending (RUNNING_TABLE) ho toh status nahi chhuda, KOT KDS par bani rahe.
+    //    Kitchen done (KOT_DONE) ho toh ab order active list se hata do.
     db.run(
       `UPDATE orders 
        SET payment_mode = ?, 
            paid_amount = total,
-           table_no = ''
+           table_no = '',
+           status = CASE WHEN UPPER(status) = 'KOT_DONE'
+                         THEN (CASE WHEN ? = 'DUE' THEN 'DUE_PENDING' ELSE 'DISPATCHED' END)
+                         ELSE status END
        WHERE (table_no = ? OR id = ?) 
          AND status != 'COMPLETED' 
          AND status != 'VOID'`,
-      [mode, actualTableNo, targetId],
+      [mode, mode, actualTableNo, targetId],
       function (err2) {
         if (err2) return res.status(500).json({ error: err2.message });
         console.log(`[SETTLE SUCCESS] Table ${actualTableNo} settled via ${mode}. Paid amount updated to total. KDS KOT intact.`);
@@ -970,10 +987,17 @@ app.post('/api/kot/:id/complete', (req, res) => {
 app.post('/api/kot/:id/dispatch', (req, res) => {
   const orderId = req.params.id;
 
-  // Manual dispatch: Order ko explicitly DISPATCHED status par set karo taaki KDS se hat jaye
-  // DUE (khata) orders kitchen done hone ke baad Due list me rahein, isliye unhe DUE_PENDING do
+  // KDS done: order KDS se hat jayega.
+  // - DUE (khata) -> DUE_PENDING taaki Due list me rahe
+  // - Payment baaki -> KOT_DONE taaki active list me rahe jab tak payment na ho
+  // - Poora paid -> DISPATCHED
   db.run(`UPDATE orders
-          SET status = CASE WHEN UPPER(COALESCE(payment_mode, '')) = 'DUE' THEN 'DUE_PENDING' ELSE 'DISPATCHED' END
+          SET status = CASE
+            WHEN UPPER(COALESCE(payment_mode, '')) = 'DUE' THEN 'DUE_PENDING'
+            WHEN UPPER(COALESCE(payment_mode, '')) IN ('', 'UNPAID', 'PAY_COUNTER', 'ONLINE_PENDING')
+              OR COALESCE(paid_amount, 0) < total THEN 'KOT_DONE'
+            ELSE 'DISPATCHED'
+          END
           WHERE id = ?`, [orderId], (err) => {
     if (err) {
       console.error('[KDS DISPATCH ERROR]:', err.message);
