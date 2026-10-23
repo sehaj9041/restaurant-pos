@@ -15,6 +15,11 @@ app.use(express.json());
 // Auto-migrate paid_amount column in orders table if not present
 db.run("ALTER TABLE orders ADD COLUMN paid_amount REAL DEFAULT 0", (err) => {});
 
+// Payment modes jinme koi amount receive nahi hota (paid_amount hamesha 0)
+const UNPAID_PAYMENT_MODES = ['UNPAID', 'DUE', 'ONLINE_PENDING'];
+// Payment modes jinme amount na bheja ho toh poora total paid maana jata hai
+const FULL_PAYMENT_MODES = ['CASH', 'UPI', 'CARD', 'PAID'];
+
 // Ngrok warning bypass & Customer ordering route
 app.use((req, res, next) => {
   res.setHeader('ngrok-skip-browser-warning', 'true');
@@ -714,9 +719,13 @@ app.put('/api/orders/:id', (req, res) => {
     let incomingPaid = Number(paid_amount) || 0;
     let finalTotal = Number(total) || (currentOrder ? Number(currentOrder.total) : 0);
     
-    const hasPaymentSelected = payment_mode && payment_mode !== 'UNPAID' && payment_mode !== 'PAY_COUNTER' && payment_mode !== '';
-    
-    let finalPaid = hasPaymentSelected ? (incomingPaid > 0 ? incomingPaid : finalTotal) : 0;
+    const requestedMode = String(payment_mode || '').trim().toUpperCase();
+    const hasPaymentSelected = requestedMode !== '' && requestedMode !== 'PAY_COUNTER' && !UNPAID_PAYMENT_MODES.includes(requestedMode);
+
+    let finalPaid = 0;
+    if (hasPaymentSelected) {
+      finalPaid = incomingPaid > 0 ? incomingPaid : (FULL_PAYMENT_MODES.includes(requestedMode) ? finalTotal : 0);
+    }
     let finalRemaining = Math.max(0, finalTotal - finalPaid);
     let finalMode = payment_mode || (currentOrder ? currentOrder.payment_mode : 'UNPAID');
 
@@ -785,10 +794,15 @@ app.post('/api/orders', async (req, res) => {
   let finalPaymentMode = 'UNPAID';
   let initialPaid = Number(paid_amount) || 0;
 
-  if (payment_mode && payment_mode.trim() !== '' && payment_mode.toUpperCase() !== 'PAY_COUNTER') {
-    finalPaymentMode = payment_mode.toUpperCase();
-    // Agar payment mode select hai lekin paid_amount nahi bheja, toh poora total paid man lo!
-    if (initialPaid <= 0) {
+  const requestedMode = String(payment_mode || '').trim().toUpperCase();
+
+  if (requestedMode && requestedMode !== 'PAY_COUNTER') {
+    finalPaymentMode = requestedMode;
+    if (UNPAID_PAYMENT_MODES.includes(requestedMode)) {
+      // UNPAID / DUE / ONLINE_PENDING: koi payment receive nahi hui
+      initialPaid = 0;
+    } else if (initialPaid <= 0 && FULL_PAYMENT_MODES.includes(requestedMode)) {
+      // Cash/UPI/Card select hai lekin paid_amount nahi bheja, toh poora total paid man lo
       initialPaid = calculatedTotal;
     }
   } else if (initialPaid > 0) {

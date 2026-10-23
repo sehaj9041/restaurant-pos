@@ -1158,6 +1158,46 @@
 
     var alreadyPaidAmount = 0;
     var alreadyPaidMode = '';
+    // DB me recorded asli payment (reopen par load hota hai). Payment mode deselect/DUE par isi par wapas aate hain.
+    var recordedPaidAmount = 0;
+    var recordedPaidMode = '';
+
+    var UNPAID_PAYMENT_MODES = ['', 'UNPAID', 'DUE', 'PAY_COUNTER', 'ONLINE_PENDING'];
+    var FULL_PAYMENT_MODES = ['CASH', 'UPI', 'CARD', 'PAID'];
+
+    // Order par actually receive hua amount. Unpaid order ke liye strictly 0.
+    function getOrderReceivedAmount(ord) {
+      if (!ord) return 0;
+      var mode = String(ord.payment_mode || '').trim().toUpperCase();
+      if (UNPAID_PAYMENT_MODES.indexOf(mode) !== -1) return 0;
+
+      // Active orders API `total` me remaining balance bhejta hai, asli total `actual_total` me hota hai
+      var orderTotal = Number(ord.actual_total) || Number(ord.total) || 0;
+      var paid = Number(ord.paid_amount) || Number(ord.already_paid) || 0;
+      // Purane records: Cash/UPI/Card mode hai par paid_amount 0 save hua
+      if (paid <= 0 && FULL_PAYMENT_MODES.indexOf(mode) !== -1) paid = orderTotal;
+      return orderTotal > 0 ? Math.min(paid, orderTotal) : paid;
+    }
+
+    function setAlreadyPaid(amount, mode) {
+      alreadyPaidAmount = amount > 0 ? amount : 0;
+      alreadyPaidMode = alreadyPaidAmount > 0 ? (mode || 'PAID') : '';
+      var banner = document.getElementById('boxAlreadyPaidBanner');
+      if (alreadyPaidAmount > 0) {
+        banner.classList.remove('hidden');
+        document.getElementById('lblAlreadyPaidAmount').innerText = '₹' + alreadyPaidAmount.toFixed(2);
+        document.getElementById('lblAlreadyPaidMode').innerText = alreadyPaidMode;
+      } else {
+        banner.classList.add('hidden');
+      }
+    }
+
+    // Reopen kiye gaye order ka recorded payment load karo (null = naya order)
+    function loadRecordedPayment(ord) {
+      recordedPaidAmount = getOrderReceivedAmount(ord);
+      recordedPaidMode = recordedPaidAmount > 0 ? (ord.payment_mode || 'PAID') : '';
+      setAlreadyPaid(recordedPaidAmount, recordedPaidMode);
+    }
 
     var currentCashReceived = 0;
     var currentCashChange = 0;
@@ -1292,9 +1332,7 @@
             return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1 };
           });
 
-          alreadyPaidAmount = 0;
-          alreadyPaidMode = '';
-          document.getElementById('boxAlreadyPaidBanner').classList.add('hidden');
+          loadRecordedPayment(targetOrder);
 
           renderPOSCart();
           switchRightTab('SUMMARY');
@@ -2111,20 +2149,10 @@
       selectedPOSTableId = ord.table_no || 'T01';
       editingActiveOrderId = ord.id;
 
-      var paidRecorded = Number(ord.paid_amount) || Number(ord.total) || 0;
-      alreadyPaidAmount = paidRecorded;
-      alreadyPaidMode = ord.payment_mode || 'Cash';
+      loadRecordedPayment(ord);
 
       document.getElementById('posCustPhone').value = ord.customer_phone || '';
       document.getElementById('posCustName').value = ord.customer_name || '';
-
-      if (alreadyPaidAmount > 0) {
-        document.getElementById('boxAlreadyPaidBanner').classList.remove('hidden');
-        document.getElementById('lblAlreadyPaidAmount').innerText = '₹' + alreadyPaidAmount.toFixed(2);
-        document.getElementById('lblAlreadyPaidMode').innerText = alreadyPaidMode;
-      } else {
-        document.getElementById('boxAlreadyPaidBanner').classList.add('hidden');
-      }
 
       if (Array.isArray(ord.items) && ord.items.length > 0) {
         posCart = ord.items.map(function(item) {
@@ -2351,12 +2379,8 @@
         document.getElementById('kioskUnassignedCount').innerText = unassignedKiosk.length;
         kioskList.innerHTML = unassignedKiosk.map(function(o) {
           var itemsText = (o.items || []).map(function(i){ return i.name + ' x' + i.qty; }).join(', ');
-          var totalAmount = Number(o.total) || 0;
-          var paidAmount = Number(o.paid_amount) || Number(o.already_paid) || 0;
-
-          if (paidAmount === 0 && o.payment_mode && o.payment_mode !== 'UNPAID' && o.payment_mode !== 'DUE' && o.payment_mode !== 'PAY_COUNTER') {
-            paidAmount = totalAmount;
-          }
+          var totalAmount = Number(o.actual_total) || Number(o.total) || 0;
+          var paidAmount = getOrderReceivedAmount(o);
 
           var remainingDue = Math.max(0, totalAmount - paidAmount);
           var isFullyPaid = paidAmount >= totalAmount && totalAmount > 0;
@@ -2419,16 +2443,8 @@
 
       function buildOrderActionCard(o) {
         var itemsText = (o.items || []).map(function(i){ return i.name + ' x' + i.qty; }).join(', ');
-        var totalAmount = Number(o.total) || 0;
-        var rawPaid = Number(o.paid_amount) || Number(o.already_paid) || 0;
-        var mode = (o.payment_mode || 'UNPAID').toUpperCase();
-
-        // FIX: Sirf tabhi 'already paid' consider karo jab amount positive ho
-        // AUR mode 'UNPAID' ya 'DUE' na ho.
-        var paidAmount = 0;
-        if (rawPaid > 0 && mode !== 'UNPAID' && mode !== 'DUE' && mode !== 'PAY_COUNTER') {
-          paidAmount = rawPaid;
-        }
+        var totalAmount = Number(o.actual_total) || Number(o.total) || 0;
+        var paidAmount = getOrderReceivedAmount(o);
 
         var remainingDue = Math.max(0, totalAmount - paidAmount);
         var isFullyPaid = paidAmount >= totalAmount && totalAmount > 0;
@@ -2547,24 +2563,7 @@
       openPOSOrderView(ord.order_type, ord.table_no || '');
       editingActiveOrderId = ord.id;
       
-      var recordedPaid = Number(ord.paid_amount) || Number(ord.already_paid) || 0;
-      
-      if (recordedPaid === 0 && ord.payment_mode && ord.payment_mode !== 'UNPAID' && ord.payment_mode !== 'DUE' && ord.payment_mode !== 'PAY_COUNTER') {
-        recordedPaid = Number(ord.total) || 0;
-      }
-
-      if (recordedPaid > 0) {
-        alreadyPaidAmount = recordedPaid;
-        alreadyPaidMode = ord.already_paid_mode || ord.payment_mode || 'Paid';
-        
-        document.getElementById('boxAlreadyPaidBanner').classList.remove('hidden');
-        document.getElementById('lblAlreadyPaidAmount').innerText = '₹' + alreadyPaidAmount.toFixed(2);
-        document.getElementById('lblAlreadyPaidMode').innerText = alreadyPaidMode;
-      } else {
-        alreadyPaidAmount = 0;
-        alreadyPaidMode = '';
-        document.getElementById('boxAlreadyPaidBanner').classList.add('hidden');
-      }
+      loadRecordedPayment(ord);
 
       posCart = (ord.items || []).map(function(i) {
         return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1 };
@@ -2630,16 +2629,6 @@
       document.getElementById('splitPaymentPanel').classList.add('hidden');
       selectPaymentMode(mode);
       
-      // FIX: Jaise hi Cash/UPI/Card select ho, alreadyPaidAmount ko grand total ke barabar kar do taaki Payable Now zero ho jaye!
-      if (mode === 'Cash' || mode === 'UPI' || mode === 'Card') {
-        alreadyPaidAmount = calc.grandTotal;
-        alreadyPaidMode = mode.toUpperCase();
-        document.getElementById('boxAlreadyPaidBanner').classList.remove('hidden');
-        document.getElementById('lblAlreadyPaidAmount').innerText = '₹' + alreadyPaidAmount.toFixed(2);
-        document.getElementById('lblAlreadyPaidMode').innerText = alreadyPaidMode;
-        calculatePOSBillTotals(); // Turant re-calculate karke zero kar dega!
-      }
-
       var placeBtn = document.getElementById('btnPOSPlaceOrder');
       if (placeBtn) {
         placeBtn.disabled = false;
@@ -2760,20 +2749,16 @@
         
         // FIX: Agar Cash, UPI ya Card button active hua hai, toh Payable Now ko turant zero dikhao!
         if (selectedPaymentMode === 'Cash' || selectedPaymentMode === 'UPI' || selectedPaymentMode === 'Card') {
-          var calc = calculatePOSBillTotals();
-          alreadyPaidAmount = calc.grandTotal;
-          alreadyPaidMode = selectedPaymentMode.toUpperCase();
-          document.getElementById('boxAlreadyPaidBanner').classList.remove('hidden');
-          document.getElementById('lblAlreadyPaidAmount').innerText = '₹' + alreadyPaidAmount.toFixed(2);
-          document.getElementById('lblAlreadyPaidMode').innerText = alreadyPaidMode;
-          calculatePOSBillTotals();
+          setAlreadyPaid(calculatePOSBillTotals().grandTotal, selectedPaymentMode.toUpperCase());
+        } else {
+          // DUE / Split: sirf pehle se recorded payment hi already received hai
+          setAlreadyPaid(recordedPaidAmount, recordedPaidMode);
         }
       } else {
-        // Agar selection hata di, toh alreadyPaidAmount wapas zero kar do
-        alreadyPaidAmount = 0;
-        document.getElementById('boxAlreadyPaidBanner').classList.add('hidden');
-        calculatePOSBillTotals();
+        // Selection hata di: wapas recorded payment par (unpaid order ke liye 0)
+        setAlreadyPaid(recordedPaidAmount, recordedPaidMode);
       }
+      calculatePOSBillTotals();
 
       if (selectedPaymentMode !== 'Split') {
         var placeBtn = document.getElementById('btnPOSPlaceOrder');
@@ -3108,14 +3093,12 @@
       }
 
       editingActiveOrderId = null;
-      alreadyPaidAmount = 0;
-      alreadyPaidMode = '';
+      loadRecordedPayment(null);
       posCart = [];
-      selectedPaymentMode = null; 
+      selectedPaymentMode = null;
       currentCashReceived = 0;
       currentCashChange = 0;
 
-      document.getElementById('boxAlreadyPaidBanner').classList.add('hidden');
       document.getElementById('splitPaymentPanel').classList.add('hidden');
 
       var placeBtn = document.getElementById('btnPOSPlaceOrder');
@@ -3147,19 +3130,8 @@
           return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1 };
         });
 
-        // FIX: Agar already paid hai, toh banner dikhao
-        var recordedPaid = Number(running.paid_amount) || Number(running.already_paid) || 0;
-        if (recordedPaid === 0 && running.payment_mode && running.payment_mode !== 'UNPAID' && running.payment_mode !== 'DUE' && running.payment_mode !== 'PAY_COUNTER') {
-          recordedPaid = Number(running.total) || 0;
-        }
-
-        if (recordedPaid > 0) {
-          alreadyPaidAmount = recordedPaid;
-          alreadyPaidMode = running.already_paid_mode || running.payment_mode || 'Paid';
-          document.getElementById('boxAlreadyPaidBanner').classList.remove('hidden');
-          document.getElementById('lblAlreadyPaidAmount').innerText = '₹' + alreadyPaidAmount.toFixed(2);
-          document.getElementById('lblAlreadyPaidMode').innerText = alreadyPaidMode;
-        }
+        // Sirf actual received amount hi "Already Received" me dikhega; unpaid order par 0
+        loadRecordedPayment(running);
       } else {
         document.getElementById('posCustPhone').value = '';
         document.getElementById('posCustName').value = '';
