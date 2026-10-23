@@ -729,11 +729,16 @@ app.put('/api/orders/:id', (req, res) => {
     let finalRemaining = Math.max(0, finalTotal - finalPaid);
     let finalMode = payment_mode || (currentOrder ? currentOrder.payment_mode : 'UNPAID');
 
+    // Payment se kitchen status nahi badalta: jab tak KDS se KOT done na ho, order RUNNING_TABLE (active + KDS par) rahega.
+    // Sirf tab final status do jab kitchen pehle hi order complete kar chuka ho.
+    const prevStatus = String(currentOrder ? currentOrder.status : '').toUpperCase();
+    const kitchenDone = ['KOT_DONE', 'DISPATCHED', 'DUE_PENDING'].includes(prevStatus);
+
     let status = 'RUNNING_TABLE';
-    if (payment_mode && payment_mode.toUpperCase() === 'DUE') {
+    if (kitchenDone && requestedMode === 'DUE') {
       status = 'DUE_PENDING';
-    } else if (finalPaid >= finalTotal && finalTotal > 0) {
-      status = 'DISPATCHED'; // FIX: Payment poori hote hi status DISPATCHED ho jayega, jisse table turant free ho jayegi!
+    } else if (kitchenDone && finalPaid >= finalTotal && finalTotal > 0) {
+      status = 'DISPATCHED';
     }
 
     db.run(
@@ -966,7 +971,10 @@ app.post('/api/kot/:id/dispatch', (req, res) => {
   const orderId = req.params.id;
 
   // Manual dispatch: Order ko explicitly DISPATCHED status par set karo taaki KDS se hat jaye
-  db.run("UPDATE orders SET status = 'DISPATCHED' WHERE id = ?", [orderId], (err) => {
+  // DUE (khata) orders kitchen done hone ke baad Due list me rahein, isliye unhe DUE_PENDING do
+  db.run(`UPDATE orders
+          SET status = CASE WHEN UPPER(COALESCE(payment_mode, '')) = 'DUE' THEN 'DUE_PENDING' ELSE 'DISPATCHED' END
+          WHERE id = ?`, [orderId], (err) => {
     if (err) {
       console.error('[KDS DISPATCH ERROR]:', err.message);
       return res.status(500).json({ error: err.message });
