@@ -6,283 +6,243 @@
   <title>Self-Order Kiosk - Vishal Foodiez</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
+    :root { --yellow: #FFBC0D; --yellow-dark: #E5A800; --ink: #292929; --red: #DB0007; --line: #d6d6d6; }
     .kiosk-aspect-frame {
       aspect-ratio: 9 / 16;
       height: 100vh;
       max-width: calc(100vh * (9 / 16));
     }
     ::-webkit-scrollbar { width: 0px; height: 0px; }
-    body { -webkit-tap-highlight-color: transparent; user-select: none; font-family: system-ui, -apple-system, sans-serif; }
+    body { -webkit-tap-highlight-color: transparent; user-select: none; font-family: "Speedee", "Helvetica Neue", Arial, system-ui, sans-serif; color: var(--ink); }
 
-    .fly-item {
-      position: fixed;
-      z-index: 99999;
-      pointer-events: none;
-      transition: all 1.6s cubic-bezier(0.22, 1, 0.36, 1);
-    }
+    .kiosk-bg { background: linear-gradient(180deg, #f4fbf8 0%, #ffffff 55%); }
+    .btn-yellow { background: var(--yellow); color: var(--ink); font-weight: 600; transition: transform .1s, background .1s; }
+    .btn-yellow:active { transform: scale(.98); background: var(--yellow-dark); }
+    .btn-yellow:disabled { opacity: .45; }
+    .btn-outline { background: #fff; border: 1px solid #9a9a9a; color: var(--ink); transition: transform .1s, background .1s; }
+    .btn-outline:active { transform: scale(.98); background: #f0f0f0; }
+    .tile { background: #fff; border: 1px solid var(--line); box-shadow: 0 1px 3px rgba(0,0,0,.12); transition: transform .1s; }
+    .tile:active { transform: scale(.97); }
+    .tile.selected { border: 2px solid var(--yellow); box-shadow: 0 0 0 2px rgba(255,188,13,.35); }
+    .screen { position: absolute; inset: 0; }
+    .pop { animation: pop .35s cubic-bezier(.22,1,.36,1); }
+    @keyframes pop { from { transform: scale(.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
   </style>
 </head>
 <body class="bg-neutral-900 flex justify-center items-center h-screen w-screen overflow-hidden">
 
-  <div id="kioskFrameContainer" class="kiosk-aspect-frame w-full bg-[#fcfcfc] relative flex flex-col justify-between shadow-[0_0_60px_rgba(0,0,0,0.9)] border-x border-neutral-800 overflow-hidden">
+  <div id="kioskFrameContainer" class="kiosk-aspect-frame w-full kiosk-bg relative flex flex-col overflow-hidden shadow-[0_0_60px_rgba(0,0,0,0.9)]">
 
-    <!-- STEP 1: EXACT MCDONALD'S START SCREEN (Screenshot 1 Style) -->
-    <div id="idleScreensaver" onclick="showModeSelection()" class="absolute inset-0 bg-neutral-900 z-50 flex flex-col justify-between p-6 text-white text-center cursor-pointer overflow-hidden">
-      <!-- Top Promotional Banner/Image Area -->
-      <div class="relative flex-1 rounded-3xl overflow-hidden bg-gradient-to-b from-rose-900 via-neutral-900 to-neutral-900 flex flex-col items-center justify-center p-6 border border-neutral-800 shadow-inner mt-2">
-        <span class="bg-[#ffc72c] text-neutral-900 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest mb-3 shadow">New Range</span>
-        <h1 class="text-3xl font-black tracking-wider uppercase text-amber-50 drop-shadow-md">KOREAN SPICY</h1>
-        <p class="text-xs text-amber-200/80 font-bold tracking-widest mt-1">VISHAL FOODIEZ SPECIAL</p>
-        
-        <div class="my-auto py-4 flex gap-4">
-          <div class="w-28 h-28 bg-neutral-800/80 backdrop-blur rounded-2xl p-2 border border-neutral-700 shadow-xl flex flex-col items-center justify-center">
-            <span class="text-4xl">🍔</span>
-            <span class="text-[9px] font-bold mt-1 text-amber-100">McSpicy Burger</span>
-          </div>
-          <div class="w-28 h-28 bg-neutral-800/80 backdrop-blur rounded-2xl p-2 border border-neutral-700 shadow-xl flex flex-col items-center justify-center">
-            <span class="text-4xl">🍟</span>
-            <span class="text-[9px] font-bold mt-1 text-amber-100">Crispy Fries</span>
+    <!-- ============ MENU (base layer) ============ -->
+    <div class="flex-1 flex overflow-hidden min-h-0">
+      <!-- Sidebar -->
+      <aside class="w-[27%] shrink-0 flex flex-col pt-4 pb-2 pl-3 overflow-y-auto">
+        <div class="bg-white border border-[var(--line)] shadow-sm flex items-center justify-center py-4 mb-4">
+          <div class="flex items-center gap-2">
+            <div class="w-9 h-9 rounded-full bg-[var(--yellow)] flex items-center justify-center font-black text-lg" id="brandBadge">V</div>
           </div>
         </div>
-      </div>
-
-      <!-- Bottom Interactive Touch Box (Exact McCafe/MCD Kiosk Look) -->
-      <div class="bg-white text-neutral-900 rounded-3xl p-5 shadow-2xl mt-4 border border-neutral-200 flex flex-col gap-3">
-        <div class="flex items-center justify-between bg-neutral-100 p-3 rounded-2xl border border-neutral-200">
-          <div class="text-left">
-            <div class="text-[10px] font-bold text-neutral-500 uppercase">Deals & More</div>
-            <div class="text-xs font-black text-neutral-900">Scan or tap for offers</div>
-          </div>
-          <div class="w-10 h-10 bg-white rounded-xl border border-neutral-300 flex items-center justify-center text-lg shadow-2xs">📱</div>
-        </div>
-
-        <div class="bg-[#ffc72c] hover:bg-[#f3bc22] text-neutral-900 py-4 px-6 rounded-2xl font-black text-sm tracking-wide shadow-md flex items-center justify-center gap-2 transition active:scale-95">
-          <span>Start Order</span>
-          <span class="text-base">→</span>
-        </div>
-        <p class="text-[10px] text-neutral-400 font-bold uppercase tracking-wider">Touch anywhere to begin</p>
-      </div>
-    </div>
-
-    <!-- STEP 2: WHERE WOULD YOU LIKE TO EAT? (Screenshot 3 Style) -->
-    <div id="modeSelectionScreen" class="hidden absolute inset-0 bg-[#f8f9fa] z-40 flex flex-col justify-between p-6 text-neutral-900 text-center">
-      <div class="mt-6">
-        <h2 class="text-2xl font-black tracking-tight text-neutral-900">Where would you like to eat?</h2>
-      </div>
-
-      <div class="grid grid-cols-2 gap-4 my-auto w-full">
-        <!-- Eat In Card -->
-        <div onclick="startKioskOrderWithMode('Dine-In')" class="bg-white hover:border-amber-400 border-2 border-neutral-200 p-6 rounded-3xl flex flex-col items-center justify-center cursor-pointer transition shadow-sm active:scale-95 space-y-4">
-          <div class="w-24 h-24 bg-neutral-100 rounded-2xl flex items-center justify-center shadow-inner">
-            <span class="text-5xl">🥤🍔</span>
-          </div>
-          <span class="text-base font-black uppercase tracking-wide">Eat In</span>
-        </div>
-
-        <!-- Takeaway Card -->
-        <div onclick="startKioskOrderWithMode('Takeaway')" class="bg-white hover:border-amber-400 border-2 border-neutral-200 p-6 rounded-3xl flex flex-col items-center justify-center cursor-pointer transition shadow-sm active:scale-95 space-y-4">
-          <div class="w-24 h-24 bg-neutral-100 rounded-2xl flex items-center justify-center shadow-inner">
-            <span class="text-5xl">🛍️📦</span>
-          </div>
-          <span class="text-base font-black uppercase tracking-wide">Take Away</span>
-        </div>
-      </div>
-
-      <div class="pb-4">
-        <button onclick="resetKioskSession()" class="text-xs font-black text-neutral-400 hover:text-neutral-700 uppercase tracking-widest bg-neutral-200/60 px-4 py-2 rounded-xl">← Back</button>
-      </div>
-    </div>
-
-    <!-- MAIN KIOSK HEADER -->
-    <header class="bg-[#27251f] text-white px-4 py-3 shadow-md flex justify-between items-center z-10">
-      <div class="flex items-center gap-2.5">
-        <div class="w-9 h-9 bg-[#ffc72c] rounded-xl flex items-center justify-center text-neutral-900 text-lg font-black shadow">
-          M
-        </div>
-        <div>
-          <h1 id="kioskStoreName" class="text-xs font-black tracking-tight leading-none truncate max-w-[130px]">VISHAL FOODIEZ</h1>
-          <span class="text-[8px] font-bold text-[#ffc72c] uppercase tracking-widest">Self-Service Kiosk</span>
-        </div>
-      </div>
-
-      <div class="flex bg-neutral-800 p-1 rounded-xl border border-neutral-700">
-        <button id="pillDine" onclick="switchKioskMode('Dine-In')" class="px-3 py-1 rounded-lg font-black text-[10px] transition bg-[#da291c] text-white shadow flex items-center gap-1">
-          <span>🍽</span> Eat In
+        <button onclick="startOver()" class="tile flex items-center gap-2 px-2 py-3 mb-3 text-left">
+          <span class="text-xl">🏠</span><span class="text-[13px]">Home</span>
         </button>
-        <button id="pillTake" onclick="switchKioskMode('Takeaway')" class="px-3.5 py-1 rounded-lg font-black text-[10px] transition text-neutral-400 hover:text-white flex items-center gap-1">
-          <span>🛍</span> Takeaway
-        </button>
-      </div>
-    </header>
+        <div id="categorySidebar" class="bg-white border border-[var(--line)] shadow-sm flex flex-col"></div>
+      </aside>
 
-    <!-- MENU BROWSE SCREEN (Screenshot 2 Style) -->
-    <main class="flex-1 flex overflow-hidden bg-[#f3f4f6]">
-      <aside id="categorySidebar" class="w-24 bg-white border-r border-neutral-200 flex flex-col py-3 gap-2 overflow-y-auto shrink-0 shadow-sm"></aside>
-      
-      <section class="flex-1 p-3 overflow-y-auto">
-        <div class="flex justify-between items-center mb-2.5 bg-white p-2.5 rounded-2xl border shadow-2xs">
-          <h2 id="activeCategoryHeading" class="text-xs font-black text-neutral-800 tracking-tight uppercase">Menu</h2>
-          <span id="categoryItemCount" class="text-[10px] font-bold text-neutral-500 bg-neutral-100 px-2 py-0.5 rounded-full">0 items</span>
-        </div>
-        <div id="itemsGrid" class="grid grid-cols-2 gap-3 pb-6"></div>
+      <!-- Items -->
+      <section class="flex-1 min-w-0 flex flex-col px-4 pt-6">
+        <h2 id="activeCategoryHeading" class="text-4xl font-black tracking-tight leading-none truncate">Menu</h2>
+        <p class="text-[13px] text-neutral-600 mt-3 mb-4">Browse between categories on the left</p>
+        <div id="itemsGrid" class="flex-1 overflow-y-auto grid grid-cols-2 gap-3 content-start pb-4"></div>
       </section>
-    </main>
+    </div>
 
-    <!-- FOOTER CART & CHECKOUT BAR -->
-    <footer class="bg-white border-t border-neutral-200 px-4 py-3 shadow-[0_-5px_20px_rgba(0,0,0,0.06)] z-20 flex justify-between items-center">
-      <div onclick="openTrayReviewModal()" class="flex items-center gap-3 cursor-pointer">
-        <div class="relative">
-          <div id="cartIconBox" class="w-11 h-11 bg-[#da291c] rounded-2xl flex items-center justify-center text-white text-lg shadow-lg">
-            🛍️
+    <!-- Bottom bar -->
+    <footer class="shrink-0 bg-white border-t border-[var(--line)] px-4 pt-3 pb-3">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-3">
+          <div class="relative" id="cartIconBox">
+            <span class="text-3xl">🛍️</span>
+            <span id="trayCountBadge" class="absolute -top-1 -right-2 bg-[var(--red)] text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">0</span>
           </div>
-          <span id="trayCountBadge" class="absolute -top-1.5 -right-1.5 bg-[#ffc72c] text-neutral-900 text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-white shadow">0</span>
+          <span id="trayTotalDisplay" class="text-2xl font-black">₹0.00</span>
         </div>
-        <div>
-          <p class="text-[9px] font-bold text-neutral-400 uppercase tracking-wider">My Bag</p>
-          <p id="trayTotalDisplay" class="text-lg font-black text-neutral-900 leading-none mt-0.5">₹0</p>
-        </div>
+        <button id="viewOrderBtn" onclick="openTrayReviewModal()" class="btn-yellow px-8 py-3.5 text-[15px]" disabled>View My Order</button>
       </div>
-
-      <div class="flex gap-2">
-        <button onclick="resetKioskSession()" class="px-2.5 py-2 font-black text-[10px] text-neutral-400 hover:text-red-600 transition uppercase">
-          Cancel
-        </button>
-        <button onclick="openPaymentChoice()" class="bg-[#00853e] hover:bg-[#007033] text-white font-black px-5 py-3 rounded-2xl text-xs shadow-lg transition flex items-center gap-1.5">
-          <span>Checkout</span>
-          <span class="text-sm">→</span>
-        </button>
+      <div class="flex gap-3">
+        <button onclick="startOver()" class="btn-outline flex-1 py-2 text-[12px]">Start Over</button>
+        <button onclick="toggleBigText()" class="btn-outline flex-1 py-2 text-[12px]">♿ Accessibility</button>
       </div>
     </footer>
 
-    <!-- ITEM CUSTOMIZER MODAL -->
-    <div id="customizerModal" class="hidden absolute inset-0 bg-black/70 backdrop-blur-sm z-40 flex items-end justify-center">
-      <div class="bg-white w-full max-h-[88%] rounded-t-3xl p-5 shadow-2xl flex flex-col justify-between overflow-hidden animate-in slide-in-from-bottom duration-300">
-        
-        <div class="flex justify-between items-start border-b border-neutral-100 pb-3">
-          <div class="flex items-center gap-3">
-            <div id="custImgContainer"></div>
-            <div>
-              <h3 id="custItemTitle" class="text-base font-black text-neutral-900 leading-tight">Burger</h3>
-              <p id="custItemCategory" class="text-[10px] font-bold text-[#da291c] uppercase tracking-widest mt-0.5"></p>
-            </div>
+    <!-- ============ START SCREEN ============ -->
+    <div id="idleScreensaver" onclick="showModeSelection()" class="screen z-50 bg-white flex flex-col cursor-pointer">
+      <div class="flex-1 relative bg-[#0f4c5c] text-white flex flex-col items-center overflow-hidden">
+        <div class="bg-white w-full text-center pt-10 pb-8" style="background:linear-gradient(180deg,#eefaf8,#d8f1ee)">
+          <h1 class="text-5xl font-black leading-[1.05] text-[#2a9d9f] px-6">You've caught<br>a big offer!</h1>
+          <div class="inline-block mt-6 bg-[#0f4c5c] text-white px-8 py-3 rotate-[-3deg] shadow-xl">
+            <div class="text-sm font-black tracking-wide">GET UP TO</div>
+            <div class="text-6xl font-black leading-none">30<span class="text-3xl">%</span> <span class="text-sm">OFF</span></div>
           </div>
-          <button onclick="closeCustomizerModal()" class="w-8 h-8 bg-neutral-100 rounded-full flex items-center justify-center text-neutral-500 font-black text-xs hover:bg-neutral-200">✕</button>
         </div>
-
-        <div class="flex-1 overflow-y-auto py-3 space-y-4 pr-1">
-          <div class="bg-amber-50 border border-amber-200 p-3 rounded-2xl flex items-center justify-between">
-            <div>
-              <h4 class="text-xs font-black text-amber-900">Make it a Meal? 🍟🥤</h4>
-              <p class="text-[10px] text-amber-700">Add Fries & Drink for best combo</p>
-            </div>
-            <span class="text-xs font-black text-amber-600 bg-white px-2 py-1 rounded-xl border border-amber-300 shadow-sm">Popular</span>
-          </div>
-
-          <div id="modalVarSection" class="hidden">
-            <label class="block text-[11px] font-black text-neutral-800 uppercase tracking-wider mb-2">Select Size / Meal Option</label>
-            <div id="modalVarGrid" class="grid grid-cols-2 gap-2.5"></div>
-          </div>
-          <div id="modalAddonGroups" class="space-y-3"></div>
+        <div class="w-full flex-1 flex flex-col items-center justify-center gap-3 px-8 text-center">
+          <p class="text-lg font-black tracking-wide text-teal-100 uppercase">On our signature meals</p>
+          <div class="flex items-end gap-4 text-[88px] leading-none"><span>🍔</span><span>🍟</span><span>🥤</span></div>
+          <p id="idleStoreName" class="text-xl font-black tracking-widest mt-2">VISHAL FOODIEZ</p>
         </div>
-
-        <div class="pt-3 border-t border-neutral-200 flex justify-between items-center">
-          <div>
-            <span class="text-[9px] font-bold text-neutral-400 uppercase tracking-wider">Total Amount</span>
-            <div id="modalItemRunningTotal" class="text-2xl font-black text-[#00853e] leading-none mt-0.5">₹0</div>
-          </div>
-          <button id="addToTrayBtn" onclick="confirmKioskItemAdd()" class="bg-[#da291c] hover:bg-[#b52217] text-white font-black px-7 py-3 rounded-2xl text-xs shadow-xl transition uppercase tracking-wider">
-            Add To Bag
-          </button>
-        </div>
-
       </div>
-    </div>
-
-    <!-- TRAY REVIEW MODAL -->
-    <div id="trayReviewModal" class="hidden absolute inset-0 bg-black/70 backdrop-blur-sm z-40 flex items-end justify-center">
-      <div class="bg-white w-full max-h-[80%] rounded-t-3xl p-5 shadow-2xl flex flex-col justify-between">
-        <div class="flex justify-between items-center border-b pb-3 mb-2">
-          <h3 class="text-base font-black text-neutral-900">Review Your Bag</h3>
-          <button onclick="closeTrayReviewModal()" class="w-8 h-8 bg-neutral-100 rounded-full flex items-center justify-center text-neutral-500 font-bold text-xs">✕</button>
+      <div class="bg-[#f5f5f5] px-5 pt-5 pb-6 flex gap-4">
+        <div class="w-[38%] bg-[var(--yellow)] p-4 flex flex-col items-center justify-center text-center">
+          <p class="font-black text-[15px] leading-tight">Scan or tap for</p>
+          <p class="text-[11px] mb-2">Deals &amp; more</p>
+          <span class="text-5xl">▦</span>
         </div>
-
-        <div id="trayItemsList" class="flex-1 overflow-y-auto space-y-2.5 pr-1"></div>
-
-        <div class="pt-4 border-t border-neutral-200 space-y-3">
-          <div class="flex justify-between items-center text-base font-black text-neutral-900">
-            <span>Grand Total:</span>
-            <span id="reviewTrayTotal" class="text-xl text-[#00853e]">₹0</span>
-          </div>
-          <button onclick="closeTrayReviewModal(); openPaymentChoice();" class="w-full bg-[#00853e] hover:bg-[#007033] text-white font-black py-3.5 rounded-2xl text-xs shadow-lg uppercase tracking-wider">
-            Proceed To Checkout
+        <div class="flex-1 flex flex-col gap-3">
+          <button class="tile flex-1 py-5 text-center">
+            <p class="font-black text-xl">Start Order</p>
+            <p class="text-[12px] text-neutral-600 mt-1">to get deliciousness</p>
           </button>
+          <button onclick="event.stopPropagation(); toggleBigText()" class="btn-outline py-2 text-[12px]">♿ Accessibility</button>
         </div>
       </div>
     </div>
 
-    <!-- PAYMENT SELECTION MODAL -->
-    <div id="paymentModal" class="hidden absolute inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div class="bg-white rounded-3xl p-6 max-w-xs w-full text-center shadow-2xl space-y-5">
-        <div class="flex justify-between items-center border-b pb-2">
-          <h3 class="text-sm font-black text-neutral-900 uppercase">Select Payment</h3>
-          <button onclick="closePaymentModal()" class="text-neutral-400 hover:text-neutral-800 font-bold text-base">✕</button>
+    <!-- ============ EAT IN / TAKE AWAY ============ -->
+    <div id="modeSelectionScreen" class="hidden screen z-40 kiosk-bg flex flex-col items-center px-6">
+      <div class="w-12 h-12 mt-14 rounded-full bg-[var(--yellow)] flex items-center justify-center font-black text-2xl">V</div>
+      <h2 class="text-5xl font-black text-center leading-tight mt-16">Where would you<br>like to eat?</h2>
+      <div class="grid grid-cols-2 gap-5 w-full mt-14">
+        <button onclick="startKioskOrderWithMode('Dine-In')" class="tile pt-6 pb-0 flex flex-col items-center">
+          <span class="text-2xl">Eat In</span>
+          <span class="text-[84px] leading-none my-8">🥤🍔</span>
+          <span class="w-full h-12 bg-neutral-200"></span>
+        </button>
+        <button onclick="startKioskOrderWithMode('Takeaway')" class="tile pt-6 pb-0 flex flex-col items-center">
+          <span class="text-2xl">Take Away</span>
+          <span class="text-[84px] leading-none my-8">🛍️</span>
+          <span class="w-full h-12 bg-neutral-200"></span>
+        </button>
+      </div>
+      <div class="mt-auto w-full pb-6 flex gap-3">
+        <button onclick="startOver()" class="btn-outline flex-1 py-2.5 text-[13px]">Start Over</button>
+        <button onclick="toggleBigText()" class="btn-outline flex-1 py-2.5 text-[13px]">♿ Accessibility</button>
+      </div>
+    </div>
+
+    <!-- ============ ITEM CUSTOMIZER ============ -->
+    <div id="customizerModal" class="hidden screen z-40 kiosk-bg flex flex-col">
+      <div class="px-6 pt-8 shrink-0">
+        <div class="w-10 h-10 rounded-full bg-[var(--yellow)] flex items-center justify-center font-black text-lg mb-5">V</div>
+        <h3 id="custItemTitle" class="text-4xl font-black leading-tight">Burger</h3>
+        <div id="modalItemRunningTotal" class="text-4xl font-black leading-tight mt-1">₹0.00</div>
+        <p id="custItemCategory" class="text-[12px] font-bold text-neutral-500 uppercase tracking-widest mt-2"></p>
+      </div>
+
+      <div class="flex-1 overflow-y-auto px-6 py-4 min-h-0">
+        <div id="custImgContainer" class="flex justify-center mb-5"></div>
+
+        <div id="modalVarSection" class="hidden mb-5">
+          <p class="text-xl font-black mb-3">Select a size</p>
+          <div id="modalVarGrid" class="grid grid-cols-2 gap-3"></div>
         </div>
+        <div id="modalAddonGroups" class="space-y-5"></div>
+      </div>
 
-        <div class="space-y-3">
-          <button onclick="submitKioskOrder('UPI_QR')" class="w-full bg-indigo-50 border-2 border-indigo-200 hover:border-indigo-600 p-4 rounded-2xl flex items-center gap-3.5 transition text-left">
-            <span class="text-3xl">📱</span>
-            <div>
-              <h4 class="font-black text-xs text-neutral-900">Scan & Pay (UPI)</h4>
-              <p class="text-[10px] text-neutral-500">Fast digital payment</p>
-            </div>
-          </button>
-
-          <button onclick="submitKioskOrder('PAY_COUNTER')" class="w-full bg-amber-50 border-2 border-amber-200 hover:border-amber-600 p-4 rounded-2xl flex items-center gap-3.5 transition text-left">
-            <span class="text-3xl">💵</span>
-            <div>
-              <h4 class="font-black text-xs text-neutral-900">Pay at Counter</h4>
-              <p class="text-[10px] text-neutral-500">Cash / Card with cashier</p>
-            </div>
-          </button>
+      <div class="shrink-0 px-6 pb-4 pt-3 bg-white border-t border-[var(--line)]">
+        <div class="flex items-stretch border border-[#9a9a9a] bg-white mb-3 h-14">
+          <button onclick="changeCustQty(-1)" class="w-16 text-3xl text-neutral-500 active:bg-neutral-100">−</button>
+          <div id="custQty" class="flex-1 flex items-center justify-center text-lg border-x border-[#9a9a9a]">1</div>
+          <button onclick="changeCustQty(1)" class="w-16 text-3xl active:bg-neutral-100">+</button>
+        </div>
+        <div class="flex gap-3">
+          <button onclick="closeCustomizerModal()" class="btn-outline w-[36%] py-4 text-lg">Cancel Item</button>
+          <button id="addToTrayBtn" onclick="confirmKioskItemAdd()" class="btn-yellow flex-1 py-4 text-lg">Add To Order</button>
         </div>
       </div>
     </div>
 
-    <!-- SUCCESS TOKEN MODAL -->
-    <div id="tokenSuccessModal" class="hidden absolute inset-0 bg-[#00853e] z-50 flex flex-col items-center justify-center p-6 text-white text-center">
-      <div class="w-20 h-20 bg-white text-[#00853e] rounded-full flex items-center justify-center text-4xl shadow-2xl mb-4 font-black animate-bounce">✓</div>
-      <h2 class="text-3xl font-black">Order Placed!</h2>
-      <p class="text-xs text-emerald-100 mt-1">Please take your order token & receipt:</p>
-
-      <div class="bg-white text-neutral-900 p-6 rounded-3xl shadow-2xl border-4 border-[#ffc72c] my-6 w-full max-w-[240px]">
-        <span class="text-[10px] font-black text-neutral-400 uppercase tracking-widest">Order Token</span>
-        <div id="kioskTokenDisplay" class="text-6xl font-black text-[#da291c] my-2">#0</div>
-        <p id="kioskModeNote" class="text-[11px] font-black text-neutral-600 uppercase tracking-wider">Dine In</p>
+    <!-- ============ YOUR ORDER ============ -->
+    <div id="trayReviewModal" class="hidden screen z-40 kiosk-bg flex flex-col">
+      <div class="px-6 pt-8 flex items-center gap-3 shrink-0">
+        <div class="w-10 h-10 rounded-full bg-[var(--yellow)] flex items-center justify-center font-black text-lg">V</div>
+        <h3 class="text-4xl font-black">Your Order</h3>
       </div>
+      <div id="trayItemsList" class="flex-1 overflow-y-auto px-6 pt-6 min-h-0"></div>
 
-      <p class="text-xs text-white/80">Kitchen is preparing your fresh meal...</p>
+      <div class="shrink-0 bg-white border-t border-[var(--line)] px-6 pt-4 pb-4">
+        <div class="flex justify-between text-[15px] text-neutral-700"><span>Sub Total</span><span id="reviewSubTotal">₹0.00</span></div>
+        <div class="flex justify-between text-2xl font-black mt-2 mb-4"><span>Total</span><span id="reviewTrayTotal">₹0.00</span></div>
+        <div class="flex gap-3">
+          <button onclick="closeTrayReviewModal()" class="btn-outline w-[36%] py-4 text-lg">Order More</button>
+          <button onclick="closeTrayReviewModal(); openPaymentChoice();" class="btn-yellow flex-1 py-4 text-lg">Complete Order</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ PAYMENT ============ -->
+    <div id="paymentModal" class="hidden screen z-50 kiosk-bg flex flex-col items-center justify-center px-8 text-center">
+      <div class="w-24 h-24 rounded-full bg-[#d9531e] text-white text-6xl font-black flex items-center justify-center pop">!</div>
+      <h3 class="text-3xl font-black mt-6 leading-tight">Please select a<br>payment method.</h3>
+      <div class="w-full mt-10 space-y-4">
+        <button onclick="submitKioskOrder('UPI_QR')" class="tile w-full py-5 text-xl flex items-center justify-center gap-3"><span class="text-3xl">📱</span> UPI</button>
+        <button onclick="submitKioskOrder('PAY_COUNTER')" class="tile w-full py-5 text-xl flex items-center justify-center gap-3"><span class="text-3xl">💵</span> Pay at Counter</button>
+        <button onclick="closePaymentModal()" class="btn-outline w-full py-3 text-base">Back</button>
+      </div>
+    </div>
+
+    <!-- ============ ITEM ADDED ============ -->
+    <div id="addedModal" class="hidden screen z-[60] kiosk-bg flex flex-col items-center justify-center text-center">
+      <div class="text-[110px] leading-none pop">🛍️</div>
+      <h3 class="text-4xl font-black mt-8">Item added to Bag!</h3>
+      <p class="text-sm text-neutral-600 mt-3">Your total has been updated</p>
+      <p id="addedTotal" class="text-2xl font-black mt-6">₹0.00</p>
+    </div>
+
+    <!-- ============ STILL THINKING ============ -->
+    <div id="thinkingModal" class="hidden screen z-[70] kiosk-bg flex flex-col items-center justify-center px-8 text-center">
+      <div class="w-24 h-24 rounded-full bg-[#d9531e] text-white text-6xl font-black flex items-center justify-center">!</div>
+      <h3 class="text-4xl font-black mt-6">Still thinking?</h3>
+      <p class="text-sm text-neutral-600 mt-3">Tap below to continue.<br>Otherwise, we'll start over again in <span id="thinkingCountdown">10</span>s.</p>
+      <button onclick="dismissThinking()" class="btn-yellow w-full max-w-[420px] py-5 text-xl mt-10">Continue</button>
+    </div>
+
+    <!-- ============ ORDER PLACED ============ -->
+    <div id="tokenSuccessModal" class="hidden screen z-[80] kiosk-bg flex flex-col items-center justify-center px-6 text-center">
+      <div class="w-24 h-24 rounded-full bg-[var(--yellow)] flex items-center justify-center text-5xl font-black pop">✓</div>
+      <h2 class="text-4xl font-black mt-6">Order Placed!</h2>
+      <p class="text-sm text-neutral-600 mt-2">Please take your order token &amp; receipt</p>
+      <div class="tile w-full max-w-[300px] py-6 mt-8">
+        <span class="text-[11px] font-bold text-neutral-500 uppercase tracking-widest">Order Token</span>
+        <div id="kioskTokenDisplay" class="text-7xl font-black my-2">#0</div>
+        <p id="kioskModeNote" class="text-[12px] font-bold text-neutral-600 uppercase tracking-wider">Dine In</p>
+      </div>
+      <p class="text-sm text-neutral-500 mt-6">Kitchen is preparing your fresh meal...</p>
     </div>
 
   </div>
 
   <script>
     let menuItems = [];
+    let categories = [];
     let allMasterGroups = [];
     let activeCategory = '';
     let kioskOrderType = 'Dine-In';
     let kioskTray = [];
-    
+
     let selectedMenuItem = null;
     let selectedVariation = null;
     let selectedGroupAddons = {};
-    let lastClickedCardRect = null;
+    let custQty = 1;
     let pendingPaymentMode = '';
+
+    const $ = id => document.getElementById(id);
+    const money = n => '₹' + Number(n).toFixed(2);
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
     fetch('/api/settings').then(res => res.json()).then(s => {
       const name = s.restaurant_name || 'VISHAL FOODIEZ';
-      document.getElementById('screenStoreName').innerText = name;
-      document.getElementById('kioskStoreName').innerText = name;
-    });
+      $('idleStoreName').innerText = name;
+      $('brandBadge').innerText = name.trim().charAt(0).toUpperCase();
+    }).catch(() => {});
 
     fetch('/api/addon-groups').then(res => res.json()).then(g => { allMasterGroups = g; });
 
@@ -300,101 +260,95 @@
       if (clean.startsWith('/')) return window.location.origin + clean;
       return window.location.origin + '/uploads/' + clean;
     }
-
-    function renderCategories() {
-      const cats = [...new Set(menuItems.map(i => i.category))];
-      if (!activeCategory && cats.length) activeCategory = cats[0];
-
-      const bar = document.getElementById('categorySidebar');
-      bar.innerHTML = cats.map(cat => {
-        const isActive = cat === activeCategory;
-        const icon = getCategoryIcon(cat);
-
-        return `
-          <button onclick="selectCategory('${cat}')" class="flex flex-col items-center justify-center py-3.5 px-2 rounded-2xl mx-1.5 transition ${isActive ? 'bg-[#da291c] text-white shadow-md font-black scale-105' : 'text-neutral-600 hover:bg-neutral-100 font-bold'}">
-            <span class="text-3xl mb-1">${icon}</span>
-            <span class="text-[10px] leading-tight text-center truncate w-full px-0.5 uppercase">${cat}</span>
-          </button>
-        `;
-      }).join('');
-
-      renderCategoryItems();
-    }
-
-    function selectCategory(cat) {
-      activeCategory = cat;
-      renderCategories();
-    }
+    const itemImgOf = item => resolveImgPath(item.image || item.image_url || item.img || '');
 
     function getCategoryIcon(cat) {
       const c = cat.toLowerCase();
       if (c.includes('burg')) return '🍔';
       if (c.includes('pizz')) return '🍕';
-      if (c.includes('snack') || c.includes('momo')) return '🥟';
+      if (c.includes('momo')) return '🥟';
+      if (c.includes('snack') || c.includes('side') || c.includes('fries')) return '🍟';
+      if (c.includes('wrap') || c.includes('roll')) return '🌯';
       if (c.includes('drink') || c.includes('bev') || c.includes('coffee')) return '🥤';
       if (c.includes('dessert') || c.includes('ice')) return '🍦';
       return '🍽';
     }
 
-    function renderCategoryItems() {
-      document.getElementById('activeCategoryHeading').innerText = activeCategory;
-      const filtered = menuItems.filter(i => i.category === activeCategory);
-      document.getElementById('categoryItemCount').innerText = filtered.length + ' items';
+    function renderCategories() {
+      categories = [...new Set(menuItems.map(i => i.category))];
+      if ((!activeCategory || !categories.includes(activeCategory)) && categories.length) activeCategory = categories[0];
 
-      const grid = document.getElementById('itemsGrid');
-      grid.innerHTML = filtered.map(item => {
-        let vars = [];
-        try { vars = JSON.parse(item.variations || '[]'); } catch(e) {}
-        const priceTag = vars.length ? `From ₹${Number(vars[0].price)}` : `₹${Number(item.price)}`;
-        const rawImg = item.image || item.image_url || item.img || '';
-        const itemImg = resolveImgPath(rawImg);
-
+      $('categorySidebar').innerHTML = categories.map((cat, idx) => {
+        const isActive = cat === activeCategory;
         return `
-          <div onclick='openCustomizer(event, ${JSON.stringify(item).replace(/'/g, "&apos;")})' class="bg-white rounded-3xl p-3 shadow-sm border border-neutral-200/80 flex flex-col justify-between active:scale-95 transition cursor-pointer hover:shadow-md">
-            ${itemImg ? `<img src="${itemImg}" class="w-full h-28 object-cover rounded-2xl mb-2.5" onerror="this.onerror=null; this.style.display='none';">` : `<div class="w-full h-28 bg-amber-50 rounded-2xl mb-2.5 flex items-center justify-center text-amber-500 text-3xl font-black">🍔</div>`}
-            <div>
-              <h3 class="font-black text-neutral-900 text-xs leading-tight line-clamp-2">${item.name}</h3>
-            </div>
-            <div class="flex justify-between items-center mt-3 pt-2 border-t border-neutral-100">
-              <span class="font-black text-[#00853e] text-xs">${priceTag}</span>
-              <span class="w-6 h-6 bg-red-50 text-[#da291c] rounded-full flex items-center justify-center font-black text-xs shadow-sm">+</span>
-            </div>
-          </div>
-        `;
+          <button onclick="selectCategory(${idx})" class="flex items-center gap-2 px-2 py-3.5 text-left border-b border-neutral-100 last:border-0 ${isActive ? 'bg-neutral-50' : ''}">
+            <span class="text-2xl w-8 shrink-0 text-center">${getCategoryIcon(cat)}</span>
+            <span class="min-w-0">
+              <span class="block text-[13px] leading-tight break-words ${isActive ? 'font-black' : ''}">${esc(cat)}</span>
+              ${isActive ? '<span class="block h-[3px] w-8 bg-[var(--yellow)] mt-1"></span>' : ''}
+            </span>
+          </button>`;
       }).join('');
+
+      renderCategoryItems();
     }
 
-    function openCustomizer(event, item) {
-      const cardElement = event.currentTarget;
-      lastClickedCardRect = cardElement.getBoundingClientRect();
+    function selectCategory(idx) {
+      activeCategory = categories[idx];
+      renderCategories();
+      $('itemsGrid').scrollTop = 0;
+    }
 
+    function renderCategoryItems() {
+      $('activeCategoryHeading').innerText = activeCategory || 'Menu';
+      const filtered = menuItems.filter(i => i.category === activeCategory);
+
+      $('itemsGrid').innerHTML = filtered.map(item => {
+        let vars = [];
+        try { vars = JSON.parse(item.variations || '[]'); } catch (e) {}
+        const priceTag = vars.length ? `From ${money(vars[0].price)}` : money(item.price);
+        const img = itemImgOf(item);
+
+        return `
+          <button onclick="openCustomizer(${item.id})" class="tile p-2.5 flex flex-col text-left">
+            <div class="h-28 flex items-center justify-center">
+              ${img ? `<img src="${esc(img)}" class="max-h-full max-w-full object-contain" onerror="this.onerror=null; this.replaceWith(Object.assign(document.createElement('span'),{className:'text-6xl',textContent:'🍔'}));">` : '<span class="text-6xl">🍔</span>'}
+            </div>
+            <h3 class="font-bold text-[12px] leading-tight mt-2 line-clamp-2 min-h-[2.1em]">${esc(item.name)}</h3>
+            <span class="font-bold text-[12px] mt-1">${priceTag}</span>
+          </button>`;
+      }).join('') || '<p class="col-span-2 text-neutral-500 text-sm">No items in this category.</p>';
+    }
+
+    // ---------- Item customizer ----------
+    function openCustomizer(itemId) {
+      const item = menuItems.find(i => i.id === itemId);
+      if (!item) return;
       selectedMenuItem = item;
       selectedGroupAddons = {};
-      document.getElementById('custItemTitle').innerText = item.name;
-      document.getElementById('custItemCategory').innerText = item.category;
+      custQty = 1;
+      $('custQty').innerText = '1';
+      $('custItemTitle').innerText = item.name;
+      $('custItemCategory').innerText = item.category;
 
-      const rawImg = item.image || item.image_url || item.img || '';
-      const itemImg = resolveImgPath(rawImg);
-      const imgBox = document.getElementById('custImgContainer');
-      imgBox.innerHTML = itemImg ? `<img src="${itemImg}" class="w-12 h-12 rounded-xl object-cover border shadow">` : `<div class="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center text-xl">🍔</div>`;
+      const img = itemImgOf(item);
+      $('custImgContainer').innerHTML = img
+        ? `<img src="${esc(img)}" class="h-56 object-contain" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'text-[120px]',textContent:'🍔'}));">`
+        : '<span class="text-[120px] leading-none">🍔</span>';
 
       let variations = [];
-      try { variations = JSON.parse(item.variations || '[]'); } catch(e) {}
-      const varSec = document.getElementById('modalVarSection');
-      const varGrid = document.getElementById('modalVarGrid');
+      try { variations = JSON.parse(item.variations || '[]'); } catch (e) {}
+      const varSec = $('modalVarSection');
 
       if (variations.length > 0) {
         selectedVariation = { ...variations[0], price: Number(variations[0].price) };
         varSec.classList.remove('hidden');
-        varGrid.innerHTML = variations.map((v, idx) => `
-          <label class="flex items-center justify-between p-3 rounded-2xl border-2 border-amber-200 cursor-pointer bg-white hover:bg-amber-50/40">
-            <div class="flex items-center gap-2">
-              <input type="radio" name="kioskVarRadio" ${idx === 0 ? 'checked' : ''} onchange='selectKioskVariation(${JSON.stringify(v)})' class="text-[#da291c] w-4 h-4">
-              <span class="text-xs font-black text-neutral-800">${v.name}</span>
-            </div>
-            <span class="text-xs font-black text-[#00853e]">₹${Number(v.price)}</span>
-          </label>
-        `).join('');
+        $('modalVarGrid').innerHTML = variations.map((v, idx) => `
+          <label class="tile ${idx === 0 ? 'selected' : ''} p-4 flex flex-col items-center text-center cursor-pointer" data-var-tile>
+            <input type="radio" name="kioskVarRadio" class="hidden" ${idx === 0 ? 'checked' : ''} onchange="selectKioskVariation(${idx}, this)">
+            <span class="font-bold text-base">${esc(v.name)}</span>
+            <span class="text-sm text-neutral-600 mt-1">${money(v.price)}</span>
+          </label>`).join('');
       } else {
         selectedVariation = null;
         varSec.classList.add('hidden');
@@ -402,143 +356,114 @@
 
       renderKioskAddonGroups();
       updateCustomizerTotal();
-      document.getElementById('customizerModal').classList.remove('hidden');
+      $('customizerModal').classList.remove('hidden');
+      $('customizerModal').querySelector('.overflow-y-auto').scrollTop = 0;
     }
 
-    function selectKioskVariation(v) {
+    function selectKioskVariation(idx, input) {
+      let variations = [];
+      try { variations = JSON.parse(selectedMenuItem.variations || '[]'); } catch (e) {}
+      const v = variations[idx];
       selectedVariation = { ...v, price: Number(v.price) };
+      document.querySelectorAll('[data-var-tile]').forEach(t => t.classList.remove('selected'));
+      input.closest('label').classList.add('selected');
       renderKioskAddonGroups();
       updateCustomizerTotal();
     }
 
+    function activeGroupIds() {
+      if (selectedVariation && selectedVariation.addon_groups && selectedVariation.addon_groups.length) return selectedVariation.addon_groups;
+      try { return JSON.parse(selectedMenuItem.assigned_addon_groups || '[]'); } catch (e) { return []; }
+    }
+
     function renderKioskAddonGroups() {
       selectedGroupAddons = {};
-      let groupIds = [];
-      if (selectedVariation && selectedVariation.addon_groups && selectedVariation.addon_groups.length) {
-        groupIds = selectedVariation.addon_groups;
-      } else {
-        try { groupIds = JSON.parse(selectedMenuItem.assigned_addon_groups || '[]'); } catch(e) {}
-      }
+      const activeGroups = allMasterGroups.filter(g => activeGroupIds().includes(g.id));
+      const box = $('modalAddonGroups');
 
-      const activeGroups = allMasterGroups.filter(g => groupIds.includes(g.id));
-      const box = document.getElementById('modalAddonGroups');
-
-      if (!activeGroups.length) {
-        box.innerHTML = '';
-        return;
-      }
+      if (!activeGroups.length) { box.innerHTML = ''; return; }
 
       box.innerHTML = activeGroups.map(g => {
         let items = [];
-        try { items = JSON.parse(g.items || '[]'); } catch(e) {}
+        try { items = JSON.parse(g.items || '[]'); } catch (e) {}
         selectedGroupAddons[g.id] = [];
 
         return `
-          <div class="bg-neutral-50 p-3.5 rounded-2xl border border-neutral-200">
-            <div class="flex justify-between items-center mb-2">
-              <span class="text-xs font-black text-neutral-800 uppercase">${g.name}</span>
-              <span class="text-[10px] font-bold ${g.is_mandatory ? 'text-red-600 bg-red-50 px-2 py-0.5 rounded-full' : 'text-neutral-500'}">
+          <div>
+            <div class="flex justify-between items-baseline mb-3">
+              <span class="text-xl font-black">${esc(g.name)}</span>
+              <span class="text-[11px] font-bold ${g.is_mandatory ? 'text-[var(--red)]' : 'text-neutral-500'}">
                 ${g.is_mandatory ? 'Required (Min ' + g.min_selection + ')' : 'Optional'}
               </span>
             </div>
-            <div class="space-y-1.5">
-              ${items.map(addon => {
-                const parsedAddon = { ...addon, price: Number(addon.price) };
-                return `
-                <label class="flex items-center justify-between p-2.5 rounded-xl bg-white border border-neutral-200 cursor-pointer shadow-xs">
-                  <div class="flex items-center gap-2">
-                    <input type="checkbox" onchange='toggleKioskAddon(${g.id}, ${g.max_selection},${JSON.stringify(parsedAddon)}, this)' class="rounded text-[#da291c] w-4 h-4">
-                    <span class="text-xs font-bold text-neutral-700">${parsedAddon.name}</span>
-                  </div>
-                  <span class="text-xs font-black text-[#00853e]">+₹${parsedAddon.price}</span>
-                </label>
-              `;
-              }).join('')}
+            <div class="grid grid-cols-2 gap-3">
+              ${items.map((addon, aIdx) => `
+                <label class="tile p-3 flex items-center justify-between gap-2 cursor-pointer">
+                  <span class="min-w-0">
+                    <span class="block text-[13px] font-bold leading-tight">${esc(addon.name)}</span>
+                    <span class="block text-[12px] text-neutral-600">+${money(addon.price)}</span>
+                  </span>
+                  <input type="checkbox" onchange="toggleKioskAddon(${g.id}, ${aIdx}, this)" class="w-6 h-6 shrink-0 accent-[#FFBC0D]">
+                </label>`).join('')}
             </div>
-          </div>
-        `;
+          </div>`;
       }).join('');
     }
 
-    function toggleKioskAddon(groupId, maxLimit, addon, cb) {
+    function toggleKioskAddon(groupId, addonIdx, cb) {
+      const g = allMasterGroups.find(x => x.id === groupId);
+      let items = [];
+      try { items = JSON.parse(g.items || '[]'); } catch (e) {}
+      const addon = { ...items[addonIdx], price: Number(items[addonIdx].price) };
+      const maxLimit = g.max_selection;
+
       if (!selectedGroupAddons[groupId]) selectedGroupAddons[groupId] = [];
       const list = selectedGroupAddons[groupId];
-      const normalizedAddon = { ...addon, price: Number(addon.price) };
 
       if (cb.checked) {
         if (list.length >= maxLimit) {
           cb.checked = false;
           return alert(`Max limit: ${maxLimit}`);
         }
-        list.push(normalizedAddon);
+        list.push(addon);
+        cb.closest('label').classList.add('selected');
       } else {
-        selectedGroupAddons[groupId] = list.filter(a => a.name !== normalizedAddon.name);
+        selectedGroupAddons[groupId] = list.filter(a => a.name !== addon.name);
+        cb.closest('label').classList.remove('selected');
       }
       updateCustomizerTotal();
     }
 
-    function updateCustomizerTotal() {
+    function unitPrice() {
       const base = selectedVariation ? Number(selectedVariation.price) : Number(selectedMenuItem.price);
       let addonSum = 0;
       Object.values(selectedGroupAddons).forEach(list => {
         addonSum += list.reduce((s, a) => s + Number(a.price), 0);
       });
-      document.getElementById('modalItemRunningTotal').innerText = '₹' + (base + addonSum);
+      return base + addonSum;
+    }
+
+    function updateCustomizerTotal() {
+      $('modalItemRunningTotal').innerText = money(unitPrice() * custQty);
+    }
+
+    function changeCustQty(d) {
+      custQty = Math.max(1, custQty + d);
+      $('custQty').innerText = custQty;
+      updateCustomizerTotal();
     }
 
     function closeCustomizerModal() {
-      document.getElementById('customizerModal').classList.add('hidden');
+      $('customizerModal').classList.add('hidden');
       selectedMenuItem = null;
       selectedVariation = null;
       selectedGroupAddons = {};
     }
 
-    function triggerFlyToCartAnimation(itemImgUrl) {
-      const cartIcon = document.getElementById('cartIconBox');
-      if (!cartIcon) return;
-
-      const cartRect = cartIcon.getBoundingClientRect();
-      const startX = lastClickedCardRect ? (lastClickedCardRect.left + lastClickedCardRect.width / 2 - 28) : window.innerWidth / 2;
-      const startY = lastClickedCardRect ? (lastClickedCardRect.top + lastClickedCardRect.height / 2 - 28) : window.innerHeight / 2;
-
-      const flyer = document.createElement('div');
-      flyer.className = 'fly-item';
-      
-      if (itemImgUrl && itemImgUrl.trim() !== '') {
-        flyer.innerHTML = `<img src="${itemImgUrl}" class="w-16 h-16 rounded-2xl object-cover shadow-2xl border-4 border-white">`;
-      } else {
-        flyer.innerHTML = '🍔';
-        flyer.style.fontSize = '40px';
-      }
-      
-      flyer.style.left = startX + 'px';
-      flyer.style.top = startY + 'px';
-      flyer.style.transform = 'scale(1.2) rotate(0deg)';
-
-      document.body.appendChild(flyer);
-
-      setTimeout(() => {
-        flyer.style.left = (cartRect.left + cartRect.width / 2 - 24) + 'px';
-        flyer.style.top = (cartRect.top + cartRect.height / 2 - 24) + 'px';
-        flyer.style.transform = 'scale(0.25) rotate(360deg)';
-        flyer.style.opacity = '0.2';
-      }, 50);
-
-      setTimeout(() => {
-        flyer.remove();
-        cartIcon.classList.add('scale-125', 'transition-transform');
-        setTimeout(() => cartIcon.classList.remove('scale-125'), 300);
-      }, 1600);
-    }
-
     function confirmKioskItemAdd() {
       if (!selectedMenuItem) return;
 
-      let targetGroupIds = (selectedVariation && selectedVariation.addon_groups && selectedVariation.addon_groups.length)
-        ? selectedVariation.addon_groups
-        : JSON.parse(selectedMenuItem.assigned_addon_groups || '[]');
-
-      for (const gid of targetGroupIds) {
+      for (const gid of activeGroupIds()) {
         const grp = allMasterGroups.find(g => g.id === gid);
         if (grp && grp.is_mandatory) {
           const chosenCount = (selectedGroupAddons[gid] || []).length;
@@ -548,25 +473,18 @@
         }
       }
 
-      const basePrice = selectedVariation ? Number(selectedVariation.price) : Number(selectedMenuItem.price);
-      let addonExtra = 0;
       let notes = [];
-
       if (selectedVariation) notes.push(`Size: ${selectedVariation.name}`);
-
       Object.values(selectedGroupAddons).forEach(list => {
-        list.forEach(a => {
-          addonExtra += Number(a.price);
-          notes.push(`${a.name} (+₹${Number(a.price)})`);
-        });
+        list.forEach(a => notes.push(`${a.name} (+₹${Number(a.price)})`));
       });
 
       const noteText = notes.join(', ');
-      const finalPrice = basePrice + addonExtra;
+      const finalPrice = unitPrice();
       const displayName = selectedVariation ? `${selectedMenuItem.name} (${selectedVariation.name})` : selectedMenuItem.name;
 
       const existing = kioskTray.find(i => i.menu_id === selectedMenuItem.id && i.name === displayName && i.notes === noteText);
-      if (existing) existing.qty += 1;
+      if (existing) existing.qty += custQty;
       else {
         kioskTray.push({
           cartId: Date.now(),
@@ -574,78 +492,95 @@
           name: displayName,
           price: Number(finalPrice),
           notes: noteText,
-          qty: 1
+          image: itemImgOf(selectedMenuItem),
+          qty: custQty
         });
       }
 
-      const rawImg = selectedMenuItem.image || selectedMenuItem.image_url || selectedMenuItem.img || '';
-      const itemImgUrl = resolveImgPath(rawImg);
-
       closeCustomizerModal();
-      triggerFlyToCartAnimation(itemImgUrl);
       updateTrayUI();
+      showAddedConfirmation();
     }
 
+    function showAddedConfirmation() {
+      $('addedTotal').innerText = money(trayTotal());
+      $('addedModal').classList.remove('hidden');
+      setTimeout(() => $('addedModal').classList.add('hidden'), 1400);
+    }
+
+    // ---------- Tray ----------
+    const trayCount = () => kioskTray.reduce((s, i) => s + i.qty, 0);
+    const trayTotal = () => kioskTray.reduce((s, i) => s + (Number(i.price) * i.qty), 0);
+
     function updateTrayUI() {
-      const count = kioskTray.reduce((s, i) => s + i.qty, 0);
-      const total = kioskTray.reduce((s, i) => s + (Number(i.price) * i.qty), 0);
-
-      document.getElementById('trayCountBadge').innerText = count;
-      document.getElementById('trayTotalDisplay').innerText = '₹' + total;
-      document.getElementById('reviewTrayTotal').innerText = '₹' + total;
-
+      $('trayCountBadge').innerText = trayCount();
+      $('trayTotalDisplay').innerText = money(trayTotal());
+      $('reviewSubTotal').innerText = money(trayTotal());
+      $('reviewTrayTotal').innerText = money(trayTotal());
+      $('viewOrderBtn').disabled = !kioskTray.length;
       renderTrayReviewList();
     }
 
     function renderTrayReviewList() {
-      const container = document.getElementById('trayItemsList');
+      const container = $('trayItemsList');
       if (!kioskTray.length) {
-        container.innerHTML = '<p class="text-neutral-400 text-center py-8 text-xs font-bold">Your bag is empty.</p>';
+        container.innerHTML = '<p class="text-neutral-400 text-center py-16 text-lg">Your bag is empty.</p>';
         return;
       }
 
       container.innerHTML = kioskTray.map((item, idx) => `
-        <div class="flex justify-between items-center bg-neutral-50 p-3 rounded-2xl border border-neutral-200">
-          <div>
-            <h4 class="font-black text-neutral-800 text-xs">${item.name}</h4>
-            ${item.notes ? `<p class="text-[10px] text-amber-700 font-semibold mt-0.5">↳ ${item.notes}</p>` : ''}
-            <p class="text-xs font-black text-[#00853e] mt-1">₹${Number(item.price)}</p>
+        <div class="flex gap-3 pb-5 mb-5 border-b border-[var(--line)]">
+          <div class="w-20 h-20 shrink-0 flex items-center justify-center">
+            ${item.image ? `<img src="${esc(item.image)}" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">` : '<span class="text-5xl">🍔</span>'}
           </div>
-          <div class="flex items-center gap-2.5">
-            <div class="flex items-center border border-neutral-300 rounded-xl bg-white shadow-xs">
-              <button onclick="changeTrayQty(${idx}, -1)" class="px-2.5 py-1 font-black text-neutral-600 text-xs">-</button>
-              <span class="px-2 font-black text-xs">${item.qty}</span>
-              <button onclick="changeTrayQty(${idx}, 1)" class="px-2.5 py-1 font-black text-neutral-600 text-xs">+</button>
+          <div class="flex-1 min-w-0">
+            <div class="flex justify-between gap-2">
+              <h4 class="font-black text-[15px] leading-tight">${esc(item.name)}</h4>
+              <span class="font-black text-[15px] whitespace-nowrap">${money(item.price * item.qty)}</span>
             </div>
-            <span class="font-black text-xs text-neutral-900 w-12 text-right">₹${Number(item.price) * item.qty}</span>
+            ${item.notes ? `<p class="text-[11px] text-neutral-600 mt-1">${esc(item.notes)}</p>` : ''}
+            <div class="flex items-center justify-between mt-3">
+              <div class="flex items-stretch border border-[#9a9a9a] bg-white h-10">
+                <button onclick="changeTrayQty(${idx}, -1)" class="w-10 text-xl active:bg-neutral-100">−</button>
+                <span class="w-10 flex items-center justify-center border-x border-[#9a9a9a] text-sm">${item.qty}</span>
+                <button onclick="changeTrayQty(${idx}, 1)" class="w-10 text-xl active:bg-neutral-100">+</button>
+              </div>
+              <button onclick="removeTrayItem(${idx})" class="btn-outline px-4 h-10 text-[13px]">Remove</button>
+            </div>
           </div>
-        </div>
-      `).join('');
+        </div>`).join('');
     }
 
     function changeTrayQty(idx, delta) {
       kioskTray[idx].qty += delta;
       if (kioskTray[idx].qty <= 0) kioskTray.splice(idx, 1);
       updateTrayUI();
+      if (!kioskTray.length) closeTrayReviewModal();
+    }
+
+    function removeTrayItem(idx) {
+      kioskTray.splice(idx, 1);
+      updateTrayUI();
+      if (!kioskTray.length) closeTrayReviewModal();
     }
 
     function openTrayReviewModal() {
-      if (!kioskTray.length) return alert('Bag is empty!');
-      document.getElementById('trayReviewModal').classList.remove('hidden');
+      if (!kioskTray.length) return;
+      $('trayReviewModal').classList.remove('hidden');
     }
+    function closeTrayReviewModal() { $('trayReviewModal').classList.add('hidden'); }
 
-    function closeTrayReviewModal() { document.getElementById('trayReviewModal').classList.add('hidden'); }
     function openPaymentChoice() {
-      if (!kioskTray.length) return alert('Please add items first!');
-      document.getElementById('paymentModal').classList.remove('hidden');
+      if (!kioskTray.length) return;
+      $('paymentModal').classList.remove('hidden');
     }
-    function closePaymentModal() { document.getElementById('paymentModal').classList.add('hidden'); }
+    function closePaymentModal() { $('paymentModal').classList.add('hidden'); }
 
+    // ---------- Order submit ----------
     function submitKioskOrder(payMethod) {
       closePaymentModal();
       pendingPaymentMode = payMethod;
-      
-      const total = kioskTray.reduce((s, i) => s + (Number(i.price) * i.qty), 0);
+      const total = trayTotal();
 
       fetch('/api/orders', {
         method: 'POST',
@@ -653,7 +588,7 @@
         body: JSON.stringify({
           order_type: kioskOrderType,
           is_kiosk: true,
-          table_no: '', 
+          table_no: '',
           customer_name: 'Self Kiosk Guest',
           customer_phone: '',
           items: kioskTray,
@@ -667,51 +602,89 @@
       })
       .then(res => res.json())
       .then(data => {
-        document.getElementById('kioskTokenDisplay').innerText = '#' + data.orderId;
-        document.getElementById('kioskModeNote').innerText = kioskOrderType + ' • Pending Approval';
-        document.getElementById('tokenSuccessModal').classList.remove('hidden');
-
-        setTimeout(() => {
-          resetKioskSession();
-        }, 5000);
+        $('kioskTokenDisplay').innerText = '#' + data.orderId;
+        $('kioskModeNote').innerText = kioskOrderType + ' • Pending Approval';
+        $('tokenSuccessModal').classList.remove('hidden');
+        setTimeout(resetKioskSession, 5000);
+      })
+      .catch(() => {
+        alert('Order could not be placed. Please try again or ask staff for help.');
+        openPaymentChoice();
       });
     }
 
-    function switchKioskMode(mode) {
-      kioskOrderType = mode;
-      const pDine = document.getElementById('pillDine');
-      const pTake = document.getElementById('pillTake');
-
-      if (mode === 'Dine-In') {
-        pDine.className = "px-3 py-1 rounded-lg font-black text-[10px] transition bg-[#da291c] text-white shadow flex items-center gap-1";
-        pTake.className = "px-3.5 py-1 rounded-lg font-black text-[10px] transition text-neutral-400 hover:text-white flex items-center gap-1";
-      } else {
-        pTake.className = "px-3.5 py-1 rounded-lg font-black text-[10px] transition bg-[#da291c] text-white shadow flex items-center gap-1";
-        pDine.className = "px-3 py-1 rounded-lg font-black text-[10px] transition text-neutral-400 hover:text-white flex items-center gap-1";
-      }
-    }
-
+    // ---------- Navigation ----------
     function showModeSelection() {
-      document.getElementById('idleScreensaver').classList.add('hidden');
-      document.getElementById('modeSelectionScreen').classList.remove('hidden');
+      $('idleScreensaver').classList.add('hidden');
+      $('modeSelectionScreen').classList.remove('hidden');
     }
 
     function startKioskOrderWithMode(mode) {
-      switchKioskMode(mode);
-      document.getElementById('idleScreensaver').classList.add('hidden');
-      document.getElementById('modeSelectionScreen').classList.add('hidden');
+      kioskOrderType = mode;
+      $('idleScreensaver').classList.add('hidden');
+      $('modeSelectionScreen').classList.add('hidden');
+    }
+
+    function startOver() {
+      if (kioskTray.length && !confirm('Start over? Your bag will be cleared.')) return;
+      resetKioskSession();
     }
 
     function resetKioskSession() {
       kioskTray = [];
+      selectedMenuItem = null;
+      selectedVariation = null;
+      selectedGroupAddons = {};
       updateTrayUI();
-      document.getElementById('tokenSuccessModal').classList.add('hidden');
-      document.getElementById('trayReviewModal').classList.add('hidden');
-      document.getElementById('paymentModal').classList.add('hidden');
-      document.getElementById('customizerModal').classList.add('hidden');
-      document.getElementById('modeSelectionScreen').classList.add('hidden');
-      document.getElementById('idleScreensaver').classList.remove('hidden');
+      ['tokenSuccessModal', 'trayReviewModal', 'paymentModal', 'customizerModal', 'modeSelectionScreen', 'addedModal', 'thinkingModal']
+        .forEach(id => $(id).classList.add('hidden'));
+      $('idleScreensaver').classList.remove('hidden');
+      if (categories.length) { activeCategory = categories[0]; renderCategories(); }
+      clearTimeout(idleTimer);
+      clearInterval(countdownTimer);
     }
+
+    // ---------- Accessibility: larger text ----------
+    function toggleBigText() {
+      const f = $('kioskFrameContainer');
+      f.style.zoom = f.style.zoom ? '' : '1.15';
+    }
+
+    // ---------- "Still thinking?" inactivity prompt ----------
+    let idleTimer = null;
+    let countdownTimer = null;
+    const IDLE_MS = 45000;
+
+    function armIdleTimer() {
+      clearTimeout(idleTimer);
+      if ($('idleScreensaver').classList.contains('hidden') && $('thinkingModal').classList.contains('hidden')
+          && $('tokenSuccessModal').classList.contains('hidden')) {
+        idleTimer = setTimeout(showThinking, IDLE_MS);
+      }
+    }
+
+    function showThinking() {
+      let left = 10;
+      $('thinkingCountdown').innerText = left;
+      $('thinkingModal').classList.remove('hidden');
+      clearInterval(countdownTimer);
+      countdownTimer = setInterval(() => {
+        left--;
+        $('thinkingCountdown').innerText = left;
+        if (left <= 0) resetKioskSession();
+      }, 1000);
+    }
+
+    function dismissThinking() {
+      clearInterval(countdownTimer);
+      $('thinkingModal').classList.add('hidden');
+      armIdleTimer();
+    }
+
+    document.addEventListener('pointerdown', () => {
+      if (!$('thinkingModal').classList.contains('hidden')) return;
+      setTimeout(armIdleTimer, 0);
+    });
 
     loadKioskData();
   </script>
