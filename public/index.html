@@ -2783,7 +2783,31 @@
       document.getElementById('tabSummaryBadge').innerText = posCart.reduce(function(s, i){ return s + i.qty; }, 0);
       document.getElementById('topOrderActiveBadge').innerText = 'Order • ' + posCart.reduce(function(s, i){ return s + i.qty; }, 0);
 
+      syncCustomerDisplay(subtotal, gst, grandTotal);
+
       return { subtotal: subtotal, gst: gst, grandTotal: grandTotal, payableNow: payableNow };
+    }
+
+    // Cart ko customer display (customer.html) tak bhejta hai
+    var customerSyncTimer = null;
+    function syncCustomerDisplay(subtotal, gst, grandTotal) {
+      clearTimeout(customerSyncTimer);
+      customerSyncTimer = setTimeout(function() {
+        var payload = {
+          items: posCart.map(function(i) { return { name: i.name, qty: i.qty, price: i.price, notes: i.notes || '' }; }),
+          subtotal: subtotal,
+          discount: 0,
+          gst: gst,
+          total: grandTotal,
+          orderType: currentPOSOrderType || 'Dine-In',
+          tableNo: (currentPOSOrderType === 'Dine-In' && typeof selectedPOSTableId !== 'undefined' && selectedPOSTableId) ? selectedPOSTableId : ''
+        };
+        fetch('/api/display/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).catch(function() {});
+      }, 150);
     }
 
     function renderPOSCart() {
@@ -2914,14 +2938,23 @@
       }
     }
     function dispatchDirectPrintReceipt(orderId, payload, calc) {
-      var itemsRows = (payload.items || []).map(function(item) {
-        return `
-          <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
-            <span style="width:70%; word-break: break-word;">${item.name} x ${item.qty}</span>
-            <span style="width:30%; text-align:right;">₹${(item.price * item.qty).toFixed(2)}</span>
-          </div>
-        `;
-      }).join('');
+      var itemsRows = `
+        <table class="items">
+          <thead>
+            <tr><th class="nm">Item</th><th class="q">Qty</th><th class="r">Rate</th><th class="a">Amount</th></tr>
+          </thead>
+          <tbody>
+            ${(payload.items || []).map(function(item) {
+              return `<tr>
+                <td class="nm">${item.name}</td>
+                <td class="q">${item.qty}</td>
+                <td class="r">${Number(item.price).toFixed(2)}</td>
+                <td class="a">${(item.price * item.qty).toFixed(2)}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      `;
 
       var diffSection = '';
       var prevPaid = Number(payload.previously_paid) || 0;
@@ -2957,6 +2990,13 @@
             .token { border: 2.5px solid #000; font-size: 26px; font-weight: 900; text-align: center; padding: 4px 0; margin: 6px 0; }
             .divider { border-top: 1.5px dashed #000; margin: 6px 0; }
             .row { display: flex; justify-content: space-between; }
+            table.items { width: 100%; border-collapse: collapse; table-layout: fixed; }
+            table.items th { border-bottom: 1.5px solid #000; padding: 2px 0; font-size: 12px; }
+            table.items td { padding: 3px 0; vertical-align: top; }
+            table.items .nm { text-align: left; white-space: normal; word-break: break-word; overflow-wrap: anywhere; padding-right: 4px; }
+            table.items .q { width: 8mm; text-align: center; }
+            table.items .r { width: 13mm; text-align: right; }
+            table.items .a { width: 16mm; text-align: right; }
           </style>
         </head>
         <body>
@@ -2966,11 +3006,15 @@
           <div class="row"><span>Order: #${orderId}</span><span>(${payload.order_type.toUpperCase()})</span></div>
           ${payload.table_no ? `<div>Table: ${payload.table_no}</div>` : ''}
           ${payload.customer_name ? `<div>Guest: ${payload.customer_name}</div>` : ''}
+          ${payload.customer_phone ? `<div>Phone: ${payload.customer_phone}</div>` : ''}
+          ${payload.customer_address ? `<div>Address: ${payload.customer_address}</div>` : ''}
           <div>Date: ${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' })}</div>
           <div class="divider"></div>
           ${itemsRows}
           <div class="divider"></div>
           <div class="row"><span>Subtotal:</span><span>₹${calc.subtotal.toFixed(2)}</span></div>
+          <div class="row"><span>CGST (2.50%):</span><span>₹${(Number(calc.gst) / 2).toFixed(2)}</span></div>
+          <div class="row"><span>SGST (2.50%):</span><span>₹${(Number(calc.gst) / 2).toFixed(2)}</span></div>
           <div class="row" style="font-size:16px; font-weight:900;"><span>TOTAL BILL:</span><span>₹${calc.grandTotal.toFixed(2)}</span></div>
           ${diffSection}
           ${cashSection}
