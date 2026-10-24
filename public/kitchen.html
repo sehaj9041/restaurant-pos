@@ -664,43 +664,76 @@
             var prevSnapshot = snapshots[orderId];
             var currentItems = order.items || [];
 
+            var toRow = function(i) { return { key: (i.name || '') + '|' + (i.notes || ''), name: i.name, notes: i.notes || '', qty: Number(i.qty) || 1 }; };
+            var curRows = currentItems.map(toRow);
+
             if (!prevSnapshot) {
               shouldPlaySound = true;
-              snapshots[orderId] = {
-                rowsCount: currentItems.length,
-                rowsQty: currentItems.map(function(i){ return Number(i.qty) || 1; }),
-                wasCompletedBefore: false
-              };
+              snapshots[orderId] = { rows: curRows, cancelled: [], wasCompletedBefore: false };
             } else {
-              var prevRowsCount = prevSnapshot.rowsCount || 0;
-              var prevRowsQty = prevSnapshot.rowsQty || [];
-
-              if (currentItems.length > prevRowsCount) {
-                shouldPlaySound = true;
-                delete readyStore[orderId];
-                for (var idx = prevRowsCount; idx < currentItems.length; idx++) {
-                  var itemRowKey = orderId + '_row_' + idx;
-                  persistentBadges[itemRowKey] = 'NEW';
-                  delete checkedMap[itemRowKey];
-                }
+              var prevRows = prevSnapshot.rows;
+              if (!prevRows) {
+                // Purane snapshot format ka fallback (sirf qty index se)
+                prevRows = (prevSnapshot.rowsQty || []).map(function(q, i) {
+                  return currentItems[i] ? { key: toRow(currentItems[i]).key, name: currentItems[i].name, notes: currentItems[i].notes || '', qty: q } : null;
+                }).filter(Boolean);
               }
+              var cancelled = prevSnapshot.cancelled || [];
 
-              currentItems.forEach(function(item, idx) {
-                var currentQty = Number(item.qty) || 1;
-                var prevQty = prevRowsQty[idx];
+              // Current row -> purani row mapping (name+notes se)
+              var used = {};
+              var prevIdxOf = curRows.map(function(r) {
+                for (var p = 0; p < prevRows.length; p++) {
+                  if (!used[p] && prevRows[p].key === r.key) { used[p] = true; return p; }
+                }
+                return -1;
+              });
 
-                if (prevQty !== undefined && currentQty > prevQty) {
-                  var diff = currentQty - prevQty;
-                  var rowKey = orderId + '_row_' + idx;
-                  persistentBadges[rowKey] = '+' + diff + ' QTY';
+              // Row hatne par indexes shift ho jaate hain, isliye badges/checks ko naye index par remap karo
+              var oldBadges = {}, oldChecks = {};
+              Object.keys(persistentBadges).forEach(function(k) { if (k.indexOf(orderId + '_') === 0) { oldBadges[k] = persistentBadges[k]; delete persistentBadges[k]; } });
+              Object.keys(checkedMap).forEach(function(k) { if (k.indexOf(orderId + '_') === 0) { oldChecks[k] = checkedMap[k]; delete checkedMap[k]; } });
+              curRows.forEach(function(r, idx) {
+                var pi = prevIdxOf[idx];
+                if (pi < 0) return;
+                var oldPrefix = orderId + '_row_' + pi, newPrefix = orderId + '_row_' + idx;
+                Object.keys(oldBadges).forEach(function(k) { if (k === oldPrefix) persistentBadges[newPrefix] = oldBadges[k]; });
+                Object.keys(oldChecks).forEach(function(k) {
+                  if (k === oldPrefix || k.indexOf(oldPrefix + '_addon_') === 0) checkedMap[newPrefix + k.slice(oldPrefix.length)] = oldChecks[k];
+                });
+              });
+
+              curRows.forEach(function(r, idx) {
+                var rowKey = orderId + '_row_' + idx;
+                var pi = prevIdxOf[idx];
+                if (pi < 0) {
+                  shouldPlaySound = true;
+                  delete readyStore[orderId];
+                  persistentBadges[rowKey] = 'NEW';
+                  delete checkedMap[rowKey];
+                  // Cancel hui row wapas add hui to cancelled list se hata do
+                  cancelled = cancelled.filter(function(c) { return c.key !== r.key; });
+                } else if (r.qty > prevRows[pi].qty) {
+                  persistentBadges[rowKey] = '+' + (r.qty - prevRows[pi].qty) + ' QTY';
                   delete checkedMap[rowKey];
                   delete readyStore[orderId];
+                  shouldPlaySound = true;
+                } else if (r.qty < prevRows[pi].qty) {
+                  persistentBadges[rowKey] = '-' + (prevRows[pi].qty - r.qty) + ' QTY';
                   shouldPlaySound = true;
                 }
               });
 
-              snapshots[orderId].rowsCount = currentItems.length;
-              snapshots[orderId].rowsQty = currentItems.map(function(i){ return Number(i.qty) || 1; });
+              // Poori hatai gayi rows -> CANCELLED
+              prevRows.forEach(function(r, p) {
+                if (!used[p]) {
+                  cancelled = cancelled.filter(function(c) { return c.key !== r.key; });
+                  cancelled.push(r);
+                  shouldPlaySound = true;
+                }
+              });
+
+              snapshots[orderId] = { rows: curRows, cancelled: cancelled, wasCompletedBefore: false };
             }
           });
 
@@ -880,6 +913,18 @@
                         }).join('')}
                       </div>
                     ` : ''}
+                  </div>
+                `;
+              }).join('')}
+               ${((getStoredSnapshots()[strId] || {}).cancelled || []).map(function(c) {
+                var cBase = (c.name || '').replace(/\s*\(.*?\)\s*$/, '').trim();
+                return `
+                  <div class="border-b border-slate-100 pb-2.5">
+                    <div class="flex items-center gap-2.5 select-none opacity-60">
+                      <span class="kot-qty-badge font-black text-slate-500 bg-slate-100 border border-slate-200 px-2 py-1 rounded-md shrink-0 line-through">x${c.qty}</span>
+                      <span class="kot-item-title font-bold text-slate-400 flex-1 line-through">${cBase}</span>
+                      <span class="kot-badge bg-slate-700 text-white font-black px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 border border-slate-500">CANCELLED</span>
+                    </div>
                   </div>
                 `;
               }).join('')}
