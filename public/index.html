@@ -733,6 +733,7 @@
               <button class="bg-orange-500 text-white px-2 py-1 rounded shadow-xs text-[11px] font-bold">▦</button>
               <button class="text-gray-500 px-2 py-1 rounded text-[11px] font-bold">☰</button>
             </div>
+            <button id="upsellToggleBtn" onclick="togglePOSUpsell()" class="text-[10px] font-bold px-2 py-1 rounded-lg border border-gray-200 bg-white text-gray-600 shrink-0" title="Item add hone par upsell suggestions">💡 Upsell</button>
             <input type="text" id="menuItemSearch" onfocus="openVirtualKeyboard(this, 'text')" oninput="filterMenuItems()" placeholder="Search menu..." class="border border-gray-200 rounded-lg px-2.5 py-1 text-xs outline-none bg-gray-50 focus:bg-white focus:border-orange-500 w-44">
           </div>
         </div>
@@ -1016,13 +1017,13 @@
           <h3 id="posVarModalItemName" class="font-black text-gray-900 text-sm">Select Size / Variant</h3>
           <p class="text-[10px] text-gray-500">Apna pasandida size select karein</p>
         </div>
-        <button onclick="closePOSVariationModal()" class="text-gray-400 hover:text-black font-bold">✕</button>
+        <button onclick="cancelPOSVariationModal()" class="text-gray-400 hover:text-black font-bold">✕</button>
       </div>
 
       <div id="posVarModalContent" class="space-y-2 max-h-60 overflow-y-auto pr-1 text-xs"></div>
 
       <div class="pt-2 text-right border-t">
-        <button onclick="closePOSVariationModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-xl text-xs font-bold transition">Cancel</button>
+        <button onclick="cancelPOSVariationModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-xl text-xs font-bold transition">Cancel</button>
       </div>
     </div>
   </div>
@@ -1045,6 +1046,23 @@
         <button onclick="confirmPOSAddonSelection()" class="bg-orange-500 hover:bg-orange-600 text-white font-black px-5 py-2 rounded-xl text-xs shadow-sm">
           Add to Cart ✓
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= POS UPSELL MODAL ================= -->
+  <div id="posUpsellModal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-5 max-w-md w-full shadow-2xl space-y-3 max-h-[85vh] flex flex-col">
+      <div class="flex justify-between items-center border-b pb-2 shrink-0">
+        <div>
+          <h3 class="font-black text-gray-900 text-sm">Item cart me add ho gaya ✓</h3>
+          <p class="text-[10px] text-gray-500">Customer ko ye suggest karein</p>
+        </div>
+        <button onclick="closePOSUpsell()" class="text-gray-400 hover:text-black font-bold">✕</button>
+      </div>
+      <div id="posUpsellContent" class="space-y-3 overflow-y-auto flex-1 pr-1 text-xs"></div>
+      <div class="pt-2 border-t text-right shrink-0">
+        <button onclick="closePOSUpsell()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-4 py-2 rounded-xl text-xs">No, thanks</button>
       </div>
     </div>
   </div>
@@ -1216,6 +1234,11 @@
     var previousViewBeforePOS = 'DASHBOARD';
 
     var currentModalSelectedItem = null;
+    var posUpsells = [];
+    var posPendingUpgrade = null;
+    var posUpsellSourceLine = null;
+    var posVarItem = null;
+    var posVarList = [];
     var currentModalItemGroups = [];
 
     var defaultFloorTables = [
@@ -1231,6 +1254,8 @@
 
     function initializePOS() {
       fetchMenu();
+      fetchPOSUpsells();
+      updateUpsellToggleBtn();
       fetchActiveOrders();
       loadDueOrdersData();
       fetchNeedsApprovalOrders();
@@ -2292,7 +2317,7 @@
     function extractCategories() {
       var set = new Set();
       allMenuItems.forEach(function(i) {
-        if (i.category) set.add(i.category.trim());
+        if (i.category && Number(i.is_visible) !== 0) set.add(i.category.trim());
       });
       allCategories = Array.from(set);
     }
@@ -3278,7 +3303,7 @@
       var q = (document.getElementById('menuItemSearch').value || '').toLowerCase().trim();
 
       var filtered = allMenuItems.filter(function(i) {
-        var matchCat = (selectedCategory === 'ALL' || i.category === selectedCategory);
+        var matchCat = (selectedCategory === 'ALL' || i.category === selectedCategory) && Number(i.is_visible) !== 0;
         var matchQuery = (!q || i.name.toLowerCase().includes(q));
         var p = Number(i.price) || 0;
         var matchPrice = true;
@@ -3345,10 +3370,12 @@
     }
 
     function openPOSVariationModal(item, variations) {
+      posVarItem = item;
+      posVarList = variations;
       document.getElementById('posVarModalItemName').innerText = item.name + ' - Select Size';
       
-      let html = variations.map((v) => `
-        <button onclick='selectPOSVariationItem(${JSON.stringify(item)}, ${JSON.stringify(v)})' class="w-full text-left p-3 rounded-xl border border-gray-200 hover:border-orange-500 hover:bg-orange-50/50 flex justify-between items-center transition shadow-2xs">
+      let html = variations.map((v, vIdx) => `
+        <button onclick="pickPOSVariation(${vIdx})" class="w-full text-left p-3 rounded-xl border border-gray-200 hover:border-orange-500 hover:bg-orange-50/50 flex justify-between items-center transition shadow-2xs">
           <span class="font-black text-gray-800">${v.name}</span>
           <span class="font-black text-emerald-600 text-sm">₹${v.price}</span>
         </button>
@@ -3362,11 +3389,21 @@
       document.getElementById('posVariationModal').classList.add('hidden');
     }
 
+    function cancelPOSVariationModal() {
+      posPendingUpgrade = null;
+      closePOSVariationModal();
+    }
+
+    function pickPOSVariation(vIdx) {
+      if (!posVarItem || !posVarList[vIdx]) return;
+      selectPOSVariationItem(posVarItem, posVarList[vIdx]);
+    }
+
     function selectPOSVariationItem(item, variant) {
       closePOSVariationModal();
       
       let variantAddons = [];
-      if (variant && variant.addon_groups) {
+      if (variant && Array.isArray(variant.addon_groups) && variant.addon_groups.length > 0) {
         variantAddons = variant.addon_groups;
       } else if (item && item.assigned_addon_groups) {
         try {
@@ -3384,7 +3421,8 @@
         try {
           const res = await fetch('/api/addon-groups');
           const allGroups = await res.json();
-          const itemGroups = allGroups.filter(g => assignedGroups.includes(g.id));
+          const assignedIds = assignedGroups.map(Number);
+          const itemGroups = allGroups.filter(g => assignedIds.includes(Number(g.id)));
           
           if (itemGroups.length > 0) {
             openPOSAddonSelectionModal({ ...itemObj, name: displayName, price: displayPrice }, itemGroups);
@@ -3395,16 +3433,22 @@
         }
       }
 
+      var addedLine;
       if (editingActiveOrderId) {
-        posCart.push({ id: itemObj ? itemObj.id : null, name: displayName, price: Number(displayPrice), qty: 1, addons: [] });
+        addedLine = { id: itemObj ? itemObj.id : null, name: displayName, price: Number(displayPrice), qty: 1, addons: [] };
+        posCart.push(addedLine);
       } else {
         var exist = posCart.find(function(i) { return i.name === displayName && (!i.addons || i.addons.length === 0); });
-        if (exist) exist.qty += 1;
-        else posCart.push({ id: itemObj ? itemObj.id : null, name: displayName, price: Number(displayPrice), qty: 1, addons: [] });
+        if (exist) { exist.qty += 1; addedLine = exist; }
+        else {
+          addedLine = { id: itemObj ? itemObj.id : null, name: displayName, price: Number(displayPrice), qty: 1, addons: [] };
+          posCart.push(addedLine);
+        }
       }
       switchRightTab('SUMMARY');
       renderPOSCart();
       renderPOSItems();
+      afterPOSAdd(itemObj, addedLine);
     }
 
     function openPOSAddonSelectionModal(item, groups) {
@@ -3417,14 +3461,15 @@
         let groupItems = [];
         try { groupItems = JSON.parse(g.items || '[]'); } catch(e) {}
         
-        let isMultiple = (g.selection_type === 'Multiple choice' || g.max_selection > 1);
-        let inputType = isMultiple ? 'checkbox' : 'radio';
+        let minSel = Math.max(Number(g.min_selection) || 0, g.is_mandatory ? 1 : 0);
+        let maxSel = Number(g.max_selection) || groupItems.length;
+        let inputType = 'checkbox';
 
         html += `
           <div class="border rounded-xl p-3 bg-gray-50 space-y-2">
             <div class="flex justify-between items-center">
               <span class="font-black text-gray-800">${g.name}</span>
-              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${g.is_mandatory ? 'bg-rose-100 text-rose-700' : 'bg-gray-200 text-gray-600'}">${g.is_mandatory ? 'Required' : 'Optional'}</span>
+              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${g.is_mandatory ? 'bg-rose-100 text-rose-700' : 'bg-gray-200 text-gray-600'}">${g.is_mandatory ? 'Required' : 'Optional'} · ${maxSel === 1 ? 'Choose 1' : 'Max ' + maxSel}</span>
             </div>
             <div class="space-y-1">
         `;
@@ -3433,7 +3478,7 @@
           html += `
             <label class="flex items-center justify-between p-2 rounded-lg bg-white border cursor-pointer hover:bg-orange-50/50">
               <div class="flex items-center gap-2">
-                <input type="${inputType}" name="addon_group_${gIdx}" value="${ai.name}" data-price="${ai.price}" onchange="updateAddonModalTotalPrice()" class="posAddonInput grp-${gIdx} text-orange-600 rounded">
+                <input type="${inputType}" name="addon_group_${gIdx}" value="${ai.name}" data-price="${ai.price}" onchange="onPOSAddonChange(this, ${gIdx})" class="posAddonInput grp-${gIdx} text-orange-600 rounded">
                 <span class="font-bold text-gray-700">${ai.name}</span>
               </div>
               <span class="font-black text-gray-900">+₹${ai.price}</span>
@@ -3445,6 +3490,21 @@
 
       document.getElementById('posAddonModalContent').innerHTML = html;
       document.getElementById('posAddonModal').classList.remove('hidden');
+      updateAddonModalTotalPrice();
+    }
+
+    function onPOSAddonChange(input, gIdx) {
+      var g = currentModalItemGroups[gIdx];
+      var max = Number(g && g.max_selection) || 99;
+      var checked = document.querySelectorAll('.posAddonInput.grp-' + gIdx + ':checked');
+      if (input.checked && checked.length > max) {
+        if (max === 1) {
+          checked.forEach(function(c) { if (c !== input) c.checked = false; });
+        } else {
+          input.checked = false;
+          alert('"' + g.name + '" me maximum ' + max + ' options hi select ho sakte hain');
+        }
+      }
       updateAddonModalTotalPrice();
     }
 
@@ -3478,8 +3538,9 @@
       try {
         currentModalItemGroups.forEach((g, gIdx) => {
           const checkedInputs = document.querySelectorAll(`.posAddonInput.grp-${gIdx}:checked`);
-          if (g.is_mandatory && checkedInputs.length === 0) {
-            alert(`"${g.name}" group mein kam se kam ek option select karna anivarya hai!`);
+          var minNeeded = Math.max(Number(g.min_selection) || 0, g.is_mandatory ? 1 : 0);
+          if (checkedInputs.length < minNeeded) {
+            alert(`"${g.name}" group mein kam se kam ${minNeeded} option select karna anivarya hai!`);
             throw new Error('Mandatory group missing');
           }
 
@@ -3498,18 +3559,111 @@
       const addonNamesString = selectedAddons.map(a => a.name).join(', ');
       const displayName = selectedAddons.length > 0 ? `${currentModalSelectedItem.name} (${addonNamesString})` : currentModalSelectedItem.name;
 
-      posCart.push({
+      var baseItem = currentModalSelectedItem;
+      var newLine = {
         id: currentModalSelectedItem.id,
         name: displayName,
         price: finalPrice,
         qty: 1,
         addons: selectedAddons
-      });
+      };
+      posCart.push(newLine);
 
       closePOSAddonModal();
       switchRightTab('SUMMARY');
       renderPOSCart();
       renderPOSItems();
+      afterPOSAdd(baseItem, newLine);
+    }
+
+    // ---------- Upsells ("Make it a meal" / "Add a drink") ----------
+    function fetchPOSUpsells() {
+      fetch('/api/upsells').then(function(r) { return r.json(); }).then(function(u) {
+        posUpsells = (u || []).filter(function(x) { return Number(x.is_active) !== 0; });
+      }).catch(function() {});
+    }
+
+    function posUpsellOn() { return localStorage.getItem('posUpsell') !== 'off'; }
+
+    function updateUpsellToggleBtn() {
+      var b = document.getElementById('upsellToggleBtn');
+      if (!b) return;
+      b.innerText = '💡 Upsell: ' + (posUpsellOn() ? 'ON' : 'OFF');
+      b.className = 'text-[10px] font-bold px-2 py-1 rounded-lg border shrink-0 ' +
+        (posUpsellOn() ? 'border-orange-300 bg-orange-50 text-orange-700' : 'border-gray-200 bg-white text-gray-500');
+    }
+
+    function togglePOSUpsell() {
+      localStorage.setItem('posUpsell', posUpsellOn() ? 'off' : 'on');
+      updateUpsellToggleBtn();
+    }
+
+    // Runs after every real add-to-cart: finishes a pending "meal upgrade", then offers suggestions.
+    function afterPOSAdd(item, line) {
+      var base = item && allMenuItems.find(function(i) { return i.id === item.id; });
+      if (!base) return;
+      if (posPendingUpgrade && posPendingUpgrade.target === base.name) {
+        var src = posPendingUpgrade.line;
+        posPendingUpgrade = null;
+        if (src && src !== line && posCart.indexOf(src) !== -1) {
+          src.qty -= 1;
+          if (src.qty <= 0) posCart.splice(posCart.indexOf(src), 1);
+          renderPOSCart();
+          renderPOSItems();
+        }
+      }
+      if (posUpsellOn()) showPOSUpsells(base, line);
+    }
+
+    function showPOSUpsells(base, line) {
+      posPendingUpgrade = null;
+      var mine = posUpsells.filter(function(u) { return u.item_name === base.name; })
+        .sort(function(a, b) { return (a.upsell_type === 'upgrade' ? 0 : 1) - (b.upsell_type === 'upgrade' ? 0 : 1); });
+      var seen = {};
+      seen[base.id] = true;
+      var sections = [];
+      mine.forEach(function(u) {
+        var list = [];
+        if (u.suggested_item) {
+          var t = allMenuItems.find(function(i) { return i.name === u.suggested_item; });
+          if (t && Number(t.stock) > 0) list = [t];
+        } else if (u.suggested_category) {
+          list = allMenuItems.filter(function(i) { return i.category === u.suggested_category && Number(i.stock) > 0; }).slice(0, 8);
+        }
+        list = list.filter(function(i) { return !seen[i.id]; });
+        list.forEach(function(i) { seen[i.id] = true; });
+        if (list.length) sections.push({ u: u, list: list });
+      });
+      if (!sections.length) return;
+
+      posUpsellSourceLine = line;
+      var esc = function(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+      document.getElementById('posUpsellContent').innerHTML = sections.map(function(sec) {
+        var upgrade = sec.u.upsell_type === 'upgrade';
+        var title = sec.u.label || (upgrade ? 'Make it a meal?' : 'Add something else?');
+        return '<div><p class="font-black text-gray-800 mb-1.5">' + esc(title) + '</p><div class="grid grid-cols-2 gap-2">' +
+          sec.list.map(function(t) {
+            var vars = [];
+            try { vars = JSON.parse(t.variations || '[]'); } catch (e) {}
+            var price = vars.length ? 'From ₹' + vars[0].price : '₹' + t.price;
+            return '<button onclick="pickPOSUpsell(' + t.id + ', ' + upgrade + ')" class="text-left p-2.5 rounded-xl border border-gray-200 hover:border-orange-500 hover:bg-orange-50/50">' +
+              '<div class="font-bold text-gray-800 text-xs leading-tight">' + esc(t.name) + '</div>' +
+              '<div class="font-black text-emerald-600 text-xs mt-1">' + price + '</div></button>';
+          }).join('') + '</div></div>';
+      }).join('');
+      document.getElementById('posUpsellModal').classList.remove('hidden');
+    }
+
+    function closePOSUpsell() {
+      document.getElementById('posUpsellModal').classList.add('hidden');
+    }
+
+    function pickPOSUpsell(itemId, upgrade) {
+      var t = allMenuItems.find(function(i) { return i.id === itemId; });
+      closePOSUpsell();
+      if (!t) return;
+      posPendingUpgrade = upgrade ? { line: posUpsellSourceLine, target: t.name } : null;
+      addOrIncrementItem(t.name, t.price);
     }
 
     function changeItemQty(idx, delta) {

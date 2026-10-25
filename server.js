@@ -5,6 +5,7 @@ const multer = require('multer');
 const fs = require('fs');
 const { exec } = require('child_process');
 const XLSX = require('xlsx');
+const menuImport = require('./menuImport');
 const net = require('net');
 const db = require('./database');
 
@@ -74,48 +75,24 @@ app.post('/api/menu/import-excel', uploadExcel.single('menuFile'), async (req, r
   if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
   try {
     const workbook = XLSX.readFile(req.file.path);
-    
-    // 1. Categories Import
-    const catSheet = workbook.Sheets['Categories'];
-    const categories = catSheet ? XLSX.utils.sheet_to_json(catSheet) : [];
-    for (const cat of categories) {
-      const catName = cat['Category Name'] || cat['category'];
-      if (!catName) continue;
-      await new Promise(resolve => {
-        db.run("INSERT INTO categories (name) VALUES (?) ON CONFLICT(name) DO NOTHING", [catName], () => resolve());
-      });
+    const parsed = menuImport.parseWorkbook(workbook, XLSX);
+    if (!parsed.items.length && !parsed.categories.length) {
+      return res.status(400).json({ success: false, error: '"Categories" ya "Menu Items" sheet nahi mili ya khali hai' });
     }
-
-    // 2. Menu Items Import
-    const itemSheet = workbook.Sheets['Menu Items'];
-    const items = itemSheet ? XLSX.utils.sheet_to_json(itemSheet) : [];
-    for (const item of items) {
-      const itemName = item['Item Name'] || item['item_name'];
-      const category = item['Category'] || 'General';
-      const price = Number(item['Base Price (₹)'] || item['price']) || 0;
-      const image = item['Image URL'] || item['image'] || '';
-      const status = item['Availability'] || 'available';
-      const stock = status === 'available' ? 50 : 0;
-
-      if (!itemName) continue;
-      
-      await new Promise(resolve => {
-        db.run(
-          `INSERT INTO menu (name, category, price, stock, image) VALUES (?, ?, ?, ?, ?)
-           ON CONFLICT(name) DO UPDATE SET category = excluded.category, price = excluded.price, image = excluded.image, stock = excluded.stock`,
-          [itemName, category, price, stock, image],
-          () => resolve()
-        );
-      });
-    }
-
-    try { fs.unlinkSync(req.file.path); } catch(e) {}
-    console.log(`[MENU IMPORT SUCCESS] Successfully imported ${items.length} items from Excel.`);
-    res.json({ success: true, message: `Successfully imported ${items.length} menu items!` });
+    const replace = req.body && req.body.mode === 'replace';
+    const summary = await menuImport.applyImport(db, parsed, { replace });
+    console.log(`[MENU IMPORT SUCCESS] ${summary.items} items, ${summary.addonGroups} addon groups (${replace ? 'replace' : 'merge'}).`);
+    res.json({
+      success: true,
+      message: `${summary.items} items, ${summary.categories} categories, ${summary.addonGroups} add-on groups import ho gaye`,
+      summary,
+      warnings: parsed.warnings
+    });
   } catch (err) {
-    try { fs.unlinkSync(req.file.path); } catch(e) {}
     console.error('Import error:', err.message);
     res.status(500).json({ success: false, error: err.message });
+  } finally {
+    try { fs.unlinkSync(req.file.path); } catch (e) {}
   }
 });
 
@@ -281,6 +258,18 @@ app.post('/api/addon-groups', (req, res) => {
   );
 });
 
+app.put('/api/addon-groups/:id', (req, res) => {
+  const { name, min_selection, max_selection, is_mandatory, items } = req.body;
+  db.run(
+    `UPDATE addon_groups SET name = ?, min_selection = ?, max_selection = ?, is_mandatory = ?, items = ? WHERE id = ?`,
+    [name || 'New Group', min_selection || 0, max_selection || 5, is_mandatory ? 1 : 0, JSON.stringify(items || []), req.params.id],
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ success: true });
+    }
+  );
+});
+
 app.delete('/api/addon-groups/:id', (req, res) => {
   db.run("DELETE FROM addon_groups WHERE id = ?", [req.params.id], function (err) {
     if (err) return res.status(500).json({ error: err.message });
@@ -309,6 +298,18 @@ app.post('/api/variation-masters', (req, res) => {
   );
 });
 
+app.put('/api/variation-masters/:id', (req, res) => {
+  const { name, options } = req.body;
+  db.run(
+    "UPDATE variation_masters SET name = ?, options = ? WHERE id = ?",
+    [name, JSON.stringify(options || []), req.params.id],
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ success: true });
+    }
+  );
+});
+
 app.delete('/api/variation-masters/:id', (req, res) => {
   db.run("DELETE FROM variation_masters WHERE id = ?", [req.params.id], function (err) {
     if (err) return res.status(500).json({ error: err.message });
@@ -330,17 +331,18 @@ app.post('/api/menu/assign-variations-category', (req, res) => {
 
 // 6. MENU APIS
 app.get('/api/menu', (req, res) => {
-  db.all("SELECT * FROM menu ORDER BY category, name", [], (err, rows) => {
+  db.all(`SELECT m.* FROM menu m LEFT JOIN categories c ON c.name = m.category
+          ORDER BY COALESCE(c.sort_order, 9999), m.category, COALESCE(m.sort_order, 0), m.name`, [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows || []);
   });
 });
 
 app.post('/api/menu', (req, res) => {
-  const { name, category, price, stock, image, variations, assigned_addon_groups, is_exempt } = req.body;
+  const { name, category, price, stock, image, variations, assigned_addon_groups, is_exempt, is_visible } = req.body;
   db.all(
-    `INSERT INTO menu (name, category, price, stock, image, variations, assigned_addon_groups, is_exempt) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-    [name, category || 'General', price, stock || 50, image || '', JSON.stringify(variations || []), JSON.stringify(assigned_addon_groups || []), is_exempt ? 1 : 0],
+    `INSERT INTO menu (name, category, price, stock, image, variations, assigned_addon_groups, is_exempt, is_visible) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+    [name, category || 'General', price, stock || 50, image || '', JSON.stringify(variations || []), JSON.stringify(assigned_addon_groups || []), is_exempt ? 1 : 0, is_visible === undefined ? 1 : (is_visible ? 1 : 0)],
     (err, result) => {
       if (err) return res.status(500).json({ error: err.message });
       const id = result && result[0] ? result[0].id : null;
@@ -350,10 +352,16 @@ app.post('/api/menu', (req, res) => {
 });
 
 app.put('/api/menu/:id', (req, res) => {
-  const { name, category, price, stock, image, variations, assigned_addon_groups, is_exempt } = req.body;
+  const { name, category, price, stock, image, variations, assigned_addon_groups, is_exempt, is_visible } = req.body;
+  // Fields that are not sent stay as they are (the POS edit form only sends name/category/price/stock).
+  const opt = v => (v === undefined ? null : v);
+  const optJson = v => (v === undefined ? null : JSON.stringify(v || []));
+  const optFlag = v => (v === undefined ? null : (v ? 1 : 0));
   db.run(
-    `UPDATE menu SET name = ?, category = ?, price = ?, stock = ?, image = ?, variations = ?, assigned_addon_groups = ?, is_exempt = ? WHERE id = ?`,
-    [name, category, price, stock, image || '', JSON.stringify(variations || []), JSON.stringify(assigned_addon_groups || []), is_exempt ? 1 : 0, req.params.id],
+    `UPDATE menu SET name = COALESCE(?, name), category = COALESCE(?, category), price = COALESCE(?, price), stock = COALESCE(?, stock),
+       image = COALESCE(?, image), variations = COALESCE(?, variations), assigned_addon_groups = COALESCE(?, assigned_addon_groups),
+       is_exempt = COALESCE(?, is_exempt), is_visible = COALESCE(?, is_visible) WHERE id = ?`,
+    [opt(name), opt(category), opt(price), opt(stock), opt(image), optJson(variations), optJson(assigned_addon_groups), optFlag(is_exempt), optFlag(is_visible), req.params.id],
     function (err) {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ success: true });
@@ -365,6 +373,68 @@ app.delete('/api/menu/:id', (req, res) => {
   db.run("DELETE FROM menu WHERE id = ?", [req.params.id], function (err) {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ success: true });
+  });
+});
+
+// ================= UPSELLS =================
+app.get('/api/upsells', (req, res) => {
+  db.all("SELECT * FROM upsells ORDER BY sort_order, id", [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows || []);
+  });
+});
+
+app.post('/api/upsells', (req, res) => {
+  const { item_name, upsell_type, suggested_item, suggested_category, label, sort_order, is_active } = req.body;
+  const type = upsell_type === 'upgrade' ? 'upgrade' : 'cross_sell';
+  if (!item_name) return res.status(400).json({ error: 'Item name zaroori hai' });
+  if (!!suggested_item === !!suggested_category) return res.status(400).json({ error: 'Suggested item ya suggested category me se sirf ek do' });
+  if (type === 'upgrade' && !suggested_item) return res.status(400).json({ error: 'Upgrade ke liye suggested item chahiye' });
+  db.run(
+    "INSERT INTO upsells (item_name, upsell_type, suggested_item, suggested_category, label, sort_order, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    [item_name, type, suggested_item || '', suggested_category || '', label || '', sort_order || 0, is_active === undefined ? 1 : (is_active ? 1 : 0)],
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ success: true, id: this.lastID });
+    }
+  );
+});
+
+app.put('/api/upsells/:id', (req, res) => {
+  const active = req.body.is_active === undefined ? null : (req.body.is_active ? 1 : 0);
+  db.run("UPDATE upsells SET is_active = COALESCE(?, is_active) WHERE id = ?", [active, req.params.id], function (err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ success: true });
+  });
+});
+
+app.delete('/api/upsells/:id', (req, res) => {
+  db.run("DELETE FROM upsells WHERE id = ?", [req.params.id], function (err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ success: true });
+  });
+});
+
+// ================= INVENTORY & RECIPES (read-only, filled by Excel import) =================
+const listTable = (path, sql) => app.get(path, (req, res) => {
+  db.all(sql, [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows || []);
+  });
+});
+listTable('/api/inventory/ingredients', "SELECT * FROM ingredients ORDER BY name");
+listTable('/api/inventory/units', "SELECT * FROM units ORDER BY name");
+listTable('/api/inventory/suppliers', "SELECT * FROM suppliers ORDER BY name");
+
+app.get('/api/inventory/recipes', (req, res) => {
+  db.all("SELECT * FROM recipes ORDER BY item_name", [], (err, recipes) => {
+    if (err) return res.status(500).json({ error: err.message });
+    db.all("SELECT * FROM recipe_ingredients ORDER BY item_name, line_order, id", [], (err2, lines) => {
+      if (err2) return res.status(500).json({ error: err2.message });
+      const byItem = {};
+      (lines || []).forEach(l => { (byItem[l.item_name] = byItem[l.item_name] || []).push(l); });
+      res.json((recipes || []).map(r => Object.assign({}, r, { lines: byItem[r.item_name] || [] })));
+    });
   });
 });
 

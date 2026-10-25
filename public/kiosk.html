@@ -170,6 +170,8 @@
 
       <div class="shrink-0 bg-white border-t border-[var(--line)] px-6 pt-4 pb-4">
         <div class="flex justify-between text-[15px] text-neutral-700"><span>Sub Total</span><span id="reviewSubTotal">₹0.00</span></div>
+        <div class="flex justify-between text-[15px] text-neutral-700 mt-1"><span>CGST (2.50%)</span><span id="reviewCgst">₹0.00</span></div>
+        <div class="flex justify-between text-[15px] text-neutral-700 mt-1"><span>SGST (2.50%)</span><span id="reviewSgst">₹0.00</span></div>
         <div class="flex justify-between text-2xl font-black mt-2 mb-4"><span>Total</span><span id="reviewTrayTotal">₹0.00</span></div>
         <div class="flex gap-3">
           <button onclick="closeTrayReviewModal()" class="btn-outline w-[36%] py-4 text-lg">Order More</button>
@@ -186,6 +188,19 @@
         <button onclick="submitKioskOrder('UPI_QR')" class="tile w-full py-5 text-xl flex items-center justify-center gap-3"><span class="text-3xl">📱</span> UPI</button>
         <button onclick="submitKioskOrder('PAY_COUNTER')" class="tile w-full py-5 text-xl flex items-center justify-center gap-3"><span class="text-3xl">💵</span> Pay at Counter</button>
         <button onclick="closePaymentModal()" class="btn-outline w-full py-3 text-base">Back</button>
+      </div>
+    </div>
+
+    <!-- ============ UPSELL ============ -->
+    <div id="upsellModal" class="hidden screen z-[65] kiosk-bg flex flex-col">
+      <div class="shrink-0 px-6 pt-8 pb-4 text-center">
+        <div class="text-5xl pop">🛍️</div>
+        <h3 class="text-3xl font-black mt-3">Item added to Bag!</h3>
+        <p class="text-sm text-neutral-600 mt-1">Kuch aur add karenge?</p>
+      </div>
+      <div id="upsellList" class="flex-1 overflow-y-auto px-6 pb-4 space-y-5 min-h-0"></div>
+      <div class="shrink-0 px-6 pb-6 pt-2">
+        <button onclick="closeUpsell()" class="btn-outline w-full py-4 text-lg">No, thanks</button>
       </div>
     </div>
 
@@ -222,6 +237,9 @@
 
   <script>
     let menuItems = [];
+    let allKioskItems = [];
+    let upsells = [];
+    let pendingUpgrade = null;
     let categories = [];
     let allMasterGroups = [];
     let activeCategory = '';
@@ -246,9 +264,14 @@
 
     fetch('/api/addon-groups').then(res => res.json()).then(g => { allMasterGroups = g; });
 
+    fetch('/api/upsells').then(res => res.json()).then(u => {
+      upsells = (u || []).filter(x => Number(x.is_active) !== 0);
+    }).catch(() => {});
+
     function loadKioskData() {
       fetch('/api/menu').then(res => res.json()).then(items => {
-        menuItems = items;
+        allKioskItems = items;
+        menuItems = items.filter(i => Number(i.is_visible) !== 0);
         renderCategories();
       });
     }
@@ -322,7 +345,7 @@
 
     // ---------- Item customizer ----------
     function openCustomizer(itemId) {
-      const item = menuItems.find(i => i.id === itemId);
+      const item = allKioskItems.find(i => i.id === itemId) || menuItems.find(i => i.id === itemId);
       if (!item) return;
       selectedMenuItem = item;
       selectedGroupAddons = {};
@@ -458,6 +481,7 @@
       selectedMenuItem = null;
       selectedVariation = null;
       selectedGroupAddons = {};
+      pendingUpgrade = null;
     }
 
     function confirmKioskItemAdd() {
@@ -483,10 +507,12 @@
       const finalPrice = unitPrice();
       const displayName = selectedVariation ? `${selectedMenuItem.name} (${selectedVariation.name})` : selectedMenuItem.name;
 
-      const existing = kioskTray.find(i => i.menu_id === selectedMenuItem.id && i.name === displayName && i.notes === noteText);
-      if (existing) existing.qty += custQty;
+      const addedItem = selectedMenuItem;
+      const addedQty = custQty;
+      let line = kioskTray.find(i => i.menu_id === selectedMenuItem.id && i.name === displayName && i.notes === noteText);
+      if (line) line.qty += custQty;
       else {
-        kioskTray.push({
+        line = {
           cartId: Date.now(),
           menu_id: selectedMenuItem.id,
           name: displayName,
@@ -494,11 +520,80 @@
           notes: noteText,
           image: itemImgOf(selectedMenuItem),
           qty: custQty
-        });
+        };
+        kioskTray.push(line);
+      }
+
+      // "Make it a meal" upgrade: the original line is replaced by the one just added
+      if (pendingUpgrade) {
+        const src = kioskTray.find(l => l.cartId === pendingUpgrade.cartId);
+        if (src && src !== line) {
+          src.qty -= pendingUpgrade.qty;
+          if (src.qty <= 0) kioskTray = kioskTray.filter(l => l !== src);
+        }
       }
 
       closeCustomizerModal();
       updateTrayUI();
+      if (!showUpsells(addedItem, line.cartId, addedQty)) showAddedConfirmation();
+    }
+
+    // ---------- Upsells ("Make it a meal" / "Add a drink") ----------
+    function showUpsells(item, cartId, qty) {
+      const mine = upsells.filter(u => u.item_name === item.name)
+        .sort((a, b) => (a.upsell_type === 'upgrade' ? 0 : 1) - (b.upsell_type === 'upgrade' ? 0 : 1));
+      const seen = new Set([item.id]);
+      const sections = [];
+      mine.forEach(u => {
+        let list = [];
+        if (u.suggested_item) {
+          const t = allKioskItems.find(i => i.name === u.suggested_item);
+          if (t && Number(t.stock) > 0) list = [t];
+        } else if (u.suggested_category) {
+          list = allKioskItems.filter(i => i.category === u.suggested_category && Number(i.stock) > 0).slice(0, 6);
+        }
+        list = list.filter(i => !seen.has(i.id));
+        list.forEach(i => seen.add(i.id));
+        if (list.length) sections.push({ u, list });
+      });
+      if (!sections.length) return false;
+
+      $('upsellList').innerHTML = sections.map(({ u, list }) => {
+        const upgrade = u.upsell_type === 'upgrade';
+        const title = u.label || (upgrade ? 'Make it a meal?' : 'You may also like');
+        return `
+          <div>
+            <h4 class="text-xl font-black mb-3">${esc(title)}</h4>
+            <div class="grid grid-cols-2 gap-3">
+              ${list.map(t => {
+                let vars = [];
+                try { vars = JSON.parse(t.variations || '[]'); } catch (e) {}
+                const price = vars.length ? `From ${money(vars[0].price)}` : money(t.price);
+                const img = itemImgOf(t);
+                return `
+                  <button onclick="pickUpsell(${t.id}, ${upgrade}, ${cartId}, ${qty})" class="tile p-2.5 flex flex-col text-left">
+                    <div class="h-24 flex items-center justify-center">
+                      ${img ? `<img src="${esc(img)}" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">` : '<span class="text-5xl">🍽️</span>'}
+                    </div>
+                    <h3 class="font-bold text-[12px] leading-tight mt-2 line-clamp-2 min-h-[2.1em]">${esc(t.name)}</h3>
+                    <span class="font-bold text-[12px] mt-1">${price}</span>
+                  </button>`;
+              }).join('')}
+            </div>
+          </div>`;
+      }).join('');
+      $('upsellModal').classList.remove('hidden');
+      return true;
+    }
+
+    function pickUpsell(itemId, upgrade, cartId, qty) {
+      $('upsellModal').classList.add('hidden');
+      openCustomizer(itemId);
+      pendingUpgrade = upgrade ? { cartId, qty } : null;
+    }
+
+    function closeUpsell() {
+      $('upsellModal').classList.add('hidden');
       showAddedConfirmation();
     }
 
@@ -510,12 +605,16 @@
 
     // ---------- Tray ----------
     const trayCount = () => kioskTray.reduce((s, i) => s + i.qty, 0);
-    const trayTotal = () => kioskTray.reduce((s, i) => s + (Number(i.price) * i.qty), 0);
+    const traySubtotal = () => kioskTray.reduce((s, i) => s + (Number(i.price) * i.qty), 0);
+    const trayGst = () => Math.round((traySubtotal() * 5) / 100);
+    const trayTotal = () => traySubtotal() + trayGst();
 
     function updateTrayUI() {
       $('trayCountBadge').innerText = trayCount();
       $('trayTotalDisplay').innerText = money(trayTotal());
-      $('reviewSubTotal').innerText = money(trayTotal());
+      $('reviewSubTotal').innerText = money(traySubtotal());
+      $('reviewCgst').innerText = money(trayGst() / 2);
+      $('reviewSgst').innerText = money(trayGst() / 2);
       $('reviewTrayTotal').innerText = money(trayTotal());
       $('viewOrderBtn').disabled = !kioskTray.length;
       renderTrayReviewList();
@@ -593,9 +692,9 @@
           customer_phone: '',
           items: kioskTray,
           payment_mode: pendingPaymentMode,
-          subtotal: total,
+          subtotal: traySubtotal(),
           discount: 0,
-          gst: 0,
+          gst: trayGst(),
           total: total,
           is_hold: false
         })
@@ -635,8 +734,9 @@
       selectedMenuItem = null;
       selectedVariation = null;
       selectedGroupAddons = {};
+      pendingUpgrade = null;
       updateTrayUI();
-      ['tokenSuccessModal', 'trayReviewModal', 'paymentModal', 'customizerModal', 'modeSelectionScreen', 'addedModal', 'thinkingModal']
+      ['tokenSuccessModal', 'trayReviewModal', 'paymentModal', 'customizerModal', 'modeSelectionScreen', 'addedModal', 'upsellModal', 'thinkingModal']
         .forEach(id => $(id).classList.add('hidden'));
       $('idleScreensaver').classList.remove('hidden');
       if (categories.length) { activeCategory = categories[0]; renderCategories(); }

@@ -153,7 +153,7 @@
     fetch('/api/menu')
       .then(r => r.json())
       .then(items => {
-        menu = items;
+        menu = items.filter(i => Number(i.is_visible) !== 0);
         renderCategories();
         renderMenu();
       })

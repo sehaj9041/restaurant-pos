@@ -2,12 +2,29 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Menu & Master Manager - Admin</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 min-h-screen p-6 font-sans">
+
+  <!-- PIN gate -->
+  <div id="pinGate" class="fixed inset-0 z-[100] bg-gray-900 flex items-center justify-center p-4">
+    <form onsubmit="submitPin(event)" class="bg-white rounded-2xl p-6 w-full max-w-xs space-y-3 shadow-2xl">
+      <h2 class="text-lg font-black text-gray-800">🔒 Admin Access</h2>
+      <p class="text-xs text-gray-500">Owner/Admin Security PIN daalein.</p>
+      <input id="pinInput" type="password" inputmode="numeric" autocomplete="off" autofocus class="w-full border p-3 rounded-xl text-center text-xl tracking-widest outline-none focus:ring-2 focus:ring-indigo-500">
+      <p id="pinError" class="text-xs font-bold text-red-600 hidden">Galat PIN!</p>
+      <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-sm">Unlock</button>
+      <a href="/" class="block text-center text-xs text-gray-500 hover:text-gray-800">← Back to POS</a>
+    </form>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="hidden fixed top-4 right-4 z-[200] px-4 py-2.5 rounded-xl text-sm font-bold shadow-lg"></div>
+
   <div class="max-w-6xl mx-auto space-y-6">
-    
+
     <div class="flex justify-between items-center">
       <div>
         <h1 class="text-3xl font-black text-gray-800">Menu & Master Management</h1>
@@ -19,71 +36,169 @@
     </div>
 
     <!-- Navigation Tabs -->
-    <div class="flex border-b border-gray-200 gap-2">
-      <button onclick="switchTab('items')" id="tabBtnItems" class="py-2.5 px-4 font-black text-sm border-b-2 border-indigo-600 text-indigo-600 transition">
-        🍔 Menu Items
-      </button>
-      <button onclick="switchTab('addons')" id="tabBtnAddons" class="py-2.5 px-4 font-bold text-sm text-gray-500 hover:text-gray-800 border-b-2 border-transparent transition">
-        🧩 Global Add-on Groups Master
-      </button>
-      <button onclick="switchTab('variations')" id="tabBtnVariations" class="py-2.5 px-4 font-bold text-sm text-gray-500 hover:text-gray-800 border-b-2 border-transparent transition">
-        📐 Variation Sets Master
-      </button>
-      <button onclick="switchTab('whatsapp')" id="tabBtnWhatsapp" class="py-2.5 px-4 font-bold text-sm text-gray-500 hover:text-gray-800 border-b-2 border-transparent transition">
-        📱 WhatsApp Integration
-      </button>
+    <div class="flex border-b border-gray-200 gap-2 overflow-x-auto">
+      <button onclick="switchTab('items')" id="tabBtnItems" class="py-2.5 px-4 font-black text-sm border-b-2 border-indigo-600 text-indigo-600 transition whitespace-nowrap">🍔 Menu Items</button>
+      <button onclick="switchTab('categories')" id="tabBtnCategories" class="py-2.5 px-4 font-bold text-sm text-gray-500 hover:text-gray-800 border-b-2 border-transparent transition whitespace-nowrap">🗂️ Categories</button>
+      <button onclick="switchTab('addons')" id="tabBtnAddons" class="py-2.5 px-4 font-bold text-sm text-gray-500 hover:text-gray-800 border-b-2 border-transparent transition whitespace-nowrap">🧩 Global Add-on Groups Master</button>
+      <button onclick="switchTab('upsells')" id="tabBtnUpsells" class="py-2.5 px-4 font-bold text-sm text-gray-500 hover:text-gray-800 border-b-2 border-transparent transition whitespace-nowrap">💡 Upsells</button>
+      <button onclick="switchTab('inventory')" id="tabBtnInventory" class="py-2.5 px-4 font-bold text-sm text-gray-500 hover:text-gray-800 border-b-2 border-transparent transition whitespace-nowrap">📦 Inventory & Recipes</button>
+      <button onclick="switchTab('variations')" id="tabBtnVariations" class="py-2.5 px-4 font-bold text-sm text-gray-500 hover:text-gray-800 border-b-2 border-transparent transition whitespace-nowrap">📐 Variation Sets Master</button>
     </div>
 
     <!-- TAB 1: MENU ITEMS -->
     <div id="tabItems" class="space-y-6">
       <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
-        <h2 class="text-base font-bold text-gray-800 mb-3">Add New Menu Item</h2>
-        <form onsubmit="saveNewItem(event)" class="grid grid-cols-1 md:grid-cols-6 gap-3 items-center">
+        <div class="flex justify-between items-center mb-3">
+          <h2 class="text-base font-bold text-gray-800">Add New Menu Item</h2>
+          <div class="flex items-center gap-2">
+            <select id="import_mode" class="border p-1.5 rounded-lg text-xs outline-none bg-white" title="Replace: Excel me jo nahi hai wo menu se hat jayega">
+              <option value="merge">Add / Update</option>
+              <option value="replace">Replace poora menu</option>
+            </select>
+            <input type="file" id="excel_file" accept=".xlsx,.xls" class="hidden" onchange="importExcel(this)">
+            <button type="button" id="excelBtn" onclick="document.getElementById('excel_file').click()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs">📥 Import Excel</button>
+          </div>
+        </div>
+        <form onsubmit="saveNewItem(event)" class="grid grid-cols-1 md:grid-cols-7 gap-3 items-center">
           <input id="new_name" type="text" placeholder="Item Name (e.g. Burger)" required class="border p-2.5 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500">
-          <input id="new_cat" type="text" placeholder="Category (e.g. Burgers)" required class="border p-2.5 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500">
-          <input id="new_price" type="number" placeholder="Base Price (₹)" required class="border p-2.5 rounded-xl text-xs outline-none font-bold">
+          <input id="new_cat" type="text" list="catList" placeholder="Category (e.g. Burgers)" required class="border p-2.5 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500">
+          <input id="new_price" type="number" min="0" step="any" placeholder="Base Price (₹)" required class="border p-2.5 rounded-xl text-xs outline-none font-bold">
+          <input id="new_stock" type="number" min="0" value="50" placeholder="Stock" required class="border p-2.5 rounded-xl text-xs outline-none font-bold">
           <div>
             <input type="file" id="new_img" accept="image/*" class="text-[11px] text-gray-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700">
           </div>
           <label class="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-gray-600 select-none">
-              <input type="checkbox" id="new_is_exempt" class="rounded text-indigo-600">
-              <span>No GST</span>
+            <input type="checkbox" id="new_is_exempt" class="rounded text-indigo-600">
+            <span>No GST</span>
           </label>
-          <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-xs transition">
-            + Save Item
-          </button>
+          <button type="submit" id="newItemBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-xs transition">+ Save Item</button>
         </form>
+        <datalist id="catList"></datalist>
       </div>
 
       <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-        <div class="p-4 border-b bg-gray-50 flex justify-between items-center">
+        <div class="p-4 border-b bg-gray-50 flex flex-wrap gap-3 justify-between items-center">
           <h2 class="text-sm font-bold text-gray-700">All Menu Items</h2>
-          <span id="itemCountBadge" class="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">0 Items</span>
+          <div class="flex flex-wrap items-center gap-2">
+            <input id="itemSearch" type="text" oninput="renderItems()" placeholder="Search item..." class="border p-1.5 rounded-lg text-xs outline-none focus:ring-2 focus:ring-indigo-500">
+            <select id="itemCatFilter" onchange="renderItems()" class="border p-1.5 rounded-lg text-xs outline-none bg-white">
+              <option value="">All Categories</option>
+            </select>
+            <span id="itemCountBadge" class="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">0 Items</span>
+          </div>
         </div>
-        <table class="w-full text-left text-xs border-collapse">
-          <thead>
-            <tr class="bg-gray-50 text-gray-500 border-b">
-              <th class="p-3 font-bold">PHOTO</th>
-              <th class="p-3 font-bold">ITEM NAME</th>
-              <th class="p-3 font-bold">CATEGORY</th>
-              <th class="p-3 font-bold">BASE PRICE</th>
-              <th class="p-3 font-bold">VARIATIONS</th>
-              <th class="p-3 font-bold">DEFAULT GROUPS</th>
-              <th class="p-3 font-bold text-right">ACTION</th>
-            </tr>
-          </thead>
-          <tbody id="menuTableBody" class="divide-y divide-gray-100"></tbody>
-        </table>
+        <div id="itemBulkBar" class="hidden p-3 border-b bg-indigo-50 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs">
+          <b id="itemSelCount" class="text-indigo-800"></b>
+          <button type="button" onclick="clearSel(selItems, renderItems)" class="text-gray-500 hover:text-gray-800 font-bold">Clear</button>
+          <span class="flex items-center gap-1">
+            <input id="bulk_cat" type="text" list="catList" placeholder="New category" class="border p-1.5 rounded-lg w-32 outline-none bg-white">
+            <button type="button" onclick="bulkItemCategory()" class="bg-indigo-600 hover:bg-indigo-700 px-2.5 py-1 rounded-lg font-bold text-white ">Set Category</button>
+          </span>
+          <span class="flex items-center gap-1">
+            <select id="bulk_price_mode" class="border p-1.5 rounded-lg outline-none bg-white">
+              <option value="pct_up">+ %</option><option value="pct_down">− %</option>
+              <option value="amt_up">+ ₹</option><option value="amt_down">− ₹</option>
+              <option value="set">Set ₹</option>
+            </select>
+            <input id="bulk_price_val" type="number" min="0" step="any" placeholder="Value" class="border p-1.5 rounded-lg w-20 outline-none bg-white">
+            <label class="flex items-center gap-1 text-gray-600" title="Set ₹ mode me sizes nahi badalte"><input type="checkbox" id="bulk_price_vars" checked> Sizes bhi</label>
+            <button type="button" onclick="bulkItemPrice()" class="bg-amber-600 hover:bg-amber-700 px-2.5 py-1 rounded-lg font-bold text-white ">Apply Price</button>
+          </span>
+          <span class="flex items-center gap-1">
+            <input id="bulk_stock" type="number" min="0" placeholder="Stock" class="border p-1.5 rounded-lg w-20 outline-none bg-white">
+            <button type="button" onclick="bulkItemStock()" class="bg-indigo-600 hover:bg-indigo-700 px-2.5 py-1 rounded-lg font-bold text-white ">Set Stock</button>
+          </span>
+          <span class="flex items-center gap-1">
+            <select id="bulk_gst" class="border p-1.5 rounded-lg outline-none bg-white"><option value="1">No GST</option><option value="0">GST lagao</option></select>
+            <button type="button" onclick="bulkItemGst()" class="bg-sky-600 hover:bg-sky-700 px-2.5 py-1 rounded-lg font-bold text-white ">Set GST</button>
+          </span>
+          <span class="flex items-center gap-1">
+            <button type="button" onclick="bulkItemAvailability(false)" class="bg-gray-600 hover:bg-gray-700 px-2.5 py-1 rounded-lg font-bold text-white ">Hide</button>
+            <button type="button" onclick="bulkItemAvailability(true)" class="bg-emerald-600 hover:bg-emerald-700 px-2.5 py-1 rounded-lg font-bold text-white ">Show</button>
+          </span>
+          <span class="flex items-center gap-1">
+            <select id="bulk_grp" class="border p-1.5 rounded-lg outline-none bg-white max-w-[9rem]"></select>
+            <button type="button" onclick="bulkItemGroup(true)" class="bg-indigo-600 hover:bg-indigo-700 px-2.5 py-1 rounded-lg font-bold text-white ">+ Group</button>
+            <button type="button" onclick="bulkItemGroup(false)" class="bg-gray-600 hover:bg-gray-700 px-2.5 py-1 rounded-lg font-bold text-white ">− Group</button>
+          </span>
+          <span class="flex items-center gap-1">
+            <button type="button" onclick="bulkItemVisible(0)" class="bg-gray-600 hover:bg-gray-700 px-2.5 py-1 rounded-lg font-bold text-white ">Menu se chhupao</button>
+            <button type="button" onclick="bulkItemVisible(1)" class="bg-emerald-600 hover:bg-emerald-700 px-2.5 py-1 rounded-lg font-bold text-white ">Menu me dikhao</button>
+          </span>
+          <button type="button" onclick="bulkItemDelete()" class="bg-red-600 hover:bg-red-700 px-2.5 py-1 rounded-lg font-bold text-white ">Delete</button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr class="bg-gray-50 text-gray-500 border-b">
+                <th class="p-3"><input type="checkbox" id="selAllItems" onchange="toggleAllItems(this.checked)" title="Select all (filtered)"></th>
+                <th class="p-3 font-bold">PHOTO</th>
+                <th class="p-3 font-bold">ITEM NAME</th>
+                <th class="p-3 font-bold">CATEGORY</th>
+                <th class="p-3 font-bold">BASE PRICE</th>
+                <th class="p-3 font-bold">STOCK</th>
+                <th class="p-3 font-bold">VARIATIONS</th>
+                <th class="p-3 font-bold">DEFAULT GROUPS</th>
+                <th class="p-3 font-bold text-right">ACTION</th>
+              </tr>
+            </thead>
+            <tbody id="menuTableBody" class="divide-y divide-gray-100"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: CATEGORIES -->
+    <div id="tabCategories" class="hidden space-y-6">
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+        <h2 class="text-base font-bold text-gray-800 mb-3">Add Category</h2>
+        <form onsubmit="saveCategory(event)" class="flex gap-2">
+          <input id="cat_name" type="text" placeholder="Category name (e.g. Burgers)" required class="flex-1 border p-2.5 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500">
+          <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-5 rounded-xl text-xs">+ Add</button>
+        </form>
+      </div>
+
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+        <h2 class="text-base font-bold text-gray-800 mb-1">Bulk Add Categories</h2>
+        <p class="text-xs text-gray-500 mb-3">Ek line me ek category (ya comma se alag) likhein.</p>
+        <form onsubmit="bulkAddCategories(event)" class="flex gap-2">
+          <textarea id="cat_bulk" rows="3" placeholder="Burgers&#10;Pizzas&#10;Beverages" class="flex-1 border p-2.5 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+          <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-5 rounded-xl text-xs">+ Add All</button>
+        </form>
+      </div>
+
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+        <h2 class="text-base font-bold text-gray-800 mb-1">Assign Variation Set To Category</h2>
+        <p class="text-xs text-gray-500 mb-3">Is category ke <b>saare</b> items ke sizes/variations selected set se replace ho jayenge.</p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <select id="assign_cat" class="border p-2.5 rounded-xl text-xs outline-none bg-white"></select>
+          <select id="assign_var" class="border p-2.5 rounded-xl text-xs outline-none bg-white"></select>
+          <button type="button" onclick="assignVariationToCategory()" class="bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 rounded-xl text-xs">Assign To Category</button>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="p-4 border-b bg-gray-50 flex flex-wrap items-center gap-3">
+          <label class="flex items-center gap-1.5 text-xs font-bold text-gray-600"><input type="checkbox" id="selAllCats" onchange="toggleAll(selCats, categories, this.checked, renderCategories)"> Select all</label>
+          <h2 class="text-sm font-bold text-gray-700">All Categories</h2>
+          <b id="catSelCount" class="text-xs text-indigo-800"></b>
+          <button type="button" id="catBulkDelete" onclick="bulkCategoryDelete()" class="hidden bg-red-600 hover:bg-red-700 text-xs px-2.5 py-1 rounded-lg font-bold text-white ">Delete Selected</button>
+        </div>
+        <div id="categoriesList" class="divide-y divide-gray-100"></div>
       </div>
     </div>
 
     <!-- TAB 2: GLOBAL ADD-ON GROUPS MASTER -->
     <div id="tabAddons" class="hidden space-y-6">
       <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
-        <h2 class="text-base font-bold text-gray-800 mb-2">Create Global Add-on Group</h2>
+        <div class="flex justify-between items-center mb-2">
+          <h2 id="grpFormTitle" class="text-base font-bold text-gray-800">Create Global Add-on Group</h2>
+          <button type="button" id="grpCancelBtn" onclick="resetGroupForm()" class="hidden text-xs font-bold text-gray-500 hover:text-gray-800">✕ Cancel Edit</button>
+        </div>
         <p class="text-xs text-gray-500 mb-4">Groups (jaise Regular Dips, Large Pizza Extras) banayein aur rules set karein.</p>
-        
+
         <form onsubmit="saveAddonGroup(event)" class="space-y-4">
+          <input type="hidden" id="grp_edit_id">
           <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div>
               <label class="block text-xs font-bold text-gray-600 mb-1">Group Name</label>
@@ -109,40 +224,47 @@
             <label class="block text-xs font-bold text-indigo-900 uppercase mb-2">Add Items To This Group</label>
             <div class="flex gap-2 mb-2">
               <input id="grp_item_name" type="text" placeholder="Item Name (e.g. Cheese Slice)" class="flex-1 border p-1.5 rounded-lg text-xs outline-none bg-white">
-              <input id="grp_item_price" type="number" placeholder="₹ Price" class="w-24 border p-1.5 rounded-lg text-xs font-bold outline-none bg-white">
+              <input id="grp_item_price" type="number" min="0" step="any" placeholder="₹ Price" class="w-24 border p-1.5 rounded-lg text-xs font-bold outline-none bg-white">
               <input type="file" id="grp_item_img" accept="image/*" class="text-[11px] text-gray-500 file:py-1 file:px-2 file:rounded-md file:border-0 file:bg-indigo-100">
-              <button type="button" onclick="pushGroupItemTemp()" class="bg-indigo-600 text-white font-bold px-4 py-1.5 rounded-lg text-xs hover:bg-indigo-700">
-                + Add
-              </button>
+              <button type="button" onclick="pushGroupItemTemp()" class="bg-indigo-600 text-white font-bold px-4 py-1.5 rounded-lg text-xs hover:bg-indigo-700">+ Add</button>
             </div>
             <div id="tempGroupItemsList" class="flex flex-wrap gap-2"></div>
           </div>
 
-          <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-6 rounded-xl text-xs transition">
-            Save Group Master
-          </button>
+          <button type="submit" id="grpSaveBtn" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-6 rounded-xl text-xs transition">Save Group Master</button>
         </form>
       </div>
 
+      <div class="flex flex-wrap items-center gap-3 p-3 rounded-xl bg-indigo-50 border border-indigo-200 text-xs">
+        <label class="flex items-center gap-1.5 font-bold text-indigo-900"><input type="checkbox" id="selAllGroups" onchange="toggleAll(selGroups, globalAddonGroups, this.checked, renderGlobalGroups)"> Select all</label>
+        <b id="groupSelCount" class="text-indigo-800"></b>
+        <span id="groupBulkActions" class="hidden flex flex-wrap items-center gap-2">
+          <button type="button" onclick="bulkGroupMandatory(1)" class="bg-indigo-600 hover:bg-indigo-700 px-2.5 py-1 rounded-lg font-bold text-white ">Make Mandatory</button>
+          <button type="button" onclick="bulkGroupMandatory(0)" class="bg-gray-600 hover:bg-gray-700 px-2.5 py-1 rounded-lg font-bold text-white ">Make Optional</button>
+          <button type="button" onclick="bulkGroupDelete()" class="bg-red-600 hover:bg-red-700 px-2.5 py-1 rounded-lg font-bold text-white ">Delete</button>
+        </span>
+      </div>
       <div id="globalGroupsGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
     </div>
 
     <!-- TAB 3: VARIATION SETS MASTER -->
     <div id="tabVariations" class="hidden space-y-6">
       <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
-        <h2 class="text-base font-bold text-gray-800 mb-2">Create Variation Set</h2>
-        <p class="text-xs text-gray-500 mb-4">Standard size sets banayein jo category par direct assign ho sakein.</p>
+        <div class="flex justify-between items-center mb-2">
+          <h2 id="varFormTitle" class="text-base font-bold text-gray-800">Create Variation Set</h2>
+          <button type="button" id="varCancelBtn" onclick="resetVariationForm()" class="hidden text-xs font-bold text-gray-500 hover:text-gray-800">✕ Cancel Edit</button>
+        </div>
+        <p class="text-xs text-gray-500 mb-4">Standard size sets banayein jo category par direct assign ho sakein (Categories tab se).</p>
 
         <form onsubmit="saveVariationMaster(event)" class="space-y-4">
+          <input type="hidden" id="var_edit_id">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label class="block text-xs font-bold text-gray-600 mb-1">Set Name</label>
               <input id="var_set_name" type="text" placeholder="e.g. Standard Pizza Sizes" required class="w-full border p-2 rounded-xl text-xs outline-none">
             </div>
             <div class="flex items-end">
-              <button type="submit" class="bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 px-6 rounded-xl text-xs transition">
-                Save Variation Set
-              </button>
+              <button type="submit" id="varSaveBtn" class="bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 px-6 rounded-xl text-xs transition">Save Variation Set</button>
             </div>
           </div>
 
@@ -150,41 +272,129 @@
             <label class="block text-xs font-bold text-amber-900 uppercase mb-2">Add Size Options</label>
             <div class="flex gap-2 mb-2">
               <input id="var_opt_name" type="text" placeholder="Size Name (e.g. Medium)" class="flex-1 border p-1.5 rounded-lg text-xs outline-none bg-white">
-              <input id="var_opt_price" type="number" placeholder="₹ Price" class="w-24 border p-1.5 rounded-lg text-xs font-bold outline-none bg-white">
+              <input id="var_opt_price" type="number" min="0" step="any" placeholder="₹ Price" class="w-24 border p-1.5 rounded-lg text-xs font-bold outline-none bg-white">
               <input type="file" id="var_opt_img" accept="image/*" class="text-[11px] text-gray-500 file:py-1 file:px-2 file:rounded-md file:border-0 file:bg-amber-100">
-              <button type="button" onclick="pushVariationOptionTemp()" class="bg-amber-600 text-white font-bold px-4 py-1.5 rounded-lg text-xs hover:bg-amber-700">
-                + Add Option
-              </button>
+              <button type="button" onclick="pushVariationOptionTemp()" class="bg-amber-600 text-white font-bold px-4 py-1.5 rounded-lg text-xs hover:bg-amber-700">+ Add Option</button>
             </div>
             <div id="tempVarOptionsList" class="flex flex-wrap gap-2"></div>
           </div>
         </form>
       </div>
 
+      <div class="flex flex-wrap items-center gap-3 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs">
+        <label class="flex items-center gap-1.5 font-bold text-amber-900"><input type="checkbox" id="selAllVars" onchange="toggleAll(selVars, globalVariationMasters, this.checked, renderGlobalVariations)"> Select all</label>
+        <b id="varSelCount" class="text-amber-800"></b>
+        <span id="varBulkActions" class="hidden flex flex-wrap items-center gap-2">
+          <select id="bulk_var_mode" class="border p-1.5 rounded-lg outline-none bg-white">
+            <option value="pct_up">+ %</option><option value="pct_down">− %</option>
+            <option value="amt_up">+ ₹</option><option value="amt_down">− ₹</option>
+          </select>
+          <input id="bulk_var_val" type="number" min="0" step="any" placeholder="Value" class="border p-1.5 rounded-lg w-20 outline-none bg-white">
+          <button type="button" onclick="bulkVariationPrice()" class="bg-amber-600 hover:bg-amber-700 px-2.5 py-1 rounded-lg font-bold text-white ">Apply Price To Options</button>
+          <button type="button" onclick="bulkVariationDelete()" class="bg-red-600 hover:bg-red-700 px-2.5 py-1 rounded-lg font-bold text-white ">Delete</button>
+        </span>
+      </div>
       <div id="globalVariationsGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
     </div>
 
-    <!-- TAB 4: WHATSAPP INTEGRATION -->
-    <div id="tabWhatsapp" class="hidden space-y-6">
+    <!-- TAB: UPSELLS -->
+    <div id="tabUpsells" class="hidden space-y-6">
       <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
-        <div class="flex justify-between items-center mb-4">
-          <div>
-            <h2 class="text-lg font-bold text-gray-800">📱 WhatsApp Direct Integration</h2>
-            <p class="text-xs text-gray-500">Apne WhatsApp number ko yahan se connect karein taaki automatic messages bheje ja sakein.</p>
-          </div>
-          <div id="waStatusBadge" class="px-3 py-1 rounded-full text-xs font-black bg-gray-100 text-gray-600">
-            Checking Status...
-          </div>
-        </div>
+        <h2 class="text-base font-bold text-gray-800 mb-1">Add Upsell</h2>
+        <p class="text-xs text-gray-500 mb-3">Kiosk par item add hone ke baad ye suggestions dikhte hain. <b>Upgrade</b> = ordered item ki jagah dusra item (Make it a meal). <b>Cross-sell</b> = saath me add (item ya poori category).</p>
+        <form onsubmit="saveUpsell(event)" class="grid grid-cols-1 md:grid-cols-6 gap-3 items-center">
+          <input id="ups_item" type="text" list="itemNameList" placeholder="Jab ye item add ho" required class="border p-2.5 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500">
+          <select id="ups_type" onchange="syncUpsellForm()" class="border p-2.5 rounded-xl text-xs outline-none bg-white">
+            <option value="cross_sell">Cross-sell</option><option value="upgrade">Upgrade</option>
+          </select>
+          <input id="ups_target_item" type="text" list="itemNameList" placeholder="Suggested item" class="border p-2.5 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500">
+          <input id="ups_target_cat" type="text" list="catList" placeholder="ya Suggested category" class="border p-2.5 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500">
+          <input id="ups_label" type="text" placeholder="Label (optional)" class="border p-2.5 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500">
+          <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-xs">+ Add</button>
+        </form>
+        <datalist id="itemNameList"></datalist>
+      </div>
 
-        <div id="waConnectionBox" class="flex flex-col items-center justify-center p-6 bg-gray-50 rounded-xl border border-dashed border-gray-300">
-          <div id="waQrContainer" class="text-center">
-            <p class="text-xs text-gray-500 mb-2">QR Code load ho raha hai...</p>
-          </div>
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="p-4 border-b bg-gray-50 flex flex-wrap items-center gap-3 text-xs">
+          <label class="flex items-center gap-1.5 font-bold text-gray-600"><input type="checkbox" id="selAllUps" onchange="toggleAll(selUps, upsellRows, this.checked, renderUpsells)"> Select all</label>
+          <input id="upsSearch" type="text" oninput="renderUpsells()" placeholder="Search item..." class="border p-1.5 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500">
+          <b id="upsSelCount" class="text-indigo-800"></b>
+          <span id="upsBulkActions" class="hidden flex flex-wrap items-center gap-2">
+            <button type="button" onclick="bulkUpsellActive(1)" class="bg-emerald-600 hover:bg-emerald-700 px-2.5 py-1 rounded-lg font-bold text-white ">Activate</button>
+            <button type="button" onclick="bulkUpsellActive(0)" class="bg-gray-600 hover:bg-gray-700 px-2.5 py-1 rounded-lg font-bold text-white ">Deactivate</button>
+            <button type="button" onclick="bulkUpsellDelete()" class="bg-red-600 hover:bg-red-700 px-2.5 py-1 rounded-lg font-bold text-white ">Delete</button>
+          </span>
+          <span id="upsCountBadge" class="ml-auto font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded"></span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead><tr class="bg-gray-50 text-gray-500 border-b">
+              <th class="p-3"></th><th class="p-3 font-bold">WHEN ITEM</th><th class="p-3 font-bold">TYPE</th>
+              <th class="p-3 font-bold">SUGGEST</th><th class="p-3 font-bold">LABEL</th><th class="p-3 font-bold">ACTIVE</th><th class="p-3 font-bold text-right">ACTION</th>
+            </tr></thead>
+            <tbody id="upsellsBody" class="divide-y divide-gray-100"></tbody>
+          </table>
         </div>
       </div>
     </div>
 
+    <!-- TAB: INVENTORY & RECIPES (filled via Excel import) -->
+    <div id="tabInventory" class="hidden space-y-6">
+      <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 text-xs text-gray-600">
+        Ingredients, units, suppliers aur recipes Excel import (Menu Items tab → Import Excel) se aate hain. Yahan sirf dekh sakte ho.
+        Orders par stock abhi apne aap kam nahi hota.
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="p-4 border-b bg-gray-50 flex flex-wrap items-center gap-3">
+          <h2 class="text-sm font-bold text-gray-700">Ingredients</h2>
+          <input id="ingSearch" type="text" oninput="renderIngredients()" placeholder="Search..." class="border p-1.5 rounded-lg text-xs outline-none focus:ring-2 focus:ring-indigo-500">
+          <span id="ingCount" class="ml-auto text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded"></span>
+        </div>
+        <div class="overflow-x-auto max-h-96 overflow-y-auto">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead class="sticky top-0"><tr class="bg-gray-50 text-gray-500 border-b">
+              <th class="p-3 font-bold">INGREDIENT</th><th class="p-3 font-bold">UNIT</th><th class="p-3 font-bold">COST/UNIT</th>
+              <th class="p-3 font-bold">STOCK</th><th class="p-3 font-bold">REORDER AT</th><th class="p-3 font-bold">GROUP</th><th class="p-3 font-bold">SUPPLIER</th>
+            </tr></thead>
+            <tbody id="ingredientsBody" class="divide-y divide-gray-100"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="p-4 border-b bg-gray-50 flex flex-wrap items-center gap-3">
+          <h2 class="text-sm font-bold text-gray-700">Recipes</h2>
+          <input id="recSearch" type="text" oninput="renderRecipes()" placeholder="Search dish..." class="border p-1.5 rounded-lg text-xs outline-none focus:ring-2 focus:ring-indigo-500">
+          <span id="recCount" class="ml-auto text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded"></span>
+        </div>
+        <div id="recipesList" class="divide-y divide-gray-100 max-h-[32rem] overflow-y-auto"></div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+          <div class="p-4 border-b bg-gray-50"><h2 class="text-sm font-bold text-gray-700">Units of Measure</h2></div>
+          <div id="unitsList" class="p-4 flex flex-wrap gap-2 text-xs"></div>
+        </div>
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+          <div class="p-4 border-b bg-gray-50"><h2 class="text-sm font-bold text-gray-700">Suppliers</h2></div>
+          <div id="suppliersList" class="divide-y divide-gray-100 text-xs"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Import summary -->
+  <div id="importSummaryModal" class="hidden fixed inset-0 bg-black/60 z-[150] flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-3 max-h-[88vh] overflow-y-auto">
+      <div class="flex justify-between items-center border-b pb-2">
+        <h3 class="text-base font-black text-gray-800">Import Summary</h3>
+        <button onclick="document.getElementById('importSummaryModal').classList.add('hidden')" class="text-gray-400 hover:text-black font-bold text-lg">✕</button>
+      </div>
+      <div id="importSummaryBody" class="text-xs text-gray-700 space-y-2"></div>
+    </div>
   </div>
 
   <!-- Edit Item Modal with Variation-wise Addons Linking -->
@@ -204,18 +414,28 @@
         </div>
         <div>
           <label class="block text-xs font-bold text-gray-600 mb-1">Category</label>
-          <input type="text" id="edit_cat" required class="w-full border p-2 rounded-xl text-xs outline-none">
+          <input type="text" id="edit_cat" list="catList" required class="w-full border p-2 rounded-xl text-xs outline-none">
         </div>
       </div>
 
-      <div class="grid grid-cols-3 gap-3">
+      <div class="grid grid-cols-4 gap-3 items-end">
         <div>
           <label class="block text-xs font-bold text-gray-600 mb-1">Base Price (₹)</label>
-          <input type="number" id="edit_price" required class="w-full border p-2 rounded-xl text-xs font-bold outline-none">
+          <input type="number" id="edit_price" min="0" step="any" required class="w-full border p-2 rounded-xl text-xs font-bold outline-none">
         </div>
         <div>
           <label class="block text-xs font-bold text-gray-600 mb-1">Stock</label>
-          <input type="number" id="edit_stock" required class="w-full border p-2 rounded-xl text-xs font-bold outline-none">
+          <input type="number" id="edit_stock" min="0" required class="w-full border p-2 rounded-xl text-xs font-bold outline-none">
+        </div>
+        <div class="space-y-1 pb-1">
+          <label class="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-gray-600 select-none">
+            <input type="checkbox" id="edit_is_exempt" class="rounded text-indigo-600">
+            <span>No GST</span>
+          </label>
+          <label class="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-gray-600 select-none">
+            <input type="checkbox" id="edit_is_visible" class="rounded text-indigo-600">
+            <span>Menu me dikhao</span>
+          </label>
         </div>
         <div>
           <label class="block text-xs font-bold text-gray-600 mb-1">Item Image</label>
@@ -226,14 +446,12 @@
       <!-- Variations with Custom Specific Addons -->
       <div class="border-t pt-3 bg-amber-50/60 p-3 rounded-xl border border-amber-200">
         <label class="block text-xs font-bold text-amber-900 uppercase mb-1">1. Variations / Sizes</label>
-        
+
         <div class="flex gap-2 mb-2">
           <input id="var_name_inp" type="text" placeholder="Size (e.g. Regular)" class="flex-1 border p-1.5 rounded-lg text-xs outline-none bg-white">
-          <input id="var_price_inp" type="number" placeholder="₹ Price" class="w-20 border p-1.5 rounded-lg text-xs font-bold outline-none bg-white">
+          <input id="var_price_inp" type="number" min="0" step="any" placeholder="₹ Price" class="w-20 border p-1.5 rounded-lg text-xs font-bold outline-none bg-white">
           <input type="file" id="var_img_inp" accept="image/*" class="text-[10px] text-gray-500 file:py-1 file:px-2 file:rounded-md file:border-0 file:bg-amber-100">
-          <button type="button" onclick="addVariationRow()" class="bg-amber-600 hover:bg-amber-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs">
-            + Add Size
-          </button>
+          <button type="button" onclick="addVariationRow()" class="bg-amber-600 hover:bg-amber-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs">+ Add Size</button>
         </div>
         <div id="editVariationsList" class="space-y-2 max-h-40 overflow-y-auto pr-1"></div>
       </div>
@@ -245,12 +463,8 @@
       </div>
 
       <div class="grid grid-cols-2 gap-2 pt-2 border-t">
-        <button onclick="submitItemEdit()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-xs transition">
-          Save Item Changes
-        </button>
-        <button onclick="closeEditModal()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-xs transition">
-          Cancel
-        </button>
+        <button onclick="submitItemEdit()" id="editSaveBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-xs transition">Save Item Changes</button>
+        <button onclick="closeEditModal()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-xs transition">Cancel</button>
       </div>
     </div>
   </div>
@@ -266,143 +480,388 @@
         <button onclick="closeSubModal()" class="text-gray-400 hover:text-black font-bold">✕</button>
       </div>
       <div id="subModalGroupsList" class="space-y-2 max-h-48 overflow-y-auto"></div>
-      <button onclick="saveSubModalGroups()" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 rounded-xl text-xs">
-        Done
-      </button>
+      <button onclick="saveSubModalGroups()" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 rounded-xl text-xs">Done</button>
     </div>
   </div>
 
   <script>
     let globalAddonGroups = [];
     let globalVariationMasters = [];
+    let categories = [];
     let menuItems = [];
     let tempGroupItems = [];
     let tempVariationOptions = [];
     let currentEditVariations = [];
     let currentEditImage = '';
     let currentActiveVarIdx = null;
+    const selItems = new Set(), selGroups = new Set(), selVars = new Set(), selCats = new Set();
 
+    // ---------- helpers ----------
+    function esc(v) {
+      return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function parseJson(v, fallback) {
+      if (Array.isArray(v)) return v;
+      try { const p = JSON.parse(v || ''); return Array.isArray(p) ? p : fallback; } catch (e) { return fallback; }
+    }
+
+    let toastTimer;
+    function toast(msg, isError) {
+      const t = document.getElementById('toast');
+      t.className = 'fixed top-4 right-4 z-[200] px-4 py-2.5 rounded-xl text-sm font-bold shadow-lg ' +
+        (isError ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white');
+      t.innerText = msg;
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => t.classList.add('hidden'), 3500);
+    }
+
+    async function api(url, method, body) {
+      const opts = { method: method || 'GET' };
+      if (body !== undefined) {
+        opts.headers = { 'Content-Type': 'application/json' };
+        opts.body = JSON.stringify(body);
+      }
+      let res;
+      try { res = await fetch(url, opts); } catch (e) { throw new Error('Server connection error!'); }
+      let data = {};
+      try { data = await res.json(); } catch (e) {}
+      if (!res.ok || data.success === false) throw new Error(data.error || 'Request failed (' + res.status + ')');
+      return data;
+    }
+
+    function busy(btnId, on) {
+      const b = document.getElementById(btnId);
+      if (b) b.disabled = on;
+    }
+
+    // ---------- PIN gate ----------
+    function unlock() { document.getElementById('pinGate').classList.add('hidden'); loadData(); }
+
+    async function submitPin(e) {
+      e.preventDefault();
+      const pin = document.getElementById('pinInput').value;
+      if (!pin) return;
+      try {
+        const data = await api('/api/verify-pin', 'POST', { pin });
+        if (data.valid) {
+          sessionStorage.setItem('adminUnlocked', '1');
+          unlock();
+        } else {
+          document.getElementById('pinError').classList.remove('hidden');
+          document.getElementById('pinInput').value = '';
+        }
+      } catch (err) { toast(err.message, true); }
+    }
+
+    // ---------- tabs ----------
+    const TABS = ['items', 'categories', 'addons', 'variations', 'upsells', 'inventory'];
     function switchTab(tab) {
-      ['items', 'addons', 'variations', 'whatsapp'].forEach(t => {
-        const view = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
-        const btn = document.getElementById('tabBtn' + t.charAt(0).toUpperCase() + t.slice(1));
+      if (tab === 'inventory') loadInventory();
+      TABS.forEach(t => {
+        const name = t.charAt(0).toUpperCase() + t.slice(1);
+        const view = document.getElementById('tab' + name);
+        const btn = document.getElementById('tabBtn' + name);
         if (t === tab) {
           view.classList.remove('hidden');
-          btn.className = "py-2.5 px-4 font-black text-sm border-b-2 border-indigo-600 text-indigo-600 transition";
+          btn.className = "py-2.5 px-4 font-black text-sm border-b-2 border-indigo-600 text-indigo-600 transition whitespace-nowrap";
         } else {
           view.classList.add('hidden');
-          btn.className = "py-2.5 px-4 font-bold text-sm text-gray-500 hover:text-gray-800 border-b-2 border-transparent transition";
+          btn.className = "py-2.5 px-4 font-bold text-sm text-gray-500 hover:text-gray-800 border-b-2 border-transparent transition whitespace-nowrap";
         }
       });
     }
 
-    // Robust image path resolver to prevent broken images in Admin panel
+    // ---------- images ----------
+    // Stored paths stay relative (/uploads/..) so they survive a domain change.
     function resolveImgPath(imgPath) {
       if (!imgPath || imgPath.trim() === '') return '';
       const clean = imgPath.trim();
-      if (clean.startsWith('http://') || clean.startsWith('https://')) {
-        return clean;
-      }
-      if (clean.startsWith('/')) {
-        return window.location.origin + clean;
-      }
-      return window.location.origin + '/uploads/' + clean;
+      if (clean.startsWith('http://') || clean.startsWith('https://')) return clean;
+      if (clean.startsWith('/')) return clean;
+      return '/uploads/' + clean;
     }
 
+    // Returns '' when no file chosen; throws if the upload fails.
     async function uploadFileHelper(fileInput) {
       if (!fileInput.files || !fileInput.files[0]) return '';
       const fd = new FormData();
       fd.append('image', fileInput.files[0]);
-      try {
-        const res = await fetch('/api/upload', { method: 'POST', body: fd });
-        const data = await res.json();
-        if (data.imageUrl) {
-          return window.location.origin + data.imageUrl;
-        }
-        return '';
-      } catch (err) {
-        console.error('Image upload failed:', err);
-        return '';
-      }
+      let res;
+      try { res = await fetch('/api/upload', { method: 'POST', body: fd }); } catch (e) { throw new Error('Image upload failed (server connection)'); }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.imageUrl) throw new Error('Image upload failed: ' + (data.error || res.status));
+      return data.imageUrl;
     }
 
-    function loadData() {
-      fetch('/api/addon-groups').then(res => res.json()).then(g => {
+    // ---------- data loading ----------
+    async function loadData() {
+      try {
+        const [g, v, c, items] = await Promise.all([
+          api('/api/addon-groups'),
+          api('/api/variation-masters'),
+          api('/api/categories'),
+          api('/api/menu')
+        ]);
         globalAddonGroups = g;
-        renderGlobalGroups();
-      });
-
-      fetch('/api/variation-masters').then(res => res.json()).then(v => {
         globalVariationMasters = v;
-        renderGlobalVariations();
-      });
-
-      fetch('/api/menu').then(res => res.json()).then(items => {
+        categories = c;
         menuItems = items;
-        document.getElementById('itemCountBadge').innerText = items.length + ' Items';
-        const tbody = document.getElementById('menuTableBody');
+      } catch (err) {
+        return toast('Data load nahi hua: ' + err.message, true);
+      }
+      renderCategoryOptions();
+      renderCategories();
+      renderItems();
+      renderGlobalGroups();
+      renderGlobalVariations();
+      loadUpsells();
+    }
 
-        tbody.innerHTML = items.map(i => {
-          let vars = [];
-          let grps = [];
-          try { vars = JSON.parse(i.variations || '[]'); } catch(e) {}
-          try { grps = JSON.parse(i.assigned_addon_groups || '[]'); } catch(e) {}
+    function allCategoryNames() {
+      const set = new Set(categories.map(c => c.name));
+      menuItems.forEach(i => { if (i.category) set.add(i.category); });
+      return [...set].sort((a, b) => a.localeCompare(b));
+    }
 
-          const rawImg = i.image || i.image_url || i.img || '';
-          const itemImg = resolveImgPath(rawImg);
+    function renderCategoryOptions() {
+      const names = allCategoryNames();
+      document.getElementById('catList').innerHTML = names.map(n => `<option value="${esc(n)}">`).join('');
+      document.getElementById('itemNameList').innerHTML = menuItems.map(i => `<option value="${esc(i.name)}">`).join('');
 
-          return `
-            <tr class="hover:bg-gray-50">
-              <td class="p-3">
-                ${itemImg ? `<img src="${itemImg}" class="w-10 h-10 object-cover rounded-lg border" onerror="this.onerror=null; this.style.display='none';">` : `<div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs">No Img</div>`}
-              </td>
-              <td class="p-3 font-bold text-gray-800">${i.name}</td>
-              <td class="p-3 text-gray-500">${i.category}</td>
-              <td class="p-3 font-black text-gray-900">₹${i.price}</td>
-              <td class="p-3"><span class="bg-amber-50 text-amber-800 px-2 py-0.5 rounded text-[11px] font-bold">${vars.length} Sizes</span></td>
-              <td class="p-3"><span class="bg-indigo-50 text-indigo-800 px-2 py-0.5 rounded text-[11px] font-bold">${grps.length} Groups Linked</span></td>
-              <td class="p-3 text-right space-x-2">
-                <button onclick='openEditModal(${JSON.stringify(i)})' class="text-indigo-600 hover:text-indigo-800 font-bold">Edit</button>
-                <button onclick="deleteItem(${i.id})" class="text-red-500 hover:text-red-700 font-bold">Delete</button>
-              </td>
-            </tr>
-          `;
-        }).join('');
-      });
+      const filter = document.getElementById('itemCatFilter');
+      const cur = filter.value;
+      filter.innerHTML = '<option value="">All Categories</option>' + names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+      filter.value = names.includes(cur) ? cur : '';
+
+      const bg = document.getElementById('bulk_grp');
+      if (bg) bg.innerHTML = globalAddonGroups.length
+        ? globalAddonGroups.map(g => `<option value="${esc(g.id)}">${esc(g.name)}</option>`).join('')
+        : '<option value="">-- No groups --</option>';
+
+      document.getElementById('assign_cat').innerHTML = names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+      document.getElementById('assign_var').innerHTML = globalVariationMasters.length
+        ? globalVariationMasters.map(v => `<option value="${esc(v.id)}">${esc(v.name)}</option>`).join('')
+        : '<option value="">-- No variation sets --</option>';
+    }
+
+    // ---------- items ----------
+    function getFilteredItems() {
+      const q = document.getElementById('itemSearch').value.trim().toLowerCase();
+      const cat = document.getElementById('itemCatFilter').value;
+      return menuItems.filter(i =>
+        (!cat || i.category === cat) && (!q || String(i.name).toLowerCase().includes(q))
+      );
+    }
+
+    function renderItems() {
+      const list = getFilteredItems();
+      document.getElementById('itemCountBadge').innerText =
+        (list.length === menuItems.length ? list.length : list.length + ' / ' + menuItems.length) + ' Items';
+
+      document.getElementById('menuTableBody').innerHTML = list.length ? list.map(i => {
+        const vars = parseJson(i.variations, []);
+        const grps = parseJson(i.assigned_addon_groups, []);
+        const itemImg = resolveImgPath(i.image || i.image_url || i.img || '');
+        const stock = Number(i.stock) || 0;
+        const unavailable = stock <= 0;
+        return `
+          <tr class="hover:bg-gray-50 ${unavailable ? 'opacity-60' : ''}">
+            <td class="p-3"><input type="checkbox" ${selItems.has(Number(i.id)) ? 'checked' : ''} onchange="toggleSel(selItems, ${Number(i.id)}, this.checked, updateItemBar)"></td>
+            <td class="p-3">
+              ${itemImg ? `<img src="${esc(itemImg)}" class="w-10 h-10 object-cover rounded-lg border" onerror="this.onerror=null; this.style.display='none';">` : `<div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs">No Img</div>`}
+            </td>
+            <td class="p-3 font-bold text-gray-800">
+              ${esc(i.name)}
+              ${Number(i.is_exempt) ? '<span class="ml-1 bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded text-[10px] font-bold">No GST</span>' : ''}
+              ${unavailable ? '<span class="ml-1 bg-red-100 text-red-700 px-1.5 py-0.5 rounded text-[10px] font-bold">Unavailable</span>' : ''}
+              ${Number(i.is_visible) === 0 ? '<span class="ml-1 bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded text-[10px] font-bold">Hidden</span>' : ''}
+            </td>
+            <td class="p-3 text-gray-500">${esc(i.category)}</td>
+            <td class="p-3 font-black text-gray-900">₹${esc(i.price)}</td>
+            <td class="p-3 font-bold ${unavailable ? 'text-red-600' : 'text-gray-700'}">${stock}</td>
+            <td class="p-3"><span class="bg-amber-50 text-amber-800 px-2 py-0.5 rounded text-[11px] font-bold">${vars.length} Sizes</span></td>
+            <td class="p-3"><span class="bg-indigo-50 text-indigo-800 px-2 py-0.5 rounded text-[11px] font-bold">${grps.length} Groups Linked</span></td>
+            <td class="p-3 text-right space-x-2 whitespace-nowrap">
+              <button onclick="toggleAvailability(${Number(i.id)})" class="${unavailable ? 'text-emerald-600 hover:text-emerald-800' : 'text-amber-600 hover:text-amber-800'} font-bold">${unavailable ? 'Show' : 'Hide'}</button>
+              <button onclick="openEditModal(${Number(i.id)})" class="text-indigo-600 hover:text-indigo-800 font-bold">Edit</button>
+              <button onclick="deleteItem(${Number(i.id)})" class="text-red-500 hover:text-red-700 font-bold">Delete</button>
+            </td>
+          </tr>
+        `;
+      }).join('') : '<tr><td colspan="9" class="p-6 text-center text-gray-400">Koi item nahi mila</td></tr>';
+      updateItemBar();
+    }
+
+    function itemPayload(item, overrides) {
+      return Object.assign({
+        name: item.name,
+        category: item.category,
+        price: Number(item.price),
+        stock: Number(item.stock) || 0,
+        image: item.image || '',
+        variations: parseJson(item.variations, []),
+        assigned_addon_groups: parseJson(item.assigned_addon_groups, []),
+        is_exempt: Number(item.is_exempt) ? 1 : 0,
+        is_visible: Number(item.is_visible) !== 0 ? 1 : 0
+      }, overrides || {});
+    }
+
+    async function ensureCategory(name) {
+      name = (name || '').trim();
+      if (!name || categories.some(c => c.name === name)) return;
+      await api('/api/categories', 'POST', { name }).catch(() => {});
     }
 
     async function saveNewItem(e) {
       e.preventDefault();
-      const imgUrl = await uploadFileHelper(document.getElementById('new_img'));
-      fetch('/api/menu', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: document.getElementById('new_name').value,
-          category: document.getElementById('new_cat').value,
-          price: Number(document.getElementById('new_price').value),
-          image: imgUrl,
-          stock: 50,
+      const name = document.getElementById('new_name').value.trim();
+      const category = document.getElementById('new_cat').value.trim();
+      const price = Number(document.getElementById('new_price').value);
+      const stock = Number(document.getElementById('new_stock').value);
+      if (!name || !category) return toast('Item name aur category zaroori hai', true);
+      if (isNaN(price) || price < 0) return toast('Valid price daalein', true);
+      if (isNaN(stock) || stock < 0) return toast('Valid stock daalein', true);
+      busy('newItemBtn', true);
+      try {
+        const image = await uploadFileHelper(document.getElementById('new_img'));
+        await api('/api/menu', 'POST', {
+          name, category, price, stock, image,
           variations: [],
           assigned_addon_groups: [],
           is_exempt: document.getElementById('new_is_exempt').checked ? 1 : 0
-        })
-      }).then(() => {
-        document.getElementById('new_name').value = '';
-        document.getElementById('new_cat').value = '';
-        document.getElementById('new_price').value = '';
-        document.getElementById('new_img').value = '';
+        });
+        await ensureCategory(category);
+        ['new_name', 'new_cat', 'new_price', 'new_img'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('new_stock').value = '50';
         document.getElementById('new_is_exempt').checked = false;
+        toast('Item save ho gaya');
         loadData();
-      });
+      } catch (err) {
+        toast(err.message.includes('unique') || err.message.includes('duplicate') ? 'Is naam ka item pehle se hai!' : err.message, true);
+      } finally { busy('newItemBtn', false); }
     }
 
+    async function toggleAvailability(id) {
+      const item = menuItems.find(i => Number(i.id) === id);
+      if (!item) return;
+      const makeAvailable = (Number(item.stock) || 0) <= 0;
+      try {
+        await api('/api/menu/' + id, 'PUT', itemPayload(item, { stock: makeAvailable ? 50 : 0 }));
+        toast(makeAvailable ? 'Item available (stock 50)' : 'Item hide kar diya (stock 0)');
+        loadData();
+      } catch (err) { toast(err.message, true); }
+    }
+
+    async function deleteItem(id) {
+      const item = menuItems.find(i => Number(i.id) === id);
+      if (!confirm('Delete "' + (item ? item.name : 'this item') + '"?')) return;
+      try {
+        await api('/api/menu/' + id, 'DELETE');
+        toast('Item delete ho gaya');
+        loadData();
+      } catch (err) { toast(err.message, true); }
+    }
+
+    // ---------- excel import ----------
+    async function importExcel(input) {
+      if (!input.files || !input.files[0]) return;
+      const mode = document.getElementById('import_mode').value;
+      if (mode === 'replace' && !confirm('REPLACE mode: Excel me jo items/categories/add-on groups nahi hain wo menu se DELETE ho jayenge. Continue?')) {
+        input.value = '';
+        return;
+      }
+      const fd = new FormData();
+      fd.append('mode', mode);
+      fd.append('menuFile', input.files[0]);
+      busy('excelBtn', true);
+      toast('Import chal raha hai, thoda wait karein...');
+      try {
+        const res = await fetch('/api/menu/import-excel', { method: 'POST', body: fd });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) throw new Error(data.error || 'Import fail ho gaya');
+        toast(data.message || 'Menu import ho gaya!');
+        showImportSummary(data);
+        loadData();
+        if (typeof upsellsLoaded !== 'undefined') upsellsLoaded = false;
+      } catch (err) { toast(err.message, true); }
+      finally { input.value = ''; busy('excelBtn', false); }
+    }
+
+    // ---------- categories ----------
+    function renderCategories() {
+      const names = allCategoryNames();
+      document.getElementById('categoriesList').innerHTML = names.length ? names.map(n => {
+        const count = menuItems.filter(i => i.category === n).length;
+        const rec = categories.find(c => c.name === n);
+        return `
+          <div class="flex justify-between items-center p-3 text-sm">
+            <div class="flex items-center gap-2">
+              ${rec ? `<input type="checkbox" ${selCats.has(Number(rec.id)) ? 'checked' : ''} onchange="toggleSel(selCats, ${Number(rec.id)}, this.checked, updateCatBar)">` : '<span class="w-[13px]"></span>'}
+              <span class="font-bold text-gray-800">${esc(n)}</span>
+              <span class="ml-2 text-xs text-gray-500">${count} items</span></div>
+            ${rec ? `<button onclick="deleteCategory(${Number(rec.id)})" class="text-red-500 hover:text-red-700 font-bold text-xs">Delete</button>`
+                  : '<span class="text-[11px] text-gray-400">items se bani</span>'}
+          </div>`;
+      }).join('') : '<p class="p-6 text-center text-xs text-gray-400">Koi category nahi</p>';
+      updateCatBar();
+    }
+
+    async function saveCategory(e) {
+      e.preventDefault();
+      const name = document.getElementById('cat_name').value.trim();
+      if (!name) return;
+      try {
+        await api('/api/categories', 'POST', { name });
+        document.getElementById('cat_name').value = '';
+        toast('Category add ho gayi');
+        loadData();
+      } catch (err) { toast(err.message, true); }
+    }
+
+    async function deleteCategory(id) {
+      const cat = categories.find(c => Number(c.id) === id);
+      if (!cat) return;
+      const count = menuItems.filter(i => i.category === cat.name).length;
+      const msg = count
+        ? `"${cat.name}" me ${count} items hain. Category list se hategi, items rahenge. Delete karein?`
+        : `Delete category "${cat.name}"?`;
+      if (!confirm(msg)) return;
+      try {
+        await api('/api/categories/' + id, 'DELETE');
+        toast('Category delete ho gayi');
+        loadData();
+      } catch (err) { toast(err.message, true); }
+    }
+
+    async function assignVariationToCategory() {
+      const category = document.getElementById('assign_cat').value;
+      const varId = document.getElementById('assign_var').value;
+      const set = globalVariationMasters.find(v => String(v.id) === String(varId));
+      if (!category || !set) return toast('Category aur variation set select karein', true);
+      const count = menuItems.filter(i => i.category === category).length;
+      if (!count) return toast('Is category me koi item nahi hai', true);
+      if (!confirm(`"${category}" ke ${count} items ke sizes "${set.name}" se replace ho jayenge. Continue?`)) return;
+      const variations = parseJson(set.options, []).map(o => ({
+        name: o.name, price: Number(o.price), image: o.image || '', addon_groups: []
+      }));
+      try {
+        await api('/api/menu/assign-variations-category', 'POST', { category, variations });
+        toast('Variation set assign ho gaya');
+        loadData();
+      } catch (err) { toast(err.message, true); }
+    }
+
+    // ---------- add-on groups ----------
     async function pushGroupItemTemp() {
       const name = document.getElementById('grp_item_name').value.trim();
-      const price = Number(document.getElementById('grp_item_price').value);
-      if (!name || isNaN(price)) return alert('Addon name aur price daalein!');
-      const imgUrl = await uploadFileHelper(document.getElementById('grp_item_img'));
-      tempGroupItems.push({ name, price, image: imgUrl });
+      const priceRaw = document.getElementById('grp_item_price').value;
+      const price = Number(priceRaw);
+      if (!name || priceRaw === '' || isNaN(price) || price < 0) return toast('Addon name aur valid price daalein!', true);
+      try {
+        const image = await uploadFileHelper(document.getElementById('grp_item_img'));
+        tempGroupItems.push({ name, price, image });
+      } catch (err) { return toast(err.message, true); }
       document.getElementById('grp_item_name').value = '';
       document.getElementById('grp_item_price').value = '';
       document.getElementById('grp_item_img').value = '';
@@ -412,84 +871,146 @@
     function renderTempGroupItems() {
       document.getElementById('tempGroupItemsList').innerHTML = tempGroupItems.map((item, idx) => `
         <span class="inline-flex items-center gap-1.5 bg-white border border-indigo-200 px-2.5 py-1 rounded-lg text-xs shadow-sm">
-          ${item.image ? `<img src="${resolveImgPath(item.image)}" class="w-4 h-4 rounded object-cover">` : ''}
-          <span class="font-bold text-gray-700">${item.name} (+₹${item.price})</span>
+          ${item.image ? `<img src="${esc(resolveImgPath(item.image))}" class="w-4 h-4 rounded object-cover">` : ''}
+          <span class="font-bold text-gray-700">${esc(item.name)} (+₹${esc(item.price)})</span>
           <button type="button" onclick="tempGroupItems.splice(${idx}, 1); renderTempGroupItems();" class="text-red-500 font-bold ml-1">✕</button>
         </span>
       `).join('');
     }
 
-    function saveAddonGroup(e) {
+    function resetGroupForm() {
+      tempGroupItems = [];
+      document.getElementById('grp_edit_id').value = '';
+      document.getElementById('grp_name').value = '';
+      document.getElementById('grp_min').value = '0';
+      document.getElementById('grp_max').value = '5';
+      document.getElementById('grp_mandatory').checked = false;
+      document.getElementById('grpFormTitle').innerText = 'Create Global Add-on Group';
+      document.getElementById('grpSaveBtn').innerText = 'Save Group Master';
+      document.getElementById('grpCancelBtn').classList.add('hidden');
+      renderTempGroupItems();
+    }
+
+    function editGroup(id) {
+      const g = globalAddonGroups.find(x => Number(x.id) === id);
+      if (!g) return;
+      document.getElementById('grp_edit_id').value = g.id;
+      document.getElementById('grp_name').value = g.name;
+      document.getElementById('grp_min').value = g.min_selection ?? 0;
+      document.getElementById('grp_max').value = g.max_selection ?? 5;
+      document.getElementById('grp_mandatory').checked = !!Number(g.is_mandatory);
+      tempGroupItems = parseJson(g.items, []).map(i => ({ name: i.name, price: Number(i.price), image: i.image || '' }));
+      document.getElementById('grpFormTitle').innerText = 'Edit Add-on Group: ' + g.name;
+      document.getElementById('grpSaveBtn').innerText = 'Update Group';
+      document.getElementById('grpCancelBtn').classList.remove('hidden');
+      renderTempGroupItems();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    async function saveAddonGroup(e) {
       e.preventDefault();
-      const groupName = document.getElementById('grp_name').value.trim();
-      const minSel = Number(document.getElementById('grp_min').value) || 0;
-      const maxSel = Number(document.getElementById('grp_max').value) || 5;
-      const mandatory = document.getElementById('grp_mandatory').checked ? 1 : 0;
-
-      if (!groupName) return alert('Group name daalna zaroori hai!');
-      if (tempGroupItems.length === 0) return alert('Kripya kam se kam ek item is group mein add karein!');
-
-      fetch('/api/addon-groups', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: groupName,
-          min_selection: minSel,
-          max_selection: maxSel,
-          is_mandatory: mandatory,
+      const editId = document.getElementById('grp_edit_id').value;
+      const name = document.getElementById('grp_name').value.trim();
+      const min = Number(document.getElementById('grp_min').value) || 0;
+      const max = Number(document.getElementById('grp_max').value) || 5;
+      if (!name) return toast('Group name daalna zaroori hai!', true);
+      if (tempGroupItems.length === 0) return toast('Kam se kam ek item group me add karein!', true);
+      if (min > max) return toast('Min selection, max se zyada nahi ho sakta', true);
+      if (max > tempGroupItems.length) return toast('Max selection group ke items se zyada hai', true);
+      busy('grpSaveBtn', true);
+      try {
+        await api('/api/addon-groups' + (editId ? '/' + editId : ''), editId ? 'PUT' : 'POST', {
+          name, min_selection: min, max_selection: max,
+          is_mandatory: document.getElementById('grp_mandatory').checked ? 1 : 0,
           items: tempGroupItems
-        })
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          tempGroupItems = [];
-          document.getElementById('grp_name').value = '';
-          document.getElementById('grp_min').value = '0';
-          document.getElementById('grp_max').value = '5';
-          document.getElementById('grp_mandatory').checked = false;
-          renderTempGroupItems();
-          loadData();
-          alert('Add-on Group successfully save ho gaya!');
-        } else {
-          alert('Error saving add-on group: ' + (data.error || 'Unknown error'));
-        }
-      })
-      .catch(err => {
-        console.error('Save addon group error:', err);
-        alert('Server connection error!');
-      });
+        });
+        resetGroupForm();
+        toast(editId ? 'Group update ho gaya' : 'Add-on Group save ho gaya!');
+        loadData();
+      } catch (err) { toast(err.message, true); }
+      finally { busy('grpSaveBtn', false); }
     }
 
     function renderGlobalGroups() {
       document.getElementById('globalGroupsGrid').innerHTML = globalAddonGroups.map(g => {
-        let items = [];
-        try { items = JSON.parse(g.items || '[]'); } catch(e) {}
+        const items = parseJson(g.items, []);
+        const linked = linkedItemsForGroup(Number(g.id)).length;
         return `
           <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
             <div class="flex justify-between items-start mb-2">
-              <div>
-                <h3 class="font-black text-sm text-gray-800">${g.name}</h3>
-                <span class="text-[10px] font-bold px-2 py-0.5 rounded ${g.is_mandatory ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}">
-                  ${g.is_mandatory ? 'Mandatory' : 'Optional'} (Min ${g.min_selection}, Max ${g.max_selection})
+              <input type="checkbox" class="mt-1 mr-2" ${selGroups.has(Number(g.id)) ? 'checked' : ''} onchange="toggleSel(selGroups, ${Number(g.id)}, this.checked, updateGroupBar)">
+              <div class="flex-1">
+                <h3 class="font-black text-sm text-gray-800">${esc(g.name)}</h3>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded ${Number(g.is_mandatory) ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}">
+                  ${Number(g.is_mandatory) ? 'Mandatory' : 'Optional'} (Min ${esc(g.min_selection)}, Max ${esc(g.max_selection)})
                 </span>
+                <span class="text-[10px] text-gray-400 ml-1">${linked} items linked</span>
               </div>
-              <button onclick="fetch('/api/addon-groups/${g.id}', {method:'DELETE'}).then(()=>loadData())" class="text-red-500 font-bold hover:underline text-xs">Delete</button>
+              <div class="space-x-3 text-xs">
+                <button onclick="editGroup(${Number(g.id)})" class="text-indigo-600 font-bold hover:underline">Edit</button>
+                <button onclick="deleteGroup(${Number(g.id)})" class="text-red-500 font-bold hover:underline">Delete</button>
+              </div>
             </div>
             <div class="flex flex-wrap gap-1.5 mt-3">
-              ${items.map(i => `<span class="bg-gray-50 border border-gray-200 px-2 py-1 rounded text-[11px] text-gray-700">${i.name} (+₹${i.price})</span>`).join('')}
+              ${items.map(i => `<span class="bg-gray-50 border border-gray-200 px-2 py-1 rounded text-[11px] text-gray-700">${esc(i.name)} (+₹${esc(i.price)})</span>`).join('')}
             </div>
           </div>
         `;
-      }).join('');
+      }).join('') || '<p class="text-xs text-gray-400">Koi add-on group nahi hai</p>';
+      updateGroupBar();
     }
 
+    function linkedItemsForGroup(id) {
+      return menuItems.filter(i =>
+        parseJson(i.assigned_addon_groups, []).map(Number).includes(id) ||
+        parseJson(i.variations, []).some(v => (v.addon_groups || []).map(Number).includes(id))
+      );
+    }
+
+    // Strips the given group ids from every linked item, then deletes the groups.
+    async function purgeGroups(ids) {
+      const idSet = new Set(ids.map(Number));
+      const linked = menuItems.filter(i =>
+        parseJson(i.assigned_addon_groups, []).some(x => idSet.has(Number(x))) ||
+        parseJson(i.variations, []).some(v => (v.addon_groups || []).some(x => idSet.has(Number(x))))
+      );
+      for (const item of linked) {
+        const vars = parseJson(item.variations, []).map(v => Object.assign({}, v, {
+          addon_groups: (v.addon_groups || []).filter(x => !idSet.has(Number(x)))
+        }));
+        const grps = parseJson(item.assigned_addon_groups, []).filter(x => !idSet.has(Number(x)));
+        await api('/api/menu/' + item.id, 'PUT', itemPayload(item, { variations: vars, assigned_addon_groups: grps }));
+      }
+      for (const id of idSet) await api('/api/addon-groups/' + id, 'DELETE');
+      if (idSet.has(Number(document.getElementById('grp_edit_id').value))) resetGroupForm();
+    }
+
+    async function deleteGroup(id) {
+      const g = globalAddonGroups.find(x => Number(x.id) === id);
+      if (!g) return;
+      const linked = linkedItemsForGroup(id);
+      const msg = linked.length
+        ? `"${g.name}" ${linked.length} items se linked hai. Delete karne par in items se bhi hat jayega. Continue?`
+        : `Delete group "${g.name}"?`;
+      if (!confirm(msg)) return;
+      try {
+        await purgeGroups([id]);
+        selGroups.delete(id);
+        toast('Group delete ho gaya');
+        loadData();
+      } catch (err) { toast(err.message, true); }
+    }
+
+    // ---------- variation sets ----------
     async function pushVariationOptionTemp() {
       const name = document.getElementById('var_opt_name').value.trim();
-      const price = Number(document.getElementById('var_opt_price').value);
-      if (!name || isNaN(price)) return alert('Size name aur price daalein!');
-      const imgUrl = await uploadFileHelper(document.getElementById('var_opt_img'));
-      tempVariationOptions.push({ name, price, image: imgUrl });
+      const priceRaw = document.getElementById('var_opt_price').value;
+      const price = Number(priceRaw);
+      if (!name || priceRaw === '' || isNaN(price) || price < 0) return toast('Size name aur valid price daalein!', true);
+      try {
+        const image = await uploadFileHelper(document.getElementById('var_opt_img'));
+        tempVariationOptions.push({ name, price, image });
+      } catch (err) { return toast(err.message, true); }
       document.getElementById('var_opt_name').value = '';
       document.getElementById('var_opt_price').value = '';
       document.getElementById('var_opt_img').value = '';
@@ -499,71 +1020,116 @@
     function renderTempVariationOptions() {
       document.getElementById('tempVarOptionsList').innerHTML = tempVariationOptions.map((opt, idx) => `
         <span class="inline-flex items-center gap-1.5 bg-white border border-amber-200 px-2.5 py-1 rounded-lg text-xs shadow-sm">
-          ${opt.image ? `<img src="${resolveImgPath(opt.image)}" class="w-4 h-4 rounded object-cover">` : ''}
-          <span class="font-bold text-gray-700">${opt.name}: ₹${opt.price}</span>
+          ${opt.image ? `<img src="${esc(resolveImgPath(opt.image))}" class="w-4 h-4 rounded object-cover">` : ''}
+          <span class="font-bold text-gray-700">${esc(opt.name)}: ₹${esc(opt.price)}</span>
           <button type="button" onclick="tempVariationOptions.splice(${idx}, 1); renderTempVariationOptions();" class="text-red-500 font-bold ml-1">✕</button>
         </span>
       `).join('');
     }
 
-    function saveVariationMaster(e) {
+    function resetVariationForm() {
+      tempVariationOptions = [];
+      document.getElementById('var_edit_id').value = '';
+      document.getElementById('var_set_name').value = '';
+      document.getElementById('varFormTitle').innerText = 'Create Variation Set';
+      document.getElementById('varSaveBtn').innerText = 'Save Variation Set';
+      document.getElementById('varCancelBtn').classList.add('hidden');
+      renderTempVariationOptions();
+    }
+
+    function editVariation(id) {
+      const v = globalVariationMasters.find(x => Number(x.id) === id);
+      if (!v) return;
+      document.getElementById('var_edit_id').value = v.id;
+      document.getElementById('var_set_name').value = v.name;
+      tempVariationOptions = parseJson(v.options, []).map(o => ({ name: o.name, price: Number(o.price), image: o.image || '' }));
+      document.getElementById('varFormTitle').innerText = 'Edit Variation Set: ' + v.name;
+      document.getElementById('varSaveBtn').innerText = 'Update Variation Set';
+      document.getElementById('varCancelBtn').classList.remove('hidden');
+      renderTempVariationOptions();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    async function saveVariationMaster(e) {
       e.preventDefault();
-      fetch('/api/variation-masters', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: document.getElementById('var_set_name').value,
-          options: tempVariationOptions
-        })
-      }).then(() => {
-        tempVariationOptions = [];
-        document.getElementById('var_set_name').value = '';
-        renderTempVariationOptions();
+      const editId = document.getElementById('var_edit_id').value;
+      const name = document.getElementById('var_set_name').value.trim();
+      if (!name) return toast('Set name daalna zaroori hai!', true);
+      if (tempVariationOptions.length === 0) return toast('Kam se kam ek size option add karein!', true);
+      busy('varSaveBtn', true);
+      try {
+        await api('/api/variation-masters' + (editId ? '/' + editId : ''), editId ? 'PUT' : 'POST', {
+          name, options: tempVariationOptions
+        });
+        resetVariationForm();
+        toast(editId ? 'Variation set update ho gaya' : 'Variation set save ho gaya');
         loadData();
-      });
+      } catch (err) { toast(err.message, true); }
+      finally { busy('varSaveBtn', false); }
     }
 
     function renderGlobalVariations() {
       document.getElementById('globalVariationsGrid').innerHTML = globalVariationMasters.map(v => {
-        let opts = [];
-        try { opts = JSON.parse(v.options || '[]'); } catch(e) {}
+        const opts = parseJson(v.options, []);
         return `
           <div class="bg-white p-4 rounded-2xl border border-amber-200 shadow-sm">
             <div class="flex justify-between items-start mb-2">
-              <h3 class="font-black text-sm text-gray-800">${v.name}</h3>
-              <button onclick="fetch('/api/variation-masters/${v.id}', {method:'DELETE'}).then(()=>loadData())" class="text-red-500 font-bold hover:underline text-xs">Delete</button>
+              <label class="flex items-center gap-2">
+                <input type="checkbox" ${selVars.has(Number(v.id)) ? 'checked' : ''} onchange="toggleSel(selVars, ${Number(v.id)}, this.checked, updateVarBar)">
+                <h3 class="font-black text-sm text-gray-800">${esc(v.name)}</h3>
+              </label>
+              <div class="space-x-3 text-xs">
+                <button onclick="editVariation(${Number(v.id)})" class="text-indigo-600 font-bold hover:underline">Edit</button>
+                <button onclick="deleteVariation(${Number(v.id)})" class="text-red-500 font-bold hover:underline">Delete</button>
+              </div>
             </div>
             <div class="flex flex-wrap gap-1.5 mt-2">
-              ${opts.map(o => `<span class="bg-amber-50 border border-amber-200 px-2 py-0.5 rounded text-[11px] text-amber-900 font-bold">${o.name}: ₹${o.price}</span>`).join('')}
+              ${opts.map(o => `<span class="bg-amber-50 border border-amber-200 px-2 py-0.5 rounded text-[11px] text-amber-900 font-bold">${esc(o.name)}: ₹${esc(o.price)}</span>`).join('')}
             </div>
           </div>
         `;
-      }).join('');
+      }).join('') || '<p class="text-xs text-gray-400">Koi variation set nahi hai</p>';
+      updateVarBar();
     }
 
-    function openEditModal(item) {
+    async function deleteVariation(id) {
+      const v = globalVariationMasters.find(x => Number(x.id) === id);
+      if (!v || !confirm(`Delete variation set "${v.name}"? (Jin items par assign ho chuka hai wo nahi badlenge)`)) return;
+      try {
+        await api('/api/variation-masters/' + id, 'DELETE');
+        if (document.getElementById('var_edit_id').value === String(id)) resetVariationForm();
+        toast('Variation set delete ho gaya');
+        loadData();
+      } catch (err) { toast(err.message, true); }
+    }
+
+    // ---------- edit item modal ----------
+    function openEditModal(id) {
+      const item = menuItems.find(i => Number(i.id) === id);
+      if (!item) return;
       document.getElementById('edit_id').value = item.id;
       document.getElementById('edit_name').value = item.name;
-      document.getElementById('edit_cat').value = item.category;
+      document.getElementById('edit_cat').value = item.category || '';
       document.getElementById('edit_price').value = item.price;
       document.getElementById('edit_stock').value = item.stock ?? 50;
+      document.getElementById('edit_is_exempt').checked = !!Number(item.is_exempt);
+      document.getElementById('edit_is_visible').checked = Number(item.is_visible) !== 0;
+      document.getElementById('edit_file').value = '';
       currentEditImage = item.image || '';
 
-      try { currentEditVariations = JSON.parse(item.variations || '[]'); } catch(e) { currentEditVariations = []; }
+      currentEditVariations = parseJson(item.variations, []);
       renderEditVariations();
 
-      let assignedIds = [];
-      try { assignedIds = JSON.parse(item.assigned_addon_groups || '[]'); } catch(e) {}
-
+      const assignedIds = parseJson(item.assigned_addon_groups, []).map(Number);
       document.getElementById('assignGroupsCheckboxes').innerHTML = globalAddonGroups.map(g => `
         <label class="flex items-center justify-between p-2 rounded-lg bg-white border border-indigo-100 cursor-pointer hover:bg-indigo-50/50">
           <div>
-            <input type="checkbox" value="${g.id}" ${assignedIds.includes(g.id) ? 'checked' : ''} class="addonGroupCheckbox rounded text-indigo-600">
-            <span class="text-xs font-bold text-gray-800 ml-1.5">${g.name}</span>
+            <input type="checkbox" value="${esc(g.id)}" ${assignedIds.includes(Number(g.id)) ? 'checked' : ''} class="addonGroupCheckbox rounded text-indigo-600">
+            <span class="text-xs font-bold text-gray-800 ml-1.5">${esc(g.name)}</span>
           </div>
-          <span class="text-[10px] text-gray-500">${g.is_mandatory ? 'Mandatory' : 'Optional'}</span>
+          <span class="text-[10px] text-gray-500">${Number(g.is_mandatory) ? 'Mandatory' : 'Optional'}</span>
         </label>
-      `).join('');
+      `).join('') || '<p class="text-xs text-gray-400">Pehle add-on group banayein</p>';
 
       document.getElementById('editItemModal').classList.remove('hidden');
     }
@@ -572,11 +1138,13 @@
 
     async function addVariationRow() {
       const name = document.getElementById('var_name_inp').value.trim();
-      const price = Number(document.getElementById('var_price_inp').value);
-      if (!name || isNaN(price)) return alert('Size name aur price daalein!');
-
-      const imgUrl = await uploadFileHelper(document.getElementById('var_img_inp'));
-      currentEditVariations.push({ name, price, image: imgUrl, addon_groups: [] });
+      const priceRaw = document.getElementById('var_price_inp').value;
+      const price = Number(priceRaw);
+      if (!name || priceRaw === '' || isNaN(price) || price < 0) return toast('Size name aur valid price daalein!', true);
+      try {
+        const image = await uploadFileHelper(document.getElementById('var_img_inp'));
+        currentEditVariations.push({ name, price, image, addon_groups: [] });
+      } catch (err) { return toast(err.message, true); }
       document.getElementById('var_name_inp').value = '';
       document.getElementById('var_price_inp').value = '';
       document.getElementById('var_img_inp').value = '';
@@ -590,10 +1158,10 @@
         return `
           <div class="flex justify-between items-center bg-white border border-amber-200 p-2 rounded-xl text-xs">
             <div class="flex items-center gap-2">
-              ${vImg ? `<img src="${vImg}" class="w-6 h-6 object-cover rounded">` : ''}
+              ${vImg ? `<img src="${esc(vImg)}" class="w-6 h-6 object-cover rounded">` : ''}
               <div>
-                <span class="font-bold text-gray-800">${v.name}</span>
-                <span class="font-black text-emerald-600 ml-2">₹${v.price}</span>
+                <span class="font-bold text-gray-800">${esc(v.name)}</span>
+                <span class="font-black text-emerald-600 ml-2">₹${esc(v.price)}</span>
               </div>
             </div>
             <div class="flex items-center gap-2">
@@ -612,14 +1180,14 @@
       const v = currentEditVariations[varIdx];
       document.getElementById('subModalVarTitle').innerText = v.name + ` (₹${v.price})`;
 
-      const assigned = v.addon_groups || [];
+      const assigned = (v.addon_groups || []).map(Number);
       document.getElementById('subModalGroupsList').innerHTML = globalAddonGroups.map(g => `
         <label class="flex items-center justify-between p-2 rounded-lg bg-gray-50 border border-gray-200 cursor-pointer">
           <div class="flex items-center gap-2">
-            <input type="checkbox" value="${g.id}" ${assigned.includes(g.id) ? 'checked' : ''} class="subModalGrpCheck rounded text-amber-600">
-            <span class="text-xs font-bold text-gray-800">${g.name}</span>
+            <input type="checkbox" value="${esc(g.id)}" ${assigned.includes(Number(g.id)) ? 'checked' : ''} class="subModalGrpCheck rounded text-amber-600">
+            <span class="text-xs font-bold text-gray-800">${esc(g.name)}</span>
           </div>
-          <span class="text-[10px] text-gray-500">Max: ${g.max_selection}</span>
+          <span class="text-[10px] text-gray-500">Max: ${esc(g.max_selection)}</span>
         </label>
       `).join('');
 
@@ -642,70 +1210,420 @@
 
     async function submitItemEdit() {
       const id = document.getElementById('edit_id').value;
-      const fileInp = document.getElementById('edit_file');
-      if (fileInp.files && fileInp.files[0]) currentEditImage = await uploadFileHelper(fileInp);
+      const name = document.getElementById('edit_name').value.trim();
+      const category = document.getElementById('edit_cat').value.trim();
+      const price = Number(document.getElementById('edit_price').value);
+      const stock = Number(document.getElementById('edit_stock').value);
+      if (!name || !category) return toast('Item name aur category zaroori hai', true);
+      if (isNaN(price) || price < 0) return toast('Valid price daalein', true);
+      if (isNaN(stock) || stock < 0) return toast('Valid stock daalein', true);
 
-      const assignedGroups = [];
-      document.querySelectorAll('.addonGroupCheckbox:checked').forEach(cb => assignedGroups.push(Number(cb.value)));
+      busy('editSaveBtn', true);
+      try {
+        const fileInp = document.getElementById('edit_file');
+        if (fileInp.files && fileInp.files[0]) currentEditImage = await uploadFileHelper(fileInp);
 
-      fetch('/api/menu/' + id, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: document.getElementById('edit_name').value,
-          category: document.getElementById('edit_cat').value,
-          price: Number(document.getElementById('edit_price').value),
-          stock: Number(document.getElementById('edit_stock').value),
+        const assignedGroups = [];
+        document.querySelectorAll('.addonGroupCheckbox:checked').forEach(cb => assignedGroups.push(Number(cb.value)));
+
+        await api('/api/menu/' + id, 'PUT', {
+          name, category, price, stock,
           image: currentEditImage,
           variations: currentEditVariations,
-          assigned_addon_groups: assignedGroups
-        })
-      }).then(() => {
+          assigned_addon_groups: assignedGroups,
+          is_exempt: document.getElementById('edit_is_exempt').checked ? 1 : 0,
+          is_visible: document.getElementById('edit_is_visible').checked ? 1 : 0
+        });
+        await ensureCategory(category);
         closeEditModal();
+        toast('Item update ho gaya');
         loadData();
+      } catch (err) {
+        toast(err.message.includes('unique') || err.message.includes('duplicate') ? 'Is naam ka item pehle se hai!' : err.message, true);
+      } finally { busy('editSaveBtn', false); }
+    }
+
+    // ================= BULK ACTIONS =================
+    function toggleSel(set, id, on, after) { on ? set.add(id) : set.delete(id); after(); }
+    function toggleAll(set, list, on, rerender) {
+      list.forEach(x => on ? set.add(Number(x.id)) : set.delete(Number(x.id)));
+      rerender();
+    }
+    function toggleAllItems(on) { toggleAll(selItems, getFilteredItems(), on, renderItems); }
+    function clearSel(set, rerender) { set.clear(); rerender(); }
+
+    // Drops selected ids that no longer exist, updates count text + select-all state.
+    function syncBar(set, list, countId, allId, actionIds, allList) {
+      const ids = new Set((allList || list).map(x => Number(x.id)));
+      [...set].forEach(id => { if (!ids.has(id)) set.delete(id); });
+      const n = set.size;
+      const cnt = document.getElementById(countId);
+      if (cnt) cnt.innerText = n ? n + ' selected' : '';
+      const all = document.getElementById(allId);
+      if (all) {
+        const sel = list.filter(x => set.has(Number(x.id))).length;
+        all.checked = list.length > 0 && sel === list.length;
+        all.indeterminate = sel > 0 && sel < list.length;
+      }
+      (actionIds || []).forEach(id => document.getElementById(id).classList.toggle('hidden', !n));
+      return n;
+    }
+
+    function updateItemBar() {
+      // selection can include items hidden by the current filter, so prune/count against all items
+      const n = syncBar(selItems, getFilteredItems(), 'itemSelCount', 'selAllItems', ['itemBulkBar'], menuItems);
+    }
+    function updateGroupBar() { syncBar(selGroups, globalAddonGroups, 'groupSelCount', 'selAllGroups', ['groupBulkActions']); }
+    function updateVarBar() { syncBar(selVars, globalVariationMasters, 'varSelCount', 'selAllVars', ['varBulkActions']); }
+    function updateCatBar() { syncBar(selCats, categories, 'catSelCount', 'selAllCats', ['catBulkDelete']); }
+
+    async function runBulk(list, fn) {
+      let ok = 0, fail = 0, lastErr = '';
+      const queue = list.slice();
+      const workers = Array.from({ length: Math.min(5, queue.length) }, async () => {
+        while (queue.length) {
+          const x = queue.shift();
+          try { await fn(x); ok++; } catch (e) { fail++; lastErr = e.message; }
+        }
+      });
+      await Promise.all(workers);
+      return { ok, fail, lastErr };
+    }
+
+    function reportBulk(label, r) {
+      toast(`${label}: ${r.ok} ho gaye` + (r.fail ? `, ${r.fail} fail (${r.lastErr})` : ''), r.fail > 0);
+    }
+
+    function calcPrice(mode, val, p) {
+      let n = p;
+      if (mode === 'pct_up') n = p * (1 + val / 100);
+      else if (mode === 'pct_down') n = p * (1 - val / 100);
+      else if (mode === 'amt_up') n = p + val;
+      else if (mode === 'amt_down') n = p - val;
+      else if (mode === 'set') n = val;
+      return Math.max(0, Math.round(n * 100) / 100);
+    }
+
+    function readNum(id, label, opts) {
+      const raw = document.getElementById(id).value;
+      const n = Number(raw);
+      if (raw === '' || isNaN(n) || n < 0 || (opts && opts.int && !Number.isInteger(n))) {
+        toast(label + ' valid daalein', true);
+        return null;
+      }
+      return n;
+    }
+
+    // ---- items ----
+    async function bulkItems(label, mutate, after) {
+      const items = menuItems.filter(i => selItems.has(Number(i.id)));
+      if (!items.length) return toast('Pehle items select karein', true);
+      if (!confirm(`${items.length} items par "${label}" apply karein?`)) return;
+      const r = await runBulk(items, it => api('/api/menu/' + it.id, 'PUT', itemPayload(it, mutate(it))));
+      if (after) await after();
+      reportBulk(label, r);
+      loadData();
+    }
+
+    function bulkItemCategory() {
+      const category = document.getElementById('bulk_cat').value.trim();
+      if (!category) return toast('Nayi category daalein', true);
+      bulkItems('Category → ' + category, () => ({ category }), () => ensureCategory(category));
+    }
+
+    function bulkItemPrice() {
+      const mode = document.getElementById('bulk_price_mode').value;
+      const val = readNum('bulk_price_val', 'Price value');
+      if (val === null) return;
+      if (mode === 'pct_down' && val > 100) return toast('Percent 100 se zyada nahi ho sakta', true);
+      const withVars = document.getElementById('bulk_price_vars').checked && mode !== 'set';
+      const label = 'Price ' + document.getElementById('bulk_price_mode').selectedOptions[0].text + ' ' + val;
+      bulkItems(label, it => {
+        const o = { price: calcPrice(mode, val, Number(it.price)) };
+        if (withVars) o.variations = parseJson(it.variations, []).map(v => Object.assign({}, v, { price: calcPrice(mode, val, Number(v.price)) }));
+        return o;
       });
     }
 
-    function deleteItem(id) {
-      if (!confirm('Delete this item?')) return;
-      fetch('/api/menu/' + id, { method: 'DELETE' }).then(() => loadData());
+    function bulkItemStock() {
+      const stock = readNum('bulk_stock', 'Stock', { int: true });
+      if (stock === null) return;
+      bulkItems('Stock = ' + stock, () => ({ stock }));
     }
 
-    // Check WhatsApp Status & Fetch QR Code periodically
-    function checkWhatsAppStatus() {
-      fetch('/api/whatsapp/status')
-        .then(res => res.json())
-        .then(data => {
-          const badge = document.getElementById('waStatusBadge');
-          const container = document.getElementById('waQrContainer');
+    function bulkItemVisible(v) {
+      bulkItems(v ? 'Menu me dikhao' : 'Menu se chhupao', () => ({ is_visible: v }));
+    }
 
-          if (data.connected) {
-            badge.className = "px-3 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-700";
-            badge.innerText = "Connected ✅";
-            container.innerHTML = `<p class="text-sm font-bold text-emerald-600">Aapka WhatsApp successfully connected hai!</p>`;
-          } else {
-            badge.className = "px-3 py-1 rounded-full text-xs font-black bg-amber-100 text-amber-700";
-            badge.innerText = "Disconnected ❌";
+    function bulkItemGst() {
+      const ex = Number(document.getElementById('bulk_gst').value);
+      bulkItems(ex ? 'No GST' : 'GST lagao', () => ({ is_exempt: ex }));
+    }
 
-            if (data.qr) {
-              const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(data.qr)}`;
-              container.innerHTML = `
-                <p class="text-xs font-bold text-gray-700 mb-2">Apne phone ke WhatsApp se yeh QR code scan karein:</p>
-                <div class="p-3 bg-white border rounded-xl inline-block shadow-sm">
-                  <img src="${qrImgUrl}" alt="WhatsApp QR Code" class="w-52 h-52 object-contain mx-auto">
-                </div>
-              `;
-            } else {
-              container.innerHTML = `<p class="text-xs text-gray-500">QR code generate ho raha hai, thodi der wait karein...</p>`;
-            }
-          }
+    function bulkItemAvailability(show) {
+      bulkItems(show ? 'Show' : 'Hide', it => ({ stock: show ? ((Number(it.stock) || 0) > 0 ? Number(it.stock) : 50) : 0 }));
+    }
+
+    function bulkItemGroup(add) {
+      const gid = Number(document.getElementById('bulk_grp').value);
+      if (!gid) return toast('Add-on group select karein', true);
+      const g = globalAddonGroups.find(x => Number(x.id) === gid);
+      bulkItems((add ? '+ ' : '− ') + 'Group ' + (g ? g.name : ''), it => {
+        const cur = parseJson(it.assigned_addon_groups, []).map(Number);
+        return { assigned_addon_groups: add ? [...new Set([...cur, gid])] : cur.filter(x => x !== gid) };
+      });
+    }
+
+    async function bulkItemDelete() {
+      const items = menuItems.filter(i => selItems.has(Number(i.id)));
+      if (!items.length) return toast('Pehle items select karein', true);
+      if (!confirm(`${items.length} items DELETE ho jayenge. Ye wapas nahi hoga. Continue?`)) return;
+      const r = await runBulk(items, it => api('/api/menu/' + it.id, 'DELETE'));
+      items.forEach(it => selItems.delete(Number(it.id)));
+      reportBulk('Delete', r);
+      loadData();
+    }
+
+    // ---- categories ----
+    async function bulkAddCategories(e) {
+      e.preventDefault();
+      const names = [...new Set(document.getElementById('cat_bulk').value.split(/[\n,]/).map(x => x.trim()).filter(Boolean))]
+        .filter(n => !categories.some(c => c.name === n));
+      if (!names.length) return toast('Koi nayi category nahi mili', true);
+      const r = await runBulk(names, n => api('/api/categories', 'POST', { name: n }));
+      document.getElementById('cat_bulk').value = '';
+      reportBulk('Categories add', r);
+      loadData();
+    }
+
+    async function bulkCategoryDelete() {
+      const cats = categories.filter(c => selCats.has(Number(c.id)));
+      if (!cats.length) return;
+      const used = cats.reduce((s, c) => s + menuItems.filter(i => i.category === c.name).length, 0);
+      if (!confirm(`${cats.length} categories delete hongi` + (used ? ` (unme ${used} items hain, items rahenge)` : '') + '. Continue?')) return;
+      const r = await runBulk(cats, c => api('/api/categories/' + c.id, 'DELETE'));
+      cats.forEach(c => selCats.delete(Number(c.id)));
+      reportBulk('Categories delete', r);
+      loadData();
+    }
+
+    // ---- add-on groups ----
+    async function bulkGroupMandatory(flag) {
+      const groups = globalAddonGroups.filter(g => selGroups.has(Number(g.id)));
+      if (!groups.length) return;
+      if (!confirm(`${groups.length} groups ko ${flag ? 'Mandatory' : 'Optional'} karein?`)) return;
+      const r = await runBulk(groups, g => api('/api/addon-groups/' + g.id, 'PUT', {
+        name: g.name, min_selection: Number(g.min_selection) || 0, max_selection: Number(g.max_selection) || 5,
+        is_mandatory: flag, items: parseJson(g.items, [])
+      }));
+      reportBulk(flag ? 'Mandatory' : 'Optional', r);
+      loadData();
+    }
+
+    async function bulkGroupDelete() {
+      const groups = globalAddonGroups.filter(g => selGroups.has(Number(g.id)));
+      if (!groups.length) return;
+      const ids = groups.map(g => Number(g.id));
+      const linked = menuItems.filter(i =>
+        parseJson(i.assigned_addon_groups, []).some(x => ids.includes(Number(x))) ||
+        parseJson(i.variations, []).some(v => (v.addon_groups || []).some(x => ids.includes(Number(x))))
+      ).length;
+      if (!confirm(`${groups.length} groups delete honge` + (linked ? ` aur ${linked} items se hat jayenge` : '') + '. Continue?')) return;
+      try {
+        await purgeGroups(ids);
+        ids.forEach(id => selGroups.delete(id));
+        toast(groups.length + ' groups delete ho gaye');
+      } catch (err) { toast(err.message, true); }
+      loadData();
+    }
+
+    // ---- variation sets ----
+    async function bulkVariationPrice() {
+      const sets = globalVariationMasters.filter(v => selVars.has(Number(v.id)));
+      if (!sets.length) return;
+      const mode = document.getElementById('bulk_var_mode').value;
+      const val = readNum('bulk_var_val', 'Price value');
+      if (val === null) return;
+      if (mode === 'pct_down' && val > 100) return toast('Percent 100 se zyada nahi ho sakta', true);
+      if (!confirm(`${sets.length} sets ke options ka price badlein? (Jin items par assign ho chuke hain wo nahi badlenge)`)) return;
+      const r = await runBulk(sets, v => api('/api/variation-masters/' + v.id, 'PUT', {
+        name: v.name,
+        options: parseJson(v.options, []).map(o => Object.assign({}, o, { price: calcPrice(mode, val, Number(o.price)) }))
+      }));
+      reportBulk('Variation price', r);
+      loadData();
+    }
+
+    async function bulkVariationDelete() {
+      const sets = globalVariationMasters.filter(v => selVars.has(Number(v.id)));
+      if (!sets.length) return;
+      if (!confirm(`${sets.length} variation sets delete honge. Continue?`)) return;
+      const r = await runBulk(sets, v => api('/api/variation-masters/' + v.id, 'DELETE'));
+      sets.forEach(v => { selVars.delete(Number(v.id)); if (document.getElementById('var_edit_id').value === String(v.id)) resetVariationForm(); });
+      reportBulk('Variation delete', r);
+      loadData();
+    }
+
+    // ---------- upsells ----------
+    let upsellRows = [];
+    const selUps = new Set();
+
+    async function loadUpsells() {
+      try { upsellRows = await api('/api/upsells'); } catch (e) { return; }
+      renderUpsells();
+    }
+
+    function syncUpsellForm() {
+      const up = document.getElementById('ups_type').value === 'upgrade';
+      document.getElementById('ups_target_cat').disabled = up;
+      if (up) document.getElementById('ups_target_cat').value = '';
+    }
+
+    function renderUpsells() {
+      const q = document.getElementById('upsSearch').value.trim().toLowerCase();
+      const list = upsellRows.filter(u => !q || String(u.item_name).toLowerCase().includes(q));
+      document.getElementById('upsCountBadge').innerText = list.length + ' Upsells';
+      document.getElementById('upsellsBody').innerHTML = list.length ? list.map(u => `
+        <tr class="hover:bg-gray-50 ${Number(u.is_active) ? '' : 'opacity-60'}">
+          <td class="p-3"><input type="checkbox" ${selUps.has(Number(u.id)) ? 'checked' : ''} onchange="toggleSel(selUps, ${Number(u.id)}, this.checked, updateUpsBar)"></td>
+          <td class="p-3 font-bold text-gray-800">${esc(u.item_name)}</td>
+          <td class="p-3"><span class="px-2 py-0.5 rounded text-[11px] font-bold ${u.upsell_type === 'upgrade' ? 'bg-amber-50 text-amber-800' : 'bg-indigo-50 text-indigo-800'}">${u.upsell_type === 'upgrade' ? 'Upgrade' : 'Cross-sell'}</span></td>
+          <td class="p-3 text-gray-700">${u.suggested_item ? esc(u.suggested_item) : '📁 ' + esc(u.suggested_category)}</td>
+          <td class="p-3 text-gray-500">${esc(u.label)}</td>
+          <td class="p-3"><button onclick="toggleUpsell(${Number(u.id)}, ${Number(u.is_active) ? 0 : 1})" class="font-bold ${Number(u.is_active) ? 'text-emerald-600' : 'text-gray-400'}">${Number(u.is_active) ? 'On' : 'Off'}</button></td>
+          <td class="p-3 text-right"><button onclick="deleteUpsell(${Number(u.id)})" class="text-red-500 hover:text-red-700 font-bold">Delete</button></td>
+        </tr>`).join('') : '<tr><td colspan="7" class="p-6 text-center text-gray-400">Koi upsell nahi</td></tr>';
+      updateUpsBar();
+    }
+
+    function updateUpsBar() { syncBar(selUps, upsellRows, 'upsSelCount', 'selAllUps', ['upsBulkActions']); }
+
+    async function saveUpsell(e) {
+      e.preventDefault();
+      const type = document.getElementById('ups_type').value;
+      const item = document.getElementById('ups_item').value.trim();
+      const target = document.getElementById('ups_target_item').value.trim();
+      const cat = document.getElementById('ups_target_cat').value.trim();
+      if (!menuItems.some(i => i.name === item)) return toast('Source item menu me nahi mila', true);
+      if (!!target === !!cat) return toast('Suggested item ya category me se sirf ek bharein', true);
+      if (target && !menuItems.some(i => i.name === target)) return toast('Suggested item menu me nahi mila', true);
+      if (type === 'upgrade' && !target) return toast('Upgrade ke liye suggested item chahiye', true);
+      try {
+        await api('/api/upsells', 'POST', {
+          item_name: item, upsell_type: type, suggested_item: target, suggested_category: cat,
+          label: document.getElementById('ups_label').value.trim()
         });
+        ['ups_item', 'ups_target_item', 'ups_target_cat', 'ups_label'].forEach(id => document.getElementById(id).value = '');
+        toast('Upsell add ho gaya');
+        loadUpsells();
+      } catch (err) { toast(err.message, true); }
     }
 
-    setInterval(checkWhatsAppStatus, 5000);
-    checkWhatsAppStatus();
+    async function toggleUpsell(id, on) {
+      try { await api('/api/upsells/' + id, 'PUT', { is_active: on }); loadUpsells(); } catch (err) { toast(err.message, true); }
+    }
 
-    loadData();
+    async function deleteUpsell(id) {
+      if (!confirm('Is upsell ko delete karein?')) return;
+      try { await api('/api/upsells/' + id, 'DELETE'); selUps.delete(id); loadUpsells(); } catch (err) { toast(err.message, true); }
+    }
+
+    async function bulkUpsellActive(on) {
+      const rows = upsellRows.filter(u => selUps.has(Number(u.id)));
+      if (!rows.length || !confirm(`${rows.length} upsells ko ${on ? 'Activate' : 'Deactivate'} karein?`)) return;
+      const r = await runBulk(rows, u => api('/api/upsells/' + u.id, 'PUT', { is_active: on }));
+      reportBulk(on ? 'Activate' : 'Deactivate', r);
+      loadUpsells();
+    }
+
+    async function bulkUpsellDelete() {
+      const rows = upsellRows.filter(u => selUps.has(Number(u.id)));
+      if (!rows.length || !confirm(`${rows.length} upsells delete honge. Continue?`)) return;
+      const r = await runBulk(rows, u => api('/api/upsells/' + u.id, 'DELETE'));
+      rows.forEach(u => selUps.delete(Number(u.id)));
+      reportBulk('Delete', r);
+      loadUpsells();
+    }
+
+    // ---------- inventory & recipes (read-only) ----------
+    let ingredientRows = [], recipeRows = [];
+
+    async function loadInventory() {
+      try {
+        const [ing, rec, units, sup] = await Promise.all([
+          api('/api/inventory/ingredients'), api('/api/inventory/recipes'),
+          api('/api/inventory/units'), api('/api/inventory/suppliers')
+        ]);
+        ingredientRows = ing; recipeRows = rec;
+        document.getElementById('unitsList').innerHTML = units.map(u =>
+          `<span class="bg-gray-50 border border-gray-200 px-2 py-1 rounded">${esc(u.name)} <span class="text-gray-400">(${esc(u.abbreviation)}, ${esc(u.unit_type)})</span></span>`
+        ).join('') || '<span class="text-gray-400">Koi unit nahi</span>';
+        document.getElementById('suppliersList').innerHTML = sup.map(s =>
+          `<div class="p-3"><b>${esc(s.name)}</b> <span class="text-gray-500">${esc(s.phone)} ${esc(s.contact_person)}</span></div>`
+        ).join('') || '<p class="p-4 text-gray-400">Koi supplier nahi</p>';
+      } catch (err) { return toast('Inventory load nahi hua: ' + err.message, true); }
+      renderIngredients();
+      renderRecipes();
+    }
+
+    function renderIngredients() {
+      const q = document.getElementById('ingSearch').value.trim().toLowerCase();
+      const list = ingredientRows.filter(i => !q || String(i.name).toLowerCase().includes(q));
+      document.getElementById('ingCount').innerText = list.length + ' Ingredients';
+      document.getElementById('ingredientsBody').innerHTML = list.length ? list.map(i => {
+        const stock = Number(i.stock) || 0;
+        const low = stock < 0 || (i.reorder_level !== null && i.reorder_level !== '' && stock <= Number(i.reorder_level));
+        return `<tr class="hover:bg-gray-50">
+          <td class="p-3 font-bold text-gray-800">${esc(i.name)}</td>
+          <td class="p-3 text-gray-500">${esc(i.unit)} (${esc(i.unit_abbr)})</td>
+          <td class="p-3">₹${esc(i.cost_per_unit)}</td>
+          <td class="p-3 font-bold ${low ? 'text-red-600' : 'text-gray-700'}">${stock}</td>
+          <td class="p-3 text-gray-500">${i.reorder_level === null ? '-' : esc(i.reorder_level)}</td>
+          <td class="p-3 text-gray-500">${esc(i.ingredient_group)}</td>
+          <td class="p-3 text-gray-500">${esc(i.supplier)}</td></tr>`;
+      }).join('') : '<tr><td colspan="7" class="p-6 text-center text-gray-400">Koi ingredient nahi</td></tr>';
+    }
+
+    function renderRecipes() {
+      const q = document.getElementById('recSearch').value.trim().toLowerCase();
+      const list = recipeRows.filter(r => !q || String(r.item_name).toLowerCase().includes(q));
+      document.getElementById('recCount').innerText = list.length + ' Recipes';
+      document.getElementById('recipesList').innerHTML = list.length ? list.map(r => `
+        <details class="p-3">
+          <summary class="cursor-pointer text-sm font-bold text-gray-800">${esc(r.item_name)}
+            <span class="ml-2 text-xs font-normal text-gray-500">${esc(r.portion_size)} · prep ${esc(r.prep_time)}m · cook ${esc(r.cook_time)}m · ${r.lines.length} ingredients</span></summary>
+          <table class="w-full text-xs mt-2">
+            ${r.lines.map(l => `<tr class="border-t border-gray-100"><td class="py-1 pr-3">${esc(l.ingredient)}</td>
+              <td class="py-1 pr-3 font-bold">${esc(l.quantity)} ${esc(l.unit_abbr)}</td>
+              <td class="py-1 text-gray-400">${Number(l.wastage_pct) ? 'wastage ' + esc(l.wastage_pct) + '%' : ''}</td></tr>`).join('')}
+          </table>
+          ${r.prep_notes ? `<p class="text-[11px] text-gray-500 mt-2">${esc(r.prep_notes)}</p>` : ''}
+        </details>`).join('') : '<p class="p-6 text-center text-xs text-gray-400">Koi recipe nahi</p>';
+    }
+
+    // ---------- import summary ----------
+    function showImportSummary(data) {
+      const s = data.summary || {};
+      const inv = s.inventory || {};
+      const row = (label, v) => v ? `<div class="flex justify-between border-b border-gray-100 py-1"><span>${label}</span><b>${v}</b></div>` : '';
+      const del = s.deleted || {};
+      document.getElementById('importSummaryBody').innerHTML =
+        row('Categories', s.categories) + row('Menu items', s.items) + row('Variants (sizes)', s.variants) +
+        row('Add-on groups', s.addonGroups) + row('Upsells', s.upsells) +
+        row('Ingredients', inv.ingredients) + row('Units', inv.units) + row('Suppliers', inv.suppliers) +
+        row('Recipes', inv.recipes) + row('Recipe ingredient lines', inv.recipeLines) +
+        ((del.items || del.categories || del.addonGroups)
+          ? `<p class="text-red-600 font-bold pt-1">Replace: ${del.items || 0} items, ${del.categories || 0} categories, ${del.addonGroups || 0} add-on groups hataye gaye</p>` : '') +
+        ((data.warnings || []).length
+          ? `<div class="pt-2"><p class="font-bold text-amber-700">${data.warnings.length} warnings</p>
+             <ul class="list-disc pl-5 text-[11px] text-gray-600 max-h-40 overflow-y-auto">${data.warnings.map(w => `<li>${esc(w)}</li>`).join('')}</ul></div>`
+          : '<p class="text-emerald-700 font-bold pt-1">Koi warning nahi ✅</p>');
+      document.getElementById('importSummaryModal').classList.remove('hidden');
+    }
+
+    // ---------- init ----------
+    if (sessionStorage.getItem('adminUnlocked') === '1') unlock();
+    else document.getElementById('pinInput').focus();
   </script>
 </body>
 </html>

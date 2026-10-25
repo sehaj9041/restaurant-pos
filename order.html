@@ -41,6 +41,7 @@
     fetch('/api/menu')
       .then(res => res.json())
       .then(items => {
+        items = items.filter(i => Number(i.is_visible) !== 0);
         const container = document.getElementById('menu-list');
         container.innerHTML = items.map(item => `
           <div class="item-card">

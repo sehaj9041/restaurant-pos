@@ -143,6 +143,88 @@ pool.query(`
   await pool.query(`ALTER TABLE addon_groups ADD COLUMN IF NOT EXISTS max_selection INTEGER DEFAULT 5;`).catch(() => {});
   await pool.query(`ALTER TABLE addon_groups ADD COLUMN IF NOT EXISTS items TEXT;`).catch(() => {});
   
+  await pool.query(`ALTER TABLE menu ADD COLUMN IF NOT EXISTS is_visible INTEGER DEFAULT 1;`).catch(() => {});
+  await pool.query(`ALTER TABLE menu ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0;`).catch(() => {});
+  await pool.query(`ALTER TABLE categories ADD COLUMN IF NOT EXISTS is_visible INTEGER DEFAULT 1;`).catch(() => {});
+  await pool.query(`ALTER TABLE categories ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0;`).catch(() => {});
+  await pool.query(`ALTER TABLE categories ADD COLUMN IF NOT EXISTS image TEXT;`).catch(() => {});
+
+  // Upsells, inventory and recipes (populated by the Excel import)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS upsells (
+      id SERIAL PRIMARY KEY,
+      item_name TEXT NOT NULL,
+      upsell_type TEXT DEFAULT 'cross_sell',
+      suggested_item TEXT,
+      suggested_category TEXT,
+      label TEXT,
+      sort_order INTEGER DEFAULT 0,
+      is_active INTEGER DEFAULT 1
+    );
+    CREATE TABLE IF NOT EXISTS units (
+      id SERIAL PRIMARY KEY,
+      name TEXT UNIQUE NOT NULL,
+      abbreviation TEXT,
+      unit_type TEXT
+    );
+    CREATE TABLE IF NOT EXISTS ingredients (
+      id SERIAL PRIMARY KEY,
+      name TEXT UNIQUE NOT NULL,
+      unit TEXT,
+      unit_abbr TEXT,
+      cost_per_unit NUMERIC DEFAULT 0,
+      stock NUMERIC DEFAULT 0,
+      reorder_level NUMERIC,
+      ingredient_group TEXT,
+      supplier TEXT
+    );
+    CREATE TABLE IF NOT EXISTS suppliers (
+      id SERIAL PRIMARY KEY,
+      name TEXT UNIQUE NOT NULL,
+      contact_person TEXT,
+      phone TEXT,
+      email TEXT,
+      address TEXT,
+      gstin TEXT,
+      payment_terms_days INTEGER DEFAULT 0,
+      notes TEXT,
+      is_active INTEGER DEFAULT 1
+    );
+    CREATE TABLE IF NOT EXISTS supplier_catalog (
+      id SERIAL PRIMARY KEY,
+      supplier TEXT,
+      ingredient TEXT,
+      purchase_unit TEXT,
+      unit_abbr TEXT,
+      unit_cost NUMERIC DEFAULT 0,
+      pack_size NUMERIC DEFAULT 0,
+      lead_time_days INTEGER DEFAULT 0,
+      min_order_qty NUMERIC DEFAULT 0,
+      is_active INTEGER DEFAULT 1
+    );
+    CREATE TABLE IF NOT EXISTS recipes (
+      id SERIAL PRIMARY KEY,
+      item_name TEXT UNIQUE NOT NULL,
+      recipe_name TEXT,
+      portion_size TEXT,
+      yield_qty NUMERIC DEFAULT 1,
+      prep_time INTEGER DEFAULT 0,
+      cook_time INTEGER DEFAULT 0,
+      prep_notes TEXT
+    );
+    CREATE TABLE IF NOT EXISTS recipe_ingredients (
+      id SERIAL PRIMARY KEY,
+      item_name TEXT NOT NULL,
+      ingredient TEXT NOT NULL,
+      quantity NUMERIC DEFAULT 0,
+      unit TEXT,
+      unit_abbr TEXT,
+      wastage_pct NUMERIC DEFAULT 0,
+      line_order INTEGER DEFAULT 0,
+      notes TEXT
+    );
+  `).catch(err => console.error('Inventory table setup error:', err.message));
+
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS menu_name_idx ON menu (name);`).catch(() => {});
   console.log('Postgres Cloud DB tables ready.');
 
