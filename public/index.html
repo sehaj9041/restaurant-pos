@@ -1309,7 +1309,7 @@
           wrapper.classList.remove('hidden');
           if (badge) badge.innerText = orders.length;
 
-          container.innerHTML = orders.map(function(order) {
+          var newHtml = orders.map(function(order) {
             var itemsHtml = (order.items || []).map(function(item) {
               return `
                 <div class="flex justify-between items-center text-xs py-1 border-b border-orange-100 last:border-0">
@@ -1318,6 +1318,22 @@
                 </div>
               `;
             }).join('');
+
+            var addrHtml = '';
+            if (order.delivery_address || order.delivery_lat != null) {
+              var safeAddr = String(order.delivery_address || '').replace(/[&<>"']/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
+              var hasLoc = order.delivery_lat != null && order.delivery_lng != null && order.delivery_lat !== '' && !isNaN(Number(order.delivery_lat));
+              var mapHtml = '';
+              if (hasLoc) {
+                var la = Number(order.delivery_lat), lo = Number(order.delivery_lng), d = 0.004;
+                mapHtml = '<div class="shrink-0 w-full sm:w-56">' +
+                  '<iframe loading="lazy" title="Customer location" class="w-full h-28 rounded-lg border border-orange-200" src="https://www.openstreetmap.org/export/embed.html?bbox=' + (lo - d) + ',' + (la - d) + ',' + (lo + d) + ',' + (la + d) + '&layer=mapnik&marker=' + la + ',' + lo + '"></iframe>' +
+                  '<a href="https://www.google.com/maps?q=' + la + ',' + lo + '" target="_blank" rel="noopener" class="block text-[10px] font-black text-orange-700 underline mt-1">Open in Google Maps</a></div>';
+              }
+              addrHtml = '<div class="flex flex-col sm:flex-row gap-3 bg-orange-50 border border-orange-100 rounded-lg p-2.5">' +
+                '<div class="flex-1 min-w-0"><div class="text-[10px] font-black uppercase text-orange-700">📍 Delivery Address</div>' +
+                '<div class="text-xs font-bold text-slate-800 mt-0.5 break-words">' + (safeAddr || 'Address nahi diya (sirf location)') + '</div></div>' + mapHtml + '</div>';
+            }
 
             return `
               <div class="bg-white border border-orange-200 rounded-xl p-4 shadow-xs space-y-3">
@@ -1335,6 +1351,8 @@
                   </div>
                 </div>
 
+                ${addrHtml}
+
                 <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-100 space-y-1">
                   ${itemsHtml}
                 </div>
@@ -1350,6 +1368,8 @@
               </div>
             `;
           }).join('');
+          // skip identical re-renders so the map iframes do not reload on every poll
+          if (container._lastHtml !== newHtml) { container.innerHTML = newHtml; container._lastHtml = newHtml; }
         })
         .catch(function(err) { console.error('Approval fetch error:', err); });
     }
@@ -2337,11 +2357,71 @@
       allCategories = Array.from(set);
     }
 
+    // ---------- Order timers (Settings > Order Timers): progress strip + Late badge ----------
+    // ---------- Bill header/footer/copies from Settings (General + Receipt & Print) ----------
+    var billCfg = { s: {}, c: {} };
+    function loadBillCfg() {
+      Promise.all([
+        fetch('/api/settings').then(function(r) { return r.json(); }).catch(function() { return {}; }),
+        fetch('/api/settings/config').then(function(r) { return r.json(); }).catch(function() { return {}; })
+      ]).then(function(a) { billCfg = { s: a[0] || {}, c: (a[1] && a[1].receipt) || {} }; });
+    }
+    loadBillCfg();
+    setInterval(loadBillCfg, 60000);
+    function billEsc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+
+    var TIMER_DEFAULTS = { dine_in: 12, takeaway: 12, delivery: 12 };
+    var timerCfg = null, timerCfgAt = 0, activeFetchedAt = Date.now();
+    function loadTimerCfg() {
+      if (Date.now() - timerCfgAt < 30000) return;
+      timerCfgAt = Date.now();
+      fetch('/api/settings/config').then(function(r) { return r.json(); })
+        .then(function(c) { timerCfg = (c && c.order_timers) || {}; }).catch(function() {});
+    }
+    function timerDisplay() {
+      var d = (timerCfg && timerCfg.display) || {};
+      return { strip: d.strip !== false, minutes: !!d.minutes, chip: !!d.chip, late: d.late_badge !== false };
+    }
+    function timerInfo(o) {
+      var t = (o.order_type || '').toLowerCase();
+      var key = t.indexOf('delivery') >= 0 ? 'delivery' : (t.indexOf('takeaway') >= 0 || t.indexOf('pickup') >= 0 ? 'takeaway' : 'dine_in');
+      var v = timerCfg && timerCfg.vals && timerCfg.vals[key];
+      var exp = Math.max(1, Number(v && v.expected) || TIMER_DEFAULTS[key]);
+      var advanced = timerCfg && timerCfg.mode === 'advanced' && v;
+      var amber = advanced ? (Number(v.amber) || Math.round(exp * 0.8)) : Math.round(exp * 0.8);
+      var lateAt = advanced ? (Number(v.late) || exp) : exp;
+      var done = !!o.kitchen_done;
+      var sec = Number(o.kitchen_sec) || 0;
+      if (!done) sec += (Date.now() - activeFetchedAt) / 1000;   // keep ticking between polls
+      var mins = sec / 60;
+      return { exp: exp, amber: amber, lateAt: lateAt, done: done, mins: mins, whole: Math.floor(mins), over: mins > exp };
+    }
+    function timerStripHTML(o, compact) {
+      if (o.kitchen_sec === undefined || o.kitchen_sec === null) return '';
+      var d = timerDisplay(), i = timerInfo(o), out = '';
+      var color = i.over ? '#dc2626' : '#ea580c';
+      var pct = Math.min(100, Math.round(i.mins / i.exp * 100));
+      var lateTxt = i.over && d.late ? '<span style="color:#dc2626;font-weight:900;">+' + Math.max(1, Math.floor(i.mins - i.exp)) + 'm late</span>' : '';
+      if (d.chip && !compact) {
+        var cc = i.mins >= i.lateAt ? 'bg-rose-100 text-rose-700' : (i.mins >= i.amber ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600');
+        out += '<span class="text-[10px] font-black px-1.5 py-0.5 rounded ' + cc + '">' + (i.done ? '✓' : '🔥') + ' ' + i.whole + 'm</span> ';
+      }
+      if (d.minutes && !compact) out += '<span class="text-[10px] font-bold text-gray-500">' + (i.done ? '✓ ' : '🔥 ') + i.whole + 'm / ' + i.exp + 'm</span> ';
+      if (!d.strip) return out || lateTxt ? '<div class="flex items-center gap-2 mt-1">' + out + lateTxt + '</div>' : '';
+      return '<div class="' + (compact ? 'w-full mt-1' : 'mt-1.5') + '">' +
+        ((out || (lateTxt && !compact)) ? '<div class="flex items-center justify-between gap-2 mb-0.5"><span>' + out + '</span>' + (compact ? '' : lateTxt) + '</div>' : '') +
+        '<div class="h-1.5 rounded-full bg-gray-200 overflow-hidden"><div style="width:' + pct + '%;height:100%;background:' + color + ';' + (i.done ? 'opacity:.55;' : '') + '"></div></div>' +
+        (compact && lateTxt ? '<div class="text-[9px] leading-none mt-0.5">' + lateTxt + '</div>' : '') +
+        '</div>';
+    }
+
     function fetchActiveOrders() {
+      loadTimerCfg();
       fetch('/api/orders/active')
         .then(function(r) { return r.json(); })
         .then(function(orders) {
           allActiveOrders = orders || [];
+          activeFetchedAt = Date.now();
           renderDashboardMetrics();
           renderFloorTablesGrid();
           renderAllQueues();
@@ -2379,7 +2459,7 @@
           <div onclick="openPOSOrderView('Dine-In', '${t.id}')" class="cursor-pointer border-2 rounded-2xl p-3 flex flex-col items-center justify-center transition-all duration-150 transform active:scale-95 shadow-xs ${isBusy ? 'bg-orange-50 border-orange-400 text-orange-950 shadow-orange-100' : 'bg-emerald-50 border-emerald-300 text-emerald-950 hover:border-emerald-500'}">
             <span class="font-black text-sm tracking-wide">${t.label}</span>
             <span class="text-[10px] font-bold opacity-75">${t.seats} seats</span>
-            ${isBusy ? `<span class="text-xs font-black text-orange-700 mt-1">₹${busy.total}</span>` : `<span class="text-[9px] text-emerald-600 font-bold mt-1">Free</span>`}
+            ${isBusy ? `<span class="text-xs font-black text-orange-700 mt-1">₹${busy.total}</span>${timerStripHTML(busy, true)}` : `<span class="text-[9px] text-emerald-600 font-bold mt-1">Free</span>`}
           </div>
         `;
       }).join('');
@@ -2463,6 +2543,7 @@
                   <div class="text-[9px] text-gray-400">${o.time || ''}</div>
                 </div>
               </div>
+              ${timerStripHTML(o)}
 
               <div class="flex flex-wrap gap-1.5 pt-1.5 border-t border-gray-100 text-[10px] font-bold">
                 <button onclick="promptAssignTable(${o.id})" class="px-2 py-1 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded border border-orange-200 font-black shadow-2xs"><span>🪑</span> Assign table</button>
@@ -2527,6 +2608,7 @@
                 <div class="text-[9px] text-gray-400">Live Order</div>
               </div>
             </div>
+            ${timerStripHTML(o)}
 
             <div class="flex flex-wrap gap-1.5 pt-1.5 border-t border-gray-100 text-[10px] font-bold">
               <button onclick="actionViewOrder(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>👁</span> View</button>
@@ -2961,7 +3043,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         }).then(function(){
-          if (paymentCollectedNow) dispatchDirectPrintReceipt(editingActiveOrderId, payload, calc);
+          if (paymentCollectedNow && billCfg.c.auto_print_bill !== false) dispatchDirectPrintReceipt(editingActiveOrderId, payload, calc);
           closePOSOrderView();
         });
       } else {
@@ -2972,12 +3054,24 @@
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {
-          if (paymentCollectedNow) dispatchDirectPrintReceipt(data.orderId, payload, calc);
+          if (paymentCollectedNow && billCfg.c.auto_print_bill !== false) dispatchDirectPrintReceipt(data.orderId, payload, calc);
           closePOSOrderView();
         });
       }
     }
     function dispatchDirectPrintReceipt(orderId, payload, calc) {
+      // Online delivery orders: pull the saved address so it prints on the bill
+      if (payload && !payload.customer_address && orderId && /delivery/i.test(String(payload.order_type || ''))) {
+        fetch('/api/orders/' + orderId + '/delivery-address')
+          .then(function(r) { return r.json(); })
+          .then(function(d) { payload.customer_address = (d && d.delivery_address) || ''; })
+          .catch(function() {})
+          .then(function() { renderAndPrintReceipt(orderId, payload, calc); });
+        return;
+      }
+      renderAndPrintReceipt(orderId, payload, calc);
+    }
+    function renderAndPrintReceipt(orderId, payload, calc) {
       var itemsRows = `
         <table class="items">
           <thead>
@@ -3040,14 +3134,17 @@
           </style>
         </head>
         <body>
-          <div class="center" style="font-size:18px; font-weight:900;">VISHAL FOODIEZ</div>
-          <div class="center" style="font-size:11px;">Railway Road, Budhlada</div>
+          ${billCfg.c.logo ? `<div class="center"><img src="${billEsc(billCfg.c.logo)}" style="max-width:45mm;max-height:22mm;object-fit:contain;filter:grayscale(1) contrast(1.4);"></div>` : ''}
+          <div class="center" style="font-size:18px; font-weight:900;">${billEsc(billCfg.s.restaurant_name || 'VISHAL FOODIEZ')}</div>
+          <div class="center" style="font-size:11px;">${billEsc(billCfg.s.address || 'Railway Road, Budhlada')}</div>
+          ${billCfg.s.phone ? `<div class="center" style="font-size:11px;">Ph: ${billEsc(billCfg.s.phone)}</div>` : ''}
+          ${billCfg.s.gstin ? `<div class="center" style="font-size:11px;">GSTIN: ${billEsc(billCfg.s.gstin)}</div>` : ''}
           <div class="token">TOKEN #${orderId || '---'}</div>
           <div class="row"><span>Order: #${orderId}</span><span>(${payload.order_type.toUpperCase()})</span></div>
           ${payload.table_no ? `<div>Table: ${payload.table_no}</div>` : ''}
           ${payload.customer_name ? `<div>Guest: ${payload.customer_name}</div>` : ''}
           ${payload.customer_phone ? `<div>Phone: ${payload.customer_phone}</div>` : ''}
-          ${payload.customer_address ? `<div>Address: ${payload.customer_address}</div>` : ''}
+          ${payload.customer_address ? `<div>Address: ${String(payload.customer_address).replace(/[&<>]/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; })}</div>` : ''}
           <div>Date: ${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' })}</div>
           <div class="divider"></div>
           ${itemsRows}
@@ -3061,10 +3158,17 @@
           ${splitSection}
           <div class="divider"></div>
           <div class="center" style="font-size:11px;">Payment Mode: <b>${payload.payment_mode}</b></div>
-          <div class="center" style="font-size:11px; margin-top:4px;">Thanks For Visiting Us!</div>
+          <div class="center" style="font-size:11px; margin-top:4px;">${billEsc(billCfg.c.thank_you || 'Thanks For Visiting Us!')}</div>
+          ${billCfg.c.footer ? `<div class="center" style="font-size:10px; margin-top:2px;">${billEsc(billCfg.c.footer)}</div>` : ''}
         </body>
         </html>
       `;
+      // Receipt copies (Settings > Receipt & Print): every copy on its own page
+      var copies = Math.max(1, Math.min(5, Number(billCfg.c.copies) || 1));
+      if (copies > 1) {
+        var bm = html.match(/<body>([\s\S]*)<\/body>/);
+        if (bm) html = html.replace(bm[0], function() { return '<body>' + new Array(copies).fill(bm[1]).join('<div style="page-break-after:always;height:1px"></div>') + '</body>'; });
+      }
 
       var frame = document.getElementById('silentPrintFrame');
       var doc = frame.contentWindow.document;

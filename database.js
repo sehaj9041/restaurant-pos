@@ -149,6 +149,14 @@ pool.query(`
   await pool.query(`ALTER TABLE menu ADD COLUMN IF NOT EXISTS tags TEXT;`).catch(() => {});
   await pool.query(`ALTER TABLE menu ADD COLUMN IF NOT EXISTS allergens TEXT;`).catch(() => {});
   await pool.query(`ALTER TABLE menu ADD COLUMN IF NOT EXISTS is_featured INTEGER DEFAULT 0;`).catch(() => {});
+  await pool.query(`ALTER TABLE menu ADD COLUMN IF NOT EXISTS food_type TEXT;`).catch(() => {});
+  await pool.query(`CREATE TABLE IF NOT EXISTS customer_profiles (phone TEXT PRIMARY KEY, name TEXT, token TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`).catch(() => {});
+  await pool.query(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS config TEXT;`).catch(() => {});
+  await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMP;`).catch(() => {});
+  await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS ready_at TIMESTAMP;`).catch(() => {});
+  await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_address TEXT;`).catch(() => {});
+  await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_lat NUMERIC;`).catch(() => {});
+  await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_lng NUMERIC;`).catch(() => {});
   await pool.query(`ALTER TABLE menu ADD COLUMN IF NOT EXISTS send_to_kds INTEGER DEFAULT 1;`).catch(() => {});
   await pool.query(`ALTER TABLE menu ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'available';`).catch(() => {});
   await pool.query(`ALTER TABLE menu ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;`).catch(() => {});

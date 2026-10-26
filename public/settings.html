@@ -2,155 +2,1226 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Settings & System Tools</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    .tgl { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+    .tgl input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .tgl span { position: absolute; inset: 0; background: #d1d5db; border-radius: 9999px; transition: .2s; cursor: pointer; }
+    .tgl span::after { content: ''; position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; background: #fff; border-radius: 50%; transition: .2s; box-shadow: 0 1px 2px rgba(0,0,0,.3); }
+    .tgl input:checked + span { background: #ea580c; }
+    .tgl input:checked + span::after { transform: translateX(20px); }
+    .tab-btn.active { background: #ffedd5; color: #c2410c; }
+  </style>
 </head>
-<body class="bg-gray-100 min-h-screen p-8 font-sans">
-  <div class="max-w-2xl mx-auto space-y-6">
-    
-    <div class="flex justify-between items-center">
-      <div>
-        <h1 class="text-3xl font-black text-gray-800">Restaurant Settings</h1>
-        <p class="text-sm text-gray-500">Store Profile, Security PIN & Maintenance</p>
-      </div>
-      <a href="/" class="bg-gray-900 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-black transition">
-        ← Back to POS
-      </a>
-    </div>
+<body class="bg-gray-50 min-h-screen font-sans text-gray-800">
 
-    <!-- Store Settings Form -->
-    <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-200">
-      <form id="settingsForm" onsubmit="saveSettings(event)" class="space-y-4">
-        <div>
-            <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Receipt Logo (Image)</label>
-            <div class="flex items-center gap-3">
-              <input type="file" id="logoInput" accept="image/*" class="w-full border p-2 rounded-xl text-sm file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 bg-white" />
-              <img id="logoPreview" src="" alt="Preview" class="h-10 w-10 object-contain rounded border p-1 hidden bg-white" />
-              <button type="button" id="removeLogoBtn" class="text-xs text-red-500 font-bold hidden whitespace-nowrap">Remove</button>
+  <!-- Top bar -->
+  <header class="bg-white border-b px-5 py-3 flex justify-between items-center sticky top-0 z-30">
+    <div class="flex items-center gap-3">
+      <button onclick="document.getElementById('sideNav').classList.toggle('hidden')" class="md:hidden text-xl" aria-label="Menu">☰</button>
+      <h1 class="text-lg font-black">⚙️ Restaurant Settings</h1>
+    </div>
+    <a href="/pos" class="bg-gray-900 text-white px-4 py-2 rounded-lg font-bold text-xs hover:bg-black transition">← Back to POS</a>
+  </header>
+
+  <div class="max-w-6xl mx-auto p-4 md:p-6 flex flex-col md:flex-row gap-5 items-start">
+
+    <!-- Sidebar -->
+    <nav id="sideNav" class="hidden md:block w-full md:w-60 shrink-0 bg-white border rounded-2xl p-2 md:sticky md:top-20"></nav>
+
+    <main class="flex-1 min-w-0 w-full">
+
+      <!-- ================= GENERAL ================= -->
+      <section id="tab-general" class="space-y-5">
+
+        <!-- Store profile -->
+        <div class="bg-white border rounded-2xl p-5">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="font-black text-base">General</h2>
+            <button onclick="saveBase()" class="bg-orange-600 hover:bg-orange-700 text-white font-black text-xs px-4 py-2 rounded-lg">Save</button>
+          </div>
+          <div class="space-y-4">
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-center"><label class="text-xs font-bold text-gray-500">Restaurant Name *</label><input id="restaurant_name" type="text" class="border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"></div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-center"><label class="text-xs font-bold text-gray-500">Tagline</label><input id="tagline" type="text" placeholder="e.g. Fresh & Fast Food" class="border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"></div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-center"><label class="text-xs font-bold text-gray-500">Cuisine</label><input id="cuisine" type="text" placeholder="e.g. Fast Food, Burgers" class="border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"></div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-center"><label class="text-xs font-bold text-gray-500">Address *</label><input id="address" type="text" class="border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"></div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-center"><label class="text-xs font-bold text-gray-500">GSTIN</label><input id="gstin" type="text" placeholder="Optional" class="border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400 uppercase"></div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-center"><label class="text-xs font-bold text-gray-500">FSSAI</label><input id="fssai" type="text" placeholder="Optional" class="border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"></div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-center"><label class="text-xs font-bold text-gray-500">Default GST (%)</label><input id="default_gst" type="number" step="0.1" min="0" value="5" class="w-32 border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"></div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-center"><label class="text-xs font-bold text-gray-500">Seating Capacity</label><input id="seating" type="number" min="0" class="w-32 border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"></div>
+            <div class="bg-amber-50 p-3 rounded-xl border border-amber-200">
+              <label class="block text-xs font-bold text-amber-900 mb-1">Owner Security PIN (4–6 digits)</label>
+              <input id="admin_pin" type="password" maxlength="6" placeholder="Leave blank to keep current PIN" class="w-80 max-w-full border p-2 rounded-xl text-sm outline-none bg-white font-mono">
+              <p class="text-[11px] text-amber-700 mt-1">PIN Reports, Settings, Directory aur Menu ko secure rakhta hai.</p>
             </div>
           </div>
-        <div>
-          <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Restaurant Name</label>
-          <input id="restaurant_name" type="text" required class="w-full border p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500">
-        </div>
 
-        <div>
-          <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Tagline</label>
-          <input id="tagline" type="text" placeholder="e.g. Fresh & Fast Food" class="w-full border p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500">
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Address</label>
-          <input id="address" type="text" required class="w-full border p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500">
-        </div>
-
-        <div class="grid grid-cols-3 gap-3">
-          <div>
-            <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Phone</label>
-            <input id="phone" type="text" required class="w-full border p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+          <!-- Map -->
+          <div class="border-t mt-6 pt-5">
+            <div class="flex items-center gap-2">
+              <h3 class="font-black text-sm">Restaurant Location on Map</h3>
+              <span id="locBadge" class="hidden text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2 py-0.5">● Location set</span>
+            </div>
+            <p class="text-[11px] text-gray-400 mb-2">Apni exact location pin karein taaki customers ko sahi pickup/delivery route dikhe. Pin ko drag karein ya map par click karein.</p>
+            <div class="flex gap-2 mb-2">
+              <input id="mapSearch" type="text" placeholder="🔍 Search your restaurant address..." onkeydown="if(event.key==='Enter')searchPlace()" class="flex-1 border p-2.5 rounded-xl text-xs outline-none focus:ring-2 focus:ring-orange-400">
+              <button onclick="searchPlace()" class="border font-black text-xs px-3 rounded-xl hover:bg-gray-50">Search</button>
+              <button onclick="useMyLocation()" class="border font-black text-xs px-3 rounded-xl hover:bg-gray-50" title="Use my current location">📍</button>
+            </div>
+            <div id="searchResults" class="hidden border rounded-xl mb-2 divide-y text-xs overflow-hidden"></div>
+            <div id="map" class="w-full h-64 rounded-xl border z-0"></div>
+            <div class="flex items-center gap-3 mt-3">
+              <button onclick="saveLocation()" class="bg-orange-600 hover:bg-orange-700 text-white font-black text-xs px-4 py-2 rounded-lg">Save Location</button>
+              <span id="locCoords" class="text-[11px] text-gray-400 font-mono"></span>
+            </div>
           </div>
-          <div>
-            <label class="block text-xs font-bold text-gray-600 uppercase mb-1">GSTIN</label>
-            <input id="gstin" type="text" placeholder="Optional" class="w-full border p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500">
-          </div>
-          <div>
-            <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Default GST (%)</label>
-            <input id="default_gst" type="number" step="0.1" value="5" class="w-full border p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+
+          <!-- Max delivery distance -->
+          <div class="border-t mt-6 pt-5">
+            <h3 class="font-black text-sm">🛵 Max Delivery Distance</h3>
+            <p class="text-[11px] text-gray-400 mb-2">Is radius se bahar ke customers delivery order nahi kar paayenge (unki location ke hisaab se). Khali chhodein to kahin bhi delivery allowed hai. Pehle restaurant ki location save karna zaroori hai.</p>
+            <div class="flex items-center gap-2">
+              <input id="maxKm" type="number" min="0" step="0.1" placeholder="e.g. 7.5" class="w-32 border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400">
+              <span class="text-xs font-bold text-gray-500">km</span>
+              <button onclick="saveMaxKm()" class="bg-orange-600 hover:bg-orange-700 text-white font-black text-xs px-4 py-2.5 rounded-lg">Save</button>
+              <button onclick="clearMaxKm()" class="border font-black text-xs px-4 py-2.5 rounded-lg hover:bg-gray-50">Clear</button>
+            </div>
+            <p id="maxKmNow" class="text-[11px] italic text-gray-400 mt-2"></p>
           </div>
         </div>
 
-        <div class="bg-amber-50 p-4 rounded-xl border border-amber-200">
-          <label class="block text-xs font-bold text-amber-900 uppercase mb-1">Owner Security PIN (4-Digits)</label>
-          <input id="admin_pin" type="password" maxlength="6" placeholder="Default: 1234" class="w-48 border p-2.5 rounded-xl text-sm outline-none bg-white font-mono">
-          <p class="text-[11px] text-amber-700 mt-1">PIN Reports, Settings, Directory aur Menu ko secure rakhta hai.</p>
+        <!-- Contact -->
+        <div class="bg-white border rounded-2xl p-5">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="font-black text-base">Contact</h2>
+            <button onclick="saveBase()" class="bg-orange-600 hover:bg-orange-700 text-white font-black text-xs px-4 py-2 rounded-lg">Save</button>
+          </div>
+          <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start">
+            <div>
+              <label class="text-xs font-bold text-gray-500">Restaurant phone</label>
+              <p class="text-[10px] text-gray-400 mt-1">Aapka business number. Bill par aur customer pages par dikhta hai.</p>
+            </div>
+            <input id="phone" type="text" placeholder="+91 98765 43210" class="max-w-xs border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400">
+          </div>
         </div>
 
-        <button type="submit" class="w-full mt-2 bg-indigo-600 hover:bg-indigo-700 text-white font-black py-3 rounded-xl transition text-base">
-          Save All Settings
-        </button>
-      </form>
-    </div>
+        <!-- Tables -->
+        <div class="bg-white border rounded-2xl p-5">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="font-black text-base">Tables</h2>
+            <button onclick="saveSection('tables')" class="bg-orange-600 hover:bg-orange-700 text-white font-black text-xs px-4 py-2 rounded-lg">Save</button>
+          </div>
+          <div class="space-y-5">
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start">
+              <div><div class="text-xs font-bold text-gray-500">Auto-clear table</div>
+                <p class="text-[10px] text-gray-400 mt-1">Order paid ho jaye AND kitchen finish kar de to table apne aap free ho jaye — Done dabane ki zaroorat nahi. Bina table ke dine-in orders bhi isi tarah history me chale jate hain.</p></div>
+              <label class="tgl"><input type="checkbox" id="tables_auto_clear"><span></span></label>
+            </div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start">
+              <div><div class="text-xs font-bold text-gray-500">Clear after (minutes)</div>
+                <p class="text-[10px] text-gray-400 mt-1">0 = dono conditions poori hote hi turant clear. Serve karna zaroori nahi.</p></div>
+              <input id="tables_clear_after" type="number" min="0" class="w-32 border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400">
+            </div>
+          </div>
+        </div>
 
-    <!-- Backup & Reset Tools -->
-    <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-200">
-      <h2 class="text-lg font-bold text-gray-800 mb-1">Database & Data Tools</h2>
-      <p class="text-xs text-gray-500 mb-4">Daily backup download karein ya fresh session ke liye data reset karein.</p>
-      
-      <div class="grid grid-cols-2 gap-4">
-        <a href="/api/system/backup" class="flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 font-bold py-3 rounded-xl transition text-sm">
-          📥 Download DB Backup
-        </a>
-        <button onclick="resetSalesData()" class="flex items-center justify-center gap-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold py-3 rounded-xl transition text-sm">
-          ⚠️ Reset Sales / Orders
-        </button>
-      </div>
-    </div>
+        <!-- Kiosk, Takeaway & Delivery -->
+        <div class="bg-white border rounded-2xl p-5">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="font-black text-base">Kiosk, Takeaway &amp; Delivery</h2>
+            <button onclick="saveSection('orders')" class="bg-orange-600 hover:bg-orange-700 text-white font-black text-xs px-4 py-2 rounded-lg">Save</button>
+          </div>
+          <div class="space-y-5">
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start">
+              <div><div class="text-xs font-bold text-gray-500">Auto-complete orders</div>
+                <p class="text-[10px] text-gray-400 mt-1">Kiosk/Takeaway/Delivery order hand-off ke baad (Kiosk/Takeaway: Served · Delivery: Out for delivery) AND poora paid hone par apne aap history me chala jaye. Table clearing upar alag se control hoti hai.</p></div>
+              <label class="tgl"><input type="checkbox" id="orders_auto_complete"><span></span></label>
+            </div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start">
+              <div><div class="text-xs font-bold text-gray-500">Complete after (minutes)</div>
+                <p class="text-[10px] text-gray-400 mt-1">0 = hand-off aur payment hote hi turant history me.</p></div>
+              <input id="orders_complete_after" type="number" min="0" class="w-32 border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400">
+            </div>
+            <div class="text-xs font-black text-gray-600 pt-1">Clear at kitchen-ready (skip hand-off)</div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start">
+              <div><div class="text-xs font-bold text-gray-500">Kiosk — clear as soon as the kitchen is done</div>
+                <p class="text-[10px] text-gray-400 mt-1">Kiosk orders kitchen-ready + paid hote hi history me — Serve step nahi. Bina table ke kiosk dine-in orders bhi clear ho jate hain.</p></div>
+              <label class="tgl"><input type="checkbox" id="orders_clear_kiosk"><span></span></label>
+            </div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start">
+              <div><div class="text-xs font-bold text-gray-500">Takeaway — clear as soon as the kitchen is done</div>
+                <p class="text-[10px] text-gray-400 mt-1">'Served' step skip — order kitchen-ready + paid hote hi history me.</p></div>
+              <label class="tgl"><input type="checkbox" id="orders_clear_takeaway"><span></span></label>
+            </div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start">
+              <div><div class="text-xs font-bold text-gray-500">Delivery — clear as soon as the kitchen is done ⚠️</div>
+                <p class="text-[10px] text-amber-600 mt-1">⚠️ 'Out for delivery' step skip hota hai — rider dispatch hone se PEHLE hi order history me chala jayega. Tabhi on karein jab aap riders yahan track nahi karte.</p></div>
+              <label class="tgl"><input type="checkbox" id="orders_clear_delivery"><span></span></label>
+            </div>
+          </div>
+        </div>
 
+        <!-- Require customer phone -->
+        <div class="bg-white border rounded-2xl p-5">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="font-black text-base">Require Customer Phone</h2>
+            <button onclick="saveSection('require_phone')" class="bg-orange-600 hover:bg-orange-700 text-white font-black text-xs px-4 py-2 rounded-lg">Save</button>
+          </div>
+          <div class="space-y-5">
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start">
+              <div><div class="text-xs font-bold text-gray-500">Dine-In orders (Restaurant Portal)</div>
+                <p class="text-[10px] text-gray-400 mt-1">ON hone par cashier ko dine-in order banane se pehle customer ka phone daalna hoga.</p></div>
+              <label class="tgl"><input type="checkbox" id="rp_dine_in"><span></span></label>
+            </div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start">
+              <div><div class="text-xs font-bold text-gray-500">Takeaway orders (Restaurant Portal)</div>
+                <p class="text-[10px] text-gray-400 mt-1">ON hone par cashier ko takeaway order banane se pehle customer ka phone daalna hoga.</p></div>
+              <label class="tgl"><input type="checkbox" id="rp_takeaway"><span></span></label>
+            </div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start">
+              <div><div class="text-xs font-bold text-gray-500">Waiter payments</div>
+                <p class="text-[10px] text-gray-400 mt-1">ON hone par waiter ko dine-in order paid mark karne se pehle customer ka phone lena hoga.</p></div>
+              <label class="tgl"><input type="checkbox" id="rp_waiter"><span></span></label>
+            </div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start">
+              <div><div class="text-xs font-bold text-gray-500">Kiosk orders</div>
+                <p class="text-[10px] text-gray-400 mt-1">ON hone par kiosk customers ko order dene se pehle phone number daalna hoga.</p></div>
+              <label class="tgl"><input type="checkbox" id="rp_kiosk"><span></span></label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Data tools -->
+        <div class="bg-white border rounded-2xl p-5">
+          <h2 class="font-black text-base mb-1">Database &amp; Data Tools</h2>
+          <p class="text-xs text-gray-500 mb-4">Daily backup download karein ya fresh session ke liye data reset karein.</p>
+          <div class="grid sm:grid-cols-2 gap-3">
+            <a href="/api/system/backup" class="flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 font-bold py-3 rounded-xl transition text-sm">📥 Download DB Backup</a>
+            <button onclick="resetSalesData()" class="flex items-center justify-center gap-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold py-3 rounded-xl transition text-sm">⚠️ Reset Sales / Orders</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= ORDER TIMERS ================= -->
+      <section id="tab-timers" class="hidden space-y-5">
+        <div class="bg-white border rounded-2xl p-5">
+          <div class="flex justify-between items-center mb-3">
+            <h2 class="font-black text-base">⏱ Order timers</h2>
+            <button onclick="saveTimers()" class="bg-orange-600 hover:bg-orange-700 text-white font-black text-xs px-4 py-2 rounded-lg">Save</button>
+          </div>
+          <p class="text-[11px] text-gray-500 leading-relaxed mb-3">Har stage kitni der me hona chahiye. Order cards ki progress strip <b>Expected</b> tak bharti hai aur uske baad laal ho jaati hai; clocks aur <b>Late</b> badge bhi inhi numbers ko follow karte hain.</p>
+          <div id="timerHint" class="bg-gray-50 border rounded-xl p-3 text-[11px] text-gray-600 leading-relaxed mb-3"></div>
+          <div class="flex gap-2 mb-4">
+            <button onclick="useAllNumbers()" class="border text-[11px] font-black px-3 py-1.5 rounded-lg hover:bg-gray-50">📊 Use my numbers for all</button>
+            <button onclick="resetTimers()" class="border text-[11px] font-black px-3 py-1.5 rounded-lg hover:bg-gray-50">↺ Reset to defaults</button>
+          </div>
+          <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start pb-4 border-b">
+            <div><div class="text-xs font-bold text-gray-500">Mode</div><p class="text-[10px] text-gray-400 mt-1">Zyadatar restaurants ko sirf Simple chahiye.</p></div>
+            <div>
+              <div class="inline-flex bg-gray-100 rounded-lg p-1 text-xs font-black">
+                <button id="modeSimple" onclick="setTimerMode('simple')" class="px-3 py-1.5 rounded-md">Simple</button>
+                <button id="modeAdvanced" onclick="setTimerMode('advanced')" class="px-3 py-1.5 rounded-md">Advanced</button>
+              </div>
+              <p id="modeText" class="text-[11px] text-gray-400 mt-2"></p>
+            </div>
+          </div>
+          <div id="timerStages"></div>
+          <p class="text-[10px] text-gray-400 mt-4 border-t pt-3">Expected progress strip ko order cards, table tiles aur grid rows me bharta hai. Clock ke colours aur Late Orders page, rider board aur analytics par lagte hain.</p>
+        </div>
+
+        <div class="bg-white border rounded-2xl p-5">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="font-black text-base">Show on the Orders page</h2>
+            <button onclick="saveTimers()" class="bg-orange-600 hover:bg-orange-700 text-white font-black text-xs px-4 py-2 rounded-lg">Save</button>
+          </div>
+          <div class="space-y-5">
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><div><div class="text-xs font-bold text-gray-500">Progress strip under each order</div><p class="text-[10px] text-gray-400 mt-1">Cards, table tiles aur grid rows me. Kitchen orange, rider blue, Expected ke baad laal.</p></div><label class="tgl"><input type="checkbox" id="tm_strip"><span></span></label></div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><div><div class="text-xs font-bold text-gray-500">Minutes above the strip</div><p class="text-[10px] text-gray-400 mt-1">Cards par strip ke upar "🔥 7m / 12m" aur tile tags par minutes dikhata hai.</p></div><label class="tgl"><input type="checkbox" id="tm_minutes"><span></span></label></div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><div><div class="text-xs font-bold text-gray-500">Clock chip on each order</div><p class="text-[10px] text-gray-400 mt-1">🔥 / 🛵 / ⏳ chip running minutes ke saath, amber aur red limits ke hisaab se rang.</p></div><label class="tgl"><input type="checkbox" id="tm_chip"><span></span></label></div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><div><div class="text-xs font-bold text-gray-500">Timer line on the KPI cards</div><p class="text-[10px] text-gray-400 mt-1">Kitchen me abhi, late abhi, riders bahar, approval ka wait, kitchen speed vs usual.</p></div><label class="tgl"><input type="checkbox" id="tm_kpi"><span></span></label></div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><div><div class="text-xs font-bold text-gray-500">"Late" badge</div><p class="text-[10px] text-gray-400 mt-1">Order Expected se aage nikalte hi strip par laal "+Nm late" tag.</p></div><label class="tgl"><input type="checkbox" id="tm_late"><span></span></label></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= TAXES & GST ================= -->
+      <section id="tab-taxes" class="hidden space-y-5">
+        <div class="bg-white border rounded-2xl p-5">
+          <div class="flex justify-between items-center mb-4"><h2 class="font-black text-base">Taxes &amp; GST</h2><button onclick="saveTaxes()" class="bg-orange-600 hover:bg-orange-700 text-white font-black text-xs px-4 py-2 rounded-lg">Save</button></div>
+          <div class="space-y-4">
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-center"><label class="text-xs font-bold text-gray-500">CGST %</label><input id="tx_cgst" type="number" min="0" step="0.1" oninput="updSlabRate()" class="max-w-xs border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"></div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-center"><label class="text-xs font-bold text-gray-500">SGST %</label><input id="tx_sgst" type="number" min="0" step="0.1" oninput="updSlabRate()" class="max-w-xs border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"></div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-center"><label class="text-xs font-bold text-gray-500">Service Charge</label><label class="tgl"><input type="checkbox" id="tx_service"><span></span></label></div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-center"><label class="text-xs font-bold text-gray-500">Service Charge %</label><input id="tx_service_pct" type="number" min="0" max="100" step="0.1" class="max-w-xs border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"></div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><label class="text-xs font-bold text-gray-500">Prices include tax</label><div><label class="tgl"><input type="checkbox" id="tx_inclusive" onchange="updIncHint()"><span></span></label><p id="incHint" class="text-[10px] text-gray-400 mt-2"></p></div></div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><label class="text-xs font-bold text-gray-500">Round bill totals to nearest ₹1</label><div><label class="tgl"><input type="checkbox" id="tx_round"><span></span></label><p class="text-[10px] text-gray-400 mt-2 max-w-md">Final payable nearest whole rupee par round hota hai (jaise ₹239.45 → ₹239, ₹254.65 → ₹255). Har receipt par "Round Off ±x.xx" line aati hai.</p></div></div>
+          </div>
+        </div>
+        <div class="bg-white border rounded-2xl p-5">
+          <div class="flex justify-between items-start mb-2"><h2 class="font-black text-base">GST / Tax Categories</h2><button onclick="openSlabForm(null)" class="bg-orange-600 hover:bg-orange-700 text-white font-black text-xs px-3 py-2 rounded-lg">+ Add slab</button></div>
+          <p class="text-[11px] text-gray-500 max-w-xl mb-3">Apne menu items ke GST slabs tay karein (jaise "No Tax" 0%, GST 5%, 12%, 18%). Item ke edit page par slab assign karein; jis item par slab nahi hai wo <b>default</b> slab use karta hai — abhi aapka restaurant rate <b id="slabDefaultRate">—</b> (upar ke CGST + SGST se).</p>
+          <div id="slabForm" class="hidden bg-gray-50 border rounded-xl p-3 mb-3 flex flex-wrap items-end gap-3">
+            <div><label class="block text-[10px] font-black text-gray-500 mb-1">Slab name</label><input id="slabName" type="text" placeholder="e.g. GST 28%" class="border p-2 rounded-lg text-sm w-48"></div>
+            <div><label class="block text-[10px] font-black text-gray-500 mb-1">Rate %</label><input id="slabRate" type="number" min="0" max="100" step="0.1" class="border p-2 rounded-lg text-sm w-24"></div>
+            <button onclick="saveSlab()" class="bg-orange-600 hover:bg-orange-700 text-white font-black text-xs px-4 py-2 rounded-lg">Save slab</button><button onclick="$('slabForm').classList.add('hidden')" class="border text-xs font-black px-3 py-2 rounded-lg">Cancel</button>
+          </div>
+          <div id="slabList" class="divide-y"></div>
+        </div>
+      </section>
+
+      <!-- ================= WAITERS & FLOOR ================= -->
+      <section id="tab-waiters" class="hidden space-y-5">
+        <div class="bg-white border rounded-2xl p-5">
+          <h2 class="font-black text-base mb-3">Waiter permissions</h2>
+          <div class="flex justify-between items-start gap-4">
+            <div><div class="text-xs font-bold text-gray-700">Allow waiters to replace items</div><p class="text-[11px] text-gray-400 mt-1 max-w-2xl">ON hone par waiter kitchen me abhi ban rahe item ko badal sakta hai (purana item void, naya fire, aur cash ka difference reconcile) — wahi flow jo owners/managers use karte hain. OFF par sirf owners, managers aur supervisors items replace kar sakte hain. Default OFF.</p></div>
+            <label class="tgl"><input type="checkbox" id="wt_allow_replace"><span></span></label>
+          </div>
+          <button onclick="saveWaiters()" class="mt-4 bg-orange-600 hover:bg-orange-700 text-white font-black text-xs px-4 py-2 rounded-lg">Save</button>
+        </div>
+        <div class="bg-white border rounded-2xl p-5">
+          <h2 class="font-black text-base mb-3">Order access mode</h2>
+          <div class="flex justify-between items-start gap-4 pb-4 border-b">
+            <div><div class="text-xs font-bold text-gray-700">Open</div><p class="text-[11px] text-gray-400 mt-1">Koi bhi waiter kisi bhi table ko serve kar sakta hai. Ye default hai — kisi par rok nahi; floor sirf dikhata hai ki order kisne shuru kiya.</p></div>
+            <label class="tgl"><input type="checkbox" id="wt_open"><span></span></label>
+          </div>
+          <div class="pt-4"><div class="text-xs font-black text-gray-800">Tip sharing policy</div><p class="text-[11px] text-gray-400 mb-3">Ek table par ek se zyada log kaam karein to tip kaise baante.</p>
+            <div id="tipOptions" class="space-y-2"></div></div>
+          <button onclick="saveWaiters()" class="mt-4 bg-orange-600 hover:bg-orange-700 text-white font-black text-xs px-4 py-2 rounded-lg">Save</button>
+        </div>
+        <div class="bg-white border rounded-2xl p-5">
+          <div class="flex justify-between items-start mb-1"><h2 class="font-black text-base">Section Manager</h2><button onclick="addSection()" class="border text-xs font-black px-3 py-2 rounded-lg hover:bg-gray-50">+ Add section</button></div>
+          <p class="text-[11px] text-gray-500 max-w-2xl mb-3">Har section ka rang tay karein aur shift ke liye waiters assign karein. Assignments floor ke "Cover" prompt ko chalate hain jab floor Section mode me ho — par roster aap yahan pehle se bana sakte hain.</p>
+          <div class="flex items-center gap-2 mb-4"><label class="text-xs font-bold text-gray-500">Shift date</label><input type="date" id="shiftDate" onchange="renderSections()" class="border p-2 rounded-lg text-sm"><button onclick="$('shiftDate').value=todayStr();renderSections()" class="text-[10px] font-black bg-gray-100 rounded-full px-2.5 py-1">Today</button></div>
+          <div id="sectionList" class="divide-y"></div>
+        </div>
+      </section>
+
+      <!-- ================= PAYMENTS ================= -->
+      <section id="tab-payments" class="hidden space-y-5">
+        <div class="bg-white border rounded-2xl p-5">
+          <div class="flex justify-between items-center mb-4"><h2 class="font-black text-base">Payment Methods</h2><button onclick="savePayMethods()" class="bg-orange-600 hover:bg-orange-700 text-white font-black text-xs px-4 py-2 rounded-lg">Save</button></div>
+          <div id="payMethodRows" class="space-y-5"></div>
+          <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start mt-5"><div><div class="text-xs font-bold text-gray-500">UPI ID / VPA (static QR)</div><p class="text-[10px] text-gray-400 mt-1">Static QR ki tarah dikhta hai — apne aap payment confirm nahi hoti; haath se reconcile karein.</p></div><input id="pm_upi_id" type="text" placeholder="name@bank" class="max-w-sm border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"></div>
+        </div>
+
+        <div class="bg-white border rounded-2xl p-5">
+          <h2 class="font-black text-base">Auto-confirm UPI (online payment provider)</h2>
+          <p class="text-[11px] text-gray-500 mb-3 max-w-2xl">Payment provider jod kar kiosk par har order ka <b>dynamic QR</b> banayein aur gateway payment capture karte hi order auto-confirm ho.</p>
+          <div class="text-[10px] font-black text-gray-400 mb-1">Provider</div>
+          <div class="inline-flex bg-gray-100 rounded-lg p-1 text-xs font-black mb-3" id="provSeg"></div>
+          <div id="provBox" class="hidden bg-orange-50/40 border rounded-xl p-4 space-y-3">
+            <div class="grid md:grid-cols-2 gap-3">
+              <div><label class="block text-[10px] font-black text-gray-500 mb-1">Key ID</label><input id="pv_key_id" type="text" autocomplete="off" class="w-full border p-2.5 rounded-xl text-sm"></div>
+              <div><label class="block text-[10px] font-black text-gray-500 mb-1">Key Secret</label><input id="pv_key_secret" type="password" autocomplete="new-password" class="w-full border p-2.5 rounded-xl text-sm"></div>
+              <div><label class="block text-[10px] font-black text-gray-500 mb-1">Webhook Secret</label><input id="pv_webhook_secret" type="password" autocomplete="new-password" class="w-full border p-2.5 rounded-xl text-sm"></div>
+            </div>
+            <p class="text-[10px] text-gray-500">🔒 Key Secret aur Webhook Secret <b>write-only</b> hain — ye page par kabhi wapas nahi dikhte. Khali chhodne par purana secret rehta hai.</p>
+            <div><label class="block text-[10px] font-black text-gray-500 mb-1">Webhook URL (read-only)</label>
+              <div class="flex gap-2"><input id="pv_webhook_url" type="text" readonly class="flex-1 border p-2.5 rounded-xl text-xs font-mono bg-gray-50"><button onclick="copyWebhook()" class="border text-xs font-black px-3 rounded-xl hover:bg-gray-50">Copy</button></div>
+              <p class="text-[10px] text-gray-400 mt-1">Isse apne provider dashboard me webhook / payment-status callback URL ki jagah paste karein.</p></div>
+            <div class="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-[10px] text-amber-800">⚠️ Gateway integration abhi active nahi hai: keys sirf save hoti hain. Webhook se payment auto-confirm aur "Test connection" abhi kaam nahi karte. Keys database me plain text me store hoti hain.</div>
+          </div>
+          <button onclick="saveProvider()" class="mt-4 bg-orange-600 hover:bg-orange-700 text-white font-black text-xs px-4 py-2 rounded-lg">Save provider</button>
+        </div>
+
+        <div class="bg-white border rounded-2xl p-5">
+          <div class="flex justify-between items-center mb-2"><h2 class="font-black text-base">Wait for payment confirmation</h2><button onclick="saveToggleGroup('pay_wait', PAY_WAIT)" class="bg-orange-600 hover:bg-orange-700 text-white font-black text-xs px-4 py-2 rounded-lg">Save</button></div>
+          <p class="text-[11px] text-gray-500 max-w-2xl mb-4">ON hone par ye surface UPI payment callback ka intezaar karta hai (paisa sach me aaya) tabhi order complete/settle hota hai. OFF par payment turant record ho jaati hai aur staff receipt haath se verify karta hai — self-serve screens par "I've Paid" button dikhta hai. Rush me kisi surface ko OFF kar sakte hain.</p>
+          <div id="payWaitRows" class="space-y-5"></div>
+        </div>
+
+        <div class="bg-white border rounded-2xl p-5">
+          <div class="flex justify-between items-center mb-2"><h2 class="font-black text-base">Use online gateway (Razorpay) per surface</h2><button onclick="saveToggleGroup('pay_gateway', PAY_GATEWAY)" class="bg-orange-600 hover:bg-orange-700 text-white font-black text-xs px-4 py-2 rounded-lg">Save</button></div>
+          <p class="text-[11px] text-gray-500 max-w-2xl mb-4">Kaun si ordering surfaces static UPI QR ki jagah aapke connected online provider se charge karein. Ye sirf wahan lagta hai jahan provider connected aur enabled ho. Customer app aur QR table dine-in ke liye recommended.</p>
+          <div id="payGatewayRows" class="space-y-5"></div>
+        </div>
+
+        <div class="bg-white border rounded-2xl p-5">
+          <div class="flex justify-between items-center mb-2"><h2 class="font-black text-base">Kiosk payment methods</h2><button onclick="saveKioskPay()" class="bg-orange-600 hover:bg-orange-700 text-white font-black text-xs px-4 py-2 rounded-lg">Save</button></div>
+          <p class="text-[11px] text-gray-500 mb-4">Self-order kiosks par customers kaise pay karein. Har kiosk par lagta hai. Kam se kam ek method ON rehni chahiye.</p>
+          <div id="kioskPayRows" class="space-y-5"></div>
+          <p id="kioskSummary" class="text-[11px] text-gray-500 border-t mt-4 pt-3"></p>
+        </div>
+      </section>
+
+      <!-- ================= QR ORDERING ================= -->
+      <section id="tab-qr" class="hidden space-y-5">
+        <div class="bg-white border rounded-2xl p-5">
+          <div class="flex justify-between items-center mb-2"><h2 class="font-black text-base">📱 QR Dine-In Ordering</h2><button onclick="saveQr()" class="bg-orange-600 hover:bg-orange-700 text-white font-black text-xs px-4 py-2 rounded-lg">Save</button></div>
+          <p class="text-[11px] text-gray-500 max-w-2xl mb-4">Table QR scan karne wale guests (dine-in channel) apne order ka payment kaise karein. Ye settings takeaway, delivery ya self-order kiosk par asar nahi daalti.</p>
+          <div id="qrToggleRows" class="space-y-5"></div>
+          <p class="text-[10px] text-gray-400 mt-3">Guests ke paas hamesha kam se kam ek tareeka rehta hai — dono OFF hon to Pay at Counter available rehta hai.</p>
+          <div class="border-t mt-5 pt-5 space-y-5">
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><div><div class="text-xs font-bold text-gray-500">Payment timing</div><p class="text-[10px] text-gray-400 mt-1">Counter payment kab li jaye — aur kya kitchen uska intezaar kare.</p></div><div><div id="qrTiming" class="space-y-2 max-w-xl"></div></div></div>
+          </div>
+          <div class="border-t mt-5 pt-5 space-y-5">
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><div><div class="text-xs font-bold text-gray-500">Message — after meal</div><p class="text-[10px] text-gray-400 mt-1">Confirmation screen par dikhta hai jab guest "After the meal" timing ke saath Pay at Counter chunta hai.</p></div><div><textarea id="qr_msg_after" rows="2" placeholder="Please pay at the counter when you're done — enjoy your meal! 🍽️" class="max-w-sm w-full border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"></textarea></div></div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><div><div class="text-xs font-bold text-gray-500">Message — pay upfront</div><p class="text-[10px] text-gray-400 mt-1">Confirmation screen par dikhta hai jab guest "Pay upfront" timing ke saath Pay at Counter chunta hai (order paid hone tak hold rehta hai).</p></div><div><textarea id="qr_msg_upfront" rows="2" placeholder="Please proceed to the counter to pay and confirm your order. Your food will be prepared once payment is received." class="max-w-sm w-full border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"></textarea></div></div>
+            <p class="text-[10px] text-gray-400">Message khali chhodne par default wording use hoti hai. Ye message WhatsApp order confirmation par bhi jaata hai.</p>
+          </div>
+        </div>
+        <div class="bg-white border rounded-2xl p-5">
+          <div class="flex justify-between items-center mb-2"><h2 class="font-black text-base">Order approval</h2><button onclick="saveQrApproval()" class="bg-orange-600 hover:bg-orange-700 text-white font-black text-xs px-4 py-2 rounded-lg">Save</button></div>
+          <p class="text-[11px] text-gray-500 mb-4">Jis QR dine-in order ka guest ne online (UPI) payment kar diya, uska kya hoga.</p>
+          <div id="qrApprovalRows" class="space-y-5"></div>
+        </div>
+      </section>
+
+      <!-- ================= STOREFRONT ================= -->
+      <section id="tab-storefront" class="hidden space-y-5">
+        <div class="bg-white border rounded-2xl p-5">
+          <div class="flex justify-between items-center mb-4"><h2 class="font-black text-base">Branding &amp; content</h2><button onclick="saveBranding()" class="bg-orange-600 hover:bg-orange-700 text-white font-black text-xs px-4 py-2 rounded-lg">Save</button></div>
+          <div class="space-y-5">
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><div><div class="text-xs font-bold text-gray-500">Tagline</div><p class="text-[10px] text-gray-400 mt-1">Website par naam ke neeche ek chhoti line.</p></div><div><input id="sf_tagline" type="text"  class="max-w-sm w-full border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"></div></div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><div><div class="text-xs font-bold text-gray-500">About</div><p class="text-[10px] text-gray-400 mt-1">Website par dikhne wala lamba description.</p></div><div><textarea id="sf_about" rows="4" placeholder="Tell customers about your restaurant..." class="max-w-sm w-full border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"></textarea></div></div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><div><div class="text-xs font-bold text-gray-500">Contact phone</div><p class="text-[10px] text-gray-400 mt-1">Khali chhodne par General settings wala restaurant phone use hota hai.</p></div><div><input id="sf_phone" type="text" placeholder="+91 98765 43210" class="max-w-sm w-full border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"></div></div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><div><div class="text-xs font-bold text-gray-500">Contact WhatsApp</div></div><div><input id="sf_whatsapp" type="text"  class="max-w-sm w-full border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"></div></div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><div><div class="text-xs font-bold text-gray-500">Contact email</div></div><div><input id="sf_email" type="email"  class="max-w-sm w-full border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"></div></div>
+            <div class="text-[10px] font-black tracking-wider text-gray-400 pt-1">ANNOUNCEMENT BAR</div>
+            <div id="sfAnnounceRows" class="space-y-5"></div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><div><div class="text-xs font-bold text-gray-500">Announcement text</div></div><div><input id="sf_announce_text" type="text" maxlength="200" class="max-w-sm w-full border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"></div></div>
+          </div>
+        </div>
+        <div class="bg-white border rounded-2xl p-5">
+          <div class="flex justify-between items-center mb-4"><h2 class="font-black text-base">Ordering rules</h2><button onclick="saveOrderingRules()" class="bg-orange-600 hover:bg-orange-700 text-white font-black text-xs px-4 py-2 rounded-lg">Save</button></div>
+          <div class="space-y-5">
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><div><div class="text-xs font-bold text-gray-500">Minimum order value</div><p class="text-[10px] text-gray-400 mt-1">Is amount se kam par customer checkout nahi kar sakta. 0 = koi minimum nahi.</p></div><div><div class="flex items-center gap-2 max-w-sm"><span class="text-gray-500">₹</span><input id="sf_min_order" type="number" min="0" step="1" placeholder="0" class="flex-1 border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"></div></div></div>
+            <div id="sfPrepRows" class="space-y-5"></div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><div><div class="text-xs font-bold text-gray-500">Prep time (minutes)</div></div><div><input id="sf_prep_min" type="number" min="1" max="240" class="max-w-sm w-full border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"></div></div>
+            <div id="sfApprovalRows" class="space-y-5"></div>
+          </div>
+        </div>
+        <div class="bg-white border rounded-2xl p-5">
+          <div class="flex justify-between items-center mb-2"><h2 class="font-black text-base">Highly ordered badge</h2><button onclick="saveBadge()" class="bg-orange-600 hover:bg-orange-700 text-white font-black text-xs px-4 py-2 rounded-lg">Save</button></div>
+          <p class="text-[11px] text-gray-500 mb-4">Un dishes ko tag karein jinke liye repeat customers baar-baar aate hain.</p>
+          <div class="space-y-5">
+            <div id="sfBadgeRows" class="space-y-5"></div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><div><div class="text-xs font-bold text-gray-500">Look back</div><p class="text-[10px] text-gray-400 mt-1">Sirf is period ke orders gine jate hain.</p></div><div><select id="sf_badge_weeks" class="max-w-sm w-full border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"><option value="4">Last 4 weeks</option><option value="8">Last 8 weeks</option><option value="12">Last 12 weeks</option><option value="26">Last 6 months</option></select></div></div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><div><div class="text-xs font-bold text-gray-500">Badge up to</div><p class="text-[10px] text-gray-400 mt-1">Sabse zyada repeat customers wali dishes ko badge milta hai.</p></div><div><div class="flex items-center gap-2"><input id="sf_badge_limit" type="number" min="1" max="100" class="w-24 border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"><span class="text-xs text-gray-400">dishes</span></div></div></div>
+            <p class="text-[10px] text-gray-400 border-t pt-3">Drinks aur sides exclude hain. Ise category ke hisaab se Menu → Edit category me badal sakte hain.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= RECEIPT & PRINT ================= -->
+      <section id="tab-receipt" class="hidden space-y-5">
+        <div class="bg-white border rounded-2xl p-5">
+          <div class="flex justify-between items-center mb-2"><h2 class="font-black text-base">Receipt</h2><button onclick="saveReceipt()" class="bg-orange-600 hover:bg-orange-700 text-white font-black text-xs px-4 py-2 rounded-lg">Save</button></div>
+          <p class="text-[11px] text-gray-500 mb-4">Ye lines har customer bill ke neeche print hoti hain. Bill ke upar ka naam, address, phone aur GSTIN <b>General</b> tab se aate hain.</p>
+          <div class="space-y-5">
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><div><div class="text-xs font-bold text-gray-500">Thank You Message</div><p class="text-[10px] text-gray-400 mt-1">Total ke theek neeche beech me.</p></div><input id="rc_thank" type="text" maxlength="120" placeholder="Thanks For Visiting Us!" class="max-w-md w-full border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"></div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><div><div class="text-xs font-bold text-gray-500">Footer Text</div><p class="text-[10px] text-gray-400 mt-1">Thank-you ke neeche optional line (jaise website, FSSAI).</p></div><input id="rc_footer" type="text" maxlength="160" class="max-w-md w-full border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"></div>
+          </div>
+        </div>
+        <div class="bg-white border rounded-2xl p-5">
+          <h2 class="font-black text-base">Receipt Logo</h2>
+          <p class="text-[11px] text-gray-500 mb-3">Har bill ke sabse upar print hota hai. PNG, JPG ya WebP — max 2 MB. Thermal printer ke liye kaala-safed (high contrast) logo behtar rehta hai.</p>
+          <div class="flex items-center gap-4">
+            <div class="w-24 h-24 border rounded-xl flex items-center justify-center bg-white overflow-hidden"><img id="rcLogoImg" src="" alt="" class="max-w-full max-h-full object-contain hidden"><span id="rcLogoNone" class="text-[10px] text-gray-400">No logo</span></div>
+            <div class="space-y-2">
+              <input type="file" id="rcLogoFile" accept="image/png,image/jpeg,image/webp" onchange="uploadReceiptLogo()" class="hidden">
+              <button onclick="$('rcLogoFile').click()" class="border text-xs font-black px-3 py-2 rounded-lg hover:bg-gray-50">Upload new logo</button>
+              <button id="rcLogoRemove" onclick="removeReceiptLogo()" class="hidden border border-rose-200 text-rose-600 text-xs font-black px-3 py-2 rounded-lg hover:bg-rose-50 ml-2">Remove</button>
+              <p class="text-[10px] text-gray-400">PNG, JPG, WebP — max 2 MB</p>
+            </div>
+          </div>
+        </div>
+        <div class="bg-white border rounded-2xl p-5">
+          <div class="flex justify-between items-center mb-4"><h2 class="font-black text-base">Bill printing</h2><button onclick="savePrinting()" class="bg-orange-600 hover:bg-orange-700 text-white font-black text-xs px-4 py-2 rounded-lg">Save</button></div>
+          <div id="rcPrintRows" class="space-y-5"></div>
+          <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start mt-5"><div><div class="text-xs font-bold text-gray-500">Receipt copies</div><p class="text-[10px] text-gray-400 mt-1">Bill ki kitni copies print karni hain (har copy alag page par).</p></div><input id="rc_copies" type="number" min="1" max="5" class="w-24 border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"></div>
+        </div>
+      </section>
+
+      <!-- ================= OPERATING HOURS ================= -->
+      <section id="tab-hours" class="hidden">
+        <div class="bg-white border rounded-2xl p-5">
+          <div class="flex justify-between items-center mb-2"><h2 class="font-black text-base">Operating Hours</h2><div class="flex gap-2"><button onclick="copyMonday()" class="border text-xs font-black px-3 py-2 rounded-lg hover:bg-gray-50">Copy Monday to all</button><button onclick="saveHours()" class="bg-orange-600 hover:bg-orange-700 text-white font-black text-xs px-4 py-2 rounded-lg">Save</button></div></div>
+          <p class="text-[11px] text-gray-500 mb-4 max-w-2xl">Online ordering page ke khulne ka time. Band hone par customers ko "restaurant band hai" dikhta hai aur order nahi ho paata (server bhi rok deta hai). POS/counter orders par asar nahi. Closing time opening se pehle ka ho (jaise 6 PM – 2 AM) to raat ke paar chalta hai. Time India (IST) me.</p>
+          <div id="hoursRows" class="space-y-3"></div>
+        </div>
+      </section>
+
+      <!-- ================= DELIVERY CHARGES ================= -->
+      <section id="tab-charges" class="hidden">
+        <div class="bg-white border rounded-2xl p-5">
+          <div class="flex justify-between items-center mb-3"><h2 class="font-black text-base">Delivery Charges</h2><button onclick="saveCharges()" class="bg-orange-600 hover:bg-orange-700 text-white font-black text-xs px-4 py-2 rounded-lg">Save</button></div>
+          <div class="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 text-[11px] text-orange-900 mb-4"><b>Note:</b> Ye settings online customer page ke delivery orders par lagti hain. Delivery charge bill me "Delivery Charge" line ki tarah judta hai (us par GST bhi lagta hai) aur kitchen screen par nahi dikhta.</div>
+          <div class="text-[10px] font-black tracking-wider text-gray-400 mb-2">SELECT DELIVERY CHARGE MODEL</div>
+          <div id="dcModels" class="space-y-2 mb-5"></div>
+          <div id="dcExtra"></div>
+        </div>
+      </section>
+
+      <!-- Placeholder for tabs not built yet -->
+      <section id="tab-soon" class="hidden bg-white border rounded-2xl p-10 text-center space-y-2">
+        <div class="text-4xl">🚧</div>
+        <h2 id="soonTitle" class="font-black text-lg"></h2>
+        <p class="text-xs text-gray-500">Ye tab abhi ban raha hai.</p>
+      </section>
+    </main>
   </div>
 
+  <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg opacity-0 pointer-events-none transition-opacity bg-gray-900 text-white"></div>
+
   <script>
-    fetch('/api/settings')
-      .then(res => res.json())
-      .then(data => {
-        if (!data) return;
-        document.getElementById('restaurant_name').value = data.restaurant_name || '';
-        document.getElementById('tagline').value = data.tagline || '';
-        document.getElementById('address').value = data.address || '';
-        document.getElementById('phone').value = data.phone || '';
-        document.getElementById('gstin').value = data.gstin || '';
-        document.getElementById('default_gst').value = data.default_gst || 5;
-      });
-    const savedLogo = localStorage.getItem('pos_receipt_logo');
-    const previewImg = document.getElementById('logoPreview');
-    const removeBtn = document.getElementById('removeLogoBtn');
-    if (savedLogo) {
-      previewImg.src = savedLogo;
-      previewImg.classList.remove('hidden');
-      removeBtn.classList.remove('hidden');
-    }
-    removeBtn.addEventListener('click', () => {
-      localStorage.removeItem('pos_receipt_logo');
-      document.getElementById('logoInput').value = '';
-      previewImg.src = '';
-      previewImg.classList.add('hidden');
-      removeBtn.classList.add('hidden');
-    });
+    const TABS = [
+      ['general', 'General'], ['timers', '⏱ Order Timers'], ['waiters', '🧑‍🍳 Waiters & Floor'], ['taxes', 'Taxes & GST'],
+      ['payments', 'Payments'], ['qr', '📱 QR Ordering'], ['storefront', '🏪 Storefront'], ['website', '🌐 Website'],
+      ['receipt', 'Receipt & Print'], ['notifications', 'Notifications'], ['loyalty', 'Loyalty'], ['hours', 'Operating Hours'],
+      ['kitchen', 'Kitchen Notes'], ['charges', 'Delivery Charges'], ['areas', '🗺 Delivery Areas'], ['apps', '📲 Apps & Downloads'],
+      ['subscription', 'Subscription']
+    ];
 
-    function saveSettings(e) {
-      e.preventDefault();
-      const logoInput = document.getElementById('logoInput');
-    if (logoInput.files && logoInput.files[0]) {
-      const reader = new FileReader();
-      reader.onload = function(evt) {
-        localStorage.setItem('pos_receipt_logo', evt.target.result);
+    const BUILT = ['general', 'timers', 'taxes', 'waiters', 'payments', 'qr', 'storefront', 'receipt', 'hours', 'charges'];
+    const inited = {};
+    function showTab(id) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === id));
+      const isGeneral = id === 'general', built = BUILT.includes(id);
+      BUILT.forEach(b => document.getElementById('tab-' + b).classList.toggle('hidden', b !== id));
+      document.getElementById('tab-soon').classList.toggle('hidden', built);
+      if (!built) document.getElementById('soonTitle').innerText = (TABS.find(t => t[0] === id) || [0, ''])[1].replace(/^[^\w&]+\s*/, '');
+      if (id === 'timers' && !timersReady) initTimers();
+      if (TAB_INIT[id] && !inited[id]) { inited[id] = true; TAB_INIT[id](); }
+      history.replaceState(null, '', '#' + id);
+      if (isGeneral && map) setTimeout(() => map.invalidateSize(), 50);
+      if (window.innerWidth < 768) document.getElementById('sideNav').classList.add('hidden');
+    }
+    document.getElementById('sideNav').innerHTML = TABS.map(t =>
+      `<button data-tab="${t[0]}" onclick="showTab('${t[0]}')" class="tab-btn w-full text-left text-xs font-bold px-3 py-2.5 rounded-lg hover:bg-gray-50 transition">${t[1]}</button>`).join('');
+
+    let toastT = null;
+    function toast(msg, bad) {
+      const t = document.getElementById('toast');
+      t.innerText = msg;
+      t.className = t.className.replace(/bg-(gray-900|rose-600)/, bad ? 'bg-rose-600' : 'bg-gray-900').replace('opacity-0', 'opacity-100');
+      clearTimeout(toastT);
+      toastT = setTimeout(() => { t.className = t.className.replace('opacity-100', 'opacity-0'); }, 2500);
+    }
+    const $ = id => document.getElementById(id);
+
+    // ---------- config (settings.config JSON) ----------
+    let cfg = {};
+    function putConfig(patch) {
+      return fetch('/api/settings/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) })
+        .then(r => r.json().then(d => { if (!r.ok) throw new Error(d.error || 'Save failed'); return d; }))
+        .then(d => { cfg = d.config || cfg; return d; });
+    }
+
+    // ---------- base profile ----------
+    function saveBase() {
+      const name = $('restaurant_name').value.trim(), addr = $('address').value.trim();
+      if (!name || !addr) return toast('Restaurant name aur address zaroori hai', true);
+      const pin = $('admin_pin').value.trim();
+      if (pin && !/^\d{4,6}$/.test(pin)) return toast('PIN 4 se 6 digits ka hona chahiye', true);
+      const body = {
+        restaurant_name: name, tagline: $('tagline').value.trim(), address: addr, phone: $('phone').value.trim(),
+        gstin: $('gstin').value.trim().toUpperCase(), default_gst: Number($('default_gst').value) || 5
       };
-      reader.readAsDataURL(logoInput.files[0]);
-    }
-      fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          restaurant_name: document.getElementById('restaurant_name').value,
-          tagline: document.getElementById('tagline').value,
-          address: document.getElementById('address').value,
-          phone: document.getElementById('phone').value,
-          gstin: document.getElementById('gstin').value,
-          default_gst: Number(document.getElementById('default_gst').value),
-          admin_pin: document.getElementById('admin_pin').value || '1234'
-        })
-      })
-      .then(res => res.json())
-      .then(() => alert('Settings saved successfully!'));
+      if (pin) body.admin_pin = pin;
+      Promise.all([
+        fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => { if (!r.ok) throw new Error('Save failed'); }),
+        putConfig({ cuisine: $('cuisine').value.trim(), fssai: $('fssai').value.trim(), seating_capacity: $('seating').value === '' ? null : Number($('seating').value) })
+      ]).then(() => { $('admin_pin').value = ''; toast('Settings save ho gayi ✓'); })
+        .catch(e => toast(e.message, true));
     }
 
+    // ---------- toggle sections ----------
+    const SECTIONS = {
+      tables: { auto_clear: ['tables_auto_clear', 'bool', true], clear_after_min: ['tables_clear_after', 'num', 0] },
+      orders: {
+        auto_complete: ['orders_auto_complete', 'bool', true], complete_after_min: ['orders_complete_after', 'num', 0],
+        clear_kiosk: ['orders_clear_kiosk', 'bool', true], clear_takeaway: ['orders_clear_takeaway', 'bool', true], clear_delivery: ['orders_clear_delivery', 'bool', false]
+      },
+      require_phone: { dine_in: ['rp_dine_in', 'bool', true], takeaway: ['rp_takeaway', 'bool', true], waiter: ['rp_waiter', 'bool', true], kiosk: ['rp_kiosk', 'bool', true] }
+    };
+    function fillSections() {
+      Object.keys(SECTIONS).forEach(sec => {
+        const saved = cfg[sec] || {};
+        Object.keys(SECTIONS[sec]).forEach(k => {
+          const [id, type, def] = SECTIONS[sec][k];
+          const v = saved[k] === undefined ? def : saved[k];
+          if (type === 'bool') $(id).checked = !!v; else $(id).value = v;
+        });
+      });
+    }
+    function saveSection(sec) {
+      const out = {};
+      Object.keys(SECTIONS[sec]).forEach(k => {
+        const [id, type] = SECTIONS[sec][k];
+        if (type === 'bool') out[k] = $(id).checked;
+        else { const n = Number($(id).value); out[k] = isNaN(n) || n < 0 ? 0 : n; }
+      });
+      putConfig({ [sec]: out }).then(() => { fillSections(); toast('Save ho gaya ✓'); }).catch(e => toast(e.message, true));
+    }
+
+    // ---------- max delivery distance ----------
+    function renderMaxKm() {
+      const v = Number(cfg.max_delivery_km) || 0;
+      $('maxKm').value = v || '';
+      $('maxKmNow').innerText = v ? `Currently: ${v} km — isse door ke delivery orders block honge` : 'Currently: not set — delivery allowed anywhere';
+    }
+    function saveMaxKm() {
+      const v = Number($('maxKm').value);
+      if (!(v > 0)) return toast('Valid distance (km) daalein', true);
+      if (!cfg.location || cfg.location.lat == null) return toast('Pehle restaurant ki location save karein', true);
+      putConfig({ max_delivery_km: v }).then(() => { renderMaxKm(); toast('Max delivery distance save ho gayi ✓'); }).catch(e => toast(e.message, true));
+    }
+    function clearMaxKm() {
+      putConfig({ max_delivery_km: null }).then(() => { renderMaxKm(); toast('Delivery distance limit hata di'); }).catch(e => toast(e.message, true));
+    }
+
+    // ---------- restaurant location map (Leaflet + OpenStreetMap) ----------
+    let map = null, marker = null, picked = null;
+    function setPoint(lat, lng, zoom) {
+      picked = { lat: Number(lat), lng: Number(lng) };
+      if (!marker) {
+        marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+        marker.on('dragend', () => { const p = marker.getLatLng(); setPoint(p.lat, p.lng); });
+      } else marker.setLatLng([lat, lng]);
+      if (zoom) map.setView([lat, lng], zoom);
+      $('locCoords').innerText = `${picked.lat.toFixed(6)}, ${picked.lng.toFixed(6)}`;
+    }
+    function initMap() {
+      const loc = cfg.location && cfg.location.lat != null ? cfg.location : null;
+      const start = loc || { lat: 29.9278, lng: 75.5614 }; // Budhlada
+      map = L.map('map').setView([start.lat, start.lng], loc ? 16 : 13);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
+      map.on('click', e => setPoint(e.latlng.lat, e.latlng.lng));
+      if (loc) { setPoint(loc.lat, loc.lng); $('locBadge').classList.remove('hidden'); }
+    }
+    function saveLocation() {
+      if (!picked) return toast('Pehle map par pin lagayein', true);
+      putConfig({ location: picked }).then(() => { $('locBadge').classList.remove('hidden'); toast('Location save ho gayi ✓'); }).catch(e => toast(e.message, true));
+    }
+    function useMyLocation() {
+      if (!navigator.geolocation) return toast('Is browser me location support nahi hai', true);
+      navigator.geolocation.getCurrentPosition(p => setPoint(p.coords.latitude, p.coords.longitude, 17), () => toast('Location permission nahi mili', true), { enableHighAccuracy: true, timeout: 15000 });
+    }
+    function searchPlace() {
+      const q = $('mapSearch').value.trim();
+      if (!q) return;
+      const box = $('searchResults');
+      box.classList.remove('hidden');
+      box.innerHTML = '<div class="p-2.5 text-gray-400">Searching...</div>';
+      fetch('https://nominatim.openstreetmap.org/search?format=json&limit=5&q=' + encodeURIComponent(q))
+        .then(r => r.json())
+        .then(list => {
+          if (!list.length) { box.innerHTML = '<div class="p-2.5 text-gray-400">Koi result nahi mila</div>'; return; }
+          box.innerHTML = '';
+          list.forEach(r => {
+            const b = document.createElement('button');
+            b.className = 'block w-full text-left p-2.5 hover:bg-orange-50';
+            b.textContent = r.display_name;
+            b.onclick = () => { setPoint(r.lat, r.lon, 17); box.classList.add('hidden'); };
+            box.appendChild(b);
+          });
+        })
+        .catch(() => { box.innerHTML = '<div class="p-2.5 text-rose-500">Search nahi ho paayi. Internet check karein.</div>'; });
+    }
+
+    // ---------- order timers ----------
+    const TIMER_STAGES = [
+      { group: 'kitchen', title: '🔍 Kitchen', sub: 'KDS In (accepted) → KDS Out (bumped / ready)', badge: 'FILLS THE ORANGE STRIP', badgeCls: 'bg-orange-50 text-orange-700 border-orange-200' },
+      { key: 'dine_in', group: 'kitchen', label: '🍽 Dine-in', sub: 'har add-on round apne aap time hota hai', def: 12, bar: '#ea580c', stat: 'orders' },
+      { key: 'takeaway', group: 'kitchen', label: '🥡 Takeaway', def: 12, bar: '#ea580c', stat: 'orders' },
+      { key: 'delivery', group: 'kitchen', label: '🛵 Delivery', sub: 'sirf kitchen ka hissa', def: 12, bar: '#ea580c', stat: 'orders' },
+      { group: 'rider', title: '🛵 Rider', sub: 'rider assigned → delivered · ek clock', badge: 'FILLS THE BLUE STRIP', badgeCls: 'bg-orange-50 text-orange-700 border-orange-200' },
+      { key: 'rider', group: 'rider', label: 'Rider trip', def: 25, bar: '#2563eb', stat: 'deliveries' },
+      { group: 'awaiting', title: '⏳ Awaiting acceptance', sub: 'order placed → accepted', badge: 'CLOCK CHIP ONLY', badgeCls: 'bg-gray-100 text-gray-600 border-gray-200' },
+      { key: 'awaiting', group: 'awaiting', label: 'Waiting to be accepted', sub: 'Jin orders ko approval chahiye · sab types', def: 5, note: 'Strip me nahi: strip KDS In (accepted) se shuru hoti hai. Ye sirf awaiting-approval clock ka rang tay karta hai.' },
+      { group: 'ready', title: '📦 Ready, no rider yet', sub: 'KDS Out → rider assigned · sirf delivery', badge: 'CLOCK CHIP ONLY', badgeCls: 'bg-gray-100 text-gray-600 border-gray-200' },
+      { key: 'ready_no_rider', group: 'ready', label: 'Food ready, waiting for a rider', sub: 'Delivery orders', def: 6, note: 'Strip par ye gap grey dashed "waiting for rider" hai — ye kabhi laal nahi hota. Ye number sirf waiting-for-rider clock ka rang tay karta hai.' }
+    ];
+    const TIMER_DISPLAY_DEF = { strip: true, minutes: false, chip: false, kpi: true, late_badge: true };
+    let T = null, timerStats = null, timersReady = false;
+
+    function defaultTimers() {
+      const vals = {};
+      TIMER_STAGES.filter(s => s.key).forEach(s => { vals[s.key] = { expected: s.def, amber: Math.round(s.def * 0.8), late: s.def }; });
+      return { mode: 'simple', vals, display: Object.assign({}, TIMER_DISPLAY_DEF) };
+    }
+    function thresholds(key) {
+      const v = T.vals[key], e = Number(v.expected) || 0;
+      return T.mode === 'advanced' ? { amber: Number(v.amber) || Math.round(e * 0.8), late: Number(v.late) || e } : { amber: Math.round(e * 0.8), late: e };
+    }
+    const fmtM = n => (Math.round(n * 10) / 10) + 'm';
+
+    function initTimers() {
+      timersReady = true;
+      const saved = cfg.order_timers || {};
+      T = defaultTimers();
+      if (saved.mode === 'advanced') T.mode = 'advanced';
+      Object.keys(T.vals).forEach(k => { if (saved.vals && saved.vals[k]) T.vals[k] = Object.assign(T.vals[k], saved.vals[k]); });
+      T.display = Object.assign(T.display, saved.display || {});
+      renderTimers();
+      fetch('/api/order-timer-stats').then(r => r.json()).then(d => { timerStats = d; renderTimers(); }).catch(() => {});
+    }
+
+    function renderTimers() {
+      $('modeSimple').className = 'px-3 py-1.5 rounded-md ' + (T.mode === 'simple' ? 'bg-white text-orange-700 shadow-sm' : 'text-gray-500');
+      $('modeAdvanced').className = 'px-3 py-1.5 rounded-md ' + (T.mode === 'advanced' ? 'bg-white text-orange-700 shadow-sm' : 'text-gray-500');
+      $('modeText').innerText = T.mode === 'simple'
+        ? 'Har stage ka ek number. Strip usi tak bharti hai; clock chips uske 80% par amber aur uske baad laal + Late ho jate hain, to strip aur chips hamesha ek jaise rehte hain.'
+        : 'Har stage ke liye amber aur laal/Late limit alag se set karein. Strip abhi bhi Expected tak bharti hai.';
+      if (timerStats) {
+        const f = d => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+        $('timerHint').innerHTML = `📊 Grey hints <b>aapke apne numbers</b> hain, pichhle 30 din ke (${f(timerStats.from)} – ${f(timerStats.to)}). "Your usual" beech wala order hai; "slowest 10%" wo point hai jisse sirf 10 me se 1 order aage jaata hai. <b>Use my numbers</b> Expected ko aapke slowest 10% par set karta hai (round up), yaani lagbhag 10 me se 9 orders strip laal hone se pehle ban jate hain.`;
+      } else $('timerHint').innerText = 'Aapke pichhle 30 din ke numbers load ho rahe hain...';
+
+      $('timerStages').innerHTML = TIMER_STAGES.map(st => {
+        if (!st.key) return `<div class="flex items-center gap-2 flex-wrap pt-5 pb-2 border-t mt-5 first:border-0 first:mt-0 first:pt-3"><span class="font-black text-sm">${st.title}</span><span class="text-[10px] text-gray-400">${st.sub}</span><span class="text-[9px] font-black border rounded-full px-2 py-0.5 ${st.badgeCls}">${st.badge}</span></div>`;
+        const k = st.key, v = T.vals[k], s = timerStats && timerStats.stages[k];
+        const hint = s && s.usual != null
+          ? `your usual <b>${fmtM(s.usual)}</b> · slowest 10% <b>${fmtM(s.slow)}</b> <button onclick="useNumbers('${k}')" class="ml-1 border text-gray-700 font-black px-2 py-0.5 rounded-md hover:bg-gray-50">Use my numbers</button>`
+          : 'abhi is stage ka timing data nahi hai (naye orders se banna shuru hoga)';
+        const count = s ? `${s.n.toLocaleString('en-IN')} ${st.stat || 'orders'} in 30 days` : '';
+        return `<div class="grid md:grid-cols-[200px_1fr] gap-2 py-3">
+          <div><div class="text-xs font-bold text-gray-600">${st.label}</div><p class="text-[10px] text-gray-400 mt-0.5">${[count, st.sub].filter(Boolean).join(' · ')}</p></div>
+          <div>
+            <div class="flex items-center gap-2"><span class="text-[10px] font-black text-orange-700 tracking-wide">EXPECTED</span>
+              <input type="number" min="1" max="999" value="${v.expected}" oninput="onExpected('${k}', this.value)" class="w-20 border p-2 rounded-lg text-sm font-black text-right outline-none focus:ring-2 focus:ring-orange-400"> <span class="text-xs text-gray-400">min</span></div>
+            <div class="text-[11px] text-gray-400 mt-2">${hint}</div>
+            ${T.mode === 'advanced' ? `<div class="flex items-center gap-3 mt-2 text-[11px] text-gray-500">
+                <label>Amber from <input type="number" min="1" value="${v.amber}" oninput="onLimit('${k}','amber',this.value)" class="w-16 border p-1.5 rounded-lg text-xs font-bold"> min</label>
+                <label>Red + Late after <input type="number" min="1" value="${v.late}" oninput="onLimit('${k}','late',this.value)" class="w-16 border p-1.5 rounded-lg text-xs font-bold"> min</label></div>` : ''}
+            ${st.note ? `<div class="mt-2 border rounded-lg p-2.5 text-[10px] text-gray-400 max-w-md">${st.note}</div>` : ''}
+            ${st.bar ? `<div class="text-[9px] font-black text-gray-400 tracking-wider mt-3 mb-1">STRIP PREVIEW</div><div id="prev_${k}" class="flex flex-wrap gap-3"></div>` : ''}
+            <div id="chips_${k}" class="text-[11px] text-gray-400 mt-2"></div>
+          </div></div>`;
+      }).join('');
+      Object.keys(T.vals).forEach(updateStagePreview);
+      Object.keys(T.display).forEach(k => { const el = $('tm_' + k); if (el) el.checked = !!T.display[k]; });
+    }
+
+    function updateStagePreview(k) {
+      const st = TIMER_STAGES.find(s => s.key === k), e = Number(T.vals[k].expected) || 0, th = thresholds(k);
+      const prev = $('prev_' + k);
+      if (prev && st.bar && e > 0) {
+        const inM = Math.max(1, Math.round(e * 0.6)), lateIn = Math.round(e * 1.25), late = lateIn - e;
+        const card = (txt, pct, color) => `<div class="border rounded-lg px-2.5 pt-1.5 pb-0 w-52 overflow-hidden"><div class="text-[10px] pb-1.5">${txt}</div><div class="h-1 -mx-2.5 bg-gray-100"><div class="h-1" style="width:${pct}%;background:${color}"></div></div></div>`;
+        prev.innerHTML = card(`<b>${inM}m</b> in · ${Math.round(inM / e * 100)}% of ${e}m`, inM / e * 100, st.bar) +
+          card(`<b>${lateIn}m</b> in · <b class="text-rose-600">+${late}m late</b>`, 100, '#dc2626');
+      }
+      const chips = $('chips_' + k);
+      if (chips) chips.innerHTML = `Clock chips follow it: <span class="text-orange-700">●</span> amber from <b>${th.amber}m</b> · <span class="text-rose-600">●</span> red + Late after <b>${th.late}m</b>`;
+    }
+    function onExpected(k, val) {
+      const n = Math.max(1, Math.min(999, Math.round(Number(val)) || 0));
+      T.vals[k].expected = n;
+      if (T.mode === 'simple') { T.vals[k].amber = Math.round(n * 0.8); T.vals[k].late = n; }
+      updateStagePreview(k);
+    }
+    function onLimit(k, which, val) { T.vals[k][which] = Math.max(1, Math.round(Number(val)) || 1); updateStagePreview(k); }
+    function setTimerMode(m) { T.mode = m; Object.keys(T.vals).forEach(k => { if (m === 'simple') { const e = Number(T.vals[k].expected) || 1; T.vals[k].amber = Math.round(e * 0.8); T.vals[k].late = e; } }); renderTimers(); }
+    function useNumbers(k) {
+      const s = timerStats && timerStats.stages[k];
+      if (!s || s.slow == null) return;
+      onExpected(k, Math.max(1, Math.ceil(s.slow)));
+      renderTimers();
+    }
+    function useAllNumbers() {
+      if (!timerStats) return toast('Numbers load ho rahe hain', true);
+      let n = 0;
+      Object.keys(T.vals).forEach(k => { const s = timerStats.stages[k]; if (s && s.slow != null) { onExpected(k, Math.max(1, Math.ceil(s.slow))); n++; } });
+      renderTimers();
+      toast(n ? `${n} stages aapke numbers par set hue (Save karna na bhoolein)` : 'Abhi koi timing data nahi hai', !n);
+    }
+    function resetTimers() {
+      if (!confirm('Saare timers default values par reset karein?')) return;
+      T = defaultTimers(); renderTimers(); toast('Defaults set hue (Save karna na bhoolein)');
+    }
+    function saveTimers() {
+      const display = {};
+      Object.keys(TIMER_DISPLAY_DEF).forEach(k => { display[k] = $('tm_' + k).checked; });
+      T.display = display;
+      for (const k of Object.keys(T.vals)) {
+        const th = thresholds(k);
+        if (th.amber > th.late) return toast(`${k.replace(/_/g, ' ')}: amber limit red/Late limit se zyada nahi ho sakti`, true);
+      }
+      putConfig({ order_timers: T }).then(() => toast('Order timers save ho gaye ✓')).catch(e => toast(e.message, true));
+    }
+
+    // ---------- shared helpers for the toggle-style cards ----------
+    const todayStr = () => new Date().toISOString().slice(0, 10);
+    function rowsHTML(prefix, defs, saved) {
+      saved = saved || {};
+      return defs.map(d => d.head
+        ? `<div class="text-[10px] font-black tracking-wider text-gray-400 pt-1">${d.head}</div>`
+        : `<div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><div><div class="text-xs font-bold text-gray-500">${d.label}</div><p class="text-[10px] text-gray-400 mt-1">${d.desc || ''}</p></div>
+            <label class="tgl"><input type="checkbox" id="${prefix}_${d.k}" ${(saved[d.k] === undefined ? d.def : saved[d.k]) ? 'checked' : ''} ${d.onchange ? `onchange="${d.onchange}"` : ''}><span></span></label></div>`).join('');
+    }
+    function collectRows(prefix, defs) { const o = {}; defs.filter(d => d.k).forEach(d => { o[d.k] = $(prefix + '_' + d.k).checked; }); return o; }
+    function saveToggleGroup(key, defs) {
+      putConfig({ [key]: collectRows(key, defs) }).then(() => toast('Save ho gaya ✓')).catch(e => toast(e.message, true));
+    }
+
+    // ---------- Taxes & GST ----------
+    const SLAB_DEF = [
+      { id: 1, name: 'GST 5%', rate: 5, is_default: true, active: true },
+      { id: 2, name: 'No Tax', rate: 0, is_default: false, active: true },
+      { id: 3, name: 'GST 12%', rate: 12, is_default: false, active: true },
+      { id: 4, name: 'GST 18%', rate: 18, is_default: false, active: true }
+    ];
+    let slabs = [], editingSlab = null;
+    function updIncHint() {
+      $('incHint').innerText = $('tx_inclusive').checked
+        ? 'Menu prices me GST pehle se shamil hai — bill me tax price ke andar dikhta hai.'
+        : 'GST menu prices ke upar jodta hai — customer menu price + tax deta hai.';
+    }
+    function updSlabRate() { $('slabDefaultRate').innerText = ((Number($('tx_cgst').value) || 0) + (Number($('tx_sgst').value) || 0)) + '%'; }
+    function initTaxes() {
+      const t = cfg.taxes || {};
+      $('tx_cgst').value = t.cgst === undefined ? 2.5 : t.cgst;
+      $('tx_sgst').value = t.sgst === undefined ? 2.5 : t.sgst;
+      $('tx_service').checked = !!t.service_charge;
+      $('tx_service_pct').value = t.service_charge_pct === undefined ? 10 : t.service_charge_pct;
+      $('tx_inclusive').checked = !!t.prices_include_tax;
+      $('tx_round').checked = t.round_off !== false;
+      slabs = Array.isArray(cfg.tax_slabs) && cfg.tax_slabs.length ? cfg.tax_slabs : JSON.parse(JSON.stringify(SLAB_DEF));
+      updIncHint(); updSlabRate(); renderSlabs();
+    }
+    function saveTaxes() {
+      const cgst = Number($('tx_cgst').value), sgst = Number($('tx_sgst').value), sc = Number($('tx_service_pct').value);
+      if (isNaN(cgst) || cgst < 0 || cgst > 50 || isNaN(sgst) || sgst < 0 || sgst > 50) return toast('CGST/SGST 0 se 50% ke beech hona chahiye', true);
+      if (isNaN(sc) || sc < 0 || sc > 100) return toast('Service charge 0 se 100% ke beech hona chahiye', true);
+      putConfig({ taxes: { cgst, sgst, service_charge: $('tx_service').checked, service_charge_pct: sc, prices_include_tax: $('tx_inclusive').checked, round_off: $('tx_round').checked } })
+        .then(() => toast('Taxes save ho gaye ✓')).catch(e => toast(e.message, true));
+    }
+    function renderSlabs() {
+      $('slabList').innerHTML = slabs.map(sl => `<div class="flex items-center justify-between py-3 gap-3">
+        <div><div class="text-sm font-black">${esc(sl.name)} ${sl.is_default ? '<span class="ml-1 text-[9px] font-black text-orange-700 bg-orange-50 border border-orange-200 rounded-full px-2 py-0.5">DEFAULT</span>' : ''}${sl.active ? '' : '<span class="ml-1 text-[9px] font-black text-gray-500 bg-gray-100 rounded-full px-2 py-0.5">INACTIVE</span>'}</div><div class="text-[10px] text-gray-400">All items</div></div>
+        <div class="flex items-center gap-2"><span class="font-black text-sm mr-2">${Number(sl.rate).toFixed(1)}%</span>
+          ${sl.is_default ? '' : `<button onclick="slabDefault(${sl.id})" class="border text-[10px] font-black px-2 py-1 rounded-md hover:bg-gray-50">Set default</button>`}
+          <button onclick="openSlabForm(${sl.id})" class="border text-[10px] font-black px-2 py-1 rounded-md hover:bg-gray-50">Edit</button>
+          <button onclick="slabToggle(${sl.id})" ${sl.is_default ? 'disabled title="Default slab deactivate nahi hota"' : ''} class="border text-[10px] font-black px-2 py-1 rounded-md ${sl.is_default ? 'text-gray-300' : (sl.active ? 'text-rose-600 border-rose-200 hover:bg-rose-50' : 'text-emerald-600 border-emerald-200 hover:bg-emerald-50')}">${sl.active ? 'Deactivate' : 'Activate'}</button></div></div>`).join('');
+    }
+    function persistSlabs(msg) { return putConfig({ tax_slabs: slabs }).then(() => { renderSlabs(); if (msg) toast(msg); }).catch(e => toast(e.message, true)); }
+    function slabDefault(id) { const sl = slabs.find(x => x.id === id); if (!sl.active) return toast('Pehle slab activate karein', true); slabs.forEach(x => { x.is_default = x.id === id; }); persistSlabs('Default slab badal gaya ✓'); }
+    function slabToggle(id) { const sl = slabs.find(x => x.id === id); if (sl.is_default) return; sl.active = !sl.active; persistSlabs(sl.active ? 'Slab activate ho gaya' : 'Slab deactivate ho gaya'); }
+    function openSlabForm(id) {
+      editingSlab = id;
+      const sl = slabs.find(x => x.id === id);
+      $('slabName').value = sl ? sl.name : ''; $('slabRate').value = sl ? sl.rate : '';
+      $('slabForm').classList.remove('hidden'); $('slabName').focus();
+    }
+    function saveSlab() {
+      const name = $('slabName').value.trim(), rate = Number($('slabRate').value);
+      if (!name) return toast('Slab ka naam likhein', true);
+      if ($('slabRate').value === '' || isNaN(rate) || rate < 0 || rate > 100) return toast('Rate 0 se 100% ke beech daalein', true);
+      if (slabs.some(x => x.id !== editingSlab && x.name.toLowerCase() === name.toLowerCase())) return toast('Is naam ka slab pehle se hai', true);
+      if (editingSlab) { const sl = slabs.find(x => x.id === editingSlab); sl.name = name; sl.rate = rate; }
+      else slabs.push({ id: Math.max(0, ...slabs.map(x => x.id)) + 1, name, rate, is_default: false, active: true });
+      $('slabForm').classList.add('hidden');
+      persistSlabs('Slab save ho gaya ✓');
+    }
+    function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+    // ---------- Waiters & Floor ----------
+    const TIP_OPTIONS = [
+      ['all_to_server', 'All to server', "Poori tip table ke server ko jaati hai (aaj ka default)."],
+      ['even_split', 'Even split among contributors', '₹100 tip, 2 helpers → ₹50 each — table par kaam karne walon me barabar baant.'],
+      ['by_share', 'By share of items added', 'Kisne kitne items add kiye uske hisaab se — jis waiter ne zyada add kiye use zyada tip.']
+    ];
+    let sections = [];
+    function initWaiters() {
+      const w = cfg.waiters || {};
+      $('wt_allow_replace').checked = !!w.allow_replace_items;
+      $('wt_open').checked = w.access_open !== false;
+      const cur = w.tip_policy || 'all_to_server';
+      $('tipOptions').innerHTML = TIP_OPTIONS.map(o => `<label class="flex items-start gap-3 border rounded-xl p-3 cursor-pointer ${o[0] === cur ? 'bg-orange-50 border-orange-300' : ''}">
+        <input type="radio" name="tip_policy" value="${o[0]}" ${o[0] === cur ? 'checked' : ''} onchange="initTipHighlight()" class="mt-1 accent-orange-600"><span><span class="block text-xs font-black">${o[1]}</span><span class="block text-[11px] text-gray-400">${o[2]}</span></span></label>`).join('');
+      sections = Array.isArray(cfg.floor_sections) && cfg.floor_sections.length ? cfg.floor_sections : [{ id: 1, name: 'Ground', color: '#9ca3af', assign: {} }];
+      $('shiftDate').value = todayStr();
+      renderSections();
+    }
+    function initTipHighlight() {
+      document.querySelectorAll('#tipOptions label').forEach(l => { const on = l.querySelector('input').checked; l.className = 'flex items-start gap-3 border rounded-xl p-3 cursor-pointer ' + (on ? 'bg-orange-50 border-orange-300' : ''); });
+    }
+    function saveWaiters() {
+      const tip = document.querySelector('input[name=tip_policy]:checked');
+      putConfig({ waiters: { allow_replace_items: $('wt_allow_replace').checked, access_open: $('wt_open').checked, tip_policy: tip ? tip.value : 'all_to_server' } })
+        .then(() => toast('Waiter settings save ho gayi ✓')).catch(e => toast(e.message, true));
+    }
+    function persistSections() { return putConfig({ floor_sections: sections }).catch(e => toast(e.message, true)); }
+    function renderSections() {
+      const day = $('shiftDate').value || todayStr();
+      $('sectionList').innerHTML = sections.map((sec, i) => {
+        const names = (sec.assign && sec.assign[day]) || [];
+        return `<div class="flex items-center gap-3 py-3 flex-wrap">
+          <input type="color" value="${esc(sec.color)}" onchange="sections[${i}].color=this.value;persistSections()" class="w-8 h-8 rounded border p-0 cursor-pointer">
+          <input type="text" value="${esc(sec.name)}" onchange="renameSection(${i},this.value)" class="font-black text-sm border-0 border-b border-transparent hover:border-gray-300 focus:border-orange-400 outline-none w-40">
+          <div class="flex-1 flex items-center gap-2 flex-wrap">${names.length ? names.map((n, j) => `<span class="text-[11px] font-bold bg-orange-50 border border-orange-200 text-orange-800 rounded-full px-2.5 py-1">${esc(n)} <button onclick="unassignWaiter(${i},${j})" class="ml-1 text-orange-400 hover:text-rose-600">×</button></span>`).join('') : '<span class="text-[11px] text-gray-400">No waiters assigned</span>'}
+            <button onclick="assignWaiter(${i})" class="text-[11px] font-black text-orange-700 border border-dashed border-orange-300 rounded-full px-2.5 py-1 hover:bg-orange-50">+ Assign waiter</button></div>
+          ${sections.length > 1 ? `<button onclick="removeSection(${i})" class="text-[11px] text-rose-500 font-black">Remove</button>` : ''}</div>`;
+      }).join('');
+    }
+    function renameSection(i, v) { v = v.trim(); if (!v) return renderSections(); sections[i].name = v; persistSections(); }
+    function addSection() {
+      const palette = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
+      sections.push({ id: Math.max(0, ...sections.map(x => x.id || 0)) + 1, name: 'Section ' + (sections.length + 1), color: palette[sections.length % palette.length], assign: {} });
+      persistSections().then(renderSections);
+    }
+    function removeSection(i) { if (!confirm(`"${sections[i].name}" section hata dein?`)) return; sections.splice(i, 1); persistSections().then(renderSections); }
+    function assignWaiter(i) {
+      const n = (prompt('Waiter ka naam:') || '').trim();
+      if (!n) return;
+      const day = $('shiftDate').value || todayStr(), sec = sections[i];
+      sec.assign = sec.assign || {};
+      if (sections.some(x => ((x.assign || {})[day] || []).some(w => w.toLowerCase() === n.toLowerCase()))) return toast('Ye waiter is din kisi section me pehle se hai', true);
+      (sec.assign[day] = sec.assign[day] || []).push(n);
+      persistSections().then(renderSections);
+    }
+    function unassignWaiter(i, j) { const day = $('shiftDate').value || todayStr(); sections[i].assign[day].splice(j, 1); persistSections().then(renderSections); }
+
+    // ---------- Payments ----------
+    const PAY_METHODS = [
+      { k: 'cash', def: true, label: 'Cash', desc: 'Customers cash se pay kar sakte hain — online ordering me "Cash on Delivery" (delivery) / "Pay at Counter" (takeaway) chalu karta hai. Default ON; online payment zaroori karne ke liye OFF karein.' },
+      { k: 'upi', def: true, label: 'UPI' },
+      { k: 'auto_confirm_static', def: false, label: 'Auto-confirm static UPI payments', desc: 'Sirf tab ON karein jab aapka static QR provider ke saath registered ho jo hamein payment confirmations bheje. ON hone par screens paisa aane ki confirmation ka wait karti hain. QR registered nahi hai to payers ko aisi confirmation ka wait rahega jo kabhi nahi aayegi — OFF rakhein aur receipts haath se verify karein.' },
+      { k: 'card', def: false, label: 'Card' },
+      { k: 'house_credit', def: false, label: 'House Credit' }
+    ];
+    const PAY_WAIT = [
+      { head: 'STAFF-OPERATED' },
+      { k: 'counter', def: true, label: 'Counter / POS billing', desc: 'Cashier ya owner billing counter par payment le raha hai — single, split ya balance/partial UPI.' },
+      { k: 'waiter', def: true, label: 'Waiter portal', desc: 'Waiter apne mobile app se table settle kar raha hai.' },
+      { k: 'rider', def: true, label: 'Rider / Delivery', desc: 'Rider delivery par UPI collect kar raha hai.' },
+      { head: 'SELF-SERVE' },
+      { k: 'customer_app', def: true, label: 'Customer app (online orders)', desc: 'Customer online ordering app me pay kar raha hai — pay-then-order aur apna bill khud settle.' },
+      { k: 'qr_table', def: true, label: 'QR table ordering (dine-in)', desc: 'Guest table QR scan karke pay kar raha hai — dine-in "Pay now".' },
+      { k: 'kiosk_static', def: true, label: 'Kiosk (static QR)', desc: 'Self-order kiosk static UPI QR se pay kar raha hai.' },
+      { k: 'kiosk_gateway', def: true, label: 'Kiosk (online gateway)', desc: 'Self-order kiosk connected online provider (Razorpay/Paytm dynamic QR) se pay kar raha hai.' }
+    ];
+    const PAY_GATEWAY = [
+      { head: 'SELF-SERVE' },
+      { k: 'customer_app', def: true, label: 'Customer app (online orders)', desc: 'Online ordering app me takeaway & delivery — Google Pay me "Receiver\'s UPI ID or VPA is not available" ka fix.' },
+      { k: 'qr_table', def: true, label: 'QR table ordering (dine-in)', desc: 'Table QR (/t/ channel) scan karke dine-in "Pay now".' },
+      { k: 'kiosk', def: false, label: 'Kiosk (self-order)', desc: 'Gateway connected ho to kiosk par default ON; kiosk ko static UPI QR par rakhne ke liye OFF karein.' },
+      { head: 'STAFF-OPERATED' },
+      { k: 'waiter', def: false, label: 'Waiter portal', desc: 'Waiter table settle kar raha hai. (Yahan gateway routing future update ke liye reserved hai — abhi OFF rakhein.)' },
+      { k: 'cashier', def: false, label: 'Owner / Cashier (counter)', desc: 'Counter/POS settle. (Gateway routing future update ke liye reserved — abhi OFF.)' },
+      { k: 'rider', def: false, label: 'Rider / Delivery', desc: 'Rider delivery par payment le raha hai. (Gateway routing future update ke liye reserved — abhi OFF.)' }
+    ];
+    const KIOSK_PAY = [
+      { k: 'pay_now_upi', def: true, label: 'Pay now (UPI)', desc: 'Customers kiosk par scan karke pay karte hain. UPI ID ya kiosk ke liye enabled online gateway chahiye.', onchange: 'kioskGuard(this)' },
+      { k: 'pay_at_counter', def: true, label: 'Pay at Counter', desc: 'Customer ke cashier ko pay karne tak order hold rehta hai.', onchange: 'kioskGuard(this)' }
+    ];
+    let provider = 'none';
+    function initPayments() {
+      const pm = cfg.payments || {};
+      $('payMethodRows').innerHTML = rowsHTML('pm', PAY_METHODS, pm);
+      $('pm_upi_id').value = pm.upi_id || '';
+      $('payWaitRows').innerHTML = rowsHTML('pay_wait', PAY_WAIT, cfg.pay_wait);
+      $('payGatewayRows').innerHTML = rowsHTML('pay_gateway', PAY_GATEWAY, cfg.pay_gateway);
+      $('kioskPayRows').innerHTML = rowsHTML('kiosk_pay', KIOSK_PAY, cfg.kiosk_pay);
+      kioskSummary();
+      const pp = cfg.pay_provider || {};
+      provider = pp.provider || 'none';
+      $('pv_key_id').value = pp.key_id || '';
+      renderProvider();
+    }
+    function renderProvider() {
+      $('provSeg').innerHTML = [['none', 'None'], ['razorpay', 'Razorpay'], ['paytm', 'Paytm']].map(p =>
+        `<button onclick="setProvider('${p[0]}')" class="px-3 py-1.5 rounded-md ${provider === p[0] ? 'bg-orange-600 text-white' : 'text-gray-600'}">${p[1]}</button>`).join('');
+      $('provBox').classList.toggle('hidden', provider === 'none');
+      $('pv_webhook_url').value = `${location.origin}/api/payments/webhook/${provider}`;
+      const set = cfg.secrets_set || {};
+      $('pv_key_secret').placeholder = set.key_secret ? '•••••••• (saved)' : '';
+      $('pv_webhook_secret').placeholder = set.webhook_secret ? '•••••••• (saved)' : '';
+    }
+    function setProvider(p) { provider = p; renderProvider(); }
+    function copyWebhook() { navigator.clipboard.writeText($('pv_webhook_url').value).then(() => toast('Webhook URL copy ho gaya'), () => toast('Copy nahi ho paaya', true)); }
+    function saveProvider() {
+      const body = { pay_provider: { provider, key_id: $('pv_key_id').value.trim() } };
+      if (provider !== 'none') {
+        if (!body.pay_provider.key_id) return toast('Key ID zaroori hai', true);
+        body.payments_secrets = { key_secret: $('pv_key_secret').value, webhook_secret: $('pv_webhook_secret').value };
+      }
+      putConfig(body).then(() => { $('pv_key_secret').value = ''; $('pv_webhook_secret').value = ''; renderProvider(); toast('Provider save ho gaya ✓'); }).catch(e => toast(e.message, true));
+    }
+    function savePayMethods() {
+      const m = collectRows('pm', PAY_METHODS);
+      m.upi_id = $('pm_upi_id').value.trim();
+      if (m.upi_id && !/^[\w.\-]{2,}@[A-Za-z]{2,}$/.test(m.upi_id)) return toast('UPI ID sahi format me daalein (name@bank)', true);
+      if (!m.cash && !m.upi && !m.card && !m.house_credit) return toast('Kam se kam ek payment method ON rehni chahiye', true);
+      putConfig({ payments: m }).then(() => toast('Payment methods save ho gaye ✓')).catch(e => toast(e.message, true));
+    }
+    function kioskSummary() {
+      const up = $('kiosk_pay_pay_now_upi').checked, pc = $('kiosk_pay_pay_at_counter').checked;
+      $('kioskSummary').innerHTML = 'Kiosk par ye milega: ' + (up && pc ? 'Customers <b>Pay now (UPI)</b> aur <b>Pay at Counter</b> me se chun sakte hain.' : up ? 'Sirf <b>Pay now (UPI)</b>.' : 'Sirf <b>Pay at Counter</b>.');
+    }
+    function kioskGuard(el) {
+      if (!$('kiosk_pay_pay_now_upi').checked && !$('kiosk_pay_pay_at_counter').checked) { el.checked = true; toast('Kam se kam ek kiosk payment method ON rehni chahiye', true); }
+      kioskSummary();
+    }
+    function saveKioskPay() {
+      if (!$('kiosk_pay_pay_now_upi').checked && !$('kiosk_pay_pay_at_counter').checked) return toast('Kam se kam ek kiosk payment method ON rehni chahiye', true);
+      saveToggleGroup('kiosk_pay', KIOSK_PAY);
+    }
+
+    // ---------- QR Ordering ----------
+    const QR_TOGGLES = [
+      { k: 'pay_at_counter', def: true, label: 'Pay at Counter available', desc: 'QR dine-in guests order place karke online pay karne ki jagah counter par pay kar sakte hain.' },
+      { k: 'razorpay', def: true, label: 'Razorpay', desc: 'QR dine-in guests Razorpay se abhi online pay kar sakte hain (card / UPI / netbanking) — counter par nahi.' }
+    ];
+    const QR_TIMING = [
+      ['after_meal', 'After the meal', 'Kitchen turant cooking shuru kar deta hai. Guest khaane ke baad counter par pay karta hai.'],
+      ['pay_upfront', 'Pay upfront', 'Kitchen tab tak order OFF rakhta hai jab tak staff counter payment confirm na kare — paid hone tak kuch nahi banta.']
+    ];
+    function initQr() {
+      const q = cfg.qr || {};
+      $('qrToggleRows').innerHTML = rowsHTML('qr', QR_TOGGLES, q);
+      const cur = q.timing || 'pay_upfront';
+      $('qrTiming').innerHTML = QR_TIMING.map(o => `<label class="flex items-start gap-3 border rounded-xl p-3 cursor-pointer ${o[0] === cur ? 'bg-orange-50 border-orange-300' : ''}">
+        <input type="radio" name="qr_timing" value="${o[0]}" ${o[0] === cur ? 'checked' : ''} onchange="radioHighlight('qrTiming')" class="mt-1 accent-orange-600"><span><span class="block text-xs font-black">${o[1]}</span><span class="block text-[11px] text-gray-400">${o[2]}</span></span></label>`).join('');
+      $('qr_msg_after').value = q.msg_after_meal || '';
+      $('qr_msg_upfront').value = q.msg_pay_upfront || '';
+      $('qrApprovalRows').innerHTML = rowsHTML('qra', [{ k: 'require_approval', def: true, label: 'Require approval for prepaid orders', desc: 'ON hone par prepaid QR-table order Orders → Needs Approval me staff ke approve karne tak rukta hai, seedha kitchen nahi jaata. OFF karne par paid QR orders seedha kitchen jate hain.' }], cfg.qr_approval);
+    }
+    function radioHighlight(boxId) {
+      document.querySelectorAll('#' + boxId + ' label').forEach(l => { l.className = 'flex items-start gap-3 border rounded-xl p-3 cursor-pointer ' + (l.querySelector('input').checked ? 'bg-orange-50 border-orange-300' : ''); });
+    }
+    function saveQr() {
+      const o = collectRows('qr', QR_TOGGLES);
+      if (!o.pay_at_counter && !o.razorpay) { o.pay_at_counter = true; $('qr_pay_at_counter').checked = true; toast('Kam se kam ek payment tareeka chahiye — Pay at Counter ON rakha'); }
+      const t = document.querySelector('input[name=qr_timing]:checked');
+      o.timing = t ? t.value : 'pay_upfront';
+      o.msg_after_meal = $('qr_msg_after').value.trim().slice(0, 300);
+      o.msg_pay_upfront = $('qr_msg_upfront').value.trim().slice(0, 300);
+      putConfig({ qr: o }).then(() => toast('QR ordering save ho gayi ✓')).catch(e => toast(e.message, true));
+    }
+    function saveQrApproval() { putConfig({ qr_approval: collectRows('qra', [{ k: 'require_approval' }]) }).then(() => toast('Save ho gaya ✓')).catch(e => toast(e.message, true)); }
+
+    // ---------- Storefront ----------
+    function initStorefront() {
+      const b = cfg.storefront || {};
+      $('sf_tagline').value = b.tagline || '';
+      $('sf_about').value = b.about || '';
+      $('sf_phone').value = b.contact_phone || '';
+      $('sf_whatsapp').value = b.contact_whatsapp || '';
+      $('sf_email').value = b.contact_email || '';
+      $('sfAnnounceRows').innerHTML = rowsHTML('sfa', [{ k: 'show', def: false, label: 'Show announcement', desc: 'Website par ek promo strip (closed banner se alag).' }], { show: b.announcement_show });
+      $('sf_announce_text').value = b.announcement_text || '';
+      const r = cfg.ordering_rules || {};
+      $('sf_min_order').value = r.min_order_value || '';
+      $('sfPrepRows').innerHTML = rowsHTML('sfp', [{ k: 'show', def: false, label: 'Show prep time', desc: 'Website par anumaanit "Ready in ~X min" dikhata hai.' }], { show: r.show_prep_time });
+      $('sf_prep_min').value = r.prep_time_min || 30;
+      $('sfApprovalRows').innerHTML = rowsHTML('sfr', [{ k: 'require_approval', def: true, label: 'Require approval for prepaid orders', desc: 'ON hone par jo online orders pehle se paid hain wo staff ke approve karne tak Orders → Needs Approval queue me rukte hain, seedha kitchen nahi jate.' }], { require_approval: r.require_approval_prepaid });
+      const g = cfg.highly_ordered || {};
+      $('sfBadgeRows').innerHTML = rowsHTML('sfb', [{ k: 'show', def: true, label: 'Show "Highly ordered" badge', desc: 'Website aur QR menu par qualifying dishes ke neeche ek chhota label lagata hai.' }], { show: g.show });
+      $('sf_badge_weeks').value = g.look_back_weeks || 12;
+      $('sf_badge_limit').value = g.limit || 20;
+    }
+    function saveBranding() {
+      const email = $('sf_email').value.trim();
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return toast('Email sahi format me daalein', true);
+      const wa = $('sf_whatsapp').value.trim();
+      if (wa && !/^\+?[\d\s-]{8,15}$/.test(wa)) return toast('WhatsApp number sahi daalein', true);
+      const show = $('sfa_show').checked, text = $('sf_announce_text').value.trim();
+      if (show && !text) return toast('Announcement ON hai to text bhi likhein', true);
+      putConfig({ storefront: {
+        tagline: $('sf_tagline').value.trim(), about: $('sf_about').value.trim(), contact_phone: $('sf_phone').value.trim(),
+        contact_whatsapp: wa, contact_email: email, announcement_show: show, announcement_text: text
+      } }).then(() => toast('Branding save ho gayi ✓')).catch(e => toast(e.message, true));
+    }
+    function saveOrderingRules() {
+      const min = Number($('sf_min_order').value || 0), prep = Number($('sf_prep_min').value);
+      if (isNaN(min) || min < 0) return toast('Minimum order value sahi daalein', true);
+      if (!(prep >= 1 && prep <= 240)) return toast('Prep time 1 se 240 minute ke beech hona chahiye', true);
+      putConfig({ ordering_rules: { min_order_value: min, show_prep_time: $('sfp_show').checked, prep_time_min: prep, require_approval_prepaid: $('sfr_require_approval').checked } })
+        .then(() => toast('Ordering rules save ho gaye ✓')).catch(e => toast(e.message, true));
+    }
+    function saveBadge() {
+      const limit = Number($('sf_badge_limit').value);
+      if (!(limit >= 1 && limit <= 100)) return toast('Badge limit 1 se 100 ke beech daalein', true);
+      putConfig({ highly_ordered: { show: $('sfb_show').checked, look_back_weeks: Number($('sf_badge_weeks').value), limit } })
+        .then(() => toast('Badge settings save ho gayi ✓')).catch(e => toast(e.message, true));
+    }
+
+    // ---------- Receipt & Print ----------
+    function initReceipt() {
+      const r = cfg.receipt || {};
+      $('rc_thank').value = r.thank_you || '';
+      $('rc_footer').value = r.footer || '';
+      $('rcPrintRows').innerHTML = rowsHTML('rcp', [{ k: 'auto_print_bill', def: true, label: 'Auto-print bill', desc: 'Payment record hote hi bill apne aap print ho. OFF karne par bill sirf "Print Receipt" button se niklega.' }], r);
+      $('rc_copies').value = r.copies || 1;
+      showReceiptLogo(r.logo);
+    }
+    function showReceiptLogo(url) {
+      $('rcLogoImg').classList.toggle('hidden', !url);
+      $('rcLogoNone').classList.toggle('hidden', !!url);
+      $('rcLogoRemove').classList.toggle('hidden', !url);
+      if (url) $('rcLogoImg').src = url;
+    }
+    function receiptObj(extra) { return Object.assign({}, cfg.receipt || {}, extra); }
+    function saveReceipt() {
+      putConfig({ receipt: receiptObj({ thank_you: $('rc_thank').value.trim(), footer: $('rc_footer').value.trim() }) })
+        .then(() => toast('Receipt text save ho gaya ✓')).catch(e => toast(e.message, true));
+    }
+    function savePrinting() {
+      const copies = Math.round(Number($('rc_copies').value));
+      if (!(copies >= 1 && copies <= 5)) return toast('Copies 1 se 5 ke beech rakhein', true);
+      putConfig({ receipt: receiptObj({ auto_print_bill: $('rcp_auto_print_bill').checked, copies }) })
+        .then(() => toast('Printing settings save ho gayi ✓')).catch(e => toast(e.message, true));
+    }
+    async function uploadReceiptLogo() {
+      const f = $('rcLogoFile').files[0];
+      if (!f) return;
+      if (!/^image\/(png|jpeg|webp)$/.test(f.type)) { $('rcLogoFile').value = ''; return toast('Sirf PNG, JPG ya WebP', true); }
+      if (f.size > 2 * 1024 * 1024) { $('rcLogoFile').value = ''; return toast('Logo 2 MB se chhota hona chahiye', true); }
+      const fd = new FormData(); fd.append('image', f);
+      try {
+        const r = await fetch('/api/upload', { method: 'POST', body: fd });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok || !d.imageUrl) throw new Error(d.error || 'Upload fail');
+        await putConfig({ receipt: receiptObj({ logo: d.imageUrl }) });
+        showReceiptLogo(d.imageUrl);
+        toast('Logo save ho gaya ✓');
+      } catch (e) { toast(e.message, true); }
+      $('rcLogoFile').value = '';
+    }
+    function removeReceiptLogo() {
+      putConfig({ receipt: receiptObj({ logo: '' }) }).then(() => { showReceiptLogo(''); toast('Logo hata diya'); }).catch(e => toast(e.message, true));
+    }
+
+    // ---------- Operating Hours ----------
+    const DAYS = [['mon', 'MON'], ['tue', 'TUE'], ['wed', 'WED'], ['thu', 'THU'], ['fri', 'FRI'], ['sat', 'SAT'], ['sun', 'SUN']];
+    function initHours() {
+      const h = cfg.hours || {};
+      $('hoursRows').innerHTML = DAYS.map(d => {
+        const v = h[d[0]] || { open: true, from: '10:30', to: '21:00' };
+        return `<div class="flex items-center gap-4 flex-wrap">
+          <span class="w-12 text-[11px] font-black text-gray-500">${d[1]}</span>
+          <label class="tgl"><input type="checkbox" id="hr_${d[0]}_open" ${v.open ? 'checked' : ''} onchange="hoursDim('${d[0]}')"><span></span></label>
+          <input type="time" id="hr_${d[0]}_from" value="${v.from || '10:30'}" class="border p-2 rounded-lg text-sm">
+          <span class="text-xs text-gray-400">to</span>
+          <input type="time" id="hr_${d[0]}_to" value="${v.to || '21:00'}" class="border p-2 rounded-lg text-sm">
+          <span id="hr_${d[0]}_closed" class="text-[11px] font-black text-gray-400 hidden">Closed</span></div>`;
+      }).join('');
+      DAYS.forEach(d => hoursDim(d[0]));
+    }
+    function hoursDim(k) {
+      const on = $(`hr_${k}_open`).checked;
+      [`hr_${k}_from`, `hr_${k}_to`].forEach(id => { $(id).disabled = !on; $(id).classList.toggle('opacity-40', !on); });
+      $(`hr_${k}_closed`).classList.toggle('hidden', on);
+    }
+    function copyMonday() {
+      DAYS.slice(1).forEach(d => {
+        $(`hr_${d[0]}_open`).checked = $('hr_mon_open').checked;
+        $(`hr_${d[0]}_from`).value = $('hr_mon_from').value;
+        $(`hr_${d[0]}_to`).value = $('hr_mon_to').value;
+        hoursDim(d[0]);
+      });
+      toast('Monday ka time sab din par copy ho gaya (Save karna na bhoolein)');
+    }
+    function saveHours() {
+      const out = {};
+      for (const d of DAYS) {
+        const open = $(`hr_${d[0]}_open`).checked, from = $(`hr_${d[0]}_from`).value, to = $(`hr_${d[0]}_to`).value;
+        if (open && (!from || !to)) return toast(`${d[1]}: opening aur closing time dono bharein`, true);
+        if (open && from === to) return toast(`${d[1]}: opening aur closing time same nahi ho sakte`, true);
+        out[d[0]] = { open, from: from || '10:30', to: to || '21:00' };
+      }
+      if (!Object.values(out).some(v => v.open)) return toast('Kam se kam ek din restaurant khula rehna chahiye', true);
+      putConfig({ hours: out }).then(() => toast('Operating hours save ho gaye ✓')).catch(e => toast(e.message, true));
+    }
+
+    // ---------- Delivery Charges ----------
+    const DC_MODELS = [
+      ['free', 'Free Delivery', 'Koi delivery charge nahi — saare delivery orders free.'],
+      ['flat', 'Flat Fee', 'Order amount ki parwah kiye bina har delivery order par ek fixed charge.'],
+      ['free_above_min', 'Free Above Minimum Order', 'Cart threshold tak pahunche to delivery free; usse kam par fee lagti hai.'],
+      ['zone', 'Zone-Based Charges', 'Delivery distance (km) ke range ke hisaab se alag fee.'],
+      ['tier', 'Tiered Pricing', 'Order amount badhne par delivery fee ghat-ti jaati hai.']
+    ];
+    let dc = null;
+    function initCharges() {
+      const c = cfg.delivery_charges || {};
+      dc = {
+        model: c.model || 'free', flat_fee: c.flat_fee === undefined ? 30 : c.flat_fee,
+        free_min: c.free_min === undefined ? 100 : c.free_min, fee_below_min: c.fee_below_min === undefined ? 20 : c.fee_below_min,
+        zones: Array.isArray(c.zones) && c.zones.length ? c.zones : [{ up_to_km: 3, fee: 20 }, { up_to_km: 6, fee: 40 }],
+        tiers: Array.isArray(c.tiers) && c.tiers.length ? c.tiers : [{ min_amount: 0, fee: 40 }, { min_amount: 200, fee: 20 }, { min_amount: 500, fee: 0 }]
+      };
+      renderCharges();
+    }
+    function dcSync() {
+      if ($('dc_flat')) dc.flat_fee = $('dc_flat').value;
+      if ($('dc_free_min')) { dc.free_min = $('dc_free_min').value; dc.fee_below_min = $('dc_fee_below').value; }
+    }
+    function renderCharges() {
+      $('dcModels').innerHTML = DC_MODELS.map(m => `<label class="flex items-start gap-3 border rounded-xl p-3.5 cursor-pointer ${dc.model === m[0] ? 'bg-orange-50 border-orange-300' : ''}">
+        <input type="radio" name="dc_model" value="${m[0]}" ${dc.model === m[0] ? 'checked' : ''} onchange="dcSync();dc.model=this.value;renderCharges()" class="mt-1 accent-orange-600"><span><span class="block text-sm font-black">${m[1]}</span><span class="block text-[11px] text-gray-500">${m[2]}</span></span></label>`).join('');
+      const num = (id, v, ph) => `<input id="${id}" type="number" min="0" step="1" value="${v === undefined ? '' : v}" placeholder="${ph || ''}" class="w-full border p-2.5 rounded-xl text-sm text-right outline-none focus:ring-2 focus:ring-orange-400">`;
+      let box = '';
+      if (dc.model === 'flat') box = `<div class="text-[10px] font-black tracking-wider text-gray-400 mb-2">FLAT FEE</div><div class="max-w-xs"><label class="text-[10px] font-bold text-gray-500">Delivery fee (₹)</label>${num('dc_flat', dc.flat_fee)}</div>`;
+      else if (dc.model === 'free_above_min') box = `<div class="text-[10px] font-black tracking-wider text-gray-400 mb-2">MINIMUM ORDER THRESHOLD</div><div class="grid sm:grid-cols-2 gap-4">
+          <div><label class="text-[10px] font-bold text-gray-500">Minimum Order Amount (₹)</label>${num('dc_free_min', dc.free_min)}<p class="text-[10px] text-gray-400 mt-1">Is value ya usse upar ke cart par delivery free.</p></div>
+          <div><label class="text-[10px] font-bold text-gray-500">Delivery Fee Below Minimum (₹)</label>${num('dc_fee_below', dc.fee_below_min)}<p class="text-[10px] text-gray-400 mt-1">Cart minimum se kam ho to ye fee lagti hai.</p></div></div>`;
+      else if (dc.model === 'zone') box = `<div class="text-[10px] font-black tracking-wider text-gray-400 mb-2">DISTANCE ZONES (restaurant ki saved location se)</div>
+          ${dc.zones.map((z, i) => `<div class="flex items-center gap-2 mb-2 text-xs"><span class="text-gray-500 w-14">Up to</span><input type="number" min="0.1" step="0.1" value="${z.up_to_km}" oninput="dc.zones[${i}].up_to_km=this.value" class="w-24 border p-2 rounded-lg text-sm text-right"><span class="text-gray-500">km →</span><span class="text-gray-500">₹</span><input type="number" min="0" step="1" value="${z.fee}" oninput="dc.zones[${i}].fee=this.value" class="w-24 border p-2 rounded-lg text-sm text-right">${dc.zones.length > 1 ? `<button onclick="dc.zones.splice(${i},1);renderCharges()" class="text-rose-500 font-black text-xs ml-1">✕</button>` : ''}</div>`).join('')}
+          <button onclick="dc.zones.push({up_to_km:'',fee:''});renderCharges()" class="border text-[11px] font-black px-3 py-1.5 rounded-lg hover:bg-gray-50">+ Add zone</button>
+          <p class="text-[10px] text-gray-400 mt-2">Sabse bade zone se door ke orders delivery area se bahar maane jate hain. Customer ko apni location allow karni hogi. Restaurant ki location General tab me save honi chahiye.</p>`;
+      else if (dc.model === 'tier') box = `<div class="text-[10px] font-black tracking-wider text-gray-400 mb-2">ORDER AMOUNT TIERS</div>
+          ${dc.tiers.map((t, i) => `<div class="flex items-center gap-2 mb-2 text-xs"><span class="text-gray-500 w-20">Cart from ₹</span><input type="number" min="0" step="1" value="${t.min_amount}" oninput="dc.tiers[${i}].min_amount=this.value" class="w-24 border p-2 rounded-lg text-sm text-right"><span class="text-gray-500">→ fee ₹</span><input type="number" min="0" step="1" value="${t.fee}" oninput="dc.tiers[${i}].fee=this.value" class="w-24 border p-2 rounded-lg text-sm text-right">${dc.tiers.length > 1 ? `<button onclick="dc.tiers.splice(${i},1);renderCharges()" class="text-rose-500 font-black text-xs ml-1">✕</button>` : ''}</div>`).join('')}
+          <button onclick="dc.tiers.push({min_amount:'',fee:''});renderCharges()" class="border text-[11px] font-black px-3 py-1.5 rounded-lg hover:bg-gray-50">+ Add tier</button>
+          <p class="text-[10px] text-gray-400 mt-2">Cart jis sabse bade "from" amount tak pahunchta hai, uski fee lagti hai. Pehla tier ₹0 se shuru rakhein.</p>`;
+      $('dcExtra').innerHTML = box;
+    }
+    function saveCharges() {
+      dcSync();
+      const n = v => Number(v), out = { model: dc.model, flat_fee: n(dc.flat_fee) || 0, free_min: n(dc.free_min) || 0, fee_below_min: n(dc.fee_below_min) || 0, zones: [], tiers: [] };
+      if (dc.model === 'flat' && !(out.flat_fee >= 0 && String(dc.flat_fee) !== '')) return toast('Flat fee daalein', true);
+      if (dc.model === 'free_above_min' && (String(dc.free_min) === '' || String(dc.fee_below_min) === '')) return toast('Minimum amount aur fee dono daalein', true);
+      if (dc.model === 'zone') {
+        for (const z of dc.zones) { if (!(n(z.up_to_km) > 0) || String(z.fee) === '' || n(z.fee) < 0) return toast('Har zone me km (>0) aur fee bharein', true); }
+        const kms = dc.zones.map(z => n(z.up_to_km)); if (new Set(kms).size !== kms.length) return toast('Do zones ka km same nahi ho sakta', true);
+        out.zones = dc.zones.map(z => ({ up_to_km: n(z.up_to_km), fee: n(z.fee) })).sort((a, b) => a.up_to_km - b.up_to_km);
+        if (!cfg.location || cfg.location.lat == null) return toast('Zone charges ke liye pehle General tab me restaurant ki location save karein', true);
+      }
+      if (dc.model === 'tier') {
+        for (const t of dc.tiers) { if (String(t.min_amount) === '' || String(t.fee) === '' || n(t.min_amount) < 0 || n(t.fee) < 0) return toast('Har tier me amount aur fee bharein', true); }
+        const mins = dc.tiers.map(t => n(t.min_amount)); if (new Set(mins).size !== mins.length) return toast('Do tiers ka amount same nahi ho sakta', true);
+        out.tiers = dc.tiers.map(t => ({ min_amount: n(t.min_amount), fee: n(t.fee) })).sort((a, b) => a.min_amount - b.min_amount);
+        if (out.tiers[0].min_amount !== 0) return toast('Pehla tier ₹0 se shuru hona chahiye', true);
+      }
+      putConfig({ delivery_charges: out }).then(() => toast('Delivery charges save ho gaye ✓')).catch(e => toast(e.message, true));
+    }
+
+    const TAB_INIT = { hours: initHours, charges: initCharges, taxes: initTaxes, waiters: initWaiters, payments: initPayments, qr: initQr, storefront: initStorefront, receipt: initReceipt };
+
+    // ---------- data tools ----------
     function resetSalesData() {
       const ans = prompt("WARNING: Isse sales reports aur expenses clear ho jayenge. Type 'RESET':");
-      if (ans === 'RESET') {
-        fetch('/api/system/reset-orders', { method: 'POST' })
-          .then(res => res.json())
-          .then(() => alert('Data cleared successfully!'));
-      }
+      if (ans === 'RESET') fetch('/api/system/reset-orders', { method: 'POST' }).then(r => r.json()).then(() => toast('Data clear ho gaya'));
     }
+
+    // ---------- load ----------
+    Promise.all([
+      fetch('/api/settings').then(r => r.json()).catch(() => ({})),
+      fetch('/api/settings/config').then(r => r.json()).catch(() => ({}))
+    ]).then(([s, c]) => {
+      cfg = c || {};
+      $('restaurant_name').value = s.restaurant_name || '';
+      $('tagline').value = s.tagline || '';
+      $('address').value = s.address || '';
+      $('phone').value = s.phone || '';
+      $('gstin').value = s.gstin || '';
+      $('default_gst').value = s.default_gst || 5;
+      $('cuisine').value = cfg.cuisine || '';
+      $('fssai').value = cfg.fssai || '';
+      $('seating').value = cfg.seating_capacity == null ? '' : cfg.seating_capacity;
+      fillSections();
+      renderMaxKm();
+      initMap();
+      showTab((location.hash || '#general').slice(1) && TABS.some(t => t[0] === location.hash.slice(1)) ? location.hash.slice(1) : 'general');
+    });
   </script>
 </body>
 </html>

@@ -60,11 +60,17 @@
             <button type="button" id="excelBtn" onclick="document.getElementById('excel_file').click()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs">📥 Import Excel</button>
           </div>
         </div>
-        <form onsubmit="saveNewItem(event)" class="grid grid-cols-1 md:grid-cols-7 gap-3 items-center">
+        <form onsubmit="saveNewItem(event)" class="grid grid-cols-1 md:grid-cols-8 gap-3 items-center">
           <input id="new_name" type="text" placeholder="Item Name (e.g. Burger)" required class="border p-2.5 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500">
           <input id="new_cat" type="text" list="catList" placeholder="Category (e.g. Burgers)" required class="border p-2.5 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500">
           <input id="new_price" type="number" min="0" step="any" placeholder="Base Price (₹)" required class="border p-2.5 rounded-xl text-xs outline-none font-bold">
           <input id="new_stock" type="number" min="0" value="50" placeholder="Stock" required class="border p-2.5 rounded-xl text-xs outline-none font-bold">
+          <select id="new_food_type" class="border p-2.5 rounded-xl text-xs outline-none font-bold" title="Veg / Non-Veg">
+            <option value="">Type: —</option>
+            <option value="veg">🟢 Veg</option>
+            <option value="egg">🟡 Egg</option>
+            <option value="nonveg">🔴 Non-Veg</option>
+          </select>
           <div>
             <input type="file" id="new_img" accept="image/*" class="text-[11px] text-gray-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700">
           </div>
@@ -504,6 +510,15 @@
               <option value="unavailable">Unavailable (sold out)</option>
             </select>
           </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-600 mb-1">Food Type</label>
+            <select id="edit_food_type" class="w-full border p-2 rounded-xl text-xs outline-none">
+              <option value="">Not set</option>
+              <option value="veg">🟢 Veg</option>
+              <option value="egg">🟡 Egg</option>
+              <option value="nonveg">🔴 Non-Veg</option>
+            </select>
+          </div>
           <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-gray-700 select-none">
             <input type="checkbox" id="edit_is_featured" class="rounded"> Featured item
           </label>
@@ -901,12 +916,14 @@
           name, category, price, stock, image,
           variations: [],
           assigned_addon_groups: [],
-          is_exempt: document.getElementById('new_is_exempt').checked ? 1 : 0
+          is_exempt: document.getElementById('new_is_exempt').checked ? 1 : 0,
+          food_type: document.getElementById('new_food_type').value
         });
         await ensureCategory(category);
         ['new_name', 'new_cat', 'new_price', 'new_img'].forEach(id => document.getElementById(id).value = '');
         document.getElementById('new_stock').value = '50';
         document.getElementById('new_is_exempt').checked = false;
+        document.getElementById('new_food_type').value = '';
         toast('Item save ho gaya');
         loadData();
       } catch (err) {
@@ -1347,6 +1364,7 @@
       renderEditAddonGroups();
 
       document.getElementById('edit_status').value = item.status || 'available';
+      document.getElementById('edit_food_type').value = item.food_type || '';
       document.getElementById('edit_is_featured').checked = !!Number(item.is_featured);
       document.getElementById('edit_send_to_kds').checked = item.send_to_kds === undefined || item.send_to_kds === null || !!Number(item.send_to_kds);
 
@@ -1614,6 +1632,7 @@
           is_exempt: document.getElementById('edit_is_exempt').checked ? 1 : 0,
           is_visible: document.getElementById('edit_is_visible').checked ? 1 : 0,
           status: document.getElementById('edit_status').value,
+          food_type: document.getElementById('edit_food_type').value,
           is_featured: document.getElementById('edit_is_featured').checked ? 1 : 0,
           send_to_kds: document.getElementById('edit_send_to_kds').checked ? 1 : 0,
           allergens, tags: currentEditTags

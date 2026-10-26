@@ -7,6 +7,7 @@ const { exec } = require('child_process');
 const XLSX = require('xlsx');
 const menuImport = require('./menuImport');
 const net = require('net');
+const crypto = require('crypto');
 const db = require('./database');
 
 const app = express();
@@ -347,11 +348,17 @@ app.get('/api/menu', (req, res) => {
   });
 });
 
+// food_type: 'veg' | 'nonveg' | 'egg' (anything else = not set, no icon shown)
+function cleanFoodType(v) {
+  const t = String(v || '').toLowerCase();
+  return ['veg', 'nonveg', 'egg'].includes(t) ? t : null;
+}
+
 app.post('/api/menu', (req, res) => {
-  const { name, category, price, stock, image, variations, assigned_addon_groups, is_exempt, is_visible } = req.body;
+  const { name, category, price, stock, image, variations, assigned_addon_groups, is_exempt, is_visible, food_type } = req.body;
   db.all(
-    `INSERT INTO menu (name, category, price, stock, image, variations, assigned_addon_groups, is_exempt, is_visible) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-    [name, category || 'General', price, stock || 50, image || '', JSON.stringify(variations || []), JSON.stringify(assigned_addon_groups || []), is_exempt ? 1 : 0, is_visible === undefined ? 1 : (is_visible ? 1 : 0)],
+    `INSERT INTO menu (name, category, price, stock, image, variations, assigned_addon_groups, is_exempt, is_visible, food_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+    [name, category || 'General', price, stock || 50, image || '', JSON.stringify(variations || []), JSON.stringify(assigned_addon_groups || []), is_exempt ? 1 : 0, is_visible === undefined ? 1 : (is_visible ? 1 : 0), cleanFoodType(food_type)],
     (err, result) => {
       if (err) return res.status(500).json({ error: err.message });
       const id = result && result[0] ? result[0].id : null;
@@ -362,7 +369,7 @@ app.post('/api/menu', (req, res) => {
 
 app.put('/api/menu/:id', (req, res) => {
   const { name, category, price, stock, image, variations, assigned_addon_groups, is_exempt, is_visible,
-          description, tags, allergens, is_featured, send_to_kds, status } = req.body;
+          description, tags, allergens, is_featured, send_to_kds, status, food_type } = req.body;
   // Fields that are not sent stay as they are (the POS edit form only sends name/category/price/stock).
   const opt = v => (v === undefined ? null : v);
   const optJson = v => (v === undefined ? null : JSON.stringify(v || []));
@@ -373,9 +380,10 @@ app.put('/api/menu/:id', (req, res) => {
        is_exempt = COALESCE(?, is_exempt), is_visible = COALESCE(?, is_visible),
        description = COALESCE(?, description), tags = COALESCE(?, tags), allergens = COALESCE(?, allergens),
        is_featured = COALESCE(?, is_featured), send_to_kds = COALESCE(?, send_to_kds), status = COALESCE(?, status),
+       food_type = CASE WHEN ? THEN ? ELSE food_type END,
        updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
     [opt(name), opt(category), opt(price), opt(stock), opt(image), optJson(variations), optJson(assigned_addon_groups), optFlag(is_exempt), optFlag(is_visible),
-     opt(description), optJson(tags), optJson(allergens), optFlag(is_featured), optFlag(send_to_kds), opt(status), req.params.id],
+     opt(description), optJson(tags), optJson(allergens), optFlag(is_featured), optFlag(send_to_kds), opt(status), food_type !== undefined, cleanFoodType(food_type), req.params.id],
     function (err) {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ success: true });
@@ -508,7 +516,7 @@ app.get('/api/orders/today-stats', (req, res) => {
 // ================= NEEDS APPROVAL (PENDING ORDERS) APIS =================
 app.get('/api/orders/needs-approval', (req, res) => {
   const query = `
-    SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount, created_at
+    SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount, created_at, delivery_address, delivery_lat, delivery_lng
     FROM orders 
     WHERE UPPER(status) = 'NEEDS_APPROVAL'
     ORDER BY id DESC
@@ -562,7 +570,8 @@ app.post('/api/orders/:id/approve', (req, res) => {
     db.run(
       `UPDATE orders 
        SET status = ?, 
-           table_no = ? 
+           table_no = ?,
+           accepted_at = COALESCE(accepted_at, CURRENT_TIMESTAMP)
        WHERE id = ?`, 
       [newStatus, newTableNo, orderId], 
       (err2) => {
@@ -602,7 +611,10 @@ app.post('/api/orders/:id/assign-table', (req, res) => {
 app.get('/api/orders/active', (req, res) => {
   const query = `
     SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount,
-           GREATEST(0, total - COALESCE(paid_amount, 0)) as remaining_balance
+           GREATEST(0, total - COALESCE(paid_amount, 0)) as remaining_balance,
+           -- Order timers: kitchen time = accepted (or placed) -> KDS done; still running while the kitchen works on it
+           GREATEST(0, EXTRACT(EPOCH FROM ((CASE WHEN ready_at IS NOT NULL AND UPPER(status) = 'KOT_DONE' THEN ready_at ELSE NOW() END) - COALESCE(accepted_at, created_at)))) AS kitchen_sec,
+           (ready_at IS NOT NULL AND UPPER(status) = 'KOT_DONE') AS kitchen_done
     FROM orders 
     WHERE (UPPER(status) = 'RUNNING_TABLE' OR UPPER(status) = 'KOT_DONE')
       AND status != 'COMPLETED'
@@ -893,9 +905,246 @@ app.put('/api/orders/:id', (req, res) => {
    });
   });
 });
+// ---------- Server-side price validation (online orders) ----------
+// The customer page is public, so prices/totals coming from it cannot be trusted. Every line is rebuilt
+// from the menu table: base/variant price + add-on prices, all read from the DB.
+const dbAllAsync = (sql, params) => new Promise((resolve, reject) => db.all(sql, params, (e, r) => (e ? reject(e) : resolve(r || []))));
+const parseJsonSafe = (v, d) => { try { const x = JSON.parse(v || ''); return x == null ? d : x; } catch (e) { return d; } };
+
+async function validateOnlineItems(items) {
+  if (!Array.isArray(items) || !items.length) return { error: 'Cart khali hai' };
+  if (items.length > 60) return { error: 'Too many items' };
+  const groups = await dbAllAsync('SELECT * FROM addon_groups', []);
+  const out = [];
+  const qtyById = {};
+  let subtotal = 0;
+  for (const line of items) {
+    const qty = Number(line && line.qty);
+    if (!Number.isInteger(qty) || qty < 1 || qty > 50) return { error: 'Invalid quantity' };
+    const rows = await dbAllAsync('SELECT * FROM menu WHERE id = ?', [Number(line.id)]);
+    const m = rows[0];
+    if (!m || Number(m.is_visible) === 0) return { error: 'Item available nahi hai: ' + (line.name || '') };
+    if (m.status === 'Out of Stock' || m.status === 'unavailable') return { error: m.name + ' sold out hai' };
+    qtyById[m.id] = (qtyById[m.id] || 0) + qty;
+    if ((Number(m.stock) || 0) < qtyById[m.id]) return { error: m.name + ' ka itna stock available nahi hai' };
+
+    let name = m.name;
+    let price = Number(m.price) || 0;
+    let groupIds = parseJsonSafe(m.assigned_addon_groups, []);
+    const variations = parseJsonSafe(m.variations, []).filter(v => v && v.active !== false);
+    if (variations.length) {
+      const v = variations.find(x => x.name === line.variant);
+      if (!v) return { error: m.name + ': size select karein' };
+      name += ` (${v.name})`;
+      price = Number(v.price) || 0;
+      if (Array.isArray(v.addon_groups) && v.addon_groups.length) groupIds = v.addon_groups;
+    }
+
+    const allowed = {};
+    (Array.isArray(groupIds) ? groupIds : []).map(Number).forEach(gid => {
+      const g = groups.find(x => Number(x.id) === gid);
+      if (g) parseJsonSafe(g.items, []).forEach(a => { if (a && a.available !== false && allowed[a.name] === undefined) allowed[a.name] = Number(a.price) || 0; });
+    });
+    const addons = [];
+    for (const a of (Array.isArray(line.addons) ? line.addons : [])) {
+      if (!a || allowed[a.name] === undefined) return { error: m.name + ': add-on "' + (a && a.name) + '" valid nahi hai' };
+      addons.push({ name: a.name, price: allowed[a.name] });
+      price += allowed[a.name];
+    }
+    if (addons.length) name += ` (${addons.map(a => a.name).join(', ')})`;
+
+    subtotal += price * qty;
+    out.push({ id: m.id, name, price, qty, addons, notes: String(line.notes || '').slice(0, 300) });
+  }
+  return { items: out, subtotal };
+}
+
+// ---------- Customer profile + order tracking ----------
+// Profile = phone + secret token (created on the customer's first online order, kept in their browser).
+function shapeTrackOrder(o, items) {
+  const st = String(o.status || '').toUpperCase();
+  let step = 0, state = 'active';
+  if (st === 'NEEDS_APPROVAL') step = 0;
+  else if (st === 'RUNNING_TABLE') step = 1;
+  else if (st === 'KOT_DONE') step = 2;
+  else if (['DISPATCHED', 'COMPLETED', 'DUE_PENDING'].includes(st)) { step = 3; state = 'done'; }
+  else if (['VOID', 'CANCELLED'].includes(st)) { state = 'rejected'; }
+  return {
+    id: o.id, order_type: o.order_type, state, step,
+    subtotal: o.subtotal, gst: o.gst, total: o.total, created_at: o.created_at,
+    delivery_address: o.delivery_address || '', items: items || []
+  };
+}
+const ORDER_TRACK_COLS = 'id, order_type, table_no, status, subtotal, gst, total, created_at, delivery_address, customer_phone';
+
+// One order: needs order id + the phone number used while ordering.
+app.get('/api/track/:id', (req, res) => {
+  const id = Number(req.params.id);
+  const phone = String(req.query.phone || '');
+  if (!Number.isInteger(id) || !/^\d{10}$/.test(phone)) return res.status(400).json({ error: 'Invalid request' });
+  db.all(`SELECT ${ORDER_TRACK_COLS} FROM orders WHERE id = ?`, [id], (err, rows) => {
+    const o = rows && rows[0];
+    if (err || !o || o.customer_phone !== phone) return res.status(404).json({ error: 'Order nahi mila' });
+    db.all('SELECT name, qty, price FROM order_items WHERE order_id = ? ORDER BY id', [id], (e2, items) => res.json(shapeTrackOrder(o, items)));
+  });
+});
+
+// POS bill: delivery address of an order (address + landmark as typed by the customer).
+app.get('/api/orders/:id/delivery-address', (req, res) => {
+  db.all('SELECT delivery_address FROM orders WHERE id = ?', [Number(req.params.id)], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ delivery_address: (rows && rows[0] && rows[0].delivery_address) || '' });
+  });
+});
+
+// Recent orders of a profile: needs phone + profile token.
+app.get('/api/my-orders', (req, res) => {
+  const phone = String(req.query.phone || '');
+  const token = String(req.query.token || '');
+  if (!/^\d{10}$/.test(phone) || !token) return res.status(400).json({ error: 'Invalid request' });
+  db.all('SELECT token FROM customer_profiles WHERE phone = ?', [phone], (err, prof) => {
+    if (err || !prof || !prof[0] || prof[0].token !== token) return res.status(401).json({ error: 'Profile verify nahi hui' });
+    db.all(`SELECT ${ORDER_TRACK_COLS} FROM orders WHERE customer_phone = ? AND COALESCE(status, '') <> 'HOLD' ORDER BY id DESC LIMIT 30`, [phone], async (e2, orders) => {
+      if (e2) return res.status(500).json({ error: 'Orders load nahi hue' });
+      try {
+        const out = [];
+        for (const o of (orders || [])) {
+          const items = await dbAllAsync('SELECT name, qty, price FROM order_items WHERE order_id = ? ORDER BY id', [o.id]);
+          out.push(shapeTrackOrder(o, items));
+        }
+        res.json(out);
+      } catch (e3) { res.status(500).json({ error: 'Orders load nahi hue' }); }
+    });
+  });
+});
+
+// ---------- Operating hours (Settings > Operating Hours) ----------
+const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+function istNow() {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Kolkata', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date());
+  const get = t => parts.find(p => p.type === t).value;
+  return { day: DAY_KEYS.indexOf(get('weekday').toLowerCase().slice(0, 3)), min: (Number(get('hour')) % 24) * 60 + Number(get('minute')) };
+}
+const toMin = hhmm => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || '')); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+const fmt12 = hhmm => { const m = toMin(hhmm); const h = Math.floor(m / 60), mm = String(m % 60).padStart(2, '0'); return `${((h + 11) % 12) + 1}:${mm} ${h < 12 ? 'AM' : 'PM'}`; };
+function storeStatus(cfg) {
+  const hours = cfg && cfg.hours;
+  if (!hours) return { open: true, configured: false };               // never saved -> do not block anyone
+  const now = istNow();
+  const ent = d => hours[DAY_KEYS[(d + 7) % 7]] || {};
+  const t = ent(now.day), prev = ent(now.day - 1);
+  const f = toMin(t.from), e = toMin(t.to), pf = toMin(prev.from), pe = toMin(prev.to);
+  let open = false;
+  if (t.open && f != null && e != null) open = e > f ? (now.min >= f && now.min < e) : now.min >= f;            // overnight: open till midnight...
+  if (!open && prev.open && pf != null && pe != null && pe <= pf) open = now.min < pe;                          // ...and until "to" next morning
+  if (open) return { open: true, configured: true };
+  for (let i = 0; i < 8; i++) {
+    const d = ent(now.day + i), df = toMin(d.from);
+    if (d.open && df != null && (i > 0 || now.min < df)) {
+      const label = i === 0 ? 'aaj' : i === 1 ? 'kal' : ['Ravi', 'Som', 'Mangal', 'Budh', 'Guru', 'Shukra', 'Shani'][(now.day + i) % 7];
+      return { open: false, configured: true, message: `Abhi restaurant band hai. ${label} ${fmt12(d.from)} se order kar sakte hain.` };
+    }
+  }
+  return { open: false, configured: true, message: 'Abhi restaurant band hai.' };
+}
+app.get('/api/store-status', async (req, res) => res.json(storeStatus(await getSettingsConfig())));
+
+// ---------- Delivery charges (Settings > Delivery Charges) ----------
+function distKm(a, b) {
+  const R = 6371, rad = x => x * Math.PI / 180;
+  const dLat = rad(b.lat - a.lat), dLng = rad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+function deliveryChargeFor(cfg, subtotal, km) {
+  const d = (cfg && cfg.delivery_charges) || {}, model = d.model || 'free';
+  const n = v => Math.max(0, Number(v) || 0);
+  if (model === 'flat') return { charge: n(d.flat_fee) };
+  if (model === 'free_above_min') return { charge: subtotal >= n(d.free_min) ? 0 : n(d.fee_below_min) };
+  if (model === 'zone') {
+    const zones = (d.zones || []).map(z => ({ up: Number(z.up_to_km), fee: n(z.fee) })).filter(z => z.up > 0).sort((a, b) => a.up - b.up);
+    if (!zones.length) return { charge: 0 };
+    if (km == null) return { charge: null, needLocation: true };
+    const z = zones.find(x => km <= x.up);
+    return z ? { charge: z.fee } : { charge: null, outside: true, maxKm: zones[zones.length - 1].up };
+  }
+  if (model === 'tier') {
+    const tiers = (d.tiers || []).map(t => ({ min: n(t.min_amount), fee: n(t.fee) })).sort((a, b) => a.min - b.min);
+    if (!tiers.length) return { charge: 0 };
+    let fee = tiers[0].fee;
+    tiers.forEach(t => { if (subtotal >= t.min) fee = t.fee; });
+    return { charge: fee };
+  }
+  return { charge: 0 };
+}
+// Quote for the customer page (before placing the order). The order endpoint recomputes everything itself.
+app.post('/api/delivery-charge', async (req, res) => {
+  const cfg = await getSettingsConfig();
+  const sub = Math.max(0, Number(req.body.subtotal) || 0);
+  const rl = cfg.location;
+  const lat = Number(req.body.lat), lng = Number(req.body.lng);
+  const km = rl && rl.lat != null && req.body.lat != null && req.body.lat !== '' && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? distKm(rl, { lat, lng }) : null;
+  const r = deliveryChargeFor(cfg, sub, km);
+  const out = { charge: r.charge, km: km == null ? null : Math.round(km * 10) / 10 };
+  if (r.needLocation) out.message = 'Location allow karne par delivery charge dikhega';
+  if (r.outside) out.message = `Aap hamare delivery area (${r.maxKm} km) se bahar hain`;
+  res.json(out);
+});
+
 app.post('/api/orders', async (req, res) => {
   console.log('[DEBUG ORDER PAYLOAD]:', req.body);
-  const { order_type, table_no, customer_name, customer_phone, items, payment_mode, subtotal, discount, is_hold, paid_amount, is_kiosk } = req.body;
+  let { order_type, table_no, customer_name, customer_phone, items, payment_mode, subtotal, discount, is_hold, paid_amount, is_kiosk } = req.body;
+  let deliveryAddress = null, deliveryLat = null, deliveryLng = null;
+
+  // Public online orders: never trust client prices/discount/payment, rebuild everything from the DB.
+  const isOnlineOrder = /ONLINE/i.test(String(order_type || ''));
+  if (isOnlineOrder) {
+    if (!/^[6-9]\d{9}$/.test(String(customer_phone || ''))) return res.status(400).json({ error: 'Valid 10-digit mobile number daalein' });
+    const open = storeStatus(await getSettingsConfig());
+    if (!open.open) return res.status(400).json({ error: open.message });
+    try {
+      const v = await validateOnlineItems(items);
+      if (v.error) return res.status(400).json({ error: v.error });
+      items = v.items;
+      subtotal = v.subtotal;
+      // Settings > Storefront > Ordering rules > Minimum order value
+      const minOrder = Number(((await getSettingsConfig()).ordering_rules || {}).min_order_value) || 0;
+      if (minOrder > 0 && subtotal < minOrder) return res.status(400).json({ error: `Minimum order ₹${minOrder} hai (aapka cart ₹${subtotal})` });
+    } catch (e) {
+      console.error('Online order validation error:', e.message);
+      return res.status(500).json({ error: 'Order validate nahi ho paaya' });
+    }
+    discount = 0;
+    paid_amount = 0;
+    payment_mode = 'ONLINE_PENDING';
+    is_hold = false;
+
+    if (!/DELIVERY|TAKEAWAY|PICKUP/i.test(String(order_type))) return res.status(400).json({ error: 'Online ordering sirf Delivery ya Takeaway ke liye hai' });
+    if (/DELIVERY/i.test(String(order_type))) {
+      deliveryAddress = String(req.body.delivery_address || '').trim().slice(0, 500);
+      if (deliveryAddress.length < 8) return res.status(400).json({ error: 'Poora delivery address likhein' });
+      const lat = Number(req.body.delivery_lat), lng = Number(req.body.delivery_lng);
+      if (req.body.delivery_lat != null && req.body.delivery_lat !== '' && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) { deliveryLat = lat; deliveryLng = lng; }
+
+      // Settings > General > Max Delivery Distance, and Settings > Delivery Charges
+      const cfg = await getSettingsConfig();
+      const maxKm = Number(cfg.max_delivery_km) || 0;
+      const rl = cfg.location;
+      const hasRest = rl && rl.lat != null && rl.lng != null;
+      const km = hasRest && deliveryLat != null ? distKm(rl, { lat: deliveryLat, lng: deliveryLng }) : null;
+      if (maxKm > 0 && hasRest) {
+        if (km == null) return res.status(400).json({ error: 'Delivery ke liye apni location allow karna zaroori hai' });
+        if (km > maxKm) return res.status(400).json({ error: `Aap hamare delivery area se bahar hain (${km.toFixed(1)} km door, max ${maxKm} km)` });
+      }
+      const dc = deliveryChargeFor(cfg, subtotal, km);
+      if (dc.needLocation) return res.status(400).json({ error: 'Delivery charge ke liye apni location allow karna zaroori hai' });
+      if (dc.outside) return res.status(400).json({ error: `Aap hamare delivery area (${dc.maxKm} km) se bahar hain` });
+      if (dc.charge > 0) {
+        items = items.concat([{ name: 'Delivery Charge', price: dc.charge, qty: 1, addons: [], notes: '' }]);
+        subtotal += dc.charge;
+      }
+    }
+  }
 
   let rawType = (order_type || 'Kiosk').trim();
   let upperType = rawType.toUpperCase();
@@ -953,8 +1202,8 @@ app.post('/api/orders', async (req, res) => {
   }
 
   const insertOrderQuery = `
-    INSERT INTO orders (order_type, table_no, customer_name, customer_phone, status, payment_mode, subtotal, discount, gst, total, paid_amount)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO orders (order_type, table_no, customer_name, customer_phone, status, payment_mode, subtotal, discount, gst, total, paid_amount, delivery_address, delivery_lat, delivery_lng)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     RETURNING id
   `;
 
@@ -969,7 +1218,10 @@ app.post('/api/orders', async (req, res) => {
     discount || 0,
     calculatedGst,
     calculatedTotal,
-    initialPaid
+    initialPaid,
+    deliveryAddress,
+    deliveryLat,
+    deliveryLng
   ];
 
   db.all(insertOrderQuery, orderValues, async (err, result) => {
@@ -1007,7 +1259,18 @@ app.post('/api/orders', async (req, res) => {
       }
 
       console.log(`[ORDER CREATED] Order #${orderId} placed with status ${status}, mode ${finalPaymentMode}, and paid amount ${initialPaid}.`);
-      res.json({ success: true, orderId: orderId, paid_amount: initialPaid });
+      // First online order of this phone creates the customer profile; the token is only handed out once.
+      let profileToken = null;
+      if (isOnlineOrder) {
+        try {
+          const existing = await dbAllAsync('SELECT phone FROM customer_profiles WHERE phone = ?', [customer_phone]);
+          if (!existing.length) {
+            profileToken = crypto.randomBytes(16).toString('hex');
+            await dbAllAsync('INSERT INTO customer_profiles (phone, name, token) VALUES (?, ?, ?) RETURNING phone', [customer_phone, customer_name || '', profileToken]);
+          }
+        } catch (pe) { console.error('Profile create error:', pe.message); profileToken = null; }
+      }
+      res.json({ success: true, orderId: orderId, paid_amount: initialPaid, profile_token: profileToken });
     } catch (itemErr) {
       console.error('Order items insert error:', itemErr.message);
       res.json({ success: true, orderId: orderId });
@@ -1073,7 +1336,7 @@ app.get('/api/kot', (req, res) => {
       const fullOrders = await Promise.all(
         orders.map(order => {
           return new Promise((resolve) => {
-            db.all('SELECT id, name, qty, notes FROM order_items WHERE order_id = ? ORDER BY id ASC', [order.id], (err2, items) => {
+            db.all("SELECT id, name, qty, notes FROM order_items WHERE order_id = ? AND name <> 'Delivery Charge' ORDER BY id ASC", [order.id], (err2, items) => {
               resolve({ ...order, items: items || [] });
             });
           });
@@ -1089,7 +1352,7 @@ app.post('/api/kot/:id/complete', (req, res) => {
   const orderId = req.params.id;
 
   // AUTO-DISPATCH REMOVED: Status sirf 'KOT_DONE' set hoga, 'COMPLETED' nahi.
-  db.run("UPDATE orders SET status = 'KOT_DONE' WHERE id = ?", [orderId], (err2) => {
+  db.run("UPDATE orders SET status = 'KOT_DONE', ready_at = COALESCE(ready_at, CURRENT_TIMESTAMP) WHERE id = ?", [orderId], (err2) => {
     if (err2) {
       console.error('[KDS COMPLETE ERROR]:', err2.message);
       return res.status(500).json({ error: err2.message });
@@ -1112,7 +1375,8 @@ app.post('/api/kot/:id/dispatch', (req, res) => {
             WHEN UPPER(COALESCE(payment_mode, '')) IN ('', 'UNPAID', 'PAY_COUNTER', 'ONLINE_PENDING')
               OR COALESCE(paid_amount, 0) < total THEN 'KOT_DONE'
             ELSE 'DISPATCHED'
-          END
+          END,
+          ready_at = COALESCE(ready_at, CURRENT_TIMESTAMP)
           WHERE id = ?`, [orderId], (err) => {
     if (err) {
       console.error('[KDS DISPATCH ERROR]:', err.message);
@@ -1235,7 +1499,13 @@ app.post('/api/verify-pin', (req, res) => {
   });
 });
 
-app.get('/api/settings', (req, res) => db.get("SELECT * FROM settings WHERE id = 1", [], (err, row) => res.json(row || {})));
+// Never expose the owner PIN or the JSON config (gateway secrets live there) through this public endpoint.
+app.get('/api/settings', (req, res) => db.get("SELECT * FROM settings WHERE id = 1", [], (err, row) => {
+  const out = Object.assign({}, row || {});
+  delete out.admin_pin;
+  delete out.config;
+  res.json(out);
+}));
 
 app.post('/api/settings', (req, res) => {
   const { restaurant_name, tagline, address, phone, gstin, default_gst, admin_pin } = req.body;
@@ -1245,8 +1515,75 @@ app.post('/api/settings', (req, res) => {
     ON CONFLICT(id) DO UPDATE SET
       restaurant_name = excluded.restaurant_name, tagline = excluded.tagline, address = excluded.address,
       phone = excluded.phone, gstin = excluded.gstin, default_gst = excluded.default_gst, admin_pin = COALESCE(excluded.admin_pin, settings.admin_pin)
-  `, [restaurant_name, tagline, address, phone, gstin, default_gst || 5, admin_pin || '1234'], () => res.json({ success: true }));
+  `, [restaurant_name, tagline, address, phone, gstin, default_gst || 5, admin_pin || null], () => res.json({ success: true }));
 });
+
+// Extra settings (map location, delivery distance, table/order automation, phone rules...) live in settings.config (JSON).
+// PUT merges the given top-level keys, so each settings card can save only its own section.
+async function getSettingsConfig() {
+  try {
+    const rows = await dbAllAsync('SELECT config FROM settings WHERE id = 1', []);
+    return parseJsonSafe(rows[0] && rows[0].config, {}) || {};
+  } catch (e) { return {}; }
+}
+// Settings > Order Timers: the restaurant's own last-30-day numbers (minutes). Kitchen time = KDS done - accepted
+// (orders that never needed approval count from order creation); awaiting = accepted - placed.
+app.get('/api/order-timer-stats', async (req, res) => {
+  try {
+    const typeOf = t => (/delivery/i.test(t) ? 'delivery' : /takeaway|pickup/i.test(t) ? 'takeaway' : 'dine_in');
+    const counts = await dbAllAsync(`SELECT order_type, COUNT(*) AS n FROM orders WHERE created_at >= CURRENT_TIMESTAMP - INTERVAL '30 days' AND COALESCE(status, '') NOT IN ('VOID', 'CANCELLED', 'HOLD') GROUP BY order_type`, []);
+    const kitchen = await dbAllAsync(`SELECT order_type, COUNT(*) AS n,
+        percentile_cont(0.5) WITHIN GROUP (ORDER BY m) AS med, percentile_cont(0.9) WITHIN GROUP (ORDER BY m) AS p90
+      FROM (SELECT order_type, EXTRACT(EPOCH FROM (ready_at - COALESCE(accepted_at, created_at))) / 60 AS m FROM orders
+            WHERE created_at >= CURRENT_TIMESTAMP - INTERVAL '30 days' AND ready_at IS NOT NULL AND ready_at >= COALESCE(accepted_at, created_at)) t
+      GROUP BY order_type`, []);
+    const awaiting = await dbAllAsync(`SELECT COUNT(*) AS n, percentile_cont(0.5) WITHIN GROUP (ORDER BY m) AS med, percentile_cont(0.9) WITHIN GROUP (ORDER BY m) AS p90
+      FROM (SELECT EXTRACT(EPOCH FROM (accepted_at - created_at)) / 60 AS m FROM orders
+            WHERE created_at >= CURRENT_TIMESTAMP - INTERVAL '30 days' AND accepted_at IS NOT NULL AND accepted_at >= created_at) t`, []);
+    const stages = { dine_in: { n: 0 }, takeaway: { n: 0 }, delivery: { n: 0 }, rider: { n: 0 }, awaiting: { n: 0 }, ready_no_rider: { n: 0 } };
+    counts.forEach(r => { stages[typeOf(r.order_type)].n += Number(r.n); });
+    const acc = {};
+    kitchen.forEach(r => {
+      const k = typeOf(r.order_type), a = acc[k] || (acc[k] = { w: 0, med: 0, p90: 0 }), w = Number(r.n);
+      a.w += w; a.med += Number(r.med) * w; a.p90 += Number(r.p90) * w;   // merge order_type variants, weighted by count
+    });
+    Object.keys(acc).forEach(k => { stages[k].usual = acc[k].med / acc[k].w; stages[k].slow = acc[k].p90 / acc[k].w; });
+    const aw = awaiting[0];
+    if (aw && Number(aw.n) > 0) { stages.awaiting = { n: Number(aw.n), usual: Number(aw.med), slow: Number(aw.p90) }; }
+    const to = new Date(), from = new Date(Date.now() - 30 * 86400000);
+    res.json({ from: from.toISOString(), to: to.toISOString(), stages });
+  } catch (e) {
+    console.error('Timer stats error:', e.message);
+    res.status(500).json({ error: 'stats unavailable' });
+  }
+});
+
+// Gateway secrets (payments_secrets) are write-only: never returned, only "is it set" flags.
+function publicConfig(cfg) {
+  const out = Object.assign({}, cfg);
+  const sec = out.payments_secrets || {};
+  delete out.payments_secrets;
+  out.secrets_set = { key_secret: !!sec.key_secret, webhook_secret: !!sec.webhook_secret };
+  return out;
+}
+app.get('/api/settings/config', async (req, res) => res.json(publicConfig(await getSettingsConfig())));
+app.put('/api/settings/config', async (req, res) => {
+  const patch = req.body;
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) return res.status(400).json({ error: 'Invalid settings' });
+  const current = await getSettingsConfig();
+  const next = Object.assign({}, patch);
+  delete next.secrets_set;
+  if (next.payments_secrets) {
+    // empty value = keep the stored secret
+    const merged = Object.assign({}, current.payments_secrets || {});
+    ['key_secret', 'webhook_secret'].forEach(k => { if (typeof next.payments_secrets[k] === 'string' && next.payments_secrets[k].trim()) merged[k] = next.payments_secrets[k].trim(); });
+    next.payments_secrets = merged;
+  }
+  const cfg = Object.assign(current, next);
+  db.run(`INSERT INTO settings (id, config) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET config = excluded.config`, [JSON.stringify(cfg)],
+    (err) => (err ? res.status(500).json({ error: err.message }) : res.json({ success: true, config: publicConfig(cfg) })));
+});
+
 
 app.get('/api/system/backup', (req, res) => res.download(path.join(__dirname, 'restaurant.db'), `POS_Backup_${new Date().toISOString().slice(0, 10)}.db`));
 

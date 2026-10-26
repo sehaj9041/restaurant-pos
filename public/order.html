@@ -5,40 +5,89 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Order Online - Vishal Foodiez</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    .shadow-xs { box-shadow: 0 1px 2px rgba(0,0,0,.05); }
+    .shadow-2xs { box-shadow: 0 1px 1px rgba(0,0,0,.04); }
+    #toast { transition: opacity .2s, transform .2s; }
+  </style>
 </head>
 <body class="bg-gray-50 min-h-screen flex flex-col font-sans pb-32">
 
-  <!-- Top Header -->
-  <header class="bg-white sticky top-0 z-30 shadow-xs border-b px-4 py-3 flex justify-between items-center">
-    <div>
-      <h1 class="text-lg font-black text-gray-900 tracking-tight">VISHAL FOODIEZ</h1>
-      <p class="text-[10px] text-gray-500 font-semibold">Budhlada • Fresh & Fast</p>
-    </div>
-    <div class="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 px-2.5 py-1 rounded-full text-[10px] font-black">
-      <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-      <span>ONLINE ORDERING</span>
-    </div>
-  </header>
+  <div id="toast" class="fixed top-16 left-1/2 -translate-x-1/2 z-[60] max-w-xs w-[90%] text-center text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg opacity-0 pointer-events-none bg-gray-900 text-white" role="status" aria-live="polite"></div>
 
-  <!-- Order Mode Selector -->
-  <div class="bg-white p-3 border-b shadow-xs space-y-2 sticky top-[57px] z-20">
-    <div class="grid grid-cols-3 gap-1.5 bg-gray-100 p-1 rounded-xl text-xs font-black">
-      <button onclick="setMode('Dine-In')" id="mDine" class="py-2 rounded-lg bg-white text-indigo-700 shadow-xs transition">🍽 Dine-In</button>
-      <button onclick="setMode('Takeaway')" id="mTake" class="py-2 rounded-lg text-gray-500 transition">🛍 Takeaway</button>
-      <button onclick="setMode('Delivery')" id="mDeliv" class="py-2 rounded-lg text-gray-500 transition">🛵 Delivery</button>
+  <div id="announceBar" class="hidden fixed top-0 left-0 right-0 z-[59] bg-amber-400 text-amber-950 text-xs font-black text-center px-3 py-2"></div>
+
+  <!-- ================= LANDING: ORDER TYPE ================= -->
+  <div id="landing" class="fixed inset-0 z-[45] bg-gradient-to-b from-indigo-50 to-white overflow-y-auto">
+    <div class="max-w-md mx-auto min-h-full flex flex-col justify-center p-6 space-y-6">
+      <div class="text-center space-y-1">
+        <h1 class="text-3xl font-black text-gray-900 tracking-tight">VISHAL FOODIEZ</h1>
+        <p class="text-xs text-gray-500 font-semibold">Budhlada • Fresh &amp; Fast</p>
+        <p id="landingAbout" class="hidden text-[11px] text-gray-500 pt-1"></p>
+        <p id="landingPrep" class="hidden text-[11px] font-black text-emerald-700 pt-1"></p>
+        <p id="landingContact" class="hidden text-[11px] text-gray-500 pt-1"></p>
+        <p id="landingHello" class="hidden text-sm font-black text-indigo-700 pt-2"></p>
+      </div>
+      <div class="space-y-3">
+        <div id="landingClosed" class="hidden bg-rose-50 border border-rose-200 text-rose-700 text-xs font-black rounded-2xl px-4 py-3 text-center"></div>
+        <p class="text-center text-[11px] font-black uppercase tracking-wider text-gray-400">Aap kaise order karna chahte hain?</p>
+        <button id="startDelivery" onclick="startOrder('Delivery')" class="w-full bg-white border-2 border-gray-100 hover:border-indigo-500 active:scale-[.98] rounded-3xl p-5 flex items-center gap-4 shadow-sm transition text-left">
+          <span class="text-4xl">🛵</span>
+          <span><span class="block font-black text-gray-900 text-lg">Delivery</span><span class="block text-xs text-gray-500 font-semibold">Khana seedha aapke ghar tak</span></span>
+        </button>
+        <button id="startTakeaway" onclick="startOrder('Takeaway')" class="w-full bg-white border-2 border-gray-100 hover:border-indigo-500 active:scale-[.98] rounded-3xl p-5 flex items-center gap-4 shadow-sm transition text-left">
+          <span class="text-4xl">🛍</span>
+          <span><span class="block font-black text-gray-900 text-lg">Takeaway</span><span class="block text-xs text-gray-500 font-semibold">Order karein, restaurant se khud le jayein</span></span>
+        </button>
+      </div>
+      <button id="landingOrdersBtn" onclick="openOrders()" class="hidden w-full border border-gray-300 bg-white text-gray-700 font-black py-3 rounded-2xl text-sm">📦 My Orders &amp; Tracking</button>
     </div>
-    <input type="text" id="targetLoc" placeholder="Table Number (e.g. Table 2)" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs outline-none bg-gray-50 font-bold focus:bg-white focus:border-indigo-500 transition">
   </div>
 
-  <!-- Category Badges Bar -->
-  <div id="categoryBar" class="p-3 flex gap-2 overflow-x-auto no-scrollbar pb-1"></div>
+  <div id="app" class="hidden flex-1 flex flex-col">
+    <!-- Top Header -->
+    <header class="bg-white sticky top-0 z-30 shadow-xs border-b px-4 py-3 flex justify-between items-center">
+      <div class="flex items-center gap-3">
+        <button onclick="backToLanding()" aria-label="Change order type" class="text-lg font-black text-gray-600">←</button>
+        <div>
+          <h1 class="text-lg font-black text-gray-900 tracking-tight leading-none">VISHAL FOODIEZ</h1>
+          <p id="modeChip" class="text-[10px] text-indigo-700 font-black mt-0.5"></p>
+        </div>
+      </div>
+      <button id="profileBtn" onclick="openOrders()" class="hidden bg-indigo-600 text-white px-3 py-1.5 rounded-full text-[11px] font-black">👤 My Orders</button>
+    </header>
 
-  <!-- Menu Listing -->
-  <main class="p-3 flex-1">
-    <div id="menuGrid" class="space-y-3">
-      <div class="text-center py-12 text-gray-400 text-xs font-semibold">Loading menu items...</div>
+    <!-- Search + category navigation -->
+    <div class="bg-white sticky top-[57px] z-20 border-b shadow-xs">
+      <div class="px-3 pt-3">
+        <input type="search" id="menuSearch" oninput="onSearch(this.value)" placeholder="🔍 Search menu..." aria-label="Search menu" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs outline-none bg-gray-50 font-medium focus:bg-white focus:border-indigo-500 transition">
+      </div>
+      <div id="categoryBar" class="p-3 flex gap-2 overflow-x-auto no-scrollbar"></div>
     </div>
-  </main>
+
+    <!-- Menu Listing (grouped by category) -->
+    <main class="p-3 flex-1">
+      <div id="menuGrid" class="space-y-6">
+        <div class="text-center py-12 text-gray-400 text-xs font-semibold">Loading menu items...</div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ================= MY ORDERS / PROFILE ================= -->
+  <div id="ordersPage" class="hidden fixed inset-0 bg-gray-50 z-[57] overflow-y-auto">
+    <div class="max-w-md mx-auto min-h-full flex flex-col">
+      <div class="bg-white border-b px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
+        <button onclick="closeOrders()" aria-label="Back" class="text-lg font-black text-gray-600">←</button>
+        <h3 class="font-black text-gray-900 text-base">My Orders</h3>
+      </div>
+      <div class="p-4 space-y-3">
+        <div id="profileCard" class="bg-white border rounded-2xl p-4 flex items-center justify-between gap-3"></div>
+        <div id="ordersList" class="space-y-3"></div>
+      </div>
+    </div>
+  </div>
 
   <!-- Sticky Bottom Cart Bar -->
   <div id="cartBar" class="hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t p-3 shadow-2xl z-40">
@@ -55,33 +104,114 @@
 
   <!-- Checkout Popup Modal -->
   <div id="checkoutModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-end justify-center">
-    <div class="bg-white w-full max-w-md rounded-t-3xl p-5 shadow-2xl space-y-4 animate-in slide-in-from-bottom duration-200">
+    <div class="bg-white w-full max-w-md rounded-t-3xl p-5 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
       <div class="flex justify-between items-center border-b pb-3">
         <div>
           <h3 class="text-base font-black text-gray-900">Review & Place Order</h3>
-          <p id="modalModeText" class="text-[11px] text-gray-500 font-semibold">Dine-In Order</p>
+          <p id="modalModeText" class="text-[11px] text-gray-500 font-semibold">Delivery Order</p>
         </div>
-        <button onclick="closeCheckout()" class="text-gray-400 hover:text-gray-700 text-lg font-bold p-1">✕</button>
+        <button onclick="closeCheckout()" aria-label="Close" class="text-gray-400 hover:text-gray-700 text-lg font-bold p-1">✕</button>
       </div>
 
       <!-- Item Cart Items List -->
-      <div id="cartList" class="space-y-2 max-h-48 overflow-y-auto divide-y divide-gray-100 pr-1"></div>
+      <div id="cartList" class="space-y-2 max-h-56 overflow-y-auto divide-y divide-gray-100 pr-1"></div>
 
       <!-- Customer Details Input -->
       <div class="space-y-2 pt-1">
         <input type="text" id="cName" placeholder="Your Name" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-500 font-medium">
-        <input type="tel" id="cPhone" placeholder="10-digit Phone Number" maxlength="10" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs font-mono outline-none focus:border-indigo-500 font-medium">
+        <input type="text" id="cNote" maxlength="100" placeholder="Pickup note (optional)" class="hidden w-full border border-gray-200 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-500 font-medium">
+        <input type="tel" id="cPhone" inputmode="numeric" placeholder="10-digit Phone Number" maxlength="10" oninput="this.value=this.value.replace(/\D/g,'')" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs font-mono outline-none focus:border-indigo-500 font-medium">
       </div>
 
       <!-- Bill Total & Send Button -->
+      <div class="pt-3 border-t text-xs text-gray-600 space-y-1">
+        <div class="flex justify-between"><span>Subtotal</span><span id="cSub" class="font-bold">₹0</span></div>
+        <div id="cDelRow" class="hidden flex justify-between"><span>Delivery charge</span><span id="cDel" class="font-bold">—</span></div>
+        <div class="flex justify-between"><span>GST (5%)</span><span id="cGst" class="font-bold">₹0</span></div>
+      </div>
       <div class="pt-3 border-t flex justify-between items-center">
         <div>
           <p class="text-[10px] text-gray-400 uppercase font-black tracking-wider">Total Payable</p>
           <span id="cTotal" class="text-xl font-black text-emerald-600">₹0</span>
         </div>
-        <button id="submitBtn" onclick="placeOrder()" class="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black px-6 py-3 rounded-xl text-xs shadow-lg transition flex items-center gap-2">
-          <span>🚀 Place Order</span>
+        <button id="submitBtn" onclick="checkoutNext()" class="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black px-6 py-3 rounded-xl text-xs shadow-lg transition flex items-center gap-2">
+          <span id="submitLabel">🚀 Place Order</span>
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= DELIVERY ADDRESS PAGE ================= -->
+  <div id="addressPage" class="hidden fixed inset-0 bg-gray-50 z-[52] overflow-y-auto">
+    <div class="max-w-md mx-auto min-h-full flex flex-col">
+      <div class="bg-white border-b px-4 py-3 flex items-center gap-3 sticky top-0">
+        <button onclick="closeAddressPage()" aria-label="Back" class="text-lg font-black text-gray-600">←</button>
+        <div>
+          <h3 class="font-black text-gray-900 text-base">Delivery Address</h3>
+          <p class="text-[11px] text-gray-500 font-semibold">Order kahan deliver karna hai?</p>
+        </div>
+      </div>
+      <div class="p-4 space-y-3 flex-1">
+        <div id="locBox" class="bg-white border rounded-2xl p-3.5 space-y-2">
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <div class="text-xs font-black text-gray-800">📍 Aapki location</div>
+              <div id="locStatus" class="text-[11px] text-gray-500 font-medium">Location permission allow karein taaki rider aap tak asaani se pahunch sake.</div>
+            </div>
+            <button id="locBtn" onclick="requestLocation()" class="shrink-0 bg-indigo-600 text-white font-black text-[11px] px-3 py-2 rounded-xl">Use my location</button>
+          </div>
+          <iframe id="locMap" title="Aapki location" class="hidden w-full h-40 rounded-xl border border-gray-200"></iframe>
+          <a id="locLink" href="#" target="_blank" rel="noopener" class="hidden text-[11px] font-black text-indigo-600 underline">Google Maps me kholein</a>
+        </div>
+        <div id="addrQuote" class="hidden rounded-2xl px-3.5 py-2.5 text-xs font-black"></div>
+        <div class="bg-white border rounded-2xl p-3.5 space-y-2">
+          <label class="block text-[11px] font-black text-gray-600">Full Address *</label>
+          <textarea id="addrText" rows="3" maxlength="300" placeholder="House / Flat no, Street, Area" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-500 font-medium"></textarea>
+          <label class="block text-[11px] font-black text-gray-600">Landmark (optional)</label>
+          <input type="text" id="addrLandmark" maxlength="100" placeholder="Near ..." class="w-full border border-gray-200 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-500 font-medium">
+        </div>
+      </div>
+      <div class="bg-white border-t p-3 flex justify-between items-center sticky bottom-0">
+        <div>
+          <p class="text-[10px] text-gray-400 uppercase font-black tracking-wider">Total Payable</p>
+          <span id="addrTotal" class="text-xl font-black text-emerald-600">₹0</span>
+        </div>
+        <button id="addrSubmitBtn" onclick="placeOrder()" class="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black px-6 py-3 rounded-xl text-xs shadow-lg transition">🚀 Place Order</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= ORDER PLACED PAGE ================= -->
+  <div id="successPage" class="hidden fixed inset-0 bg-gray-50 z-[56] overflow-y-auto">
+    <div class="max-w-md mx-auto min-h-full flex flex-col items-center justify-center p-6 text-center space-y-3">
+      <div class="text-6xl">✅</div>
+      <h2 class="font-black text-gray-900 text-xl">Order Placed!</h2>
+      <p class="text-xs text-gray-500">Aapka order restaurant tak pahunch gaya hai. Restaurant accept karega to status update ho jayega.</p>
+      <div class="bg-white border rounded-2xl px-8 py-4 w-full">
+        <div class="text-[10px] font-black uppercase tracking-wider text-gray-400">Token</div>
+        <div id="successToken" class="text-4xl font-black text-emerald-600"></div>
+        <div id="successSummary" class="text-xs text-gray-500 font-semibold mt-1"></div>
+      </div>
+      <button onclick="openTrack(lastPlaced.id, lastPlaced.phone)" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-3 rounded-2xl text-sm shadow-lg">📍 Track Order</button>
+      <button onclick="closeSuccess(); openOrders()" class="w-full border border-indigo-200 text-indigo-700 font-black py-3 rounded-2xl text-sm bg-indigo-50">📦 My Orders</button>
+      <button onclick="closeSuccess()" class="w-full border border-gray-300 text-gray-700 font-black py-3 rounded-2xl text-sm bg-white">Back to Menu</button>
+    </div>
+  </div>
+
+  <!-- ================= ORDER TRACKING PAGE ================= -->
+  <div id="trackPage" class="hidden fixed inset-0 bg-gray-50 z-[58] overflow-y-auto">
+    <div class="max-w-md mx-auto min-h-full flex flex-col">
+      <div class="bg-white border-b px-4 py-3 flex items-center gap-3 sticky top-0">
+        <button onclick="closeTrack()" aria-label="Back" class="text-lg font-black text-gray-600">←</button>
+        <div>
+          <h3 class="font-black text-gray-900 text-base">Track Order <span id="trackId" class="text-emerald-600"></span></h3>
+          <p id="trackType" class="text-[11px] text-gray-500 font-semibold"></p>
+        </div>
+      </div>
+      <div class="p-4 space-y-3">
+        <div id="trackStatusCard" class="bg-white border rounded-2xl p-4 space-y-4"></div>
+        <div id="trackDetails" class="bg-white border rounded-2xl p-4 text-xs space-y-2"></div>
+        <p class="text-[10px] text-gray-400 text-center">Status har 10 second me auto-update hota hai.</p>
       </div>
     </div>
   </div>
@@ -94,7 +224,7 @@
           <h3 id="onlineMealTitle" class="font-black text-gray-900 text-sm"></h3>
           <p class="text-[10px] text-gray-500">Single lena hai ya meal?</p>
         </div>
-        <button onclick="document.getElementById('onlineMealModal').classList.add('hidden')" class="text-gray-400 hover:text-black font-bold">✕</button>
+        <button onclick="document.getElementById('onlineMealModal').classList.add('hidden')" aria-label="Close" class="text-gray-400 hover:text-black font-bold">✕</button>
       </div>
       <div id="onlineMealContent" class="space-y-2 max-h-72 overflow-y-auto pr-1 text-xs"></div>
     </div>
@@ -108,7 +238,7 @@
           <h3 id="onlineVarModalItemName" class="font-black text-gray-900 text-sm">Select Size / Variant</h3>
           <p class="text-[10px] text-gray-500">Apna pasandida size select karein</p>
         </div>
-        <button onclick="closeOnlineVariationModal()" class="text-gray-400 hover:text-black font-bold">✕</button>
+        <button onclick="closeOnlineVariationModal()" aria-label="Close" class="text-gray-400 hover:text-black font-bold">✕</button>
       </div>
 
       <div id="onlineVarModalContent" class="space-y-2 max-h-60 overflow-y-auto pr-1 text-xs"></div>
@@ -127,7 +257,7 @@
           <h3 id="onlineAddonModalItemName" class="font-black text-gray-900 text-sm">Select Add-ons</h3>
           <p id="onlineAddonStep" class="text-[10px] text-gray-500">Apni pasand ke add-ons select karein</p>
         </div>
-        <button onclick="closeOnlineAddonModal()" class="text-gray-400 hover:text-black font-bold">✕</button>
+        <button onclick="closeOnlineAddonModal()" aria-label="Close" class="text-gray-400 hover:text-black font-bold">✕</button>
       </div>
 
       <div id="onlineAddonModalContent" class="space-y-4 overflow-y-auto flex-1 pr-1 text-xs"></div>
@@ -143,35 +273,141 @@
   </div>
 
   <script>
-    let mode = 'Dine-In';
+    let mode = 'Delivery';
     let cart = [];
+    try { cart = JSON.parse(localStorage.getItem('vf_cart') || '[]'); if (!Array.isArray(cart)) cart = []; } catch (e) { cart = []; }
     let menu = [];
     let activeCategory = 'All';
+    let searchTerm = '';
+    let categoryList = [];
     let currentModalSelectedItem = null;
     let currentModalItemGroups = [];
+    let allAddonGroups = null;
+    let pendingVariantItem = null;
+    let pendingVariants = [];
+    let placing = false;
+    let deliveryLoc = null;
 
+    function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+    function imgSrc(im) { return im ? (/^(https?:)?\//.test(im) ? im : '/uploads/' + im) : ''; }
+    function vegIcon(t) {
+      const c = { veg: '#16a34a', nonveg: '#dc2626', egg: '#eab308' }[t];
+      if (!c) return '';
+      const label = { veg: 'Veg', nonveg: 'Non-Veg', egg: 'Egg' }[t];
+      return `<span title="${label}" aria-label="${label}" class="inline-flex items-center justify-center w-4 h-4 border-2 rounded-sm shrink-0 align-middle" style="border-color:${c}"><span class="w-2 h-2 rounded-full" style="background:${c}"></span></span>`;
+    }
+    function isSoldOut(item) { return (Number(item.stock) || 0) <= 0 || item.status === 'Out of Stock'; }
+    function saveCart() { try { localStorage.setItem('vf_cart', JSON.stringify(cart)); } catch (e) {} }
+
+    let toastTimer = null;
+    function toast(msg, bad) {
+      const t = document.getElementById('toast');
+      t.innerText = msg;
+      t.className = t.className.replace(/bg-(gray-900|rose-600)/, bad ? 'bg-rose-600' : 'bg-gray-900').replace('opacity-0', 'opacity-100');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => { t.className = t.className.replace('opacity-100', 'opacity-0'); }, 2600);
+    }
+
+    let lastPlaced = { id: null, phone: '' };
+    let storeCfg = {};
+    let storeOpen = true, storeMsg = '';
+    let deliveryQuote = { charge: 0, message: '' }, lastQuoteKey = '';
+
+    // Settings > Operating Hours: closed => no ordering (server enforces too)
+    function refreshStoreStatus() {
+      fetch('/api/store-status').then(r => r.json()).then(st => {
+        storeOpen = st.open !== false; storeMsg = st.message || '';
+        const box = document.getElementById('landingClosed');
+        box.innerText = storeMsg; box.classList.toggle('hidden', storeOpen);
+        ['startDelivery', 'startTakeaway'].forEach(id => { const b = document.getElementById(id); b.disabled = !storeOpen; b.style.opacity = storeOpen ? '' : '0.45'; b.style.cursor = storeOpen ? '' : 'not-allowed'; });
+        if (!storeOpen && !document.getElementById('app').classList.contains('hidden')) backToLanding();
+      }).catch(() => {});
+    }
+    refreshStoreStatus();
+    setInterval(refreshStoreStatus, 60000);
+
+    // Settings > Delivery Charges: quote from the server (zone charge needs the customer's location)
+    function chargeNow() { return mode === 'Delivery' && Number(deliveryQuote.charge) > 0 ? Number(deliveryQuote.charge) : 0; }
+    function quoteIfNeeded() {
+      if (mode !== 'Delivery') { if (deliveryQuote.charge || deliveryQuote.message) { deliveryQuote = { charge: 0, message: '' }; updateCartUI(); } return; }
+      const sub = cartSubtotal();
+      const key = `${sub}|${deliveryLoc ? deliveryLoc.lat + ',' + deliveryLoc.lng : ''}`;
+      if (key === lastQuoteKey) return;
+      lastQuoteKey = key;
+      fetch('/api/delivery-charge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subtotal: sub, lat: deliveryLoc ? deliveryLoc.lat : undefined, lng: deliveryLoc ? deliveryLoc.lng : undefined }) })
+        .then(r => r.json()).then(q => { if (key === lastQuoteKey) { deliveryQuote = { charge: q.charge, message: q.message || '' }; updateCartUI(); } })
+        .catch(() => {});
+    }
+
+    // Settings > Storefront (announcement, prep time, contact, minimum order)
+    fetch('/api/settings/config').then(r => r.json()).then(c => {
+      storeCfg = c || {};
+      const b = storeCfg.storefront || {}, r = storeCfg.ordering_rules || {};
+      if (b.announcement_show && b.announcement_text) {
+        const bar = document.getElementById('announceBar');
+        bar.innerText = b.announcement_text;
+        bar.classList.remove('hidden');
+        document.body.style.paddingTop = '34px';
+      }
+      const setTxt = (id, t) => { const el = document.getElementById(id); if (t) { el.innerText = t; el.classList.remove('hidden'); } };
+      setTxt('landingAbout', b.tagline || '');
+      if (r.show_prep_time) setTxt('landingPrep', `⏱ Ready in ~${Number(r.prep_time_min) || 30} min`);
+      const phone = b.contact_phone, wa = b.contact_whatsapp;
+      setTxt('landingContact', [phone && '📞 ' + phone, wa && '💬 ' + wa].filter(Boolean).join('  •  '));
+    }).catch(() => {});
+    function minOrderValue() { return Number((storeCfg.ordering_rules || {}).min_order_value) || 0; }
+
+    // ---------- Customer profile (kept in this browser; token comes from the server on first order) ----------
+    function getProfile() { try { return JSON.parse(localStorage.getItem('vf_profile') || 'null'); } catch (e) { return null; } }
+    function saveProfile(p) { try { localStorage.setItem('vf_profile', JSON.stringify(p)); } catch (e) {} }
+    function localOrderIds() { try { const a = JSON.parse(localStorage.getItem('vf_order_ids') || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+    function rememberOrderId(id) { try { localStorage.setItem('vf_order_ids', JSON.stringify([id, ...localOrderIds().filter(x => x !== id)].slice(0, 30))); } catch (e) {} }
+    function refreshProfileUI() {
+      const p = getProfile();
+      document.getElementById('profileBtn').classList.toggle('hidden', !p);
+      document.getElementById('landingOrdersBtn').classList.toggle('hidden', !p);
+      const hello = document.getElementById('landingHello');
+      hello.classList.toggle('hidden', !p);
+      if (p) hello.innerText = `Namaste${p.name ? ', ' + p.name : ''} 👋`;
+    }
+
+    // ---------- Order type (Delivery / Takeaway) ----------
     function setMode(m) {
       mode = m;
-      document.getElementById('mDine').className = m === 'Dine-In' ? "py-2 rounded-lg bg-white text-indigo-700 shadow-xs transition" : "py-2 rounded-lg text-gray-500 transition";
-      document.getElementById('mTake').className = m === 'Takeaway' ? "py-2 rounded-lg bg-white text-indigo-700 shadow-xs transition" : "py-2 rounded-lg text-gray-500 transition";
-      document.getElementById('mDeliv').className = m === 'Delivery' ? "py-2 rounded-lg bg-white text-indigo-700 shadow-xs transition" : "py-2 rounded-lg text-gray-500 transition";
-      
-      const locInput = document.getElementById('targetLoc');
-      if (m === 'Dine-In') locInput.placeholder = "Table Number (e.g. Table 2)";
-      else if (m === 'Takeaway') locInput.placeholder = "Pickup Note (Optional)";
-      else locInput.placeholder = "Delivery Address & Landmark";
-
+      document.getElementById('modeChip').innerText = (m === 'Delivery' ? '🛵 Delivery' : '🛍 Takeaway') + ' order';
       document.getElementById('modalModeText').innerText = `${m} Order`;
+      document.getElementById('submitLabel').innerText = m === 'Delivery' ? 'Next: Address →' : '🚀 Place Order';
+      document.getElementById('cNote').classList.toggle('hidden', m !== 'Takeaway');
     }
+    function startOrder(m) {
+      if (!storeOpen) return toast(storeMsg || 'Abhi restaurant band hai', true);
+      setMode(m);
+      lastQuoteKey = '';
+      document.getElementById('landing').classList.add('hidden');
+      document.getElementById('app').classList.remove('hidden');
+      window.scrollTo(0, 0);
+      spy();
+      quoteIfNeeded();
+    }
+    function backToLanding() {
+      document.getElementById('app').classList.add('hidden');
+      document.getElementById('landing').classList.remove('hidden');
+      refreshProfileUI();
+    }
+    setMode('Delivery');
+    refreshProfileUI();
 
     let onlineUpsells = [];
     fetch('/api/upsells').then(r => r.json()).then(u => { onlineUpsells = (u || []).filter(x => Number(x.is_active) !== 0); }).catch(() => {});
 
     // Load Menu from POS Backend
     fetch('/api/menu')
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error('menu'); return r.json(); })
       .then(items => {
         menu = items.filter(i => Number(i.is_visible) !== 0);
+        // drop saved cart lines whose item no longer exists
+        cart = cart.filter(c => menu.some(m => m.id === c.id));
+        saveCart(); updateCartUI();
         renderCategories();
         renderMenu();
       })
@@ -183,52 +419,78 @@
       });
 
     function renderCategories() {
-      const categories = ['All', ...new Set(menu.map(i => i.category || 'General'))];
+      categoryList = [...new Set(menu.map(i => i.category || 'General'))];
+      if (!categoryList.includes(activeCategory)) activeCategory = categoryList[0] || '';
       const bar = document.getElementById('categoryBar');
-      bar.innerHTML = categories.map(cat => `
-        <button onclick="filterCat('${cat}')" class="px-3.5 py-1.5 rounded-full text-xs font-bold shrink-0 transition ${activeCategory === cat ? 'bg-indigo-600 text-white shadow-xs' : 'bg-white border text-gray-600'}">
-          ${cat}
+      bar.innerHTML = categoryList.map((cat, idx) => `
+        <button data-cat="${idx}" onclick="scrollToCat(${idx})" class="px-3.5 py-1.5 rounded-full text-xs font-bold shrink-0 transition ${activeCategory === cat ? 'bg-indigo-600 text-white shadow-xs' : 'bg-white border text-gray-600'}">
+          ${esc(cat)}
         </button>
       `).join('');
+      const on = bar.querySelector(`[data-cat="${categoryList.indexOf(activeCategory)}"]`);
+      if (on) bar.scrollLeft = on.offsetLeft - bar.clientWidth / 2 + on.clientWidth / 2;
     }
 
-    function filterCat(cat) {
-      activeCategory = cat;
+    function scrollToCat(idx) {
+      const el = document.getElementById('cat-' + idx);
+      if (!el) return;
+      activeCategory = categoryList[idx];
       renderCategories();
-      renderMenu();
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // highlight the category whose section is currently under the sticky bar
+    let spyTimer = null;
+    window.addEventListener('scroll', () => { clearTimeout(spyTimer); spyTimer = setTimeout(spy, 50); }, { passive: true });
+    function spy() {
+      if (document.getElementById('app').classList.contains('hidden') || !categoryList.length) return;
+      let cur = null;
+      categoryList.forEach((c, i) => { const el = document.getElementById('cat-' + i); if (el && el.getBoundingClientRect().top <= 200) cur = c; });
+      cur = cur || categoryList[0];
+      if (cur !== activeCategory) { activeCategory = cur; renderCategories(); }
+    }
+
+    function onSearch(v) { searchTerm = v.trim().toLowerCase(); renderMenu(); }
+
+    function itemCard(item) {
+      const inCart = cart.filter(i => i.id === item.id).reduce((s, c) => s + c.qty, 0);
+      const soldOut = isSoldOut(item);
+      const src = imgSrc(item.image || item.image_url);
+      let hasVars = false;
+      try { hasVars = JSON.parse(item.variations || '[]').length > 0; } catch (e) {}
+      return `
+        <div class="bg-white p-3.5 rounded-2xl border border-gray-100 flex justify-between items-center gap-3 shadow-xs ${soldOut ? 'opacity-60' : ''}">
+          <div class="flex items-center gap-3 min-w-0">
+            ${src ? `<img src="${esc(src)}" loading="lazy" alt="" onerror="this.remove()" class="w-16 h-16 rounded-xl object-cover shrink-0">` : ''}
+            <div class="space-y-0.5 min-w-0">
+              <h3 class="font-bold text-gray-900 text-sm flex items-center gap-1.5">${vegIcon(item.food_type)}<span>${esc(item.name)}</span></h3>
+              <p class="text-emerald-600 font-black text-sm">${hasVars ? 'From ' : ''}₹${esc(item.price)}</p>
+            </div>
+          </div>
+          <div class="shrink-0 flex flex-col items-end gap-1">
+            ${inCart > 0 ? `<span class="font-black text-[10px] text-indigo-800 bg-indigo-100 rounded-full px-2 py-0.5">${inCart} in cart</span>` : ''}
+            ${soldOut ? `<span class="text-rose-600 font-black text-xs px-2">Sold out</span>` : `
+              <button onclick="addItemCheckAddons(${Number(item.id)})" class="bg-indigo-50 hover:bg-indigo-100 active:scale-95 border border-indigo-200 text-indigo-700 font-black text-xs px-4 py-1.5 rounded-xl transition">
+                + ADD
+              </button>`}
+          </div>
+        </div>`;
     }
 
     function renderMenu() {
-      const filtered = activeCategory === 'All' ? menu : menu.filter(i => (i.category || 'General') === activeCategory);
+      const list = searchTerm ? menu.filter(i => String(i.name).toLowerCase().includes(searchTerm)) : menu;
       const grid = document.getElementById('menuGrid');
-
-      if (!filtered.length) {
-        grid.innerHTML = '<div class="text-center py-10 text-gray-400 text-xs">No items in this category.</div>';
+      if (!list.length) {
+        grid.innerHTML = '<div class="text-center py-10 text-gray-400 text-xs">No items found.</div>';
         return;
       }
-
-      grid.innerHTML = filtered.map(item => {
-        const inCart = cart.filter(i => i.id === item.id).reduce((s, c) => s + c.qty, 0);
-        return `
-          <div class="bg-white p-3.5 rounded-2xl border border-gray-100 flex justify-between items-center shadow-xs">
-            <div class="space-y-0.5">
-              <span class="text-[9px] font-black px-2 py-0.5 rounded bg-gray-100 text-gray-500 uppercase">${item.category || 'General'}</span>
-              <h3 class="font-bold text-gray-900 text-sm">${item.name}</h3>
-              <p class="text-emerald-600 font-black text-sm">₹${item.price}</p>
-            </div>
-            <div>
-              ${inCart > 0 ? `
-                <div class="flex items-center bg-indigo-50 border border-indigo-200 rounded-xl overflow-hidden">
-                  <span class="px-3 py-1 font-black text-xs text-indigo-900">${inCart} in cart</span>
-                </div>
-              ` : `
-                <button onclick='addItemCheckAddons(${JSON.stringify(item)})' class="bg-indigo-50 hover:bg-indigo-100 active:scale-95 border border-indigo-200 text-indigo-700 font-black text-xs px-4 py-1.5 rounded-xl transition">
-                  + ADD
-                </button>
-              `}
-            </div>
-          </div>
-        `;
+      grid.innerHTML = categoryList.map((cat, idx) => {
+        const its = list.filter(i => (i.category || 'General') === cat);
+        if (!its.length) return '';
+        return `<section id="cat-${idx}" style="scroll-margin-top:190px">
+          <h2 class="text-base font-black text-gray-900 mb-2.5 flex items-center gap-2">${esc(cat)} <span class="text-[10px] font-black text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">${its.length}</span></h2>
+          <div class="space-y-3">${its.map(itemCard).join('')}</div>
+        </section>`;
       }).join('');
     }
 
@@ -239,7 +501,7 @@
         try { vars = JSON.parse(t.variations || '[]'); } catch (e) {}
         const price = vars.length ? 'From ₹' + vars[0].price : '₹' + t.price;
         return `<button onclick="pickOnlineMealChoice(${t.id})" class="w-full text-left p-3 rounded-xl border border-gray-200 hover:border-indigo-500 hover:bg-indigo-50/50 flex justify-between items-center">
-          <span class="flex items-center gap-3">${(t.image || t.image_url) ? `<img src="${(/^(https?:)?\//.test(t.image || t.image_url) ? (t.image || t.image_url) : '/uploads/' + (t.image || t.image_url))}" class="w-14 h-14 rounded-lg object-cover">` : ''}<span><span class="block text-[10px] font-black uppercase text-indigo-600">${esc(badge)}</span><span class="font-black text-gray-800">${esc(t.name)}</span></span></span>
+          <span class="flex items-center gap-3">${(t.image || t.image_url) ? `<img src="${(/^(https?:)?\//.test(t.image || t.image_url) ? (t.image || t.image_url) : '/uploads/' + (t.image || t.image_url))}" class="w-14 h-14 rounded-lg object-cover">` : ''}<span><span class="block text-[10px] font-black uppercase text-indigo-600">${esc(badge)}</span><span class="font-black text-gray-800 flex items-center gap-1.5">${vegIcon(t.food_type)}<span>${esc(t.name)}</span></span></span></span>
           <span class="font-black text-emerald-600 text-sm">${price}</span></button>`;
       };
       document.getElementById('onlineMealTitle').innerText = item.name;
@@ -253,7 +515,10 @@
       if (t) addItemCheckAddons(t, true);
     }
 
-    async function addItemCheckAddons(item, skipMeal) {
+    async function addItemCheckAddons(itemOrId, skipMeal) {
+      const item = typeof itemOrId === 'object' ? itemOrId : menu.find(i => i.id === itemOrId);
+      if (!item) return;
+      if (isSoldOut(item)) return toast(item.name + ' sold out hai', true);
       if (!skipMeal) {
         const meals = onlineUpsells.filter(u => u.upsell_type === 'upgrade' && u.item_name === item.name && u.suggested_item)
           .sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0) || Number(a.id) - Number(b.id))
@@ -283,10 +548,12 @@
     function openOnlineVariationModal(item, variations) {
       document.getElementById('onlineVarModalItemName').innerText = item.name + ' - Select Size';
       
-      let html = variations.map((v) => `
-        <button onclick='selectOnlineVariationItem(${JSON.stringify(item)}, ${JSON.stringify(v)})' class="w-full text-left p-3 rounded-xl border border-gray-200 hover:border-indigo-500 hover:bg-indigo-50/50 flex justify-between items-center transition shadow-2xs">
-          <span class="flex items-center gap-3 font-black text-gray-800">${v.image ? `<img src="${(/^(https?:)?\//.test(v.image) ? v.image : '/uploads/' + v.image)}" class="w-12 h-12 rounded-lg object-cover">` : ''}${v.name}</span>
-          <span class="font-black text-emerald-600 text-sm">₹${v.price}</span>
+      pendingVariantItem = item;
+      pendingVariants = variations;
+      let html = variations.map((v, vi) => `
+        <button onclick="selectOnlineVariationItem(${vi})" class="w-full text-left p-3 rounded-xl border border-gray-200 hover:border-indigo-500 hover:bg-indigo-50/50 flex justify-between items-center transition shadow-2xs">
+          <span class="flex items-center gap-3 font-black text-gray-800">${v.image ? `<img src="${esc(imgSrc(v.image))}" class="w-12 h-12 rounded-lg object-cover">` : ''}${esc(v.name)}</span>
+          <span class="font-black text-emerald-600 text-sm">₹${esc(v.price)}</span>
         </button>
       `).join('');
 
@@ -298,8 +565,10 @@
       document.getElementById('onlineVariationModal').classList.add('hidden');
     }
 
-    function selectOnlineVariationItem(item, variant) {
+    function selectOnlineVariationItem(vi) {
+      const item = pendingVariantItem, variant = pendingVariants[vi];
       closeOnlineVariationModal();
+      if (!item || !variant) return;
 
       let variantAddons = [];
       if (variant && Array.isArray(variant.addon_groups) && variant.addon_groups.length > 0) {
@@ -312,34 +581,48 @@
         }
       }
 
-      checkAndOpenAddonsCustomForOnline(item, `${item.name} (${variant.name})`, variant.price, variantAddons);
+      checkAndOpenAddonsCustomForOnline(item, `${item.name} (${variant.name})`, variant.price, variantAddons, variant.name);
     }
 
-    async function checkAndOpenAddonsCustomForOnline(item, displayName, displayPrice, assignedGroups) {
+    async function checkAndOpenAddonsCustomForOnline(item, displayName, displayPrice, assignedGroups, variantName) {
       if (assignedGroups.length > 0) {
         try {
-          const res = await fetch('/api/addon-groups');
-          const allGroups = await res.json();
-          const itemGroups = assignedGroups.map(Number).map(id => allGroups.find(g => Number(g.id) === id)).filter(g => g && wizOptions(g).length);
-          
+          if (!allAddonGroups) {
+            const res = await fetch('/api/addon-groups');
+            if (!res.ok) throw new Error('addon-groups');
+            allAddonGroups = await res.json();
+          }
+          const itemGroups = assignedGroups.map(Number).map(id => allAddonGroups.find(g => Number(g.id) === id)).filter(g => g && wizOptions(g).length);
+
           if (itemGroups.length > 0) {
-            openOnlineAddonModal({ ...item, name: displayName, price: displayPrice }, itemGroups);
+            openOnlineAddonModal({ ...item, name: displayName, price: displayPrice, variantName: variantName || '' }, itemGroups);
             return;
           }
         } catch(err) {
-          console.error('Error fetching variant addons:', err);
+          // do not silently skip compulsory add-ons
+          console.error('Error fetching addons:', err);
+          return toast('Add-ons load nahi hue, dobara try karein', true);
         }
       }
 
-      cart.push({ id: item.id, name: displayName, price: Number(displayPrice), qty: 1, addons: [] });
+      addToCart({ id: item.id, name: displayName, price: Number(displayPrice), qty: 1, addons: [], variant: variantName || '' });
+    }
+
+    function addToCart(line) {
+      const base = menu.find(m => m.id === line.id);
+      const have = cart.filter(c => c.id === line.id).reduce((s, c) => s + c.qty, 0);
+      if (base && have + line.qty > (Number(base.stock) || 0)) return toast('Itna stock available nahi hai', true);
+      const same = cart.find(c => c.id === line.id && c.name === line.name && c.price === line.price);
+      if (same) same.qty += line.qty; else cart.push(line);
+      toast(line.name + ' added');
       updateCartUI();
       renderMenu();
     }
 
     // ---------- Step-by-step add-on selection (one group per step, then an editable review) ----------
     var addonWiz = null;
-    function wizEsc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
-    function wizImg(im) { return im ? (/^(https?:)?\//.test(im) ? im : '/uploads/' + im) : ''; }
+    var wizEsc = esc;
+    var wizImg = imgSrc;
     function wizOptions(g) {
       var items = [];
       try { items = JSON.parse(g.items || '[]'); } catch (e) {}
@@ -416,7 +699,7 @@
       var opt = { name: raw.name, price: Number(raw.price) || 0, image: raw.image || '' };
       if (input.checked) {
         if (max === 1) { sel.length = 0; }
-        else if (sel.length >= max) { input.checked = false; return alert('"' + g.name + '" me maximum ' + max + ' options hi select ho sakte hain'); }
+        else if (sel.length >= max) { input.checked = false; return toast('"' + g.name + '" me maximum ' + max + ' options hi select ho sakte hain', true); }
         sel.push(opt);
       } else {
         w.sel[gIdx] = sel.filter(function(a) { return a.name !== opt.name; });
@@ -451,7 +734,7 @@
       var w = addonWiz;
       if (w.step >= currentModalItemGroups.length) return confirmOnlineAddonSelection();
       var g = currentModalItemGroups[w.step];
-      if (w.sel[w.step].length < wizMin(g)) return alert('"' + g.name + '" group mein kam se kam ' + wizMin(g) + ' option select karna anivarya hai!');
+      if (w.sel[w.step].length < wizMin(g)) return toast('"' + g.name + '" group mein kam se kam ' + wizMin(g) + ' option select karna anivarya hai!', true);
       wizAdvance();
     }
     function wizChangeSize() {
@@ -478,48 +761,103 @@
         const chosen = addonWiz.sel[gIdx] || [];
         if (chosen.length < wizMin(g)) {
           addonWiz.editing = false; addonWiz.step = gIdx; renderAddonWiz();
-          return alert(`"${g.name}" group mein kam se kam ${wizMin(g)} option select karna anivarya hai!`);
+          return toast(`"${g.name}" group mein kam se kam ${wizMin(g)} option select karna anivarya hai!`, true);
         }
-        chosen.forEach(a => { selectedAddons.push({ name: a.name, price: a.price }); extraPrice += a.price; });
+        chosen.forEach(a => { selectedAddons.push({ name: a.name, price: Number(a.price) || 0 }); extraPrice += Number(a.price) || 0; });
       }
 
       const finalPrice = Number(currentModalSelectedItem.price) + extraPrice;
       const addonNamesString = selectedAddons.map(a => a.name).join(', ');
       const displayName = selectedAddons.length > 0 ? `${currentModalSelectedItem.name} (${addonNamesString})` : currentModalSelectedItem.name;
 
-      cart.push({
+      const line = {
         id: currentModalSelectedItem.id,
         name: displayName,
         price: finalPrice,
         qty: 1,
-        addons: selectedAddons
-      });
-
+        addons: selectedAddons,
+        variant: currentModalSelectedItem.variantName || ''
+      };
       closeOnlineAddonModal();
-      updateCartUI();
-      renderMenu();
+      addToCart(line);
     }
+
+    function cartSubtotal() { return cart.reduce((s, i) => s + (i.price * i.qty), 0); }
+    function gstOf(sub) { return Math.round((sub * 5) / 100); }
 
     function updateCartUI() {
       const count = cart.reduce((s, i) => s + i.qty, 0);
-      const total = cart.reduce((s, i) => s + (i.price * i.qty), 0);
+      const charge = chargeNow();
+      const total = cartSubtotal() + charge;
+      const gst = gstOf(total);
       document.getElementById('cartCount').innerText = `${count} ${count === 1 ? 'item' : 'items'}`;
-      document.getElementById('cartTotal').innerText = `₹${total}`;
-      document.getElementById('cTotal').innerText = `₹${total}`;
+      document.getElementById('cartTotal').innerText = `₹${total + gst}`;
+      document.getElementById('cSub').innerText = `₹${cartSubtotal()}`;
+      const row = document.getElementById('cDelRow');
+      row.classList.toggle('hidden', mode !== 'Delivery');
+      document.getElementById('cDel').innerText = deliveryQuote.charge == null ? 'Address step me' : (Number(deliveryQuote.charge) > 0 ? `₹${deliveryQuote.charge}` : 'FREE');
+      document.getElementById('cGst').innerText = `₹${gst}`;
+      document.getElementById('cTotal').innerText = `₹${total + gst}`;
+      document.getElementById('addrTotal').innerText = `₹${total + gst}`;
+      const aq = document.getElementById('addrQuote');
+      if (mode === 'Delivery' && cart.length) {
+        const bad = deliveryQuote.charge == null;
+        aq.className = 'rounded-2xl px-3.5 py-2.5 text-xs font-black ' + (bad ? 'bg-amber-50 border border-amber-200 text-amber-800' : 'bg-emerald-50 border border-emerald-200 text-emerald-800');
+        aq.innerText = bad ? (deliveryQuote.message || 'Delivery charge location ke baad dikhega') : (Number(deliveryQuote.charge) > 0 ? `🛵 Delivery charge: ₹${deliveryQuote.charge}` : '🛵 Delivery: FREE');
+      } else aq.className = 'hidden';
       document.getElementById('cartBar').classList.toggle('hidden', count === 0);
+      saveCart();
+      quoteIfNeeded();
+    }
+
+    function renderCartList() {
+      document.getElementById('cartList').innerHTML = cart.map((i, idx) => `
+        <div class="flex justify-between items-center py-2 text-xs gap-2">
+          <div class="min-w-0 flex-1">
+            <div class="font-bold text-gray-800">${esc(i.name)}</div>
+            <div class="text-gray-400">₹${i.price} each</div>
+          </div>
+          <div class="flex items-center bg-indigo-50 border border-indigo-200 rounded-lg overflow-hidden shrink-0">
+            <button onclick="changeQty(${idx}, -1)" aria-label="Decrease" class="px-2.5 py-1 font-black text-indigo-700">−</button>
+            <span class="px-1.5 font-black text-indigo-900">${i.qty}</span>
+            <button onclick="changeQty(${idx}, 1)" aria-label="Increase" class="px-2.5 py-1 font-black text-indigo-700">+</button>
+          </div>
+          <span class="font-black text-gray-900 w-14 text-right shrink-0">₹${i.price * i.qty}</span>
+          <button onclick="removeLine(${idx})" aria-label="Remove" class="text-rose-500 font-black px-1 shrink-0">🗑</button>
+        </div>
+      `).join('');
+    }
+
+    function changeQty(idx, d) {
+      const line = cart[idx];
+      if (!line) return;
+      if (d > 0) {
+        const base = menu.find(m => m.id === line.id);
+        const have = cart.filter(c => c.id === line.id).reduce((s, c) => s + c.qty, 0);
+        if (base && have + 1 > (Number(base.stock) || 0)) return toast('Itna stock available nahi hai', true);
+      }
+      line.qty += d;
+      if (line.qty <= 0) cart.splice(idx, 1);
+      afterCartEdit();
+    }
+    function removeLine(idx) { cart.splice(idx, 1); afterCartEdit(); }
+    function afterCartEdit() {
+      updateCartUI();
+      renderMenu();
+      if (!cart.length) return closeCheckout();
+      renderCartList();
     }
 
     function openCheckout() {
-      const list = document.getElementById('cartList');
-      list.innerHTML = cart.map(i => `
-        <div class="flex justify-between items-center py-2 text-xs">
-          <div>
-            <span class="font-bold text-gray-800">${i.name}</span>
-            <span class="text-gray-400 ml-1">× ${i.qty}</span>
-          </div>
-          <span class="font-black text-gray-900">₹${i.price * i.qty}</span>
-        </div>
-      `).join('');
+      if (!cart.length) return;
+      const minV = minOrderValue();
+      if (minV > 0 && cartSubtotal() < minV) toast(`Minimum order ₹${minV} hai — ₹${minV - cartSubtotal()} aur add karein`, true);
+      renderCartList();
+      const prof = getProfile();
+      if (prof) {
+        if (!document.getElementById('cName').value) document.getElementById('cName').value = prof.name || '';
+        if (!document.getElementById('cPhone').value) document.getElementById('cPhone').value = prof.phone || '';
+      }
       document.getElementById('checkoutModal').classList.remove('hidden');
     }
 
@@ -527,53 +865,269 @@
       document.getElementById('checkoutModal').classList.add('hidden');
     }
 
-    function placeOrder() {
+    function orderBasics() {
       const phone = document.getElementById('cPhone').value.trim();
-      const name = document.getElementById('cName').value.trim();
-      const loc = document.getElementById('targetLoc').value.trim();
-      const btn = document.getElementById('submitBtn');
+      if (!/^[6-9]\d{9}$/.test(phone)) { toast('Sahi 10-digit mobile number daalein', true); return null; }
+      return { phone, loc: mode === 'Takeaway' ? document.getElementById('cNote').value.trim() : '' };
+    }
 
-      if (!phone || phone.length < 10) {
-        alert('Please enter a valid 10-digit phone number.');
-        return;
+    // Review -> (Delivery: address page) -> place order
+    function checkoutNext() {
+      if (!cart.length) return;
+      const minV = minOrderValue();
+      if (minV > 0 && cartSubtotal() < minV) return toast(`Minimum order ₹${minV} hai — ₹${minV - cartSubtotal()} aur add karein`, true);
+      if (!orderBasics()) return;
+      if (mode === 'Delivery') return openAddressPage();
+      placeOrder();
+    }
+
+    function openAddressPage() {
+      closeCheckout();
+      document.getElementById('addrTotal').innerText = document.getElementById('cTotal').innerText;
+      document.getElementById('addressPage').classList.remove('hidden');
+      if (!deliveryLoc) requestLocation(true);
+    }
+    function closeAddressPage() {
+      document.getElementById('addressPage').classList.add('hidden');
+      openCheckout();
+    }
+
+    function requestLocation(auto) {
+      const st = document.getElementById('locStatus'), btn = document.getElementById('locBtn');
+      if (!navigator.geolocation) { st.innerText = 'Is device me location support nahi hai. Address manually likhein.'; return; }
+      st.innerText = 'Location dhoondh rahe hain... permission allow karein.';
+      btn.disabled = true;
+      navigator.geolocation.getCurrentPosition(pos => {
+        deliveryLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: Math.round(pos.coords.accuracy || 0) };
+        st.innerText = `Location mil gayi ✓ (±${deliveryLoc.acc} m)`;
+        const link = document.getElementById('locLink');
+        link.href = `https://www.google.com/maps?q=${deliveryLoc.lat},${deliveryLoc.lng}`;
+        link.classList.remove('hidden');
+        const d = 0.004, la = deliveryLoc.lat, lo = deliveryLoc.lng, map = document.getElementById('locMap');
+        map.src = `https://www.openstreetmap.org/export/embed.html?bbox=${lo - d},${la - d},${lo + d},${la + d}&layer=mapnik&marker=${la},${lo}`;
+        map.classList.remove('hidden');
+        btn.disabled = false; btn.innerText = 'Update';
+        quoteIfNeeded();
+      }, err => {
+        deliveryLoc = null;
+        document.getElementById('locMap').classList.add('hidden');
+        document.getElementById('locLink').classList.add('hidden');
+        quoteIfNeeded();
+        st.innerText = err.code === 1
+          ? 'Location permission deny hui. Browser settings me allow karein ya address manually likhein.'
+          : 'Location nahi mil payi. Dobara try karein ya address manually likhein.';
+        btn.disabled = false; btn.innerText = 'Try again';
+      }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
+    }
+
+    function btnState(btn, busy) {
+      btn.disabled = busy;
+      btn.innerText = busy ? 'Sending...' : (btn.id === 'submitBtn' ? 'Place Order' : '🚀 Place Order');
+      if (btn.id === 'submitBtn') {
+        btn.innerHTML = '<span id="submitLabel">' + (mode === 'Delivery' ? 'Next: Address →' : '🚀 Place Order') + '</span>';
+      }
+    }
+
+    function placeOrder() {
+      if (placing || !cart.length) return;
+      if (!storeOpen) return toast(storeMsg || 'Abhi restaurant band hai', true);
+      if (mode === 'Delivery' && deliveryQuote.charge == null && /bahar/.test(deliveryQuote.message || '')) return toast(deliveryQuote.message, true);
+      const basics = orderBasics();
+      if (!basics) return;
+      const { phone, loc } = basics;
+      const name = document.getElementById('cName').value.trim();
+      const isDelivery = mode === 'Delivery';
+      const btn = document.getElementById(isDelivery ? 'addrSubmitBtn' : 'submitBtn');
+
+      let address = '';
+      if (isDelivery) {
+        const a = document.getElementById('addrText').value.trim();
+        const lm = document.getElementById('addrLandmark').value.trim();
+        if (a.length < 8) return toast('Poora delivery address likhein', true);
+        address = a + (lm ? ` (Landmark: ${lm})` : '');
       }
 
-      btn.disabled = true;
-      btn.innerText = 'Sending...';
+      placing = true;
+      btnState(btn, true);
 
-      const total = cart.reduce((s, i) => s + (i.price * i.qty), 0);
+      const sub = cartSubtotal() + chargeNow();
+      const gst = gstOf(sub);
+      // delivery address/location are stored on the order itself (shown on POS + bill, not on the kitchen screen)
+      const note = isDelivery ? '' : (loc ? `Note: ${loc}` : '');
+      const items = cart.map((c, i) => ({ ...c, notes: i === 0 ? note : '' }));
+      const itemCount = cart.reduce((n, c) => n + c.qty, 0);
 
       fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          order_type: `Online ${mode}`, // Yahan ab 'Online Delivery', 'Online Takeaway', ya 'Online Dine-In' jayega
-          status: 'RUNNING',
-          table_no: `${mode} - ${loc || 'Direct'}`,
+          order_type: `Online ${mode}`,
+          table_no: mode,
           customer_name: name || 'Online Guest',
           customer_phone: phone,
-          items: cart,
+          items,
           payment_mode: 'ONLINE_PENDING',
-          subtotal: total,
+          subtotal: sub,
           discount: 0,
-          gst: 0,
-          total: total
+          gst: gst,
+          total: sub + gst,
+          delivery_address: isDelivery ? address : undefined,
+          delivery_lat: isDelivery && deliveryLoc ? deliveryLoc.lat : undefined,
+          delivery_lng: isDelivery && deliveryLoc ? deliveryLoc.lng : undefined
         })
       })
-      .then(r => r.json())
+      .then(r => r.json().catch(() => ({})).then(d => { if (!r.ok) throw new Error((d && d.error) || ('HTTP ' + r.status)); return d; }))
       .then(d => {
-        alert(`Order Placed Successfully!\nToken #${d.orderId || 'CONFIRMED'}\nYour order has reached the restaurant.`);
+        if (!d || !d.success) throw new Error('order failed');
+        const total = sub + gst;
         cart = [];
+        saveCart();
         closeCheckout();
+        document.getElementById('addressPage').classList.add('hidden');
         updateCartUI();
         renderMenu();
-        window.location.reload();
+        document.getElementById('cName').value = '';
+        document.getElementById('cPhone').value = '';
+        document.getElementById('cNote').value = '';
+        document.getElementById('addrText').value = '';
+        document.getElementById('addrLandmark').value = '';
+        placing = false;
+        btnState(btn, false);
+        const oldProf = getProfile();
+        saveProfile({ name: name || (oldProf && oldProf.phone === phone ? oldProf.name : '') || '', phone, token: d.profile_token || (oldProf && oldProf.phone === phone ? oldProf.token : '') || '' });
+        rememberOrderId(d.orderId);
+        lastPlaced = { id: d.orderId, phone };
+        refreshProfileUI();
+        showSuccess(d.orderId, `${itemCount} ${itemCount === 1 ? 'item' : 'items'} • ₹${total} • ${mode}`);
       })
       .catch(err => {
-        alert('Failed to send order. Please verify your connection.');
-        btn.disabled = false;
-        btn.innerText = '🚀 Place Order';
+        placing = false;
+        toast(/^HTTP|Failed to fetch|NetworkError|order failed/.test(err.message) ? 'Order nahi bhej paaye. Connection check karke dobara try karein.' : err.message, true);
+        btnState(btn, false);
       });
+    }
+
+    // ---------- Order placed + tracking ----------
+    function showSuccess(orderId, summary) {
+      document.getElementById('successToken').innerText = '#' + (orderId || '');
+      document.getElementById('successSummary').innerText = summary || '';
+      document.getElementById('successPage').classList.remove('hidden');
+    }
+    function closeSuccess() { document.getElementById('successPage').classList.add('hidden'); }
+
+    let trackTimer = null;
+    let trackCtx = null;
+    function openTrack(id, phone) {
+      if (!id || !phone) return toast('Order nahi mila', true);
+      trackCtx = { id, phone };
+      document.getElementById('trackPage').classList.remove('hidden');
+      document.getElementById('trackId').innerText = '#' + id;
+      document.getElementById('trackStatusCard').innerHTML = '<div class="text-center text-gray-400 text-xs font-semibold">Loading...</div>';
+      document.getElementById('trackDetails').innerHTML = '';
+      loadTrack();
+      clearInterval(trackTimer);
+      trackTimer = setInterval(loadTrack, 10000);
+    }
+    function closeTrack() {
+      clearInterval(trackTimer);
+      document.getElementById('trackPage').classList.add('hidden');
+      if (!document.getElementById('ordersPage').classList.contains('hidden')) loadOrders();
+    }
+
+    function loadTrack() {
+      if (!trackCtx) return;
+      fetch(`/api/track/${encodeURIComponent(trackCtx.id)}?phone=${encodeURIComponent(trackCtx.phone)}`)
+        .then(r => r.json().then(d => { if (!r.ok) throw new Error(d.error || 'error'); return d; }))
+        .then(renderTrack)
+        .catch(e => {
+          document.getElementById('trackStatusCard').innerHTML = `<div class="text-center text-rose-500 font-bold text-xs">${esc(e.message === 'Order nahi mila' ? e.message : 'Status load nahi ho paaya. Dobara try karein.')}</div>`;
+        });
+    }
+
+    // ---------- My Orders (profile) ----------
+    function statusInfo(o) {
+      const isDel = /delivery/i.test(o.order_type);
+      if (o.state === 'rejected') return { label: 'Cancelled', cls: 'bg-rose-100 text-rose-700' };
+      if (o.state === 'done') return { label: isDel ? 'Delivered' : 'Picked Up', cls: 'bg-emerald-100 text-emerald-700' };
+      return { label: ['Received', 'Preparing', 'Ready'][o.step] || 'Received', cls: 'bg-indigo-100 text-indigo-700' };
+    }
+
+    function openOrders() {
+      document.getElementById('ordersPage').classList.remove('hidden');
+      loadOrders();
+    }
+    function closeOrders() { document.getElementById('ordersPage').classList.add('hidden'); }
+
+    function logoutProfile() {
+      if (!confirm('Is device se profile hata dein? Aapke orders restaurant ke records me safe rahenge.')) return;
+      try { localStorage.removeItem('vf_profile'); localStorage.removeItem('vf_order_ids'); } catch (e) {}
+      closeOrders();
+      refreshProfileUI();
+    }
+
+    function loadOrders() {
+      const p = getProfile();
+      const card = document.getElementById('profileCard'), list = document.getElementById('ordersList');
+      if (!p) {
+        card.innerHTML = '<div class="text-xs text-gray-500 font-semibold">Pehla order karte hi aapka profile ban jayega.</div>';
+        list.innerHTML = '';
+        return;
+      }
+      card.innerHTML = `<div class="flex items-center gap-3 min-w-0"><div class="w-11 h-11 rounded-full bg-indigo-600 text-white font-black flex items-center justify-center text-lg shrink-0">${esc((p.name || p.phone || '?').charAt(0).toUpperCase())}</div>
+        <div class="min-w-0"><div class="font-black text-gray-900 truncate">${esc(p.name || 'Guest')}</div><div class="text-xs text-gray-500 font-mono">+91 ${esc(p.phone)}</div></div></div>
+        <button onclick="logoutProfile()" class="text-[11px] font-black text-rose-600 border border-rose-200 rounded-lg px-2.5 py-1.5 shrink-0">Logout</button>`;
+      list.innerHTML = '<div class="text-center py-8 text-gray-400 text-xs font-semibold">Orders load ho rahe hain...</div>';
+
+      // profile token -> full history from server; otherwise only the orders placed from this browser
+      const load = p.token
+        ? fetch(`/api/my-orders?phone=${encodeURIComponent(p.phone)}&token=${encodeURIComponent(p.token)}`).then(r => { if (!r.ok) throw new Error('verify'); return r.json(); })
+        : Promise.all(localOrderIds().map(id => fetch(`/api/track/${id}?phone=${encodeURIComponent(p.phone)}`).then(r => r.ok ? r.json() : null).catch(() => null))).then(a => a.filter(Boolean));
+      load.then(orders => {
+        if (!orders.length) { list.innerHTML = '<div class="text-center py-10 text-gray-400 text-xs font-semibold">Abhi tak koi order nahi.</div>'; return; }
+        list.innerHTML = orders.map(o => {
+          const si = statusInfo(o);
+          const when = o.created_at ? new Date(o.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+          const summary = o.items.slice(0, 3).map(i => `${i.qty}× ${i.name}`).join(', ') + (o.items.length > 3 ? ` +${o.items.length - 3} more` : '');
+          return `<div class="bg-white border rounded-2xl p-3.5 space-y-2">
+            <div class="flex justify-between items-center"><span class="font-black text-gray-900 text-sm">Order #${esc(o.id)}</span><span class="text-[10px] font-black px-2 py-0.5 rounded-full ${si.cls}">${si.label}</span></div>
+            <div class="text-[11px] text-gray-500 font-semibold">${esc(when)} • ${esc(o.order_type)}</div>
+            <div class="text-xs text-gray-700">${esc(summary)}</div>
+            <div class="flex justify-between items-center pt-1"><span class="font-black text-emerald-600">₹${esc(o.total)}</span>
+              <button onclick="openTrack(${Number(o.id)}, '${esc(p.phone)}')" class="bg-indigo-600 text-white font-black text-[11px] px-3.5 py-1.5 rounded-xl">📍 Track</button></div>
+          </div>`;
+        }).join('');
+      }).catch(() => { list.innerHTML = '<div class="text-center py-10 text-rose-500 text-xs font-bold">Orders load nahi ho paaye. Dobara try karein.</div>'; });
+    }
+
+    function renderTrack(o) {
+      const isDel = /delivery/i.test(o.order_type);
+      const isTake = /takeaway|pickup/i.test(o.order_type);
+      document.getElementById('trackType').innerText = o.order_type + ' order';
+      const steps = [
+        ['Order Received', 'Restaurant ke accept karne ka intezaar'],
+        ['Accepted & Preparing', 'Aapka khana ban raha hai'],
+        ['Ready', isDel ? 'Delivery ke liye taiyaar' : (isTake ? 'Pickup ke liye taiyaar' : 'Serve hone wala hai')],
+        [isDel ? 'Delivered' : (isTake ? 'Picked Up' : 'Served'), 'Order complete']
+      ];
+      const card = document.getElementById('trackStatusCard');
+      if (o.state === 'rejected') {
+        card.innerHTML = `<div class="text-center space-y-1"><div class="text-4xl">❌</div><div class="font-black text-rose-600">Order cancel ho gaya</div><div class="text-xs text-gray-500">Restaurant ne ye order accept nahi kiya. Zyada jaankari ke liye restaurant se sampark karein.</div></div>`;
+      } else {
+        card.innerHTML = steps.map((st, i) => {
+          const done = i < o.step || o.state === 'done', cur = i === o.step && o.state !== 'done';
+          return `<div class="flex items-start gap-3">
+            <div class="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black shrink-0 ${done ? 'bg-emerald-500 text-white' : cur ? 'bg-indigo-600 text-white animate-pulse' : 'bg-gray-200 text-gray-400'}">${done ? '✓' : i + 1}</div>
+            <div><div class="text-sm font-black ${done || cur ? 'text-gray-900' : 'text-gray-400'}">${esc(st[0])}</div>${cur ? `<div class="text-[11px] text-gray-500">${esc(st[1])}</div>` : ''}</div>
+          </div>`;
+        }).join('');
+        if (o.state === 'done') clearInterval(trackTimer);
+      }
+      document.getElementById('trackDetails').innerHTML =
+        (o.delivery_address ? `<div><div class="text-[10px] font-black uppercase text-gray-400">Delivery Address</div><div class="font-semibold text-gray-800">${esc(o.delivery_address)}</div></div>` : '') +
+        `<div class="divide-y">` + o.items.map(i => `<div class="flex justify-between py-1.5"><span class="font-semibold text-gray-800">${esc(i.name)} <span class="text-gray-400">× ${esc(i.qty)}</span></span><span class="font-black">₹${Number(i.price) * Number(i.qty)}</span></div>`).join('') + `</div>` +
+        `<div class="flex justify-between text-gray-500"><span>Subtotal</span><span>₹${esc(o.subtotal)}</span></div>` +
+        `<div class="flex justify-between text-gray-500"><span>GST</span><span>₹${esc(o.gst)}</span></div>` +
+        `<div class="flex justify-between font-black text-sm"><span>Total</span><span class="text-emerald-600">₹${esc(o.total)}</span></div>`;
     }
   </script>
 </body>
