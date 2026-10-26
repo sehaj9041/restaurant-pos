@@ -1032,7 +1032,7 @@
 
     // Same layout as the index.html bill. Returns { css, body } so it can be printed through the browser
     // or drawn to an image (for the USB printer) without any layout difference.
-    function kioskBillParts(data, o, logoSrc) {
+    function kioskBillParts(data, o, logoHtml) {
       const s = kioskStoreCfg, c = kioskReceiptCfg;
       const rows = o.items.map(i => `<tr><td class="nm">${esc(i.name)}${i.notes ? `<div style="font-size:10px;font-weight:400">${esc(i.notes)}</div>` : ''}</td><td class="q">${i.qty}</td><td class="r">${Number(i.price).toFixed(2)}</td><td class="a">${(i.price * i.qty).toFixed(2)}</td></tr>`).join('');
       const css = `
@@ -1049,7 +1049,7 @@
         .bill table.items .r { width: 13mm; text-align: right; }
         .bill table.items .a { width: 16mm; text-align: right; }`;
       const body = `<div class="bill">
-        ${logoSrc ? `<div class="center"><img src="${esc(logoSrc)}" style="max-width:45mm;max-height:22mm;object-fit:contain;filter:grayscale(1) contrast(1.4);"></div>` : ''}
+        ${logoHtml || ''}
         <div class="center" style="font-size:18px;font-weight:900">${esc(s.restaurant_name || 'VISHAL FOODIEZ')}</div>
         <div class="center" style="font-size:11px">${esc(s.address || 'Railway Road, Budhlada')}</div>
         ${s.phone ? `<div class="center" style="font-size:11px">Ph: ${esc(s.phone)}</div>` : ''}
@@ -1073,7 +1073,8 @@
     }
 
     function kioskBillHtml(data, o) {
-      const p = kioskBillParts(data, o, o.logo && kioskReceiptCfg.logo);
+      const logoImg = o.logo && kioskReceiptCfg.logo;
+      const p = kioskBillParts(data, o, logoImg ? `<div class="center"><img src="${esc(logoImg)}" style="max-width:45mm;max-height:22mm;object-fit:contain;filter:grayscale(1) contrast(1.4);"></div>` : '');
       return `<html><head><style>@page { margin: 0; size: 80mm auto; } body { margin: 0; } .bill { width: 68mm; } ${p.css}</style></head><body>${p.body}</body></html>`;
     }
 
@@ -1122,10 +1123,20 @@
     // Draws the index-style bill (incl. logo) to a canvas via an SVG foreignObject and returns ESC/POS raster bytes.
     // Throws on any failure so the caller can fall back to the plain-text bill.
     async function renderBillRaster(data, o, dots, withLogo) {
-      let logo = '';
-      if (withLogo && kioskReceiptCfg.logo) { try { logo = await urlToDataUrl(kioskReceiptCfg.logo); } catch (e) { console.warn('logo load failed', e); } }
       const cssW = Math.round(dots * 96 / 203);            // printer dots -> CSS px (203 dpi)
-      const p = kioskBillParts(data, o, logo);
+      // The logo is drawn straight onto the canvas afterwards (an image nested inside the SVG may not be decoded in time),
+      // so the bill only reserves a blank box of the right size at the top.
+      let logoImg = null, lw = 0, lh = 0;
+      if (withLogo && kioskReceiptCfg.logo) {
+        try {
+          const du = await urlToDataUrl(kioskReceiptCfg.logo);
+          logoImg = new Image();
+          await new Promise((res, rej) => { logoImg.onload = res; logoImg.onerror = () => rej(new Error('logo decode failed')); logoImg.src = du; });
+          const k = Math.min(cssW * 45 / 68 / logoImg.naturalWidth, cssW * 22 / 68 / logoImg.naturalHeight);
+          lw = Math.max(1, Math.round(logoImg.naturalWidth * k)); lh = Math.max(1, Math.round(logoImg.naturalHeight * k));
+        } catch (e) { console.warn('logo load failed', e); logoImg = null; }
+      }
+      const p = kioskBillParts(data, o, logoImg ? '<div style="height:' + lh + 'px"></div>' : '');
       const host = document.createElement('div');
       host.style.cssText = 'position:fixed;left:-10000px;top:0;width:' + cssW + 'px;';
       host.innerHTML = '<style>' + p.css + ' .bill{width:' + cssW + 'px;box-sizing:border-box;}</style>' + p.body;
@@ -1145,6 +1156,10 @@
       const ctx = cv.getContext('2d');
       ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
       ctx.drawImage(img, 0, 0, cv.width, cv.height);
+      if (logoImg) {
+        const kk = cv.width / cssW;
+        ctx.drawImage(logoImg, Math.round((cssW - lw) / 2 * kk), 0, Math.round(lw * kk), Math.round(lh * kk));
+      }
       return canvasToEscPos(cv);                            // throws if the canvas got tainted
     }
 
@@ -1181,7 +1196,7 @@
           const dots = cfg.width <= 32 ? 384 : 576;
           let one = [];
           try {
-            one = [0x1B, 0x40, ...await renderBillRaster(data, o, dots, wantLogo), 0x1B, 0x64, 0x04, 0x1D, 0x56, 0x42, 0x00];
+            one = [0x1B, 0x40, ...await renderBillRaster(data, o, dots, wantLogo), 0x1D, 0x56, 0x42, 0x00];   // cut cmd feeds to the cutter itself
           } catch (e) {
             console.warn('Image bill failed, using text bill', e);
             if (window.AndroidPrinter && AndroidPrinter.toast) AndroidPrinter.toast('Bill image nahi ban paayi, text bill print ho raha hai');
