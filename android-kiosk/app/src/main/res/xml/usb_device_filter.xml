@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- USB printer class (7) -->
+    <usb-device class="7" />
+    <!-- Bixolon vendor id 0x1504 (5380) -->
+    <usb-device vendor-id="5380" />
+</resources>

@@ -258,7 +258,8 @@
         <select id="ps_method" class="w-full border p-2.5 rounded-xl text-sm mb-1">
           <option value="off">Off (no bill print)</option>
           <option value="browser">Android Print Service (print dialog)</option>
-          <option value="rawbt">RawBT app (silent thermal print)</option>
+          <option value="usb">Kiosk APK - USB printer (silent)</option>
+          <option value="rawbt">RawBT app (small popup)</option>
         </select>
         <p id="ps_help" class="text-[11px] text-neutral-500 mb-3"></p>
         <label class="text-xs font-bold text-neutral-500">Paper width</label>
@@ -270,6 +271,8 @@
         <label class="flex items-center gap-2 text-sm font-bold mb-3"><input id="ps_logo" type="checkbox" class="w-4 h-4"> Print logo on bill (from Settings &gt; Receipt &amp; Print)</label>
         <label class="text-xs font-bold text-neutral-500">Copies</label>
         <input id="ps_copies" type="number" min="1" max="3" class="w-full border p-2.5 rounded-xl text-sm mb-4">
+        <button id="ps_appBtn" onclick="window.AndroidPrinter && AndroidPrinter.changeUrl()" class="hidden btn-outline w-full py-2 rounded-xl text-xs font-bold mb-3">Change server link (APK)</button>
+        <p id="ps_status" class="text-[11px] font-bold mb-3"></p>
         <div class="flex gap-2">
           <button onclick="testKioskPrint()" class="btn-outline flex-1 py-2.5 rounded-xl text-sm font-bold">Test print</button>
           <button onclick="savePrinterSetup()" class="btn-yellow flex-1 py-2.5 rounded-xl text-sm">Save</button>
@@ -946,7 +949,7 @@
     function getPrintCfg() {
       let c = {};
       try { c = JSON.parse(localStorage.getItem(PRINT_KEY) || '{}'); } catch (e) {}
-      return { method: c.method || 'off', width: Number(c.width) || 42, logo: c.logo !== false, copies: Math.max(1, Math.min(3, Number(c.copies) || 1)) };
+      return { method: c.method || (window.AndroidPrinter ? 'usb' : 'off'), width: Number(c.width) || 42, logo: c.logo !== false, copies: Math.max(1, Math.min(3, Number(c.copies) || 1)) };
     }
     function loadKioskReceiptCfg() {
       fetch('/api/settings/config').then(r => r.json()).then(c => { kioskReceiptCfg = (c && c.receipt) || {}; }).catch(() => {});
@@ -963,7 +966,9 @@
     });
     function updatePrinterHelp() {
       const m = $('ps_method').value;
-      $('ps_help').innerText = m === 'rawbt'
+      $('ps_help').innerText = m === 'usb'
+        ? 'Only works inside the Kiosk APK. Printer ko USB (OTG) se tablet mein lagayein; bill bina kisi popup ke seedha print hoga.'
+        : m === 'rawbt'
         ? 'Install the free "RawBT" app, pair the Bluetooth/USB thermal printer inside it, and set it as default. Bill then prints without any dialog.'
         : m === 'browser'
           ? 'Uses the Android print dialog. Install your printer\'s Print Service plugin (or RawBT as a print service) first. Staff must tap Print on each bill.'
@@ -974,6 +979,8 @@
       $('ps_method').value = c.method; $('ps_width').value = String(c.width); $('ps_copies').value = c.copies; $('ps_logo').checked = c.logo;
       $('ps_method').onchange = updatePrinterHelp;
       updatePrinterHelp();
+      $('ps_appBtn').classList.toggle('hidden', !window.AndroidPrinter);
+      $('ps_status').innerText = window.AndroidPrinter ? ('USB printer: ' + (AndroidPrinter.status() === 'NO_PRINTER' ? 'not detected ✗' : AndroidPrinter.status().replace('OK ', '') + ' ✓')) : 'Kiosk APK nahi mila (normal browser) - USB print yahan nahi chalega.';
       $('printerSetupModal').classList.remove('hidden');
       clearTimeout(idleTimer);
     }
@@ -1100,7 +1107,7 @@
       if (cfg.method === 'off' && !force) return;
       const wantLogo = cfg.logo && kioskReceiptCfg.logo;
       try {
-        if (cfg.method === 'rawbt') {
+        if (cfg.method === 'rawbt' || cfg.method === 'usb') {
           const logo = wantLogo ? await logoToEscPos(kioskReceiptCfg.logo, cfg.width) : [];
           const text = Array.from(new TextEncoder().encode(kioskBillText(data, o, cfg.width)));
           let bytes = [];
@@ -1112,7 +1119,12 @@
           }
           let bin = '';
           for (let i = 0; i < bytes.length; i += 8192) bin += String.fromCharCode.apply(null, bytes.slice(i, i + 8192));
-          window.location.href = 'intent:base64,' + btoa(bin) + '#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;';
+          if (cfg.method === 'usb') {
+            if (window.AndroidPrinter) AndroidPrinter.print(btoa(bin));
+            else alert('USB print sirf Kiosk APK ke andar chalta hai.');
+          } else {
+            window.location.href = 'intent:base64,' + btoa(bin) + '#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;';
+          }
         } else if (cfg.method === 'browser') {
           let html = kioskBillHtml(data, Object.assign({ logo: wantLogo }, o));
           if (cfg.copies > 1) {
