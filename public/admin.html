@@ -121,8 +121,8 @@
             <button type="button" onclick="bulkItemGst()" class="bg-sky-600 hover:bg-sky-700 px-2.5 py-1 rounded-lg font-bold text-white ">Set GST</button>
           </span>
           <span class="flex items-center gap-1">
-            <button type="button" onclick="bulkItemAvailability(false)" class="bg-gray-600 hover:bg-gray-700 px-2.5 py-1 rounded-lg font-bold text-white ">Hide</button>
-            <button type="button" onclick="bulkItemAvailability(true)" class="bg-emerald-600 hover:bg-emerald-700 px-2.5 py-1 rounded-lg font-bold text-white ">Show</button>
+            <button type="button" onclick="bulkItemAvailability(false)" class="bg-rose-600 hover:bg-rose-700 px-2.5 py-1 rounded-lg font-bold text-white " title="Menu me dikhegi, Not Available ke saath">Out of Stock</button>
+            <button type="button" onclick="bulkItemAvailability(true)" class="bg-emerald-600 hover:bg-emerald-700 px-2.5 py-1 rounded-lg font-bold text-white ">In Stock</button>
           </span>
           <span class="flex items-center gap-1">
             <select id="bulk_grp" class="border p-1.5 rounded-lg outline-none bg-white max-w-[9rem]"></select>
@@ -130,8 +130,8 @@
             <button type="button" onclick="bulkItemGroup(false)" class="bg-gray-600 hover:bg-gray-700 px-2.5 py-1 rounded-lg font-bold text-white ">− Group</button>
           </span>
           <span class="flex items-center gap-1">
-            <button type="button" onclick="bulkItemVisible(0)" class="bg-gray-600 hover:bg-gray-700 px-2.5 py-1 rounded-lg font-bold text-white ">Menu se chhupao</button>
-            <button type="button" onclick="bulkItemVisible(1)" class="bg-emerald-600 hover:bg-emerald-700 px-2.5 py-1 rounded-lg font-bold text-white ">Menu me dikhao</button>
+            <button type="button" onclick="bulkItemVisible(0)" class="bg-gray-600 hover:bg-gray-700 px-2.5 py-1 rounded-lg font-bold text-white " title="Menu se poori tarah gayab">Hide</button>
+            <button type="button" onclick="bulkItemVisible(1)" class="bg-emerald-600 hover:bg-emerald-700 px-2.5 py-1 rounded-lg font-bold text-white ">Unhide</button>
           </span>
           <button type="button" onclick="bulkItemDelete()" class="bg-red-600 hover:bg-red-700 px-2.5 py-1 rounded-lg font-bold text-white ">Delete</button>
         </div>
@@ -191,6 +191,10 @@
           <label class="flex items-center gap-1.5 text-xs font-bold text-gray-600"><input type="checkbox" id="selAllCats" onchange="toggleAll(selCats, categories, this.checked, renderCategories)"> Select all</label>
           <h2 class="text-sm font-bold text-gray-700">All Categories</h2>
           <b id="catSelCount" class="text-xs text-indigo-800"></b>
+          <button type="button" id="catBulkOos" onclick="bulkCategoryStock(1)" class="hidden bg-rose-600 hover:bg-rose-700 text-xs px-2.5 py-1 rounded-lg font-bold text-white ">Out of Stock</button>
+          <button type="button" id="catBulkIns" onclick="bulkCategoryStock(0)" class="hidden bg-emerald-600 hover:bg-emerald-700 text-xs px-2.5 py-1 rounded-lg font-bold text-white ">In Stock</button>
+          <button type="button" id="catBulkHide" onclick="bulkCategoryVisible(0)" class="hidden bg-gray-600 hover:bg-gray-700 text-xs px-2.5 py-1 rounded-lg font-bold text-white ">Hide</button>
+          <button type="button" id="catBulkShow" onclick="bulkCategoryVisible(1)" class="hidden bg-sky-600 hover:bg-sky-700 text-xs px-2.5 py-1 rounded-lg font-bold text-white ">Unhide</button>
           <button type="button" id="catBulkDelete" onclick="bulkCategoryDelete()" class="hidden bg-red-600 hover:bg-red-700 text-xs px-2.5 py-1 rounded-lg font-bold text-white ">Delete Selected</button>
         </div>
         <div id="categoriesList" class="divide-y divide-gray-100"></div>
@@ -838,11 +842,12 @@
       let lastCat = null;
       itemDragGroups = [];
       const catCounts = {};
-      list.forEach(i => { const c = i.category || 'Uncategorized'; catCounts[c] = (catCounts[c] || 0) + 1; });
+      const catIds = {};
+      list.forEach(i => { const c = i.category || 'Uncategorized'; catCounts[c] = (catCounts[c] || 0) + 1; (catIds[c] = catIds[c] || []).push(Number(i.id)); });
       document.getElementById('menuTableBody').innerHTML = list.length ? list.map(i => {
         const catName = i.category || 'Uncategorized';
         const catHeader = catName !== lastCat
-          ? `<tr class="bg-indigo-50/70"><td colspan="9" class="px-3 py-2 text-xs font-black uppercase tracking-wide text-indigo-800">${esc(catName)} <span class="ml-1 text-[10px] font-bold text-indigo-500">${catCounts[catName]} items</span></td></tr>`
+          ? `<tr class="bg-indigo-50/70"><td colspan="9" class="px-3 py-2 text-xs font-black uppercase tracking-wide text-indigo-800"><input type="checkbox" class="mr-2 align-middle" title="Poori category select karein" ${catIds[catName].every(id => selItems.has(id)) ? 'checked' : ''} onchange="toggleCategoryItems(${itemDragGroups.length}, this.checked)">${esc(catName)} <span class="ml-1 text-[10px] font-bold text-indigo-500">${catCounts[catName]} items</span></td></tr>`
           : '';
         if (catName !== lastCat) itemDragGroups.push({ cat: catName, ids: [] });
         lastCat = catName;
@@ -854,8 +859,9 @@
         const itemImg = resolveImgPath(i.image || i.image_url || i.img || '');
         const stock = Number(i.stock) || 0;
         const unavailable = stock <= 0;
+        const hiddenItem = Number(i.is_visible) === 0;
         return catHeader + `
-          <tr class="hover:bg-gray-50 ${unavailable ? 'opacity-60' : ''}" ${sortRow('items' + gIdx, pos)}>
+          <tr class="hover:bg-gray-50 ${unavailable || hiddenItem ? 'opacity-60' : ''}" ${sortRow('items' + gIdx, pos)}>
             <td class="p-3 whitespace-nowrap">${sortHandle('items' + gIdx, pos)} ${sortArrows('items' + gIdx, pos, catCounts[catName])} <input type="checkbox" ${selItems.has(Number(i.id)) ? 'checked' : ''} onchange="toggleSel(selItems, ${Number(i.id)}, this.checked, updateItemBar)"></td>
             <td class="p-3">
               ${itemImg ? `<img src="${esc(itemImg)}" class="w-10 h-10 object-cover rounded-lg border" onerror="this.onerror=null; this.style.display='none';">` : `<div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs">No Img</div>`}
@@ -863,7 +869,7 @@
             <td class="p-3 font-bold text-gray-800">
               ${esc(i.name)}
               ${Number(i.is_exempt) ? '<span class="ml-1 bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded text-[10px] font-bold">No GST</span>' : ''}
-              ${unavailable ? '<span class="ml-1 bg-red-100 text-red-700 px-1.5 py-0.5 rounded text-[10px] font-bold">Unavailable</span>' : ''}
+              ${unavailable ? '<span class="ml-1 bg-red-100 text-red-700 px-1.5 py-0.5 rounded text-[10px] font-bold">Out of Stock</span>' : ''}
               ${Number(i.is_visible) === 0 ? '<span class="ml-1 bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded text-[10px] font-bold">Hidden</span>' : ''}
             </td>
             <td class="p-3 text-gray-500">${esc(i.category)}</td>
@@ -872,7 +878,8 @@
             <td class="p-3"><span class="bg-amber-50 text-amber-800 px-2 py-0.5 rounded text-[11px] font-bold">${vars.length} Sizes</span></td>
             <td class="p-3"><span class="bg-indigo-50 text-indigo-800 px-2 py-0.5 rounded text-[11px] font-bold">${grps.length} Groups Linked</span></td>
             <td class="p-3 text-right space-x-2 whitespace-nowrap">
-              <button onclick="toggleAvailability(${Number(i.id)})" class="${unavailable ? 'text-emerald-600 hover:text-emerald-800' : 'text-amber-600 hover:text-amber-800'} font-bold">${unavailable ? 'Show' : 'Hide'}</button>
+              <button onclick="toggleAvailability(${Number(i.id)})" class="${unavailable ? 'text-emerald-600 hover:text-emerald-800' : 'text-rose-600 hover:text-rose-800'} font-bold" title="Menu me Not Available ke saath dikhegi">${unavailable ? 'In Stock' : 'Out of Stock'}</button>
+              <button onclick="toggleItemHidden(${Number(i.id)})" class="${hiddenItem ? 'text-emerald-600 hover:text-emerald-800' : 'text-amber-600 hover:text-amber-800'} font-bold" title="Menu se poori tarah gayab">${hiddenItem ? 'Unhide' : 'Hide'}</button>
               <button onclick="openEditModal(${Number(i.id)})" class="text-indigo-600 hover:text-indigo-800 font-bold">Edit</button>
               <button onclick="deleteItem(${Number(i.id)})" class="text-red-500 hover:text-red-700 font-bold">Delete</button>
             </td>
@@ -939,7 +946,18 @@
       const makeAvailable = (Number(item.stock) || 0) <= 0;
       try {
         await api('/api/menu/' + id, 'PUT', itemPayload(item, { stock: makeAvailable ? 50 : 0 }));
-        toast(makeAvailable ? 'Item available (stock 50)' : 'Item hide kar diya (stock 0)');
+        toast(makeAvailable ? 'Item In Stock (stock 50)' : 'Item Out of Stock - Not Available dikhega');
+        loadData();
+      } catch (err) { toast(err.message, true); }
+    }
+
+    async function toggleItemHidden(id) {
+      const item = menuItems.find(i => Number(i.id) === id);
+      if (!item) return;
+      const unhide = Number(item.is_visible) === 0;
+      try {
+        await api('/api/menu/' + id, 'PUT', itemPayload(item, { is_visible: unhide ? 1 : 0 }));
+        toast(unhide ? 'Item wapas menu me aa gaya' : 'Item hide ho gaya - menu me nahi dikhega');
         loadData();
       } catch (err) { toast(err.message, true); }
     }
@@ -993,10 +1011,12 @@
               ${rec ? `<input type="checkbox" ${selCats.has(Number(rec.id)) ? 'checked' : ''} onchange="toggleSel(selCats, ${Number(rec.id)}, this.checked, updateCatBar)">` : '<span class="w-[13px]"></span>'}
               ${rec && rec.image ? `<img src="${esc(rec.image)}" class="w-9 h-9 rounded-lg object-cover border" alt="">` : '<span class="w-9 h-9 rounded-lg bg-gray-100 border flex items-center justify-center text-gray-300 text-sm">🖼</span>'}
               <span class="font-bold text-gray-800">${esc(n)}</span>
-              <span class="ml-2 text-xs text-gray-500">${count} items</span></div>
+              <span class="ml-2 text-xs text-gray-500">${count} items</span>${rec && Number(rec.out_of_stock) ? '<span class="ml-1 bg-red-100 text-red-700 px-1.5 py-0.5 rounded text-[10px] font-bold">Out of Stock</span>' : ''}${rec && Number(rec.is_visible) === 0 ? '<span class="ml-1 bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded text-[10px] font-bold">Hidden</span>' : ''}</div>
             ${rec ? `<div class="flex items-center gap-3">
                 <label class="text-indigo-600 hover:text-indigo-800 font-bold text-xs cursor-pointer">${rec.image ? 'Change image' : 'Add image'}<input type="file" accept="image/*" class="hidden" onchange="setCategoryImage(${Number(rec.id)}, this)"></label>
                 ${rec.image ? `<button onclick="removeCategoryImage(${Number(rec.id)})" class="text-gray-500 hover:text-gray-700 font-bold text-xs">Remove image</button>` : ''}
+                <button onclick="toggleCategoryStock(${Number(rec.id)})" class="${Number(rec.out_of_stock) ? 'text-emerald-600 hover:text-emerald-800' : 'text-rose-600 hover:text-rose-800'} font-bold text-xs" title="Items Not Available ke saath dikhenge">${Number(rec.out_of_stock) ? 'In Stock' : 'Out of Stock'}</button>
+                <button onclick="toggleCategoryVisible(${Number(rec.id)})" class="${Number(rec.is_visible) === 0 ? 'text-emerald-600 hover:text-emerald-800' : 'text-amber-600 hover:text-amber-800'} font-bold text-xs" title="Category poori tarah gayab">${Number(rec.is_visible) === 0 ? 'Unhide' : 'Hide'}</button>
                 <button onclick="deleteCategory(${Number(rec.id)})" class="text-red-500 hover:text-red-700 font-bold text-xs">Delete</button></div>`
                   : '<span class="text-[11px] text-gray-400">items se bani</span>'}
           </div>`;
@@ -1675,6 +1695,10 @@
       list.forEach(x => on ? set.add(Number(x.id)) : set.delete(Number(x.id)));
       rerender();
     }
+    function toggleCategoryItems(gIdx, on) {
+      const g = itemDragGroups[gIdx];
+      if (g) toggleAll(selItems, g.ids.map(id => ({ id })), on, renderItems);
+    }
     function toggleAllItems(on) { toggleAll(selItems, getFilteredItems(), on, renderItems); }
     function clearSel(set, rerender) { set.clear(); rerender(); }
 
@@ -1701,7 +1725,7 @@
     }
     function updateGroupBar() { syncBar(selGroups, globalAddonGroups, 'groupSelCount', 'selAllGroups', ['groupBulkActions']); }
     function updateVarBar() { syncBar(selVars, globalVariationMasters, 'varSelCount', 'selAllVars', ['varBulkActions']); }
-    function updateCatBar() { syncBar(selCats, categories, 'catSelCount', 'selAllCats', ['catBulkDelete']); }
+    function updateCatBar() { syncBar(selCats, categories, 'catSelCount', 'selAllCats', ['catBulkDelete', 'catBulkHide', 'catBulkShow', 'catBulkOos', 'catBulkIns']); }
 
     async function runBulk(list, fn) {
       let ok = 0, fail = 0, lastErr = '';
@@ -1778,7 +1802,7 @@
     }
 
     function bulkItemVisible(v) {
-      bulkItems(v ? 'Menu me dikhao' : 'Menu se chhupao', () => ({ is_visible: v }));
+      bulkItems(v ? 'Unhide' : 'Hide', () => ({ is_visible: v }));
     }
 
     function bulkItemGst() {
@@ -1787,7 +1811,7 @@
     }
 
     function bulkItemAvailability(show) {
-      bulkItems(show ? 'Show' : 'Hide', it => ({ stock: show ? ((Number(it.stock) || 0) > 0 ? Number(it.stock) : 50) : 0 }));
+      bulkItems(show ? 'In Stock' : 'Out of Stock', it => ({ stock: show ? ((Number(it.stock) || 0) > 0 ? Number(it.stock) : 50) : 0 }));
     }
 
     function bulkItemGroup(add) {
@@ -1819,6 +1843,38 @@
       const r = await runBulk(names, n => api('/api/categories', 'POST', { name: n }));
       document.getElementById('cat_bulk').value = '';
       reportBulk('Categories add', r);
+      loadData();
+    }
+
+    async function toggleCategoryStock(id) {
+      const c = categories.find(x => Number(x.id) === id);
+      if (!c) return;
+      const oos = !Number(c.out_of_stock);
+      try { await api('/api/categories/' + id, 'PUT', { out_of_stock: oos ? 1 : 0 }); toast(oos ? 'Category Out of Stock - Not Available dikhegi' : 'Category In Stock'); loadData(); }
+      catch (err) { toast(err.message, true); }
+    }
+
+    async function bulkCategoryStock(v) {
+      const cats = categories.filter(c => selCats.has(Number(c.id)));
+      if (!cats.length) return;
+      const r = await runBulk(cats, c => api('/api/categories/' + c.id, 'PUT', { out_of_stock: v }));
+      reportBulk(v ? 'Categories out of stock' : 'Categories in stock', r);
+      loadData();
+    }
+
+    async function toggleCategoryVisible(id) {
+      const c = categories.find(x => Number(x.id) === id);
+      if (!c) return;
+      const show = Number(c.is_visible) === 0;
+      try { await api('/api/categories/' + id, 'PUT', { is_visible: show ? 1 : 0 }); toast(show ? 'Category wapas aa gayi' : 'Category hide ho gayi - poori gayab'); loadData(); }
+      catch (err) { toast(err.message, true); }
+    }
+
+    async function bulkCategoryVisible(v) {
+      const cats = categories.filter(c => selCats.has(Number(c.id)));
+      if (!cats.length) return;
+      const r = await runBulk(cats, c => api('/api/categories/' + c.id, 'PUT', { is_visible: v }));
+      reportBulk(v ? 'Categories unhide' : 'Categories hide', r);
       loadData();
     }
 

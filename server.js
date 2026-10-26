@@ -227,8 +227,11 @@ app.post('/api/categories', (req, res) => {
 });
 
 app.put('/api/categories/:id', (req, res) => {
-  const image = req.body && typeof req.body.image === 'string' ? req.body.image : '';
-  db.run("UPDATE categories SET image = ? WHERE id = ?", [image, req.params.id], function(err) {
+  const b = req.body || {};
+  const image = typeof b.image === 'string' ? b.image : null;
+  const vis = b.is_visible === undefined ? null : (Number(b.is_visible) ? 1 : 0);
+  const oos = b.out_of_stock === undefined ? null : (Number(b.out_of_stock) ? 1 : 0);
+  db.run("UPDATE categories SET image = COALESCE(?, image), is_visible = COALESCE(?, is_visible), out_of_stock = COALESCE(?, out_of_stock) WHERE id = ?", [image, vis, oos, req.params.id], function(err) {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ success: true });
   });
@@ -937,7 +940,14 @@ async function validateOnlineItems(items) {
     if (!Number.isInteger(qty) || qty < 1 || qty > 50) return { error: 'Invalid quantity' };
     const rows = await dbAllAsync('SELECT * FROM menu WHERE id = ?', [Number(line.id)]);
     const m = rows[0];
-    if (!m || Number(m.is_visible) === 0) return { error: 'Item available nahi hai: ' + (line.name || '') };
+    if (!m) return { error: 'Item available nahi hai: ' + (line.name || '') };
+    const catRow = (await dbAllAsync('SELECT is_visible, out_of_stock FROM categories WHERE name = ?', [m.category]))[0];
+    // Hidden item/category menu se gayab hai, par agar wo kisi active upsell ka suggestion hai toh order ho sakta hai
+    if (Number(m.is_visible) === 0 || (catRow && Number(catRow.is_visible) === 0)) {
+      const ups = await dbAllAsync('SELECT 1 FROM upsells WHERE COALESCE(is_active, 1) = 1 AND (suggested_item = ? OR suggested_category = ?) LIMIT 1', [m.name, m.category]);
+      if (!ups.length) return { error: 'Item available nahi hai: ' + m.name };
+    }
+    if (catRow && Number(catRow.out_of_stock)) return { error: 'Item available nahi hai: ' + m.name };
     if (m.status === 'Out of Stock' || m.status === 'unavailable') return { error: m.name + ' sold out hai' };
     qtyById[m.id] = (qtyById[m.id] || 0) + qty;
     if ((Number(m.stock) || 0) < qtyById[m.id]) return { error: m.name + ' ka itna stock available nahi hai' };

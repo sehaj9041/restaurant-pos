@@ -350,14 +350,14 @@
       return '🍽';
     }
 
-    let categoryImages = {};
+    let categoryImages = {}, outCategories = {}, hiddenCategories = {};
     fetch('/api/categories').then(r => r.json()).then(rows => {
-      (rows || []).forEach(c => { if (c.image) categoryImages[String(c.name).trim()] = c.image; });
+      (rows || []).forEach(c => { if (c.image) categoryImages[String(c.name).trim()] = c.image; if (Number(c.out_of_stock)) outCategories[String(c.name).trim()] = true; if (Number(c.is_visible) === 0) hiddenCategories[String(c.name).trim()] = true; });
       if (typeof menuItems !== 'undefined' && menuItems.length) renderCategories();
     }).catch(() => {});
 
     function renderCategories() {
-      categories = [...new Set(menuItems.map(i => i.category))];
+      categories = [...new Set(menuItems.filter(i => !hiddenCategories[String(i.category || '').trim()]).map(i => i.category))];
       if ((!activeCategory || !categories.includes(activeCategory)) && categories.length) activeCategory = categories[0];
 
       $('categorySidebar').innerHTML = categories.map((cat, idx) => {
@@ -381,6 +381,8 @@
       $('itemsGrid').scrollTop = 0;
     }
 
+    const itemUnavailable = i => outCategories[String(i.category || '').trim()] || (Number(i.stock) || 0) <= 0 || i.status === 'Out of Stock';
+
     function renderCategoryItems() {
       $('activeCategoryHeading').innerText = activeCategory || 'Menu';
       const filtered = menuItems.filter(i => i.category === activeCategory);
@@ -391,13 +393,15 @@
         const priceTag = vars.length ? `From ${money(vars[0].price)}` : money(item.price);
         const img = itemImgOf(item);
 
+        const na = itemUnavailable(item);
         return `
-          <button onclick="startKioskItem(${item.id})" class="tile p-2.5 flex flex-col text-left">
-            <div class="h-28 flex items-center justify-center">
+          <button ${na ? 'disabled' : `onclick="startKioskItem(${item.id})"`} class="tile p-2.5 flex flex-col text-left relative ${na ? 'cursor-not-allowed' : ''}">
+            ${na ? '<span class="absolute top-2 left-2 z-10 bg-rose-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full">Not Available</span>' : ''}
+            <div class="h-28 flex items-center justify-center ${na ? 'opacity-40 grayscale' : ''}">
               ${img ? `<img src="${esc(img)}" class="max-h-full max-w-full object-contain" onerror="this.onerror=null; this.replaceWith(Object.assign(document.createElement('span'),{className:'text-6xl',textContent:'🍔'}));">` : '<span class="text-6xl">🍔</span>'}
             </div>
-            <h3 class="font-bold text-[12px] leading-tight mt-2 line-clamp-2 min-h-[2.1em]">${esc(item.name)}</h3>
-            <span class="font-bold text-[12px] mt-1">${priceTag}</span>
+            <h3 class="font-bold text-[12px] leading-tight mt-2 line-clamp-2 min-h-[2.1em] ${na ? 'opacity-50' : ''}">${esc(item.name)}</h3>
+            <span class="font-bold text-[12px] mt-1 ${na ? 'opacity-50' : ''}">${priceTag}</span>
           </button>`;
       }).join('') || '<p class="col-span-2 text-neutral-500 text-sm">No items in this category.</p>';
     }
@@ -413,9 +417,11 @@
 
     function startKioskItem(itemId) {
       const item = allKioskItems.find(i => i.id === itemId) || menuItems.find(i => i.id === itemId);
+      if (item && itemUnavailable(item)) return;
       const opts = item ? mealOptionsFor(item) : [];
+      mealChoiceIds = opts.map(o => o.t.id);
       if (!opts.length) return openCustomizer(itemId);
-      const tile = (t, badge) => {
+      const tile = (t, badge, hidePrice) => {
         let vars = [];
         try { vars = JSON.parse(t.variations || '[]'); } catch (e) {}
         const price = vars.length ? `From ${money(vars[0].price)}` : money(t.price);
@@ -427,17 +433,18 @@
               ${img ? `<img src="${esc(img)}" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">` : '<span class="text-5xl">🍽️</span>'}
             </div>
             <h3 class="font-bold text-[13px] leading-tight mt-2 line-clamp-2 min-h-[2.1em]">${esc(t.name)}</h3>
-            <span class="font-bold text-[13px] mt-1">${price}</span>
+            ${hidePrice ? '' : `<span class="font-bold text-[13px] mt-1">${price}</span>`}
           </button>`;
       };
       $('mealChoiceTitle').innerText = item.name;
-      $('mealChoiceList').innerHTML = tile(item, 'Single') + opts.map(o => tile(o.t, o.u.label || 'Meal')).join('');
+      $('mealChoiceList').innerHTML = tile(item, 'Single') + opts.map(o => tile(o.t, o.u.label || 'Meal', true)).join('');
       $('mealChoiceModal').classList.remove('hidden');
     }
 
+    let mealChoiceIds = [], custHidePrice = false, custHeroHtml = '';
     function pickMealChoice(itemId) {
       $('mealChoiceModal').classList.add('hidden');
-      openCustomizer(itemId);
+      openCustomizer(itemId, mealChoiceIds.includes(itemId)); // meal chuna toh uska price hide
     }
 
     function cancelMealChoice() {
@@ -446,9 +453,11 @@
     }
 
     // ---------- Item customizer ----------
-    function openCustomizer(itemId) {
+    function openCustomizer(itemId, hidePrice) {
       const item = allKioskItems.find(i => i.id === itemId) || menuItems.find(i => i.id === itemId);
       if (!item) return;
+      custHidePrice = !!hidePrice;
+      $('modalItemRunningTotal').classList.toggle('hidden', custHidePrice);
       selectedMenuItem = item;
       selectedGroupAddons = {};
       custQty = 1;
@@ -457,9 +466,10 @@
       $('custItemCategory').innerText = item.category;
 
       const img = itemImgOf(item);
-      $('custImgContainer').innerHTML = img
+      custHeroHtml = img
         ? `<img src="${esc(img)}" class="h-56 object-contain" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'text-[120px]',textContent:'🍔'}));">`
         : '<span class="text-[120px] leading-none">🍔</span>';
+      $('custImgContainer').innerHTML = custHeroHtml;
 
       let variations = [];
       try { variations = JSON.parse(item.variations || '[]'); } catch (e) {}
@@ -473,7 +483,7 @@
             <input type="radio" name="kioskVarRadio" class="hidden" onchange="selectKioskVariation(${idx}, this)">
             ${v.image ? `<img src="${esc(resolveImgPath(v.image))}" class="w-20 h-20 rounded-lg object-cover mb-2">` : ''}
             <span class="font-bold text-base">${esc(v.name)}</span>
-            <span class="text-sm text-neutral-600 mt-1">${money(v.price)}</span>
+            ${custHidePrice ? '' : `<span class="text-sm text-neutral-600 mt-1">${money(v.price)}</span>`}
           </label>`).join('');
       }
 
@@ -532,6 +542,7 @@
       $('modalVarSection').classList.toggle('hidden', !(step && step.type === 'var'));
       if (step && step.type === 'group') renderKioskAddonGroup(step.id); else $('modalAddonGroups').innerHTML = '';
       $('modalReview').classList.toggle('hidden', !review);
+      $('custImgContainer').innerHTML = review && custHidePrice ? mealHeroTiles() : custHeroHtml;
       if (review) renderCustReview();
       $('custStepInfo').innerText = custSteps.length > 1 ? (review ? 'Review your order' : `Step ${custStepIdx + 1} of ${custSteps.length - 1}`) : '';
       $('addToTrayBtn').innerText = review ? 'Add To Order' : (custEditing ? 'Done' : 'Next');
@@ -540,11 +551,58 @@
       $('customizerModal').querySelector('.overflow-y-auto').scrollTop = 0;
     }
 
+    // Meal ka single burger item (upsell "upgrade" mapping se, warna naam se "Meal" hata kar)
+    function mealBaseItem(item) {
+      const u = upsells.find(x => x.upsell_type === 'upgrade' && x.suggested_item === item.name);
+      let base = u && allKioskItems.find(i => i.name === u.item_name);
+      if (!base) {
+        const n = item.name.replace(/\s*\(?\s*meal\s*\)?\s*$/i, '').trim();
+        base = n && n !== item.name ? allKioskItems.find(i => i.name === n) : null;
+      }
+      return base || null;
+    }
+
+    // Meal review page: poori meal ki photo ki jagah burger + customer ke chune hue drink/fries ki photo, har ek ke Edit button ke saath
+    function mealHeroTiles() {
+      tileSteps = new Set();
+      const tiles = [];
+      const gStep = (st, i) => {
+        const g = allMasterGroups.find(x => Number(x.id) === Number(st.id));
+        return { g, chosen: selectedGroupAddons[st.id] || [] };
+      };
+      const burgerIdx = custSteps.findIndex(st => st.type === 'group' && /burger/i.test((allMasterGroups.find(x => Number(x.id) === Number(st.id)) || {}).name || ''));
+      const base = mealBaseItem(selectedMenuItem);
+      let burgerImg = base ? itemImgOf(base) : '';
+      if (burgerIdx >= 0) {
+        const c = gStep(custSteps[burgerIdx], burgerIdx).chosen.find(a => a.image);
+        if (c) burgerImg = resolveImgPath(c.image);
+        tileSteps.add(burgerIdx);
+      }
+      tiles.push({ img: burgerImg || itemImgOf(selectedMenuItem), name: base ? base.name : 'Burger', label: 'Burger', step: burgerIdx });
+      custSteps.forEach((st, i) => {
+        if (st.type !== 'group' || i === burgerIdx) return;
+        const { g, chosen } = gStep(st, i);
+        const withImg = chosen.filter(a => a.image);
+        if (!withImg.length) return;
+        tileSteps.add(i);
+        tiles.push({ img: resolveImgPath(withImg[0].image), name: chosen.map(a => a.name + (Number(a.price) ? ` (+${money(a.price)})` : '')).join(', '), label: g ? g.name : 'Add-on', step: i });
+      });
+      return `<div class="flex gap-2 w-full justify-center items-stretch">${tiles.map(t => `
+        <div class="tile p-2 flex flex-col items-center text-center flex-1 min-w-0">
+          <span class="text-[10px] font-bold uppercase tracking-widest text-neutral-500 truncate w-full">${esc(t.label)}</span>
+          <div class="h-24 flex items-center justify-center">${t.img ? `<img src="${esc(t.img)}" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">` : '<span class="text-4xl">🍽️</span>'}</div>
+          <span class="text-[12px] font-bold leading-tight mt-1 line-clamp-2 min-h-[2.2em]">${esc(t.name)}</span>
+          ${t.step >= 0 ? `<button onclick="custEdit(${t.step})" class="btn-outline px-3 py-1.5 text-xs mt-2 w-full">Edit</button>` : ''}
+        </div>`).join('')}</div>`;
+    }
+    let tileSteps = new Set();
+
     function renderCustReview() {
       const rows = [];
       custSteps.forEach((st, i) => {
+        if (custHidePrice && tileSteps.has(i)) return;
         if (st.type === 'var') {
-          rows.push({ i, label: 'Size', value: selectedVariation ? `${selectedVariation.name} · ${money(selectedVariation.price)}` : 'Not selected', images: selectedVariation && selectedVariation.image ? [selectedVariation.image] : [] });
+          rows.push({ i, label: 'Size', value: selectedVariation ? (custHidePrice ? selectedVariation.name : `${selectedVariation.name} · ${money(selectedVariation.price)}`) : 'Not selected', images: selectedVariation && selectedVariation.image ? [selectedVariation.image] : [] });
         } else if (st.type === 'group') {
           const g = allMasterGroups.find(x => Number(x.id) === Number(st.id));
           const chosen = selectedGroupAddons[st.id] || [];

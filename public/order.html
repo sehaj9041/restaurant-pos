@@ -297,7 +297,8 @@
       const label = { veg: 'Veg', nonveg: 'Non-Veg', egg: 'Egg' }[t];
       return `<span title="${label}" aria-label="${label}" class="inline-flex items-center justify-center w-4 h-4 border-2 rounded-sm shrink-0 align-middle" style="border-color:${c}"><span class="w-2 h-2 rounded-full" style="background:${c}"></span></span>`;
     }
-    function isSoldOut(item) { return (Number(item.stock) || 0) <= 0 || item.status === 'Out of Stock'; }
+    function isShown(i) { return Number(i.is_visible) !== 0 && !hiddenCategories[String(i.category || '').trim()]; }
+    function isSoldOut(item) { return outCategories[String(item.category || '').trim()] || (Number(item.stock) || 0) <= 0 || item.status === 'Out of Stock'; }
     function saveCart() { try { localStorage.setItem('vf_cart', JSON.stringify(cart)); } catch (e) {} }
 
     let toastTimer = null;
@@ -405,7 +406,7 @@
     fetch('/api/menu')
       .then(r => { if (!r.ok) throw new Error('menu'); return r.json(); })
       .then(items => {
-        menu = items.filter(i => Number(i.is_visible) !== 0);
+        menu = items; // hidden items bhi rakhte hain: wo sirf upsell me dikh sakte hain
         // drop saved cart lines whose item no longer exists
         cart = cart.filter(c => menu.some(m => m.id === c.id));
         saveCart(); updateCartUI();
@@ -419,14 +420,14 @@
           </div>`;
       });
 
-    let categoryImages = {};
+    let categoryImages = {}, outCategories = {}, hiddenCategories = {};
     fetch('/api/categories').then(r => r.json()).then(rows => {
-      (rows || []).forEach(c => { if (c.image) categoryImages[String(c.name).trim()] = c.image; });
+      (rows || []).forEach(c => { if (c.image) categoryImages[String(c.name).trim()] = c.image; if (Number(c.out_of_stock)) outCategories[String(c.name).trim()] = true; if (Number(c.is_visible) === 0) hiddenCategories[String(c.name).trim()] = true; });
       if (menu.length) { renderCategories(); renderMenu(); }
     }).catch(() => {});
 
     function renderCategories() {
-      categoryList = [...new Set(menu.map(i => i.category || 'General'))];
+      categoryList = [...new Set(menu.filter(isShown).map(i => i.category || 'General'))];
       if (!categoryList.includes(activeCategory)) activeCategory = categoryList[0] || '';
       const bar = document.getElementById('categoryBar');
       bar.innerHTML = categoryList.map((cat, idx) => `
@@ -466,9 +467,9 @@
       let hasVars = false;
       try { hasVars = JSON.parse(item.variations || '[]').length > 0; } catch (e) {}
       return `
-        <div class="bg-white p-3.5 rounded-2xl border border-gray-100 flex justify-between items-center gap-3 shadow-xs ${soldOut ? 'opacity-60' : ''}">
-          <div class="flex items-center gap-3 min-w-0">
-            ${src ? `<img src="${esc(src)}" loading="lazy" alt="" onerror="this.remove()" class="w-16 h-16 rounded-xl object-cover shrink-0">` : ''}
+        <div class="bg-white p-3.5 rounded-2xl border border-gray-100 flex justify-between items-center gap-3 shadow-xs ${soldOut ? 'bg-gray-50' : ''}">
+          <div class="flex items-center gap-3 min-w-0 ${soldOut ? 'opacity-50' : ''}">
+            ${src ? `<img src="${esc(src)}" loading="lazy" alt="" onerror="this.remove()" class="w-16 h-16 rounded-xl object-cover shrink-0 ${soldOut ? 'grayscale opacity-60' : ''}">` : ''}
             <div class="space-y-0.5 min-w-0">
               <h3 class="font-bold text-gray-900 text-sm flex items-center gap-1.5">${vegIcon(item.food_type)}<span>${esc(item.name)}</span></h3>
               <p class="text-emerald-600 font-black text-sm">${hasVars ? 'From ' : ''}₹${esc(item.price)}</p>
@@ -476,7 +477,7 @@
           </div>
           <div class="shrink-0 flex flex-col items-end gap-1">
             ${inCart > 0 ? `<span class="font-black text-[10px] text-indigo-800 bg-indigo-100 rounded-full px-2 py-0.5">${inCart} in cart</span>` : ''}
-            ${soldOut ? `<span class="text-rose-600 font-black text-xs px-2">Sold out</span>` : `
+            ${soldOut ? `<span class="text-rose-600 font-black text-[11px] bg-rose-50 border border-rose-200 rounded-lg px-2 py-1 whitespace-nowrap">Not Available</span>` : `
               <button onclick="addItemCheckAddons(${Number(item.id)})" class="bg-indigo-50 hover:bg-indigo-100 active:scale-95 border border-indigo-200 text-indigo-700 font-black text-xs px-4 py-1.5 rounded-xl transition">
                 + ADD
               </button>`}
@@ -485,7 +486,7 @@
     }
 
     function renderMenu() {
-      const list = searchTerm ? menu.filter(i => String(i.name).toLowerCase().includes(searchTerm)) : menu;
+      const list = (searchTerm ? menu.filter(i => String(i.name).toLowerCase().includes(searchTerm)) : menu).filter(isShown);
       const grid = document.getElementById('menuGrid');
       if (!list.length) {
         grid.innerHTML = '<div class="text-center py-10 text-gray-400 text-xs">No items found.</div>';
@@ -525,7 +526,7 @@
     async function addItemCheckAddons(itemOrId, skipMeal) {
       const item = typeof itemOrId === 'object' ? itemOrId : menu.find(i => i.id === itemOrId);
       if (!item) return;
-      if (isSoldOut(item)) return toast(item.name + ' sold out hai', true);
+      if (isSoldOut(item)) return toast(item.name + ' abhi available nahi hai', true);
       if (!skipMeal) {
         const meals = onlineUpsells.filter(u => u.upsell_type === 'upgrade' && u.item_name === item.name && u.suggested_item)
           .sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0) || Number(a.id) - Number(b.id))

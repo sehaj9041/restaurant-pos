@@ -169,6 +169,7 @@ pool.query(`
   await pool.query(`ALTER TABLE addon_groups ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0;`).catch(() => {});
   await pool.query(`ALTER TABLE variation_masters ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0;`).catch(() => {});
   await pool.query(`ALTER TABLE categories ADD COLUMN IF NOT EXISTS image TEXT;`).catch(() => {});
+  await pool.query(`ALTER TABLE categories ADD COLUMN IF NOT EXISTS out_of_stock INTEGER DEFAULT 0;`).catch(() => {});
 
   // Upsells, inventory and recipes (populated by the Excel import)
   await pool.query(`

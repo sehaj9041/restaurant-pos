@@ -2429,18 +2429,22 @@
         }).catch(function(){});
     }
 
+    var outCategories = {}, hiddenCategories = {};
+    function isItemUnavailable(i) { return outCategories[String(i.category || '').trim()] || (Number(i.stock) || 0) <= 0 || i.status === 'Out of Stock'; }
     var categoryImages = {};
     function loadCategoryImages() {
       fetch('/api/categories').then(function(r) { return r.json(); }).then(function(rows) {
-        categoryImages = {};
-        (rows || []).forEach(function(c) { if (c.image) categoryImages[String(c.name).trim()] = c.image; });
+        categoryImages = {}; outCategories = {}; hiddenCategories = {};
+        (rows || []).forEach(function(c) { if (c.image) categoryImages[String(c.name).trim()] = c.image; if (Number(c.out_of_stock)) outCategories[String(c.name).trim()] = true; if (Number(c.is_visible) === 0) hiddenCategories[String(c.name).trim()] = true; });
+        extractCategories();
         renderCategoriesSidebar();
+        renderPOSItems();
       }).catch(function(){});
     }
     function extractCategories() {
       var set = new Set();
       allMenuItems.forEach(function(i) {
-        if (i.category && Number(i.is_visible) !== 0) set.add(i.category.trim());
+        if (i.category && Number(i.is_visible) !== 0 && !hiddenCategories[i.category.trim()]) set.add(i.category.trim());
       });
       allCategories = Array.from(set);
     }
@@ -3555,7 +3559,7 @@
       var q = (document.getElementById('menuItemSearch').value || '').toLowerCase().trim();
 
       var filtered = allMenuItems.filter(function(i) {
-        var matchCat = (selectedCategory === 'ALL' || i.category === selectedCategory) && Number(i.is_visible) !== 0;
+        var matchCat = (selectedCategory === 'ALL' || i.category === selectedCategory) && Number(i.is_visible) !== 0 && !hiddenCategories[String(i.category || '').trim()];
         var matchQuery = (!q || i.name.toLowerCase().includes(q));
         var p = Number(i.price) || 0;
         var matchPrice = true;
@@ -3573,11 +3577,12 @@
       grid.innerHTML = filtered.map(function(item) {
         var totalQty = posCart.filter(function(c) { return c.name === item.name; }).reduce(function(s, c){ return s + c.qty; }, 0);
 
+        var na = isItemUnavailable(item);
         return `
-          <div onclick="addOrIncrementItem('${item.name.replace(/'/g, "\\'")}', ${item.price})" class="bg-white border rounded-xl p-2.5 cursor-pointer shadow-2xs hover:border-orange-500 transition flex items-center justify-between ${totalQty > 0 ? 'border-orange-400 bg-orange-50/20' : 'border-gray-200'}">
+          <div ${na ? '' : `onclick="addOrIncrementItem('${item.name.replace(/'/g, "\\'")}', ${item.price})"`} class="bg-white border rounded-xl p-2.5 shadow-2xs transition flex ${na ? 'cursor-not-allowed bg-gray-50' : 'cursor-pointer hover:border-orange-500'} items-center justify-between ${totalQty > 0 ? 'border-orange-400 bg-orange-50/20' : 'border-gray-200'}">
             <div class="flex items-center gap-2.5">
-              ${item.image ? `<img src="${item.image}" class="w-12 h-12 rounded-lg object-cover border">` : `<div class="w-12 h-12 rounded-lg bg-gray-50 flex items-center justify-center text-gray-300 text-base">🍔</div>`}
-              <div>
+              ${item.image ? `<img src="${item.image}" class="w-12 h-12 rounded-lg object-cover border ${na ? 'opacity-40 grayscale' : ''}">` : `<div class="w-12 h-12 rounded-lg bg-gray-50 ${na ? 'opacity-40' : ''} flex items-center justify-center text-gray-300 text-base">🍔</div>`}
+              <div class="${na ? 'opacity-50' : ''}">
                 <div class="text-[9px] font-bold text-gray-400 uppercase tracking-wide">${item.category || ''}</div>
                 <h3 class="text-xs font-bold text-gray-800 line-clamp-1">${item.name}</h3>
                 <div class="text-xs font-black text-gray-900 mt-0.5">₹${item.price}</div>
@@ -3585,7 +3590,7 @@
             </div>
 
             <div>
-              ${totalQty > 0 ? `<span class="bg-orange-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shadow-xs">${totalQty}</span>` : `<span class="text-orange-500 font-bold text-xs bg-orange-50 px-2 py-1 rounded-md">+ Add</span>`}
+              ${na ? '<span class="text-rose-600 font-black text-[10px] bg-rose-50 border border-rose-200 px-2 py-1 rounded-md whitespace-nowrap">Not Available</span>' : totalQty > 0 ? `<span class="bg-orange-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shadow-xs">${totalQty}</span>` : `<span class="text-orange-500 font-bold text-xs bg-orange-50 px-2 py-1 rounded-md">+ Add</span>`}
             </div>
           </div>
         `;
@@ -3594,6 +3599,7 @@
 
     async function addOrIncrementItem(name, price, skipMeal) {
       var itemObj = allMenuItems.find(function(i) { return i.name === name; });
+      if (itemObj && isItemUnavailable(itemObj)) return alert(name + ' abhi available nahi hai');
       if (!skipMeal && itemObj && posUpsellOn()) {
         var meals = posMealOptions(itemObj);
         if (meals.length) { showPOSMealChoice(itemObj, meals); return; }
