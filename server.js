@@ -516,7 +516,7 @@ app.get('/api/orders/today-stats', (req, res) => {
 // ================= NEEDS APPROVAL (PENDING ORDERS) APIS =================
 app.get('/api/orders/needs-approval', (req, res) => {
   const query = `
-    SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount, created_at, delivery_address, delivery_lat, delivery_lng
+    SELECT id, token_no, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount, created_at, delivery_address, delivery_lat, delivery_lng
     FROM orders 
     WHERE UPPER(status) = 'NEEDS_APPROVAL'
     ORDER BY id DESC
@@ -533,7 +533,7 @@ app.get('/api/orders/needs-approval', (req, res) => {
       const fullOrders = await Promise.all(
         orders.map(order => {
           return new Promise((resolve) => {
-            db.all('SELECT id, name, qty, price, notes FROM order_items WHERE order_id = ?', [order.id], (err2, items) => {
+            db.all('SELECT id, name, qty, price, notes, user_note, pack_flip FROM order_items WHERE order_id = ?', [order.id], (err2, items) => {
               resolve({ ...order, items: items || [] });
             });
           });
@@ -610,7 +610,7 @@ app.post('/api/orders/:id/assign-table', (req, res) => {
 // 7. ACTIVE ORDERS
 app.get('/api/orders/active', (req, res) => {
   const query = `
-    SELECT id, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount,
+    SELECT id, token_no, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount,
            GREATEST(0, total - COALESCE(paid_amount, 0)) as remaining_balance,
            -- Order timers: kitchen time = accepted (or placed) -> KDS done; still running while the kitchen works on it
            GREATEST(0, EXTRACT(EPOCH FROM ((CASE WHEN ready_at IS NOT NULL AND UPPER(status) = 'KOT_DONE' THEN ready_at ELSE NOW() END) - COALESCE(accepted_at, created_at)))) AS kitchen_sec,
@@ -637,7 +637,7 @@ app.get('/api/orders/active', (req, res) => {
       const fullOrders = await Promise.all(
         orders.map(order => {
           return new Promise((resolve) => {
-            db.all('SELECT id, name, qty, price, notes FROM order_items WHERE order_id = ?', [order.id], (err2, items) => {
+            db.all('SELECT id, name, qty, price, notes, user_note, pack_flip FROM order_items WHERE order_id = ?', [order.id], (err2, items) => {
               let paid = Number(order.paid_amount) || 0;
               let tot = Number(order.total) || 0;
               let mode = (order.payment_mode || '').toUpperCase();
@@ -804,7 +804,7 @@ app.get('/api/orders/history', (req, res) => {
   const filterDate = date ? date : new Date().toISOString().slice(0, 10);
 
   const query = `
-    SELECT id, order_type, table_no, customer_name, customer_phone, payment_mode, status, subtotal, discount, gst, total, COALESCE(paid_amount, total) as paid_amount, created_at
+    SELECT id, token_no, order_type, table_no, customer_name, customer_phone, payment_mode, status, subtotal, discount, gst, total, COALESCE(paid_amount, total) as paid_amount, created_at
     FROM orders 
     WHERE status = 'COMPLETED' 
        OR status = 'VOID'
@@ -891,14 +891,16 @@ app.put('/api/orders/:id', (req, res) => {
             for (const item of items) {
               await new Promise((resolve) => {
                 db.run(
-                  "INSERT INTO order_items (order_id, name, qty, price, notes) VALUES (?, ?, ?, ?, ?)",
-                  [orderId, item.name, item.qty, item.price, item.notes || ''],
+                  "INSERT INTO order_items (order_id, name, qty, price, notes, user_note, pack_flip) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                  [orderId, item.name, item.qty, item.price, item.notes || '', String(item.user_note || '').slice(0, 300), item.pack_flip ? 1 : 0],
                   () => resolve()
                 );
               });
             }
           }
-          res.json({ success: true, orderId, paid_amount: finalPaid, payable_now: finalRemaining, status });
+          db.all('SELECT token_no FROM orders WHERE id = ?', [orderId], (eT, rT) => {
+            res.json({ success: true, orderId, token_no: (rT && rT[0]) ? rT[0].token_no : null, paid_amount: finalPaid, payable_now: finalRemaining, status });
+          });
         });
       }
     );
@@ -1202,9 +1204,9 @@ app.post('/api/orders', async (req, res) => {
   }
 
   const insertOrderQuery = `
-    INSERT INTO orders (order_type, table_no, customer_name, customer_phone, status, payment_mode, subtotal, discount, gst, total, paid_amount, delivery_address, delivery_lat, delivery_lng)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    RETURNING id
+    INSERT INTO orders (order_type, table_no, customer_name, customer_phone, status, payment_mode, subtotal, discount, gst, total, paid_amount, delivery_address, delivery_lat, delivery_lng, token_no)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT MAX(token_no) FROM orders WHERE created_at::date = CURRENT_DATE), 0) + 1)
+    RETURNING id, token_no
   `;
 
   const orderValues = [
@@ -1231,6 +1233,7 @@ app.post('/api/orders', async (req, res) => {
     }
 
     const orderId = (result && result[0]) ? result[0].id : null;
+    const tokenNo = (result && result[0]) ? result[0].token_no : null;
     if (!orderId) {
       return res.status(500).json({ error: 'Failed to retrieve order id' });
     }
@@ -1240,8 +1243,8 @@ app.post('/api/orders', async (req, res) => {
         for (const item of items) {
           await new Promise((resolve) => {
             db.run(
-              'INSERT INTO order_items (order_id, name, qty, price, notes) VALUES (?, ?, ?, ?, ?)',
-              [orderId, item.name, item.qty, item.price, item.notes || ''],
+              'INSERT INTO order_items (order_id, name, qty, price, notes, user_note, pack_flip) VALUES (?, ?, ?, ?, ?, ?, ?)',
+              [orderId, item.name, item.qty, item.price, item.notes || '', String(item.user_note || '').slice(0, 300), item.pack_flip ? 1 : 0],
               () => resolve()
             );
           });
@@ -1270,10 +1273,10 @@ app.post('/api/orders', async (req, res) => {
           }
         } catch (pe) { console.error('Profile create error:', pe.message); profileToken = null; }
       }
-      res.json({ success: true, orderId: orderId, paid_amount: initialPaid, profile_token: profileToken });
+      res.json({ success: true, orderId: orderId, token_no: tokenNo, paid_amount: initialPaid, profile_token: profileToken });
     } catch (itemErr) {
       console.error('Order items insert error:', itemErr.message);
-      res.json({ success: true, orderId: orderId });
+      res.json({ success: true, orderId: orderId, token_no: tokenNo });
     }
   });
 });
@@ -1316,7 +1319,7 @@ app.post('/api/tables/:id/settle', (req, res) => {
 // ================= KDS API ROUTE (STRICT FILTER) =================
 app.get('/api/kot', (req, res) => {
   const query = `
-    SELECT o.id, o.order_type, o.table_no, o.status, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
+    SELECT o.id, o.token_no, o.order_type, o.table_no, o.status, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
     FROM orders o 
     WHERE UPPER(o.status) = 'RUNNING_TABLE'
     ORDER BY o.id ASC
@@ -1336,7 +1339,7 @@ app.get('/api/kot', (req, res) => {
       const fullOrders = await Promise.all(
         orders.map(order => {
           return new Promise((resolve) => {
-            db.all("SELECT id, name, qty, notes FROM order_items WHERE order_id = ? AND name <> 'Delivery Charge' ORDER BY id ASC", [order.id], (err2, items) => {
+            db.all("SELECT id, name, qty, notes, user_note, pack_flip FROM order_items WHERE order_id = ? AND name <> 'Delivery Charge' ORDER BY id ASC", [order.id], (err2, items) => {
               resolve({ ...order, items: items || [] });
             });
           });
@@ -1451,7 +1454,7 @@ app.get('/api/reports/analytics', (req, res) => {
   `;
 
   const ordersListQuery = `
-    SELECT id, order_type, table_no, customer_name, customer_phone, payment_mode, status, subtotal, discount, gst, total, COALESCE(paid_amount, total) as paid_amount, created_at
+    SELECT id, token_no, order_type, table_no, customer_name, customer_phone, payment_mode, status, subtotal, discount, gst, total, COALESCE(paid_amount, total) as paid_amount, created_at
     FROM orders 
     WHERE (created_at::date BETWEEN ?::date AND ?::date OR DATE(created_at) BETWEEN DATE(?) AND DATE(?))
       AND status = 'COMPLETED'

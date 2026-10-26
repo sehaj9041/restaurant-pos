@@ -751,7 +751,7 @@
 
     <!-- COLUMN 3: ORDER SUMMARY & PAYMENT -->
     <div class="w-80 flex flex-col bg-white shrink-0 h-full border-l border-gray-200">
-      <div class="grid grid-cols-2 p-1.5 bg-gray-100 border-b text-xs font-bold shrink-0">
+      <div class="hidden grid-cols-2 p-1.5 bg-gray-100 border-b text-xs font-bold shrink-0">
         <button id="tabBtnCustomer" onclick="switchRightTab('CUSTOMER')" class="py-1.5 rounded-lg transition bg-white text-orange-600 shadow-2xs font-black">Order Type & Customer</button>
         <button id="tabBtnSummary" onclick="switchRightTab('SUMMARY')" class="py-1.5 rounded-lg transition text-gray-500 hover:text-gray-900 flex items-center justify-center gap-1">
           <span>Order Summary</span>
@@ -760,31 +760,31 @@
       </div>
 
       <div class="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <div id="tabContentCustomer" class="p-3.5 space-y-3 overflow-y-auto flex-1">
-          <div class="bg-gray-50 border border-gray-200 rounded-xl p-2.5 flex justify-between items-center text-xs">
+        <div id="tabContentCustomer" class="p-2.5 space-y-2 shrink-0 border-b border-gray-200 max-h-[45%] overflow-y-auto">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 flex justify-between items-center text-xs">
             <div>
-              <span class="text-[10px] font-bold text-gray-400 block uppercase">Selected Table</span>
-              <span id="posDisplayTable" class="font-black text-gray-800 text-sm">Select Order Type</span>
+              <span class="text-[10px] font-bold text-gray-400 block uppercase leading-none">Selected Table</span>
+              <span id="posDisplayTable" class="font-black text-gray-800 text-xs">Select Order Type</span>
             </div>
             <button onclick="closePOSOrderView()" class="text-orange-600 font-bold text-xs underline">Change</button>
           </div>
 
           <div class="grid grid-cols-3 gap-1.5">
-            <button id="posBtnDineIn" onclick="setPOSOrderType('Dine-In')" class="border border-gray-200 hover:bg-gray-50 rounded-xl py-3 flex flex-col items-center justify-center text-gray-600 font-bold">
+            <button id="posBtnDineIn" onclick="setPOSOrderType('Dine-In')" class="border border-gray-200 hover:bg-gray-50 rounded-lg py-1.5 flex flex-col items-center justify-center text-gray-600 font-bold">
               <span class="text-base mb-0.5">🍽</span>
               <span class="text-[11px] font-bold">Dine-In</span>
             </button>
-            <button id="posBtnTakeaway" onclick="setPOSOrderType('Takeaway')" class="border border-gray-200 hover:bg-gray-50 rounded-xl py-3 flex flex-col items-center justify-center text-gray-600 font-bold">
+            <button id="posBtnTakeaway" onclick="setPOSOrderType('Takeaway')" class="border border-gray-200 hover:bg-gray-50 rounded-lg py-1.5 flex flex-col items-center justify-center text-gray-600 font-bold">
               <span class="text-base mb-0.5">🛍</span>
               <span class="text-[11px] font-bold">Takeaway</span>
             </button>
-            <button id="posBtnDelivery" onclick="setPOSOrderType('Delivery')" class="border border-gray-200 hover:bg-gray-50 rounded-xl py-3 flex flex-col items-center justify-center text-gray-600 font-bold">
+            <button id="posBtnDelivery" onclick="setPOSOrderType('Delivery')" class="border border-gray-200 hover:bg-gray-50 rounded-lg py-1.5 flex flex-col items-center justify-center text-gray-600 font-bold">
               <span class="text-base mb-0.5">🛵</span>
               <span class="text-[11px] font-bold">Delivery</span>
             </button>
           </div>
 
-          <div class="space-y-2 pt-1">
+          <div class="grid grid-cols-2 gap-2">
             <div>
               <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Phone Number</label>
               <input type="text" id="posCustPhone" readonly onclick="openVirtualKeyboard(this, 'number', 'right')" placeholder="e.g. 9876543210" class="w-full border border-gray-200 rounded-lg p-2 text-xs font-mono outline-none focus:border-orange-500 bg-white cursor-pointer">
@@ -796,7 +796,7 @@
           </div>
         </div>
 
-        <div id="tabContentSummary" class="p-3 hidden flex-1 flex flex-col min-h-0 overflow-hidden">
+        <div id="tabContentSummary" class="p-3 flex-1 flex flex-col min-h-0 overflow-hidden">
           <div id="posCartItemList" class="flex-1 overflow-y-auto pr-1 text-xs divide-y divide-gray-100 space-y-1">
             <p class="text-gray-400 text-center py-10 italic text-xs">Cart is empty</p>
           </div>
@@ -1342,6 +1342,7 @@
                     <div class="flex items-center gap-2">
                       <span class="bg-slate-100 border border-slate-200 text-slate-800 font-black px-2 py-0.5 rounded text-xs">${order.order_type || 'Kiosk'}</span>
                       <span class="font-black text-slate-900 text-sm">#ORD-${order.id}</span>
+                      <span class="bg-gray-100 text-gray-600 font-bold px-1.5 py-0.5 rounded text-[10px]">Token ${tokenLabel(order)}</span>
                       <span class="text-xs font-bold text-slate-600">${order.customer_name || 'Guest'} (${order.customer_phone || 'N/A'})</span>
                     </div>
                   </div>
@@ -1389,7 +1390,7 @@
           document.getElementById('posCustName').value = targetOrder.customer_name || '';
 
           posCart = (targetOrder.items || []).map(function(i) {
-            return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1 };
+            return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1, user_note: i.user_note || '', pack_flip: Number(i.pack_flip) ? 1 : 0 };
           });
 
           loadRecordedPayment(targetOrder);
@@ -1881,7 +1882,7 @@
             <div>
               <div class="flex items-center gap-2">
                 <span class="font-black text-gray-900 text-sm">ORD-${o.id}</span>
-                <span class="bg-gray-100 text-gray-600 font-bold px-1.5 py-0.5 rounded text-[10px]">Token ${o.id.toString().padStart(3, '0')}</span>
+                <span class="bg-gray-100 text-gray-600 font-bold px-1.5 py-0.5 rounded text-[10px]">Token ${tokenLabel(o)}</span>
               </div>
               <div class="text-[11px] font-bold text-gray-600 mt-0.5">
                 ${o.customer_name || 'Walk-in'} • <span class="font-mono text-gray-500">${o.customer_phone || '-'}</span>
@@ -2157,7 +2158,7 @@
           <tr class="hover:bg-orange-50/60 transition text-gray-700 cursor-pointer" onclick="openSettledOrderInPOS(${o.id})">
             <td class="p-3 font-mono font-black text-gray-900">
               <div>ORD-${o.id}</div>
-              <div class="text-[10px] text-gray-400 font-normal">Token ${o.id.toString().padStart(3, '0')}</div>
+              <div class="text-[10px] text-gray-400 font-normal">Token ${tokenLabel(o)}</div>
             </td>
             <td class="p-3">
               <div class="flex items-center gap-1.5">
@@ -2216,7 +2217,7 @@
 
       if (Array.isArray(ord.items) && ord.items.length > 0) {
         posCart = ord.items.map(function(item) {
-          return { id: item.id || null, name: item.name, price: Number(item.price) || 0, qty: Number(item.qty) || 1 };
+          return { id: item.id || null, name: item.name, price: Number(item.price) || 0, qty: Number(item.qty) || 1, user_note: item.user_note || '', pack_flip: Number(item.pack_flip) ? 1 : 0 };
         });
       } else {
         posCart = [{ id: null, name: 'Order #' + ord.id, price: Number(ord.total) || 0, qty: 1 }];
@@ -2228,7 +2229,7 @@
       document.getElementById('viewFloorDashboard').classList.add('hidden');
       document.getElementById('viewPOSOrderScreen').classList.remove('hidden');
 
-      document.getElementById('topPageTitle').innerText = 'Edit Order #ORD-' + ord.id;
+      document.getElementById('topPageTitle').innerText = 'Edit Order #ORD-' + ord.id + (ord.token_no ? ' • Token ' + tokenLabel(ord) : '');
       document.getElementById('btnTopBack').classList.remove('hidden');
       document.getElementById('btnCancelOrderView').classList.remove('hidden');
       document.getElementById('topOrderActiveBadge').classList.remove('hidden');
@@ -2525,7 +2526,7 @@
                 <div>
                   <div class="flex items-center gap-1.5">
                     <span class="bg-pink-100 text-pink-700 font-black px-1.5 py-0.5 rounded text-[10px]">Kiosk Order</span>
-                    <span class="text-gray-500 font-bold text-[10px]">Token ${o.id.toString().padStart(3, '0')}</span>
+                    <span class="text-gray-500 font-bold text-[10px]">Token ${tokenLabel(o)}</span>
                     <span class="font-black text-gray-800 text-xs">ORD-${o.id}</span>
                   </div>
                   <div class="text-[11px] text-gray-600 mt-0.5 line-clamp-1">${itemsText || 'Order placed'}</div>
@@ -2589,7 +2590,7 @@
             <div class="flex justify-between items-start">
               <div>
                 <div class="flex items-center gap-1.5">
-                  <span class="text-gray-500 font-bold text-[10px]">Token ${o.id.toString().padStart(3, '0')}</span>
+                  <span class="text-gray-500 font-bold text-[10px]">Token ${tokenLabel(o)}</span>
                   <span class="font-black text-gray-800 text-xs">ORD-${o.id}</span>
                 </div>
                 <div class="text-[11px] text-gray-600 mt-0.5 line-clamp-1">${itemsText || 'Order placed'}</div>
@@ -2688,7 +2689,7 @@
       loadRecordedPayment(ord);
 
       posCart = (ord.items || []).map(function(i) {
-        return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1 };
+        return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1, user_note: i.user_note || '', pack_flip: Number(i.pack_flip) ? 1 : 0 };
       });
       renderPOSCart();
     }
@@ -2932,6 +2933,42 @@
       }, 150);
     }
 
+    function tokenLabel(o) {
+      var t = (o && o.token_no) ? o.token_no : (o && o.id);
+      return String(t == null ? '' : t).padStart(3, '0');
+    }
+
+    function escCartText(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+
+    function packToggleBtnHTML(item, idx) {
+      var t = String(currentPOSOrderType || '').toLowerCase();
+      var isTake = t.indexOf('takeaway') !== -1;
+      var isDine = t.indexOf('dine') !== -1;
+      if (!isTake && !isDine) return '';
+      var on = !!item.pack_flip;
+      var label = isDine ? (on ? '🛍 Packed ✓' : '🛍 Pack') : (on ? '🍽 Dine-In ✓' : '🍽 Dine-In');
+      var cls = on ? 'bg-emerald-100 border-emerald-500 text-emerald-800' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-100';
+      return '<button onclick="toggleCartItemPack(' + idx + ')" class="px-2 py-0.5 rounded border text-[11px] font-bold ' + cls + '">' + label + '</button>';
+    }
+
+    function toggleCartItemPack(idx) {
+      if (!posCart[idx]) return;
+      posCart[idx].pack_flip = posCart[idx].pack_flip ? 0 : 1;
+      renderPOSCart();
+    }
+
+    function editCartItemNote(idx) {
+      if (!posCart[idx]) return;
+      var v = prompt('Item note (kitchen ke liye):', posCart[idx].user_note || '');
+      if (v === null) return;
+      posCart[idx].user_note = v.trim().slice(0, 300);
+      renderPOSCart();
+    }
+
     function renderPOSCart() {
       var box = document.getElementById('posCartItemList');
       var placeBtn = document.getElementById('btnPOSPlaceOrder');
@@ -2949,20 +2986,27 @@
 
       box.innerHTML = posCart.map(function(item, idx) {
         return `
-          <div class="py-2 flex items-center justify-between text-xs">
-            <div class="flex items-center gap-2">
-              <div class="flex items-center border rounded bg-gray-50">
-                <button onclick="changeItemQty(${idx}, -1)" class="px-2 py-0.5 font-bold hover:bg-gray-200">-</button>
-                <span class="px-1.5 font-black text-gray-800">${item.qty}</span>
-                <button onclick="changeItemQty(${idx}, 1)" class="px-2 py-0.5 font-bold hover:bg-gray-200">+</button>
+          <div class="py-2 text-xs">
+            <div class="flex items-start justify-between gap-2">
+              <div class="flex items-start gap-2 min-w-0">
+                <div class="flex items-center border rounded bg-gray-50 shrink-0">
+                  <button onclick="changeItemQty(${idx}, -1)" class="px-2 py-0.5 font-bold hover:bg-gray-200">-</button>
+                  <span class="px-1.5 font-black text-gray-800">${item.qty}</span>
+                  <button onclick="changeItemQty(${idx}, 1)" class="px-2 py-0.5 font-bold hover:bg-gray-200">+</button>
+                </div>
+                <span class="font-bold text-gray-800 break-words min-w-0">${escCartText(item.name)}</span>
               </div>
-              <span class="font-bold text-gray-800 truncate max-w-[120px]">${item.name}</span>
-            </div>
 
-            <div class="flex items-center gap-2">
-              <button onclick="removeItemCompletely(${idx})" class="text-gray-400 hover:text-red-600 text-xs">🗑</button>
-              <span class="font-black text-gray-900 w-12 text-right">₹${item.price * item.qty}</span>
+              <div class="flex items-center gap-2 shrink-0">
+                <button onclick="removeItemCompletely(${idx})" class="text-gray-400 hover:text-red-600 text-xs">🗑</button>
+                <span class="font-black text-gray-900 w-12 text-right">₹${item.price * item.qty}</span>
+              </div>
             </div>
+            <div class="flex items-center gap-1.5 mt-1.5 ml-1 flex-wrap">
+              <button onclick="editCartItemNote(${idx})" class="px-2 py-0.5 rounded border text-[11px] font-bold ${item.user_note ? 'bg-yellow-100 border-yellow-400 text-yellow-800' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-100'}">📝 ${item.user_note ? 'Edit Note' : 'Note'}</button>
+              ${packToggleBtnHTML(item, idx)}
+            </div>
+            ${item.user_note ? `<div class="mt-1 ml-1 text-[11px] font-semibold text-yellow-800 bg-yellow-50 border border-yellow-200 rounded px-1.5 py-0.5 break-words">📝 ${escCartText(item.user_note)}</div>` : ''}
           </div>
         `;
       }).join('');
@@ -3042,7 +3086,8 @@
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
-        }).then(function(){
+        }).then(function(r){ return r.json().catch(function(){ return {}; }); }).then(function(d){
+          payload.token_no = d && d.token_no;
           if (paymentCollectedNow && billCfg.c.auto_print_bill !== false) dispatchDirectPrintReceipt(editingActiveOrderId, payload, calc);
           closePOSOrderView();
         });
@@ -3054,6 +3099,7 @@
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {
+          payload.token_no = data.token_no;
           if (paymentCollectedNow && billCfg.c.auto_print_bill !== false) dispatchDirectPrintReceipt(data.orderId, payload, calc);
           closePOSOrderView();
         });
@@ -3139,7 +3185,7 @@
           <div class="center" style="font-size:11px;">${billEsc(billCfg.s.address || 'Railway Road, Budhlada')}</div>
           ${billCfg.s.phone ? `<div class="center" style="font-size:11px;">Ph: ${billEsc(billCfg.s.phone)}</div>` : ''}
           ${billCfg.s.gstin ? `<div class="center" style="font-size:11px;">GSTIN: ${billEsc(billCfg.s.gstin)}</div>` : ''}
-          <div class="token">TOKEN #${orderId || '---'}</div>
+          <div class="token">TOKEN #${payload.token_no || orderId || '---'}</div>
           <div class="row"><span>Order: #${orderId}</span><span>(${payload.order_type.toUpperCase()})</span></div>
           ${payload.table_no ? `<div>Table: ${payload.table_no}</div>` : ''}
           ${payload.customer_name ? `<div>Guest: ${payload.customer_name}</div>` : ''}
@@ -3319,7 +3365,7 @@
         document.getElementById('posCustPhone').value = running.customer_phone || '';
         document.getElementById('posCustName').value = running.customer_name || '';
         posCart = (running.items || []).map(function(i) {
-          return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1 };
+          return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1, user_note: i.user_note || '', pack_flip: Number(i.pack_flip) ? 1 : 0 };
         });
 
         // Sirf actual received amount hi "Already Received" me dikhega; unpaid order par 0
@@ -3882,25 +3928,11 @@
       renderPOSItems();
     }
 
+    // Order Type & Customer and Order Summary are now both visible together; nothing to switch.
     function switchRightTab(tab) {
       closeVirtualKeyboards();
-      var btnCust = document.getElementById('tabBtnCustomer');
-      var btnSum = document.getElementById('tabBtnSummary');
-      var boxCust = document.getElementById('tabContentCustomer');
-      var boxSum = document.getElementById('tabContentSummary');
-
-      if (tab === 'CUSTOMER') {
-        btnCust.className = "py-1.5 rounded-lg transition bg-white text-orange-600 shadow-2xs font-black";
-        btnSum.className = "py-1.5 rounded-lg transition text-gray-500 hover:text-gray-900 flex items-center justify-center gap-1";
-        boxCust.classList.remove('hidden');
-        boxSum.classList.add('hidden');
-      } else {
-        btnCust.className = "py-1.5 rounded-lg transition text-gray-500 hover:text-gray-900 font-bold";
-        btnSum.className = "py-1.5 rounded-lg transition bg-white text-orange-600 shadow-2xs font-black flex items-center justify-center gap-1";
-        boxCust.classList.add('hidden');
-        boxSum.classList.remove('hidden');
-      }
     }
+
 
     function setPOSOrderType(type) {
       currentPOSOrderType = type;
@@ -3908,13 +3940,14 @@
         var btn = document.getElementById('posBtn' + t);
         if (btn) {
           if (type.replace('-', '') === t.replace('-', '')) {
-            btn.className = "border-2 border-orange-500 bg-orange-50/50 rounded-xl py-3 flex flex-col items-center justify-center text-orange-700 shadow-2xs font-black";
+            btn.className = "border-2 border-orange-500 bg-orange-50/50 rounded-lg py-1.5 flex flex-col items-center justify-center text-orange-700 shadow-2xs font-black";
           } else {
-            btn.className = "border border-gray-200 hover:bg-gray-50 rounded-xl py-3 flex flex-col items-center justify-center text-gray-600 font-bold";
+            btn.className = "border border-gray-200 hover:bg-gray-50 rounded-lg py-1.5 flex flex-col items-center justify-center text-gray-600 font-bold";
           }
         }
       });
       document.getElementById('posDisplayTable').innerText = (selectedPOSTableId ? selectedPOSTableId + ' • ' : '') + currentPOSOrderType;
+      if (typeof renderPOSCart === 'function') renderPOSCart();
     }
 
     function changeGuestCount(delta) {

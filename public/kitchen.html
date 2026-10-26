@@ -229,6 +229,21 @@
       }
     }
 
+    // Per-item Pack / Dine-In override: Dine-In order me flip = PACK, Takeaway order me flip = DINE-IN
+    function itemPackLabel(order, item) {
+      if (!Number(item.pack_flip)) return '';
+      var t = String(order.order_type || '').toLowerCase();
+      if (t.indexOf('takeaway') !== -1) return 'DINE-IN';
+      if (t.indexOf('dine') !== -1) return 'PACK';
+      return '';
+    }
+    function itemPackBadge(order, item) {
+      var l = itemPackLabel(order, item);
+      if (!l) return '';
+      var cls = l === 'PACK' ? 'bg-emerald-600 border-emerald-400' : 'bg-blue-600 border-blue-400';
+      return '<span class="kot-badge ' + cls + ' text-white font-black px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 border">' + (l === 'PACK' ? '🛍 ' : '🍽 ') + l + '</span>';
+    }
+
     function printItemReadyToken(order, item) {
       var printerCfg = getKdsPrinterConfig();
       if (!printerCfg.enabled || !printerCfg.ip) return;
@@ -831,7 +846,7 @@
             <div class="p-3.5 border-b border-slate-100 ${theme.headerBg} flex justify-between items-center">
               <div>
                 <div class="flex items-center gap-2">
-                  <h3 class="font-black text-slate-900">#${order.id}</h3>
+                  <h3 class="font-black text-slate-900">#${order.token_no || order.id}</h3>
                   <span class="kot-badge font-black px-2 py-0.5 rounded-md border ${theme.badgeBg} flex items-center gap-1 shadow-2xs">
                     <span>${theme.emoji}</span>
                     <span>${displayLabel}</span>
@@ -889,12 +904,16 @@
                         ${cleanBaseName}
                       </span>
 
+                      ${itemPackBadge(order, item)}
+
                       ${badgeTag ? `
                         <span class="badge-alert kot-badge bg-rose-600 text-white font-black px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 shadow-2xs border border-rose-400">
                           ${badgeTag}
                         </span>
                       ` : ''}
                     </div>
+
+                    ${item.user_note ? `<div class="mt-1.5 ml-8 text-xs font-bold text-amber-800 bg-amber-50 border border-amber-300 rounded px-2 py-1 break-words">📝 ${String(item.user_note).replace(/[&<>]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]; })}</div>` : ''}
 
                     <!-- INDIVIDUAL ADD-ONS TICK BOXES (No Duplicate Text Below) -->
                     ${addonsList.length > 0 ? `

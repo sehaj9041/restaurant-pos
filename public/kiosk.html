@@ -893,7 +893,7 @@
       })
       .then(res => res.json())
       .then(data => {
-        $('kioskTokenDisplay').innerText = '#' + data.orderId;
+        $('kioskTokenDisplay').innerText = '#' + (data.token_no || data.orderId);
         $('kioskModeNote').innerText = kioskOrderType + ' • Pending Approval';
         $('tokenSuccessModal').classList.remove('hidden');
         setTimeout(resetKioskSession, 5000);

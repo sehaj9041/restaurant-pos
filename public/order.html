@@ -998,7 +998,7 @@
         rememberOrderId(d.orderId);
         lastPlaced = { id: d.orderId, phone };
         refreshProfileUI();
-        showSuccess(d.orderId, `${itemCount} ${itemCount === 1 ? 'item' : 'items'} • ₹${total} • ${mode}`);
+        showSuccess(d.token_no || d.orderId, `${itemCount} ${itemCount === 1 ? 'item' : 'items'} • ₹${total} • ${mode}`);
       })
       .catch(err => {
         placing = false;
