@@ -1180,7 +1180,28 @@
         const kk = cv.width / cssW;
         ctx.drawImage(logoImg, Math.round((cssW - lw) / 2 * kk), 0, Math.round(lw * kk), Math.round(lh * kk));
       }
-      return canvasToEscPos(cv);                            // throws if the canvas got tainted
+      return canvasToEscPos(trimBottom(cv));                // throws if the canvas got tainted
+    }
+
+    // Drops the empty white rows at the bottom of the bill image (keeps a few so the last line is not clipped)
+    function trimBottom(cv) {
+      const w = cv.width, h = cv.height;
+      const px = cv.getContext('2d').getImageData(0, 0, w, h).data;
+      let last = -1;
+      for (let y = h - 1; y >= 0 && last < 0; y--) {
+        for (let x = 0; x < w; x++) {
+          const i = (y * w + x) * 4;
+          if (0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2] < 160) { last = y; break; }
+        }
+      }
+      const nh = Math.min(h, last + 1 + 6);
+      if (last < 0 || nh >= h) return cv;
+      const out = document.createElement('canvas');
+      out.width = w; out.height = nh;
+      const ctx = out.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, nh);
+      ctx.drawImage(cv, 0, 0);
+      return out;
     }
 
     // Logo-only fallback (used when the whole-bill image could not be drawn)
