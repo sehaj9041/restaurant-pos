@@ -1034,19 +1034,34 @@
       <div class="flex justify-between items-center border-b pb-2">
         <div>
           <h3 id="posAddonModalItemName" class="font-black text-gray-900 text-sm">Select Add-ons</h3>
-          <p class="text-[10px] text-gray-500">Apni pasand ke add-ons select karein</p>
+          <p id="posAddonStep" class="text-[10px] text-gray-500">Apni pasand ke add-ons select karein</p>
         </div>
         <button onclick="closePOSAddonModal()" class="text-gray-400 hover:text-black font-bold">✕</button>
       </div>
 
       <div id="posAddonModalContent" class="space-y-4 overflow-y-auto flex-1 pr-1 text-xs"></div>
 
-      <div class="pt-3 border-t flex justify-between items-center shrink-0">
+      <div class="pt-3 border-t shrink-0 space-y-2">
         <div class="text-xs font-bold text-gray-700">Total Item Price: <span id="posAddonModalTotalPrice" class="text-sm font-black text-orange-600">₹0</span></div>
-        <button onclick="confirmPOSAddonSelection()" class="bg-orange-500 hover:bg-orange-600 text-white font-black px-5 py-2 rounded-xl text-xs shadow-sm">
-          Add to Cart ✓
-        </button>
+        <div class="flex gap-2">
+          <button id="posAddonBack" onclick="wizBack()" class="flex-1 border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold py-2 rounded-xl text-xs">Cancel</button>
+          <button id="posAddonNext" onclick="wizNext()" class="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-black py-2 rounded-xl text-xs shadow-sm">Next</button>
+        </div>
       </div>
+    </div>
+  </div>
+
+  <!-- ================= POS SINGLE OR MEAL MODAL ================= -->
+  <div id="posMealModal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-5 max-w-md w-full shadow-2xl space-y-3 max-h-[85vh] flex flex-col">
+      <div class="flex justify-between items-center border-b pb-2 shrink-0">
+        <div>
+          <h3 id="posMealTitle" class="font-black text-gray-900 text-sm"></h3>
+          <p class="text-[10px] text-gray-500">Single lena hai ya meal?</p>
+        </div>
+        <button onclick="closePOSMealChoice()" class="text-gray-400 hover:text-black font-bold">✕</button>
+      </div>
+      <div id="posMealContent" class="grid grid-cols-2 gap-2 overflow-y-auto flex-1 pr-1"></div>
     </div>
   </div>
 
@@ -3340,8 +3355,12 @@
       }).join('');
     }
 
-    async function addOrIncrementItem(name, price) {
+    async function addOrIncrementItem(name, price, skipMeal) {
       var itemObj = allMenuItems.find(function(i) { return i.name === name; });
+      if (!skipMeal && itemObj && posUpsellOn()) {
+        var meals = posMealOptions(itemObj);
+        if (meals.length) { showPOSMealChoice(itemObj, meals); return; }
+      }
       
       let variations = [];
       if (itemObj && itemObj.variations) {
@@ -3422,7 +3441,7 @@
           const res = await fetch('/api/addon-groups');
           const allGroups = await res.json();
           const assignedIds = assignedGroups.map(Number);
-          const itemGroups = allGroups.filter(g => assignedIds.includes(Number(g.id)));
+          const itemGroups = assignedIds.map(id => allGroups.find(g => Number(g.id) === id)).filter(g => g && wizOptions(g).length);
           
           if (itemGroups.length > 0) {
             openPOSAddonSelectionModal({ ...itemObj, name: displayName, price: displayPrice }, itemGroups);
@@ -3451,76 +3470,129 @@
       afterPOSAdd(itemObj, addedLine);
     }
 
+    // ---------- Step-by-step add-on selection (one group per step, then an editable review) ----------
+    var addonWiz = null;
+    function wizEsc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+    function wizImg(im) { return im ? (/^(https?:)?\//.test(im) ? im : '/uploads/' + im) : ''; }
+    function wizOptions(g) {
+      var items = [];
+      try { items = JSON.parse(g.items || '[]'); } catch (e) {}
+      return items.map(function(addon, aIdx) { return { addon: addon, aIdx: aIdx }; }).filter(function(o) { return o.addon.available !== false; });
+    }
+    function wizGroupItems(g) { var items = []; try { items = JSON.parse(g.items || '[]'); } catch (e) {} return items; }
+    function wizMin(g) { return Math.max(Number(g.min_selection) || 0, g.is_mandatory ? 1 : 0); }
+    function wizTotal() {
+      var t = Number(currentModalSelectedItem.price) || 0;
+      Object.keys(addonWiz.sel).forEach(function(k) { addonWiz.sel[k].forEach(function(a) { t += Number(a.price) || 0; }); });
+      return t;
+    }
+
     function openPOSAddonSelectionModal(item, groups) {
       currentModalSelectedItem = item;
       currentModalItemGroups = groups;
-      document.getElementById('posAddonModalItemName').innerText = item.name + ` (₹${item.price})`;
-      
-      let html = '';
-      groups.forEach((g, gIdx) => {
-        let groupItems = [];
-        try { groupItems = JSON.parse(g.items || '[]'); } catch(e) {}
-        
-        let minSel = Math.max(Number(g.min_selection) || 0, g.is_mandatory ? 1 : 0);
-        let maxSel = Number(g.max_selection) || groupItems.length;
-        let inputType = 'checkbox';
-
-        html += `
-          <div class="border rounded-xl p-3 bg-gray-50 space-y-2">
-            <div class="flex justify-between items-center">
-              <span class="font-black text-gray-800">${g.name}</span>
-              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${g.is_mandatory ? 'bg-rose-100 text-rose-700' : 'bg-gray-200 text-gray-600'}">${g.is_mandatory ? 'Required' : 'Optional'} · ${maxSel === 1 ? 'Choose 1' : 'Max ' + maxSel}</span>
-            </div>
-            <div class="space-y-1">
-        `;
-        
-        groupItems.forEach((ai) => {
-          html += `
-            <label class="flex items-center justify-between p-2 rounded-lg bg-white border cursor-pointer hover:bg-orange-50/50">
-              <div class="flex items-center gap-2">
-                <input type="${inputType}" name="addon_group_${gIdx}" value="${ai.name}" data-price="${ai.price}" onchange="onPOSAddonChange(this, ${gIdx})" class="posAddonInput grp-${gIdx} text-orange-600 rounded">
-                <span class="font-bold text-gray-700">${ai.name}</span>
-              </div>
-              <span class="font-black text-gray-900">+₹${ai.price}</span>
-            </label>
-          `;
-        });
-        html += `</div></div>`;
-      });
-
-      document.getElementById('posAddonModalContent').innerHTML = html;
+      addonWiz = { step: 0, sel: {}, editing: false };
+      groups.forEach(function(g, i) { addonWiz.sel[i] = []; });
+      renderAddonWiz();
       document.getElementById('posAddonModal').classList.remove('hidden');
-      updateAddonModalTotalPrice();
     }
 
-    function onPOSAddonChange(input, gIdx) {
-      var g = currentModalItemGroups[gIdx];
-      var max = Number(g && g.max_selection) || 99;
-      var checked = document.querySelectorAll('.posAddonInput.grp-' + gIdx + ':checked');
-      if (input.checked && checked.length > max) {
-        if (max === 1) {
-          checked.forEach(function(c) { if (c !== input) c.checked = false; });
-        } else {
-          input.checked = false;
-          alert('"' + g.name + '" me maximum ' + max + ' options hi select ho sakte hain');
-        }
+    function renderAddonWiz() {
+      var groups = currentModalItemGroups, w = addonWiz;
+      var review = w.step >= groups.length;
+      var body = '';
+      if (!review) {
+        var g = groups[w.step], chosen = w.sel[w.step];
+        var max = Number(g.max_selection) || 99;
+        body = '<div><div class="flex justify-between items-center mb-2"><span class="font-black text-gray-800 text-sm">' + wizEsc(g.name) + '</span>' +
+          '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded ' + (g.is_mandatory ? 'bg-rose-100 text-rose-700' : 'bg-gray-200 text-gray-600') + '">' +
+          (g.is_mandatory ? 'Required' : 'Optional') + ' · ' + (max === 1 ? 'Choose 1' : 'Max ' + max) + '</span></div><div class="space-y-1.5">' +
+          wizOptions(g).map(function(o) {
+            var on = chosen.some(function(a) { return a.name === o.addon.name; });
+            var src = wizImg(o.addon.image);
+            return '<label class="flex items-center justify-between p-2 rounded-lg border cursor-pointer ' + (on ? 'bg-orange-50 border-orange-400' : 'bg-white') + '">' +
+              '<div class="flex items-center gap-2"><input type="' + (max === 1 ? 'radio' : 'checkbox') + '" ' + (on ? 'checked' : '') + ' onchange="wizToggle(' + w.step + ',' + o.aIdx + ',this)" class="rounded">' +
+              (src ? '<img src="' + wizEsc(src) + '" class="w-10 h-10 rounded-lg object-cover">' : '') +
+              '<span class="font-bold text-gray-700">' + wizEsc(o.addon.name) + '</span></div>' +
+              '<span class="font-black text-gray-900">' + (Number(o.addon.price) ? '+₹' + o.addon.price : 'Free') + '</span></label>';
+          }).join('') + '</div></div>';
+      } else {
+        var base = function(it) { return allMenuItems.find(function(i) { return i.id === it.id; }); }(currentModalSelectedItem);
+        var hasVars = false;
+        try { hasVars = !!(base && JSON.parse(base.variations || '[]').length); } catch (e) {}
+        body = '<p class="font-black text-gray-800 text-sm mb-2">Your selection</p><div class="space-y-2">' +
+          '<div class="flex items-center justify-between gap-2 p-2.5 rounded-xl border bg-gray-50"><div class="min-w-0"><div class="text-[10px] font-bold uppercase text-gray-500">Item</div>' +
+          '<div class="font-bold text-gray-800">' + wizEsc(currentModalSelectedItem.name) + ' · ₹' + currentModalSelectedItem.price + '</div></div>' +
+          (hasVars ? '<button onclick="wizChangeSize()" class="shrink-0 border px-3 py-1 rounded-lg font-bold text-[11px] hover:bg-white">Change size</button>' : '') + '</div>' +
+          groups.map(function(g, i) {
+            var chosen = w.sel[i];
+            var imgs = chosen.filter(function(a) { return a.image; }).slice(0, 3).map(function(a) { return '<img src="' + wizEsc(wizImg(a.image)) + '" class="w-10 h-10 rounded-lg object-cover border-2 border-white">'; }).join('');
+            return '<div class="flex items-center justify-between gap-2 p-2.5 rounded-xl border bg-gray-50">' +
+              (imgs ? '<span class="flex -space-x-2 shrink-0">' + imgs + '</span>' : '') +
+              '<div class="min-w-0 flex-1"><div class="text-[10px] font-bold uppercase text-gray-500">' + wizEsc(g.name) + '</div>' +
+              '<div class="font-bold text-gray-800">' + (chosen.length ? chosen.map(function(a) { return wizEsc(a.name) + (Number(a.price) ? ' (+₹' + a.price + ')' : ''); }).join(', ') : 'None') + '</div></div>' +
+              '<button onclick="wizEdit(' + i + ')" class="shrink-0 border px-3 py-1 rounded-lg font-bold text-[11px] hover:bg-white">Edit</button></div>';
+          }).join('') + '</div>';
       }
-      updateAddonModalTotalPrice();
+      document.getElementById('posAddonModalItemName').innerText = currentModalSelectedItem.name;
+      document.getElementById('posAddonStep').innerText = review ? 'Review your selection' : 'Step ' + (w.step + 1) + ' of ' + groups.length;
+      document.getElementById('posAddonModalContent').innerHTML = body;
+      document.getElementById('posAddonModalTotalPrice').innerText = '₹' + wizTotal();
+      document.getElementById('posAddonNext').innerText = review ? 'Add to Cart ✓' : (w.editing ? 'Done' : 'Next');
+      document.getElementById('posAddonBack').innerText = (w.step === 0 && !w.editing) ? 'Cancel' : 'Back';
+      document.getElementById('posAddonModalContent').scrollTop = 0;
     }
 
-    function updateAddonModalTotalPrice() {
-      if (!currentModalSelectedItem) return;
-      let basePrice = Number(currentModalSelectedItem.price) || 0;
-      let extraPrice = 0;
+    function wizToggle(gIdx, aIdx, input) {
+      var g = currentModalItemGroups[gIdx], w = addonWiz;
+      var raw = wizGroupItems(g)[aIdx];
+      var max = Number(g.max_selection) || 99;
+      var sel = w.sel[gIdx];
+      var opt = { name: raw.name, price: Number(raw.price) || 0, image: raw.image || '' };
+      if (input.checked) {
+        if (max === 1) { sel.length = 0; }
+        else if (sel.length >= max) { input.checked = false; return alert('"' + g.name + '" me maximum ' + max + ' options hi select ho sakte hain'); }
+        sel.push(opt);
+      } else {
+        w.sel[gIdx] = sel.filter(function(a) { return a.name !== opt.name; });
+      }
+      renderAddonWizKeepScroll();
+      // a compulsory single choice moves on by itself
+      if (input.checked && g.is_mandatory && max === 1) {
+        var at = w.step;
+        setTimeout(function() { if (addonWiz === w && w.step === at) wizAdvance(); }, 250);
+      }
+    }
+    function renderAddonWizKeepScroll() {
+      var c = document.getElementById('posAddonModalContent'), top = c.scrollTop;
+      renderAddonWiz();
+      c.scrollTop = top;
+    }
 
-      currentModalItemGroups.forEach((g, gIdx) => {
-        const checkedInputs = document.querySelectorAll(`.posAddonInput.grp-${gIdx}:checked`);
-        checkedInputs.forEach(input => {
-          extraPrice += Number(input.getAttribute('data-price')) || 0;
-        });
-      });
-
-      document.getElementById('posAddonModalTotalPrice').innerText = '₹' + (basePrice + extraPrice);
+    function wizAdvance() {
+      addonWiz.step = addonWiz.editing ? currentModalItemGroups.length : addonWiz.step + 1;
+      addonWiz.editing = false;
+      renderAddonWiz();
+    }
+    function wizEdit(i) { addonWiz.editing = true; addonWiz.step = i; renderAddonWiz(); }
+    function wizBack() {
+      var w = addonWiz;
+      if (w.editing) { w.editing = false; w.step = currentModalItemGroups.length; return renderAddonWiz(); }
+      if (w.step === 0) return closePOSAddonModal();
+      w.step--;
+      renderAddonWiz();
+    }
+    function wizNext() {
+      var w = addonWiz;
+      if (w.step >= currentModalItemGroups.length) return confirmPOSAddonSelection();
+      var g = currentModalItemGroups[w.step];
+      if (w.sel[w.step].length < wizMin(g)) return alert('"' + g.name + '" group mein kam se kam ' + wizMin(g) + ' option select karna anivarya hai!');
+      wizAdvance();
+    }
+    function wizChangeSize() {
+      var base = function(it) { return allMenuItems.find(function(i) { return i.id === it.id; }); }(currentModalSelectedItem), vars = [];
+      try { vars = JSON.parse(base.variations || '[]'); } catch (e) {}
+      closePOSAddonModal();
+      if (base && vars.length) openPOSVariationModal(base, vars);
     }
 
     function closePOSAddonModal() {
@@ -3535,24 +3607,14 @@
       let selectedAddons = [];
       let extraPrice = 0;
 
-      try {
-        currentModalItemGroups.forEach((g, gIdx) => {
-          const checkedInputs = document.querySelectorAll(`.posAddonInput.grp-${gIdx}:checked`);
-          var minNeeded = Math.max(Number(g.min_selection) || 0, g.is_mandatory ? 1 : 0);
-          if (checkedInputs.length < minNeeded) {
-            alert(`"${g.name}" group mein kam se kam ${minNeeded} option select karna anivarya hai!`);
-            throw new Error('Mandatory group missing');
-          }
-
-          checkedInputs.forEach(input => {
-            const aName = input.value;
-            const aPrice = Number(input.getAttribute('data-price')) || 0;
-            selectedAddons.push({ name: aName, price: aPrice });
-            extraPrice += aPrice;
-          });
-        });
-      } catch (e) {
-        return;
+      for (let gIdx = 0; gIdx < currentModalItemGroups.length; gIdx++) {
+        const g = currentModalItemGroups[gIdx];
+        const chosen = addonWiz.sel[gIdx] || [];
+        if (chosen.length < wizMin(g)) {
+          addonWiz.editing = false; addonWiz.step = gIdx; renderAddonWiz();
+          return alert(`"${g.name}" group mein kam se kam ${wizMin(g)} option select karna anivarya hai!`);
+        }
+        chosen.forEach(a => { selectedAddons.push({ name: a.name, price: a.price }); extraPrice += a.price; });
       }
 
       const finalPrice = Number(currentModalSelectedItem.price) + extraPrice;
@@ -3598,6 +3660,41 @@
       updateUpsellToggleBtn();
     }
 
+    // "Single or Meal?" - asked right after a burger/wrap that has a meal upgrade is tapped.
+    function posMealOptions(item) {
+      return posUpsells.filter(function(u) { return u.upsell_type === 'upgrade' && u.item_name === item.name && u.suggested_item; })
+        .sort(function(a, b) { return (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0) || Number(a.id) - Number(b.id); })
+        .map(function(u) { return { u: u, t: allMenuItems.find(function(i) { return i.name === u.suggested_item; }) }; })
+        .filter(function(o) { return o.t && Number(o.t.stock) > 0; });
+    }
+
+    function showPOSMealChoice(item, meals) {
+      var esc = function(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+      var tile = function(t, badge) {
+        var vars = [];
+        try { vars = JSON.parse(t.variations || '[]'); } catch (e) {}
+        var price = vars.length ? 'From ₹' + vars[0].price : '₹' + t.price;
+        var im = t.image || t.image_url || t.img || '';
+        var src = im ? (/^(https?:)?\//.test(im) ? im : '/uploads/' + im) : '';
+        return '<button onclick="pickPOSMealChoice(' + t.id + ')" class="text-left p-3 rounded-xl border border-gray-200 hover:border-orange-500 hover:bg-orange-50/50">' +
+          '<div class="text-[10px] font-black uppercase text-orange-600">' + esc(badge) + '</div>' +
+          '<div class="h-24 flex items-center justify-center my-1">' + (src ? '<img src="' + esc(src) + '" class="max-h-full max-w-full object-contain rounded-lg" onerror="this.style.display=\'none\'">' : '<span class="text-4xl">🍽️</span>') + '</div>' +
+          '<div class="font-bold text-gray-800 text-xs leading-tight mt-0.5">' + esc(t.name) + '</div>' +
+          '<div class="font-black text-emerald-600 text-xs mt-1">' + price + '</div></button>';
+      };
+      document.getElementById('posMealTitle').innerText = item.name;
+      document.getElementById('posMealContent').innerHTML = tile(item, 'Single') + meals.map(function(o) { return tile(o.t, o.u.label || 'Meal'); }).join('');
+      document.getElementById('posMealModal').classList.remove('hidden');
+    }
+
+    function closePOSMealChoice() { document.getElementById('posMealModal').classList.add('hidden'); }
+
+    function pickPOSMealChoice(itemId) {
+      var t = allMenuItems.find(function(i) { return i.id === itemId; });
+      closePOSMealChoice();
+      if (t) addOrIncrementItem(t.name, t.price, true);
+    }
+
     // Runs after every real add-to-cart: finishes a pending "meal upgrade", then offers suggestions.
     function afterPOSAdd(item, line) {
       var base = item && allMenuItems.find(function(i) { return i.id === item.id; });
@@ -3617,7 +3714,7 @@
 
     function showPOSUpsells(base, line) {
       posPendingUpgrade = null;
-      var mine = posUpsells.filter(function(u) { return u.item_name === base.name; })
+      var mine = posUpsells.filter(function(u) { return u.item_name === base.name && u.upsell_type !== 'upgrade'; })
         .sort(function(a, b) { return (a.upsell_type === 'upgrade' ? 0 : 1) - (b.upsell_type === 'upgrade' ? 0 : 1); });
       var seen = {};
       seen[base.id] = true;

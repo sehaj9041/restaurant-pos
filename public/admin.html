@@ -1127,7 +1127,7 @@
               </div>
             </div>
             <div class="flex flex-wrap gap-1.5 mt-3">
-              ${items.map(i => `<span class="bg-gray-50 border border-gray-200 px-2 py-1 rounded text-[11px] text-gray-700">${esc(i.name)} (+₹${esc(i.price)})</span>`).join('')}
+              ${items.map(i => `<span class="inline-flex items-center gap-1.5 bg-gray-50 border border-gray-200 px-2 py-1 rounded text-[11px] text-gray-700">${i.image ? `<img src="${esc(resolveImgPath(i.image))}" class="w-6 h-6 rounded object-cover">` : ''}${esc(i.name)} (+₹${esc(i.price)})</span>`).join('')}
             </div>
           </div>
         `;
@@ -1399,7 +1399,6 @@
       if (key === 'price') v.price = Number(val) || 0;
       else if (key === 'name') v.name = val;
       else if (key === 'active') v.active = !!val;
-      else if (key === 'is_default') currentEditVariations.forEach((x, i) => { x.is_default = i === idx ? !!val : false; });
       renderEditVariations();
     }
 
@@ -1423,7 +1422,6 @@
             </div>
             <input type="text" value="${esc(v.name)}" onchange="currentEditVariations[${idx}].name = this.value" class="flex-1 border p-2 rounded-lg outline-none">
             <input type="number" min="0" step="any" value="${esc(v.price)}" onchange="currentEditVariations[${idx}].price = Number(this.value) || 0" class="w-24 border p-2 rounded-lg font-bold outline-none">
-            <label class="flex items-center gap-1 text-[10px] text-gray-600"><input type="checkbox" ${v.is_default ? 'checked' : ''} onchange="setVariationField(${idx}, 'is_default', this.checked)"> Default</label>
             <label class="flex items-center gap-1 text-[10px] text-gray-600"><input type="checkbox" ${v.active !== false ? 'checked' : ''} onchange="setVariationField(${idx}, 'active', this.checked)"> On</label>
             <button type="button" onclick="openSubModal(${idx})" class="text-[10px] font-bold px-2 py-1 rounded-lg border ${count > 0 ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'bg-gray-50 border-gray-200 text-gray-600'}">🧩 ${count > 0 ? count : '+'}</button>
             <button type="button" onclick="currentEditVariations.splice(${idx}, 1); renderEditVariations();" class="border border-red-200 text-red-500 rounded-lg w-8 h-8 font-bold">✕</button>
@@ -1494,6 +1492,7 @@
                     <button type="button" onclick="moveGroupOption(${gid}, ${oi}, -1)">▲</button>
                     <button type="button" onclick="moveGroupOption(${gid}, ${oi}, 1)">▼</button>
                   </div>
+                  ${o.image ? `<img src="${esc(resolveImgPath(o.image))}" class="w-8 h-8 rounded object-cover">` : ''}
                   <span class="flex-1 text-gray-800">${esc(o.name)}</span>
                   <span class="text-gray-500">${Number(o.price) ? '+₹' + esc(o.price) : 'Free'}</span>
                   <label class="flex items-center gap-1 text-[10px] ${o.available === false ? 'text-red-500' : 'text-emerald-700'}">
@@ -1610,7 +1609,7 @@
           name, category, price, stock,
           image: currentEditImage,
           description: document.getElementById('edit_description').value.trim(),
-          variations: currentEditVariations,
+          variations: currentEditVariations.map(v => { const c = Object.assign({}, v); delete c.is_default; return c; }),
           assigned_addon_groups: currentEditGroupIds,
           is_exempt: document.getElementById('edit_is_exempt').checked ? 1 : 0,
           is_visible: document.getElementById('edit_is_visible').checked ? 1 : 0,

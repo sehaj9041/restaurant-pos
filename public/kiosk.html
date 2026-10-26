@@ -146,6 +146,7 @@
           <div id="modalVarGrid" class="grid grid-cols-2 gap-3"></div>
         </div>
         <div id="modalAddonGroups" class="space-y-5"></div>
+        <div id="modalReview" class="hidden"></div>
       </div>
 
       <div class="shrink-0 px-6 pb-4 pt-3 bg-white border-t border-[var(--line)]">
@@ -189,6 +190,18 @@
         <button onclick="submitKioskOrder('UPI_QR')" class="tile w-full py-5 text-xl flex items-center justify-center gap-3"><span class="text-3xl">📱</span> UPI</button>
         <button onclick="submitKioskOrder('PAY_COUNTER')" class="tile w-full py-5 text-xl flex items-center justify-center gap-3"><span class="text-3xl">💵</span> Pay at Counter</button>
         <button onclick="closePaymentModal()" class="btn-outline w-full py-3 text-base">Back</button>
+      </div>
+    </div>
+
+    <!-- ============ SINGLE OR MEAL ============ -->
+    <div id="mealChoiceModal" class="hidden screen z-[45] kiosk-bg flex flex-col">
+      <div class="shrink-0 px-6 pt-8 pb-4 text-center">
+        <h3 id="mealChoiceTitle" class="text-3xl font-black leading-tight"></h3>
+        <p class="text-sm text-neutral-600 mt-1">Single lena hai ya meal?</p>
+      </div>
+      <div id="mealChoiceList" class="flex-1 overflow-y-auto px-6 pb-4 grid grid-cols-2 gap-3 content-start min-h-0"></div>
+      <div class="shrink-0 px-6 pb-6 pt-2">
+        <button onclick="cancelMealChoice()" class="btn-outline w-full py-4 text-lg">Cancel</button>
       </div>
     </div>
 
@@ -334,7 +347,7 @@
         const img = itemImgOf(item);
 
         return `
-          <button onclick="openCustomizer(${item.id})" class="tile p-2.5 flex flex-col text-left">
+          <button onclick="startKioskItem(${item.id})" class="tile p-2.5 flex flex-col text-left">
             <div class="h-28 flex items-center justify-center">
               ${img ? `<img src="${esc(img)}" class="max-h-full max-w-full object-contain" onerror="this.onerror=null; this.replaceWith(Object.assign(document.createElement('span'),{className:'text-6xl',textContent:'🍔'}));">` : '<span class="text-6xl">🍔</span>'}
             </div>
@@ -342,6 +355,49 @@
             <span class="font-bold text-[12px] mt-1">${priceTag}</span>
           </button>`;
       }).join('') || '<p class="col-span-2 text-neutral-500 text-sm">No items in this category.</p>';
+    }
+
+    // ---------- "Single or Meal?" - asked right after an item is tapped ----------
+    const upsellRank = (a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0) || Number(a.id) - Number(b.id);
+    function mealOptionsFor(item) {
+      return upsells.filter(u => u.upsell_type === 'upgrade' && u.item_name === item.name && u.suggested_item)
+        .sort(upsellRank)
+        .map(u => ({ u, t: allKioskItems.find(i => i.name === u.suggested_item) }))
+        .filter(o => o.t && Number(o.t.stock) > 0);
+    }
+
+    function startKioskItem(itemId) {
+      const item = allKioskItems.find(i => i.id === itemId) || menuItems.find(i => i.id === itemId);
+      const opts = item ? mealOptionsFor(item) : [];
+      if (!opts.length) return openCustomizer(itemId);
+      const tile = (t, badge) => {
+        let vars = [];
+        try { vars = JSON.parse(t.variations || '[]'); } catch (e) {}
+        const price = vars.length ? `From ${money(vars[0].price)}` : money(t.price);
+        const img = itemImgOf(t);
+        return `
+          <button onclick="pickMealChoice(${t.id})" class="tile p-2.5 flex flex-col text-left">
+            <span class="text-[11px] font-black uppercase tracking-widest text-[var(--red)]">${badge}</span>
+            <div class="h-28 flex items-center justify-center">
+              ${img ? `<img src="${esc(img)}" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">` : '<span class="text-5xl">🍽️</span>'}
+            </div>
+            <h3 class="font-bold text-[13px] leading-tight mt-2 line-clamp-2 min-h-[2.1em]">${esc(t.name)}</h3>
+            <span class="font-bold text-[13px] mt-1">${price}</span>
+          </button>`;
+      };
+      $('mealChoiceTitle').innerText = item.name;
+      $('mealChoiceList').innerHTML = tile(item, 'Single') + opts.map(o => tile(o.t, o.u.label || 'Meal')).join('');
+      $('mealChoiceModal').classList.remove('hidden');
+    }
+
+    function pickMealChoice(itemId) {
+      $('mealChoiceModal').classList.add('hidden');
+      openCustomizer(itemId);
+    }
+
+    function cancelMealChoice() {
+      $('mealChoiceModal').classList.add('hidden');
+      if (upsellStack.length && !showNextUpsell()) showAddedConfirmation();
     }
 
     // ---------- Item customizer ----------
@@ -365,22 +421,20 @@
       const varSec = $('modalVarSection');
 
       custVariations = variations;
+      selectedVariation = null; // nothing is pre-selected - the customer picks the size
       if (variations.length > 0) {
-        const defIdx = Math.max(0, variations.findIndex(v => v.is_default));
-        selectedVariation = { ...variations[defIdx], price: Number(variations[defIdx].price) };
         $('modalVarGrid').innerHTML = variations.map((v, idx) => `
-          <label class="tile ${idx === defIdx ? 'selected' : ''} p-4 flex flex-col items-center text-center cursor-pointer" data-var-tile>
-            <input type="radio" name="kioskVarRadio" class="hidden" ${idx === defIdx ? 'checked' : ''} onchange="selectKioskVariation(${idx}, this)">
+          <label class="tile p-4 flex flex-col items-center text-center cursor-pointer" data-var-tile>
+            <input type="radio" name="kioskVarRadio" class="hidden" onchange="selectKioskVariation(${idx}, this)">
             ${v.image ? `<img src="${esc(resolveImgPath(v.image))}" class="w-20 h-20 rounded-lg object-cover mb-2">` : ''}
             <span class="font-bold text-base">${esc(v.name)}</span>
             <span class="text-sm text-neutral-600 mt-1">${money(v.price)}</span>
           </label>`).join('');
-      } else {
-        selectedVariation = null;
       }
 
       buildCustSteps();
       custStepIdx = 0;
+      custEditing = false;
       renderCustStep();
       updateCustomizerTotal();
       $('customizerModal').classList.remove('hidden');
@@ -394,8 +448,10 @@
       document.querySelectorAll('[data-var-tile]').forEach(t => t.classList.remove('selected'));
       input.closest('label').classList.add('selected');
       selectedGroupAddons = {};
+      custEditing = false; // a new size means the add-on groups are asked again
       buildCustSteps();
       updateCustomizerTotal();
+      advanceAfterPick();
     }
 
     function activeGroupIds() {
@@ -412,6 +468,8 @@
       return items.map((addon, aIdx) => ({ addon, aIdx })).filter(o => o.addon.available !== false);
     }
 
+    let custEditing = false; // true while a choice is being re-edited from the final review page
+
     function buildCustSteps() {
       const steps = [];
       if (custVariations.length) steps.push({ type: 'var' });
@@ -419,22 +477,76 @@
         const g = allMasterGroups.find(x => Number(x.id) === Number(gid));
         if (g && groupOptions(g).length) steps.push({ type: 'group', id: g.id });
       });
+      steps.push({ type: 'review' }); // last page: summary (editable) + quantity
       custSteps = steps;
     }
 
     function renderCustStep() {
       const step = custSteps[custStepIdx];
-      const last = custStepIdx >= custSteps.length - 1;
+      const review = !step || step.type === 'review';
       $('modalVarSection').classList.toggle('hidden', !(step && step.type === 'var'));
       if (step && step.type === 'group') renderKioskAddonGroup(step.id); else $('modalAddonGroups').innerHTML = '';
-      $('custStepInfo').innerText = custSteps.length > 1 ? `Step ${custStepIdx + 1} of ${custSteps.length}` : '';
-      $('addToTrayBtn').innerText = last ? 'Add To Order' : 'Next';
-      $('custBackBtn').innerText = custStepIdx === 0 ? 'Cancel Item' : 'Back';
-      $('custQtyRow').classList.toggle('hidden', !last);
+      $('modalReview').classList.toggle('hidden', !review);
+      if (review) renderCustReview();
+      $('custStepInfo').innerText = custSteps.length > 1 ? (review ? 'Review your order' : `Step ${custStepIdx + 1} of ${custSteps.length - 1}`) : '';
+      $('addToTrayBtn').innerText = review ? 'Add To Order' : (custEditing ? 'Done' : 'Next');
+      $('custBackBtn').innerText = custStepIdx === 0 || (review && custSteps.length === 1) ? 'Cancel Item' : 'Back';
+      $('custQtyRow').classList.toggle('hidden', !review);
       $('customizerModal').querySelector('.overflow-y-auto').scrollTop = 0;
     }
 
+    function renderCustReview() {
+      const rows = [];
+      custSteps.forEach((st, i) => {
+        if (st.type === 'var') {
+          rows.push({ i, label: 'Size', value: selectedVariation ? `${selectedVariation.name} · ${money(selectedVariation.price)}` : 'Not selected', images: selectedVariation && selectedVariation.image ? [selectedVariation.image] : [] });
+        } else if (st.type === 'group') {
+          const g = allMasterGroups.find(x => Number(x.id) === Number(st.id));
+          const chosen = selectedGroupAddons[st.id] || [];
+          rows.push({ i, label: g ? g.name : 'Add-ons', value: chosen.length ? chosen.map(a => `${a.name} (+${money(a.price)})`).join(', ') : 'None', images: chosen.filter(a => a.image).map(a => a.image) });
+        }
+      });
+      $('modalReview').innerHTML = rows.length ? `
+        <p class="text-xl font-black mb-3">Your selection</p>
+        <div class="space-y-2">
+          ${rows.map(r => `
+            <div class="tile p-3 flex items-center justify-between gap-3">
+              ${r.images.length ? `<span class="flex -space-x-2 shrink-0">${r.images.slice(0, 3).map(im => `<img src="${esc(resolveImgPath(im))}" class="w-14 h-14 rounded-lg object-cover border-2 border-white">`).join('')}</span>` : ''}
+              <span class="min-w-0 flex-1">
+                <span class="block text-[11px] font-bold uppercase tracking-widest text-neutral-500">${esc(r.label)}</span>
+                <span class="block text-[14px] font-bold leading-tight">${esc(r.value)}</span>
+              </span>
+              <button onclick="custEdit(${r.i})" class="btn-outline px-4 py-2 text-sm shrink-0">Edit</button>
+            </div>`).join('')}
+        </div>` : '';
+    }
+
+    function custEdit(stepIdx) {
+      custEditing = true;
+      custStepIdx = stepIdx;
+      renderCustStep();
+    }
+
+    // After finishing a step: back to the review page when editing, otherwise the next step.
+    function custGoNext() {
+      custStepIdx = custEditing ? custSteps.length - 1 : custStepIdx + 1;
+      custEditing = false;
+      renderCustStep();
+    }
+
+    // A compulsory single choice (size, or a required add-on group with max 1) moves on by itself.
+    function advanceAfterPick() {
+      const step = custSteps[custStepIdx];
+      if (!step || step.type === 'review') return;
+      const at = custStepIdx;
+      setTimeout(() => {
+        if (custStepIdx === at && !$('customizerModal').classList.contains('hidden')) custGoNext();
+      }, 250);
+    }
+
     function custBack() {
+      const step = custSteps[custStepIdx];
+      if (custEditing) { custEditing = false; custStepIdx = custSteps.length - 1; return renderCustStep(); }
       if (custStepIdx === 0) return cancelCustomizer();
       custStepIdx--;
       renderCustStep();
@@ -442,15 +554,15 @@
 
     function custNext() {
       const step = custSteps[custStepIdx];
+      if (step && step.type === 'var' && !selectedVariation) return alert('Pehle size select karein!');
       if (step && step.type === 'group') {
         const grp = allMasterGroups.find(g => Number(g.id) === Number(step.id));
         if (grp && grp.is_mandatory && (selectedGroupAddons[grp.id] || []).length < grp.min_selection) {
           return alert(`"${grp.name}" select karna zaroori hai!`);
         }
       }
-      if (custStepIdx >= custSteps.length - 1) return confirmKioskItemAdd();
-      custStepIdx++;
-      renderCustStep();
+      if (!step || step.type === 'review') return confirmKioskItemAdd();
+      custGoNext();
     }
 
     function cancelCustomizer() {
@@ -476,7 +588,8 @@
               const on = chosen.some(a => a.name === addon.name);
               return `
               <label class="tile ${on ? 'selected' : ''} p-3 flex items-center justify-between gap-2 cursor-pointer">
-                <span class="min-w-0">
+                ${addon.image ? `<img src="${esc(resolveImgPath(addon.image))}" class="w-14 h-14 rounded-lg object-cover shrink-0">` : ''}
+                <span class="min-w-0 flex-1">
                   <span class="block text-[13px] font-bold leading-tight">${esc(addon.name)}</span>
                   <span class="block text-[12px] text-neutral-600">+${money(addon.price)}</span>
                 </span>
@@ -498,12 +611,17 @@
       const list = selectedGroupAddons[groupId];
 
       if (cb.checked) {
-        if (list.length >= maxLimit) {
+        if (Number(maxLimit) === 1 && list.length >= 1) {
+          // single-choice group: the new pick replaces the old one
+          list.length = 0;
+          $('modalAddonGroups').querySelectorAll('label.selected').forEach(l => { l.classList.remove('selected'); const i = l.querySelector('input'); if (i && i !== cb) i.checked = false; });
+        } else if (list.length >= maxLimit) {
           cb.checked = false;
           return alert(`Max limit: ${maxLimit}`);
         }
         list.push(addon);
         cb.closest('label').classList.add('selected');
+        if (g.is_mandatory && Number(maxLimit) === 1) { updateCustomizerTotal(); return advanceAfterPick(); }
       } else {
         selectedGroupAddons[groupId] = list.filter(a => a.name !== addon.name);
         cb.closest('label').classList.remove('selected');
@@ -540,6 +658,7 @@
 
     function confirmKioskItemAdd() {
       if (!selectedMenuItem) return;
+      if (custVariations.length && !selectedVariation) { custEditing = false; custStepIdx = 0; renderCustStep(); return alert('Pehle size select karein!'); }
 
       for (const gid of activeGroupIds()) {
         const grp = allMasterGroups.find(g => g.id === gid);
@@ -547,7 +666,7 @@
           const chosenCount = (selectedGroupAddons[gid] || []).length;
           if (chosenCount < grp.min_selection) {
             const si = custSteps.findIndex(st => st.type === 'group' && Number(st.id) === Number(gid));
-            if (si >= 0) { custStepIdx = si; renderCustStep(); }
+            if (si >= 0) { custEditing = false; custStepIdx = si; renderCustStep(); }
             return alert(`"${grp.name}" select karna zaroori hai!`);
           }
         }
@@ -600,7 +719,8 @@
     let upsellFrame = null;
     let upsellStack = [];
     function showUpsells(item, cartId, qty) {
-      const mine = upsells.filter(u => u.item_name === item.name)
+      // "Make it a meal" upgrades are asked up-front (startKioskItem), so only cross-sells are left here.
+      const mine = upsells.filter(u => u.item_name === item.name && u.upsell_type !== 'upgrade')
         .sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0) || Number(a.id) - Number(b.id));
       const seen = new Set([item.id]);
       const sections = [];
@@ -660,7 +780,7 @@
       $('upsellModal').classList.add('hidden');
       if (upsellFrame) upsellStack.push(upsellFrame);
       upsellFrame = null;
-      openCustomizer(itemId);
+      startKioskItem(itemId);
       pendingUpgrade = upgrade ? { cartId, qty } : null;
     }
 
@@ -810,7 +930,7 @@
       upsellFrame = null;
       upsellStack = [];
       updateTrayUI();
-      ['tokenSuccessModal', 'trayReviewModal', 'paymentModal', 'customizerModal', 'modeSelectionScreen', 'addedModal', 'upsellModal', 'thinkingModal']
+      ['tokenSuccessModal', 'trayReviewModal', 'paymentModal', 'customizerModal', 'modeSelectionScreen', 'addedModal', 'upsellModal', 'mealChoiceModal', 'thinkingModal']
         .forEach(id => $(id).classList.add('hidden'));
       $('idleScreensaver').classList.remove('hidden');
       if (categories.length) { activeCategory = categories[0]; renderCategories(); }
