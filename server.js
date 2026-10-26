@@ -38,6 +38,14 @@ app.get('/pos', (req, res) => {
 
 // Static directories setup for public and uploads
 app.use(express.static(path.join(__dirname, 'public')));
+app.get('/uploads/:name', (req, res, next) => {
+  db.get("SELECT mime, data FROM uploaded_files WHERE name = ?", [req.params.name], (err, row) => {
+    if (err || !row) return next(); // DB mein nahi hai toh purani committed files static se serve hongi
+    res.setHeader('Content-Type', row.mime || 'application/octet-stream');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.send(row.data);
+  });
+});
 app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
 
 // Real-time Live Cart Storage for Customer Facing Display
@@ -51,24 +59,20 @@ let liveCustomerCart = {
   tableNo: ''
 };
 
-// Multer Storage Configuration
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadPath = path.join(__dirname, 'public/uploads');
-    if (!fs.existsSync(uploadPath)) fs.mkdirSync(uploadPath, { recursive: true });
-    cb(null, uploadPath);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
+// Images ko Postgres mein store karte hain (Render ka disk har deploy par wipe ho jata hai)
+db.run("CREATE TABLE IF NOT EXISTS uploaded_files (name TEXT PRIMARY KEY, mime TEXT, data BYTEA)", (err) => {
+  if (err) console.error('uploaded_files table error:', err.message);
 });
-const upload = multer({ storage: storage });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 const uploadExcel = multer({ dest: 'uploads/' });
 
 app.post('/api/upload', upload.single('image'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  res.json({ imageUrl: '/uploads/' + req.file.filename });
+  const name = Date.now() + '-' + Math.round(Math.random() * 1E9) + path.extname(req.file.originalname);
+  db.run("INSERT INTO uploaded_files (name, mime, data) VALUES (?, ?, ?) RETURNING name", [name, req.file.mimetype, req.file.buffer], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ imageUrl: '/uploads/' + name });
+  });
 });
 
 // ================= EXCEL MENU IMPORT API =================
