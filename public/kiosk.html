@@ -1030,26 +1030,36 @@
       return out.join('\n') + '\n\n\n\n';
     }
 
-    function kioskBillHtml(data, o) {
+    // Same layout as the index.html bill. Returns { css, body } so it can be printed through the browser
+    // or drawn to an image (for the USB printer) without any layout difference.
+    function kioskBillParts(data, o, logoSrc) {
       const s = kioskStoreCfg, c = kioskReceiptCfg;
-      const rows = o.items.map(i => `<tr><td>${esc(i.name)}${i.notes ? `<div style="font-size:10px;font-weight:400">${esc(i.notes)}</div>` : ''}</td><td style="text-align:center">${i.qty}</td><td style="text-align:right">${(i.price * i.qty).toFixed(2)}</td></tr>`).join('');
-      return `<html><head><style>
-        @page { margin: 0; size: 80mm auto; }
-        body { font-family: Arial, sans-serif; font-size: 13px; font-weight: 700; color: #000; padding: 0 6px 4px; width: 68mm; }
-        .center { text-align: center; } .divider { border-top: 1.5px dashed #000; margin: 6px 0; }
-        .row { display: flex; justify-content: space-between; }
-        .token { border: 2.5px solid #000; font-size: 26px; font-weight: 900; text-align: center; padding: 4px 0; margin: 6px 0; }
-        table { width: 100%; border-collapse: collapse; } td { padding: 3px 0; vertical-align: top; }
-      </style></head><body>
-        ${o.logo && c.logo ? `<div class="center"><img src="${esc(c.logo)}" style="max-width:45mm;max-height:22mm;object-fit:contain;filter:grayscale(1) contrast(1.4);"></div>` : ''}
+      const rows = o.items.map(i => `<tr><td class="nm">${esc(i.name)}${i.notes ? `<div style="font-size:10px;font-weight:400">${esc(i.notes)}</div>` : ''}</td><td class="q">${i.qty}</td><td class="r">${Number(i.price).toFixed(2)}</td><td class="a">${(i.price * i.qty).toFixed(2)}</td></tr>`).join('');
+      const css = `
+        .bill { font-family: Arial, Helvetica, sans-serif; font-size: 13px; font-weight: 700; color: #000; background: #fff; padding: 0 6px 4px; }
+        .bill .center { text-align: center; }
+        .bill .token { border: 2.5px solid #000; font-size: 26px; font-weight: 900; text-align: center; padding: 4px 0; margin: 6px 0; }
+        .bill .divider { border-top: 1.5px dashed #000; margin: 6px 0; }
+        .bill .row { display: flex; justify-content: space-between; }
+        .bill table.items { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        .bill table.items th { border-bottom: 1.5px solid #000; padding: 2px 0; font-size: 12px; }
+        .bill table.items td { padding: 3px 0; vertical-align: top; }
+        .bill table.items .nm { text-align: left; white-space: normal; word-break: break-word; overflow-wrap: anywhere; padding-right: 4px; }
+        .bill table.items .q { width: 8mm; text-align: center; }
+        .bill table.items .r { width: 13mm; text-align: right; }
+        .bill table.items .a { width: 16mm; text-align: right; }`;
+      const body = `<div class="bill">
+        ${logoSrc ? `<div class="center"><img src="${esc(logoSrc)}" style="max-width:45mm;max-height:22mm;object-fit:contain;filter:grayscale(1) contrast(1.4);"></div>` : ''}
         <div class="center" style="font-size:18px;font-weight:900">${esc(s.restaurant_name || 'VISHAL FOODIEZ')}</div>
-        ${s.address ? `<div class="center" style="font-size:11px">${esc(s.address)}</div>` : ''}
+        <div class="center" style="font-size:11px">${esc(s.address || 'Railway Road, Budhlada')}</div>
         ${s.phone ? `<div class="center" style="font-size:11px">Ph: ${esc(s.phone)}</div>` : ''}
         ${s.gstin ? `<div class="center" style="font-size:11px">GSTIN: ${esc(s.gstin)}</div>` : ''}
         <div class="token">TOKEN #${esc(data.token_no || data.orderId)}</div>
         <div class="row"><span>Order: #${esc(data.orderId)}</span><span>(${esc(String(o.order_type).toUpperCase())})</span></div>
         <div>Date: ${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
-        <div class="divider"></div><table>${rows}</table><div class="divider"></div>
+        <div class="divider"></div>
+        <table class="items"><thead><tr><th class="nm">Item</th><th class="q">Qty</th><th class="r">Rate</th><th class="a">Amount</th></tr></thead><tbody>${rows}</tbody></table>
+        <div class="divider"></div>
         <div class="row"><span>Subtotal:</span><span>${money(o.subtotal)}</span></div>
         <div class="row"><span>CGST (2.50%):</span><span>${money(o.gst / 2)}</span></div>
         <div class="row"><span>SGST (2.50%):</span><span>${money(o.gst / 2)}</span></div>
@@ -1057,17 +1067,94 @@
         <div class="divider"></div>
         <div class="center" style="font-size:11px">Payment Mode: <b>${esc(o.payment_mode)}</b></div>
         <div class="center" style="font-size:11px;margin-top:4px">${esc(c.thank_you || 'Thanks For Visiting Us!')}</div>
-        ${c.footer ? `<div class="center" style="font-size:10px">${esc(c.footer)}</div>` : ''}
-      </body></html>`;
+        ${c.footer ? `<div class="center" style="font-size:10px;margin-top:2px">${esc(c.footer)}</div>` : ''}
+      </div>`;
+      return { css, body };
     }
 
-    // Logo -> ESC/POS raster bytes (GS v 0), 1-bit black/white, sent in bands so small printer buffers cope
+    function kioskBillHtml(data, o) {
+      const p = kioskBillParts(data, o, o.logo && kioskReceiptCfg.logo);
+      return `<html><head><style>@page { margin: 0; size: 80mm auto; } body { margin: 0; } .bill { width: 68mm; } ${p.css}</style></head><body>${p.body}</body></html>`;
+    }
+
+    // 1-bit raster (GS v 0) of a canvas, sent in bands so small printer buffers cope
+    function canvasToEscPos(cv) {
+      const w = cv.width, h = cv.height;
+      const px = cv.getContext('2d').getImageData(0, 0, w, h).data;
+      const bpr = w / 8, out = [];
+      for (let y0 = 0; y0 < h; y0 += 96) {
+        const bh = Math.min(96, h - y0);
+        out.push(0x1D, 0x76, 0x30, 0x00, bpr & 255, bpr >> 8, bh & 255, bh >> 8);
+        for (let y = y0; y < y0 + bh; y++) {
+          for (let bx = 0; bx < bpr; bx++) {
+            let byte = 0;
+            for (let bit = 0; bit < 8; bit++) {
+              const i = (y * w + bx * 8 + bit) * 4;
+              const lum = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+              if (lum < 160) byte |= 0x80 >> bit;
+            }
+            out.push(byte);
+          }
+        }
+      }
+      return out;
+    }
+
+    // Fetches the logo and shrinks it (uploads can be 1 MB+ / 1300px) so it embeds cheaply in the bill image
+    function urlToDataUrl(src) {
+      return fetch(src).then(r => r.blob()).then(b => new Promise((res, rej) => {
+        const u = URL.createObjectURL(b), img = new Image();
+        img.onload = () => {
+          const k = Math.min(1, 400 / Math.max(img.naturalWidth, img.naturalHeight));
+          const cv = document.createElement('canvas');
+          cv.width = Math.max(1, Math.round(img.naturalWidth * k)); cv.height = Math.max(1, Math.round(img.naturalHeight * k));
+          const ctx = cv.getContext('2d');
+          ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
+          ctx.drawImage(img, 0, 0, cv.width, cv.height);
+          URL.revokeObjectURL(u);
+          res(cv.toDataURL('image/png'));
+        };
+        img.onerror = () => { URL.revokeObjectURL(u); rej(new Error('logo decode failed')); };
+        img.src = u;
+      }));
+    }
+
+    // Draws the index-style bill (incl. logo) to a canvas via an SVG foreignObject and returns ESC/POS raster bytes.
+    // Throws on any failure so the caller can fall back to the plain-text bill.
+    async function renderBillRaster(data, o, dots, withLogo) {
+      let logo = '';
+      if (withLogo && kioskReceiptCfg.logo) { try { logo = await urlToDataUrl(kioskReceiptCfg.logo); } catch (e) { console.warn('logo load failed', e); } }
+      const cssW = Math.round(dots * 96 / 203);            // printer dots -> CSS px (203 dpi)
+      const p = kioskBillParts(data, o, logo);
+      const host = document.createElement('div');
+      host.style.cssText = 'position:fixed;left:-10000px;top:0;width:' + cssW + 'px;';
+      host.innerHTML = '<style>' + p.css + ' .bill{width:' + cssW + 'px;box-sizing:border-box;}</style>' + p.body;
+      document.body.appendChild(host);
+      let xhtml, cssH;
+      try {
+        await new Promise(r => setTimeout(r, 50));
+        cssH = Math.ceil(host.getBoundingClientRect().height);
+        host.style.cssText = 'width:' + cssW + 'px;';   // drop the off-screen positioning before serialising
+        xhtml = new XMLSerializer().serializeToString(host);
+      } finally { document.body.removeChild(host); }
+      const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + cssW + '" height="' + cssH + '"><foreignObject width="100%" height="100%">' + xhtml + '</foreignObject></svg>';
+      const img = new Image();
+      await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error('bill render failed')); img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg); });
+      const cv = document.createElement('canvas');
+      cv.width = dots; cv.height = Math.ceil(cssH * dots / cssW);
+      const ctx = cv.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
+      ctx.drawImage(img, 0, 0, cv.width, cv.height);
+      return canvasToEscPos(cv);                            // throws if the canvas got tainted
+    }
+
+    // Logo-only fallback (used when the whole-bill image could not be drawn)
     function logoToEscPos(src, paperChars) {
       return new Promise(resolve => {
         const img = new Image();
         img.onload = () => {
           try {
-            const maxW = paperChars >= 42 ? 384 : 256;   // keep the logo smaller than the full paper width
+            const maxW = paperChars >= 42 ? 384 : 256;
             const scale = Math.min(1, maxW / img.naturalWidth, 160 / img.naturalHeight);
             const w = Math.max(8, Math.floor(img.naturalWidth * scale / 8) * 8);
             const h = Math.max(1, Math.round(img.naturalHeight * scale));
@@ -1076,25 +1163,8 @@
             const ctx = cv.getContext('2d');
             ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
             ctx.drawImage(img, 0, 0, w, h);
-            const px = ctx.getImageData(0, 0, w, h).data;
-            const bpr = w / 8, out = [];
-            for (let y0 = 0; y0 < h; y0 += 96) {
-              const bh = Math.min(96, h - y0);
-              out.push(0x1D, 0x76, 0x30, 0x00, bpr & 255, bpr >> 8, bh & 255, bh >> 8);
-              for (let y = y0; y < y0 + bh; y++) {
-                for (let bx = 0; bx < bpr; bx++) {
-                  let byte = 0;
-                  for (let bit = 0; bit < 8; bit++) {
-                    const i = (y * w + bx * 8 + bit) * 4;
-                    const lum = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
-                    if (lum < 160) byte |= 0x80 >> bit;
-                  }
-                  out.push(byte);
-                }
-              }
-            }
-            resolve(out);
-          } catch (e) { resolve([]); }   // e.g. blocked canvas -> print without logo
+            resolve(canvasToEscPos(cv));
+          } catch (e) { resolve([]); }
         };
         img.onerror = () => resolve([]);
         setTimeout(() => resolve([]), 4000);
@@ -1108,15 +1178,20 @@
       const wantLogo = cfg.logo && kioskReceiptCfg.logo;
       try {
         if (cfg.method === 'rawbt' || cfg.method === 'usb') {
-          const logo = wantLogo ? await logoToEscPos(kioskReceiptCfg.logo, cfg.width) : [];
-          const text = Array.from(new TextEncoder().encode(kioskBillText(data, o, cfg.width)));
-          let bytes = [];
-          for (let n = 0; n < cfg.copies; n++) {
-            bytes.push(0x1B, 0x40);                                  // init
-            if (logo.length) bytes.push(0x1B, 0x61, 0x01, ...logo, 0x0A, 0x1B, 0x61, 0x00);  // centered logo
-            bytes = bytes.concat(text);
-            bytes.push(0x1D, 0x56, 0x42, 0x00);                      // feed + partial cut
+          const dots = cfg.width <= 32 ? 384 : 576;
+          let one = [];
+          try {
+            one = [0x1B, 0x40, ...await renderBillRaster(data, o, dots, wantLogo), 0x1B, 0x64, 0x04, 0x1D, 0x56, 0x42, 0x00];
+          } catch (e) {
+            console.warn('Image bill failed, using text bill', e);
+            if (window.AndroidPrinter && AndroidPrinter.toast) AndroidPrinter.toast('Bill image nahi ban paayi, text bill print ho raha hai');
+            const logo = wantLogo ? await logoToEscPos(kioskReceiptCfg.logo, cfg.width) : [];
+            one = [0x1B, 0x40];
+            if (logo.length) one.push(0x1B, 0x61, 0x01, ...logo, 0x0A, 0x1B, 0x61, 0x00);
+            one = one.concat(Array.from(new TextEncoder().encode(kioskBillText(data, o, cfg.width))), [0x1D, 0x56, 0x42, 0x00]);
           }
+          let bytes = [];
+          for (let n = 0; n < cfg.copies; n++) bytes = bytes.concat(one);
           let bin = '';
           for (let i = 0; i < bytes.length; i += 8192) bin += String.fromCharCode.apply(null, bytes.slice(i, i + 8192));
           if (cfg.method === 'usb') {
@@ -1135,7 +1210,7 @@
           const doc = frame.contentWindow.document;
           doc.open(); doc.write(html); doc.close();
           frame.contentWindow.focus();
-          setTimeout(() => { try { frame.contentWindow.print(); } catch (e) {} }, wantLogo ? 700 : 250);   // give the logo time to load
+          setTimeout(() => { try { frame.contentWindow.print(); } catch (e) {} }, wantLogo ? 700 : 250);
         }
       } catch (e) { console.error('Kiosk print failed', e); }
     }

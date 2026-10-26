@@ -93,6 +93,9 @@ public class MainActivity extends Activity {
             new Thread(() -> report(printer.send(data))).start();
         }
 
+        @JavascriptInterface
+        public void toast(String msg) { runOnUiThread(() -> Toast.makeText(MainActivity.this, msg, Toast.LENGTH_LONG).show()); }
+
         /** Staff-only: lets the setup panel change the server link. */
         @JavascriptInterface
         public void changeUrl() { runOnUiThread(() -> askUrl(false)); }
