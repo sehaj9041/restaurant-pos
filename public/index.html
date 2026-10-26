@@ -12,6 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
+  <script src="/ui-dialogs.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     ::-webkit-scrollbar { width: 5px; height: 5px; }
@@ -1477,8 +1478,8 @@
         });
     }
 
-    function rejectNeedsApprovalOrder(orderId) {
-      if (!confirm('Kya aap is order ko reject karna chahte hain?')) return;
+    async function rejectNeedsApprovalOrder(orderId) {
+      if (!(await uiConfirm('Kya aap is order ko reject karna chahte hain?', {title:'Reject order?', okText:'Reject'}))) return;
       fetch('/api/orders/' + orderId + '/reject', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
@@ -1636,8 +1637,8 @@
         loadAddonGroupsData();
       });
     }
-    function deleteAddonGroup(id) {
-      if (!confirm("Kya aap is add-on group ko delete karna chahte hain?")) return;
+    async function deleteAddonGroup(id) {
+      if (!(await uiConfirm("Kya aap is add-on group ko delete karna chahte hain?", {title:"Delete add-on group?", okText:"Delete"}))) return;
       fetch('/api/addon-groups/' + id, { method: 'DELETE' })
         .then(function(){ loadAddonGroupsData(); });
     }
@@ -2424,9 +2425,18 @@
           extractCategories();
           renderCategoriesSidebar();
           renderPOSItems();
+          loadCategoryImages();
         }).catch(function(){});
     }
 
+    var categoryImages = {};
+    function loadCategoryImages() {
+      fetch('/api/categories').then(function(r) { return r.json(); }).then(function(rows) {
+        categoryImages = {};
+        (rows || []).forEach(function(c) { if (c.image) categoryImages[String(c.name).trim()] = c.image; });
+        renderCategoriesSidebar();
+      }).catch(function(){});
+    }
     function extractCategories() {
       var set = new Set();
       allMenuItems.forEach(function(i) {
@@ -2728,8 +2738,8 @@
       }
     }
 
-    function actionAddPhone(orderId) {
-      var ph = prompt("Customer Phone Number daalein:");
+    async function actionAddPhone(orderId) {
+      var ph = await uiPrompt("Customer Phone Number daalein:", "", {title:"Add phone number", type:"tel", placeholder:"10-digit number"});
       if (!ph || ph.trim().length < 10) return alert("Valid 10-digit number enter karein!");
       fetch('/api/orders/' + orderId + '/update-phone', {
         method: 'POST',
@@ -2771,8 +2781,8 @@
       renderPOSCart();
     }
 
-    function actionMarkDue(orderId) {
-      if (!confirm("Kya aap is order ko Due (Khata) mein dalna chahte hain?")) return;
+    async function actionMarkDue(orderId) {
+      if (!(await uiConfirm("Kya aap is order ko Due (Khata) mein dalna chahte hain?", {title:"Mark as Due?", okText:"Mark Due", danger:false}))) return;
 
       fetch('/api/orders/' + orderId + '/mark-due', {
         method: 'POST',
@@ -3038,9 +3048,9 @@
       renderPOSCart();
     }
 
-    function editCartItemNote(idx) {
+    async function editCartItemNote(idx) {
       if (!posCart[idx]) return;
-      var v = prompt('Item note (kitchen ke liye):', posCart[idx].user_note || '');
+      var v = await uiPrompt('Item note (kitchen ke liye):', posCart[idx].user_note || '', {title:'Item note', okText:'Save'});
       if (v === null) return;
       posCart[idx].user_note = v.trim().slice(0, 300);
       renderPOSCart();
@@ -3362,15 +3372,15 @@
       }).then(function(){ fetchActiveOrders(); loadDueOrdersData(); });
     }
 
-    function promptAddCustomTable() {
-      var tno = prompt("New Table ID (e.g. T09):");
+    async function promptAddCustomTable() {
+      var tno = await uiPrompt("New Table ID (e.g. T09):", "", {title:"Add table", okText:"Add"});
       if (!tno) return;
       defaultFloorTables.push({ id: tno.trim().toUpperCase(), label: tno.trim().toUpperCase(), seats: 2 });
       renderFloorTablesGrid();
     }
 
-    function protectedNav(targetUrl) {
-      var pin = prompt('Enter Owner/Admin Security PIN:');
+    async function protectedNav(targetUrl) {
+      var pin = await uiPrompt('Enter Owner/Admin Security PIN:', '', {title:'Security PIN', type:'password', okText:'Unlock'});
       if (!pin) return;
       fetch('/api/verify-pin', {
         method: 'POST',
@@ -3509,7 +3519,7 @@
         var isSelected = (selectedCategory === cat);
         return `
           <button onclick="selectPOSCategory('${cat.replace(/'/g, "\\'")}')" class="w-full text-left px-3 py-2.5 text-xs font-bold transition flex justify-between items-center ${isSelected ? 'bg-orange-50 text-orange-600 font-black border-r-2 border-orange-500' : 'text-gray-600 hover:bg-gray-50'}">
-            <span class="truncate">${cat}</span>
+            <span class="flex items-center gap-2 min-w-0">${categoryImages[cat] ? '<img src="' + String(categoryImages[cat]).replace(/"/g, '&quot;') + '" class="w-7 h-7 rounded-md object-cover shrink-0" alt="">' : ''}<span class="truncate">${cat}</span></span>
           </button>
         `;
       }).join('');

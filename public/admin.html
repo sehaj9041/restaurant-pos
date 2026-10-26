@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Menu & Master Manager - Admin</title>
+  <script src="/ui-dialogs.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>.sort-over { box-shadow: inset 0 3px 0 #6366f1; background: #eef2ff; }</style>
 </head>
@@ -161,6 +162,7 @@
         <h2 class="text-base font-bold text-gray-800 mb-3">Add Category</h2>
         <form onsubmit="saveCategory(event)" class="flex gap-2">
           <input id="cat_name" type="text" placeholder="Category name (e.g. Burgers)" required class="flex-1 border p-2.5 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500">
+          <input id="cat_image" type="file" accept="image/*" title="Category image (optional)" class="w-44 border p-1.5 rounded-xl text-[11px] bg-white">
           <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-5 rounded-xl text-xs">+ Add</button>
         </form>
       </div>
@@ -944,7 +946,7 @@
 
     async function deleteItem(id) {
       const item = menuItems.find(i => Number(i.id) === id);
-      if (!confirm('Delete "' + (item ? item.name : 'this item') + '"?')) return;
+      if (!await uiConfirm('Delete "' + (item ? item.name : 'this item') + '"?')) return;
       try {
         await api('/api/menu/' + id, 'DELETE');
         toast('Item delete ho gaya');
@@ -956,7 +958,7 @@
     async function importExcel(input) {
       if (!input.files || !input.files[0]) return;
       const mode = document.getElementById('import_mode').value;
-      if (mode === 'replace' && !confirm('REPLACE mode: Excel me jo items/categories/add-on groups nahi hain wo menu se DELETE ho jayenge. Continue?')) {
+      if (mode === 'replace' && !await uiConfirm('REPLACE mode: Excel me jo items/categories/add-on groups nahi hain wo menu se DELETE ho jayenge. Continue?')) {
         input.value = '';
         return;
       }
@@ -989,13 +991,32 @@
             <div class="flex items-center gap-2">
               ${rec ? sortHandle('cats', ci) + ' ' + sortArrows('cats', ci, names.length) : ''}
               ${rec ? `<input type="checkbox" ${selCats.has(Number(rec.id)) ? 'checked' : ''} onchange="toggleSel(selCats, ${Number(rec.id)}, this.checked, updateCatBar)">` : '<span class="w-[13px]"></span>'}
+              ${rec && rec.image ? `<img src="${esc(rec.image)}" class="w-9 h-9 rounded-lg object-cover border" alt="">` : '<span class="w-9 h-9 rounded-lg bg-gray-100 border flex items-center justify-center text-gray-300 text-sm">🖼</span>'}
               <span class="font-bold text-gray-800">${esc(n)}</span>
               <span class="ml-2 text-xs text-gray-500">${count} items</span></div>
-            ${rec ? `<button onclick="deleteCategory(${Number(rec.id)})" class="text-red-500 hover:text-red-700 font-bold text-xs">Delete</button>`
+            ${rec ? `<div class="flex items-center gap-3">
+                <label class="text-indigo-600 hover:text-indigo-800 font-bold text-xs cursor-pointer">${rec.image ? 'Change image' : 'Add image'}<input type="file" accept="image/*" class="hidden" onchange="setCategoryImage(${Number(rec.id)}, this)"></label>
+                ${rec.image ? `<button onclick="removeCategoryImage(${Number(rec.id)})" class="text-gray-500 hover:text-gray-700 font-bold text-xs">Remove image</button>` : ''}
+                <button onclick="deleteCategory(${Number(rec.id)})" class="text-red-500 hover:text-red-700 font-bold text-xs">Delete</button></div>`
                   : '<span class="text-[11px] text-gray-400">items se bani</span>'}
           </div>`;
       }).join('') : '<p class="p-6 text-center text-xs text-gray-400">Koi category nahi</p>';
       updateCatBar();
+    }
+
+    async function setCategoryImage(id, input) {
+      try {
+        const image = await uploadFileHelper(input);
+        if (!image) return;
+        await api('/api/categories/' + id, 'PUT', { image });
+        toast('Category image set ho gayi');
+        loadData();
+      } catch (err) { toast(err.message, true); }
+      finally { input.value = ''; }
+    }
+
+    async function removeCategoryImage(id) {
+      try { await api('/api/categories/' + id, 'PUT', { image: '' }); loadData(); } catch (err) { toast(err.message, true); }
     }
 
     async function saveCategory(e) {
@@ -1003,8 +1024,10 @@
       const name = document.getElementById('cat_name').value.trim();
       if (!name) return;
       try {
-        await api('/api/categories', 'POST', { name });
+        const image = await uploadFileHelper(document.getElementById('cat_image'));
+        await api('/api/categories', 'POST', { name, image });
         document.getElementById('cat_name').value = '';
+        document.getElementById('cat_image').value = '';
         toast('Category add ho gayi');
         loadData();
       } catch (err) { toast(err.message, true); }
@@ -1017,7 +1040,7 @@
       const msg = count
         ? `"${cat.name}" me ${count} items hain. Category list se hategi, items rahenge. Delete karein?`
         : `Delete category "${cat.name}"?`;
-      if (!confirm(msg)) return;
+      if (!await uiConfirm(msg)) return;
       try {
         await api('/api/categories/' + id, 'DELETE');
         toast('Category delete ho gayi');
@@ -1032,7 +1055,7 @@
       if (!category || !set) return toast('Category aur variation set select karein', true);
       const count = menuItems.filter(i => i.category === category).length;
       if (!count) return toast('Is category me koi item nahi hai', true);
-      if (!confirm(`"${category}" ke ${count} items ke sizes "${set.name}" se replace ho jayenge. Continue?`)) return;
+      if (!await uiConfirm(`"${category}" ke ${count} items ke sizes "${set.name}" se replace ho jayenge. Continue?`)) return;
       const variations = parseJson(set.options, []).map(o => ({
         name: o.name, price: Number(o.price), image: o.image || '', addon_groups: []
       }));
@@ -1184,7 +1207,7 @@
       const msg = linked.length
         ? `"${g.name}" ${linked.length} items se linked hai. Delete karne par in items se bhi hat jayega. Continue?`
         : `Delete group "${g.name}"?`;
-      if (!confirm(msg)) return;
+      if (!await uiConfirm(msg)) return;
       try {
         await purgeGroups([id]);
         selGroups.delete(id);
@@ -1287,7 +1310,7 @@
 
     async function deleteVariation(id) {
       const v = globalVariationMasters.find(x => Number(x.id) === id);
-      if (!v || !confirm(`Delete variation set "${v.name}"? (Jin items par assign ho chuka hai wo nahi badlenge)`)) return;
+      if (!v || !await uiConfirm(`Delete variation set "${v.name}"? (Jin items par assign ho chuka hai wo nahi badlenge)`)) return;
       try {
         await api('/api/variation-masters/' + id, 'DELETE');
         if (document.getElementById('var_edit_id').value === String(id)) resetVariationForm();
@@ -1721,7 +1744,7 @@
     async function bulkItems(label, mutate, after) {
       const items = menuItems.filter(i => selItems.has(Number(i.id)));
       if (!items.length) return toast('Pehle items select karein', true);
-      if (!confirm(`${items.length} items par "${label}" apply karein?`)) return;
+      if (!await uiConfirm(`${items.length} items par "${label}" apply karein?`)) return;
       const r = await runBulk(items, it => api('/api/menu/' + it.id, 'PUT', itemPayload(it, mutate(it))));
       if (after) await after();
       reportBulk(label, r);
@@ -1780,7 +1803,7 @@
     async function bulkItemDelete() {
       const items = menuItems.filter(i => selItems.has(Number(i.id)));
       if (!items.length) return toast('Pehle items select karein', true);
-      if (!confirm(`${items.length} items DELETE ho jayenge. Ye wapas nahi hoga. Continue?`)) return;
+      if (!await uiConfirm(`${items.length} items DELETE ho jayenge. Ye wapas nahi hoga. Continue?`)) return;
       const r = await runBulk(items, it => api('/api/menu/' + it.id, 'DELETE'));
       items.forEach(it => selItems.delete(Number(it.id)));
       reportBulk('Delete', r);
@@ -1803,7 +1826,7 @@
       const cats = categories.filter(c => selCats.has(Number(c.id)));
       if (!cats.length) return;
       const used = cats.reduce((s, c) => s + menuItems.filter(i => i.category === c.name).length, 0);
-      if (!confirm(`${cats.length} categories delete hongi` + (used ? ` (unme ${used} items hain, items rahenge)` : '') + '. Continue?')) return;
+      if (!await uiConfirm(`${cats.length} categories delete hongi` + (used ? ` (unme ${used} items hain, items rahenge)` : '') + '. Continue?')) return;
       const r = await runBulk(cats, c => api('/api/categories/' + c.id, 'DELETE'));
       cats.forEach(c => selCats.delete(Number(c.id)));
       reportBulk('Categories delete', r);
@@ -1814,7 +1837,7 @@
     async function bulkGroupMandatory(flag) {
       const groups = globalAddonGroups.filter(g => selGroups.has(Number(g.id)));
       if (!groups.length) return;
-      if (!confirm(`${groups.length} groups ko ${flag ? 'Mandatory' : 'Optional'} karein?`)) return;
+      if (!await uiConfirm(`${groups.length} groups ko ${flag ? 'Mandatory' : 'Optional'} karein?`)) return;
       const r = await runBulk(groups, g => api('/api/addon-groups/' + g.id, 'PUT', {
         name: g.name, min_selection: Number(g.min_selection) || 0, max_selection: Number(g.max_selection) || 5,
         is_mandatory: flag, items: parseJson(g.items, [])
@@ -1831,7 +1854,7 @@
         parseJson(i.assigned_addon_groups, []).some(x => ids.includes(Number(x))) ||
         parseJson(i.variations, []).some(v => (v.addon_groups || []).some(x => ids.includes(Number(x))))
       ).length;
-      if (!confirm(`${groups.length} groups delete honge` + (linked ? ` aur ${linked} items se hat jayenge` : '') + '. Continue?')) return;
+      if (!await uiConfirm(`${groups.length} groups delete honge` + (linked ? ` aur ${linked} items se hat jayenge` : '') + '. Continue?')) return;
       try {
         await purgeGroups(ids);
         ids.forEach(id => selGroups.delete(id));
@@ -1848,7 +1871,7 @@
       const val = readNum('bulk_var_val', 'Price value');
       if (val === null) return;
       if (mode === 'pct_down' && val > 100) return toast('Percent 100 se zyada nahi ho sakta', true);
-      if (!confirm(`${sets.length} sets ke options ka price badlein? (Jin items par assign ho chuke hain wo nahi badlenge)`)) return;
+      if (!await uiConfirm(`${sets.length} sets ke options ka price badlein? (Jin items par assign ho chuke hain wo nahi badlenge)`)) return;
       const r = await runBulk(sets, v => api('/api/variation-masters/' + v.id, 'PUT', {
         name: v.name,
         options: parseJson(v.options, []).map(o => Object.assign({}, o, { price: calcPrice(mode, val, Number(o.price)) }))
@@ -1860,7 +1883,7 @@
     async function bulkVariationDelete() {
       const sets = globalVariationMasters.filter(v => selVars.has(Number(v.id)));
       if (!sets.length) return;
-      if (!confirm(`${sets.length} variation sets delete honge. Continue?`)) return;
+      if (!await uiConfirm(`${sets.length} variation sets delete honge. Continue?`)) return;
       const r = await runBulk(sets, v => api('/api/variation-masters/' + v.id, 'DELETE'));
       sets.forEach(v => { selVars.delete(Number(v.id)); if (document.getElementById('var_edit_id').value === String(v.id)) resetVariationForm(); });
       reportBulk('Variation delete', r);
@@ -1927,13 +1950,13 @@
     }
 
     async function deleteUpsell(id) {
-      if (!confirm('Is upsell ko delete karein?')) return;
+      if (!await uiConfirm('Is upsell ko delete karein?')) return;
       try { await api('/api/upsells/' + id, 'DELETE'); selUps.delete(id); loadUpsells(); } catch (err) { toast(err.message, true); }
     }
 
     async function bulkUpsellActive(on) {
       const rows = upsellRows.filter(u => selUps.has(Number(u.id)));
-      if (!rows.length || !confirm(`${rows.length} upsells ko ${on ? 'Activate' : 'Deactivate'} karein?`)) return;
+      if (!rows.length || !await uiConfirm(`${rows.length} upsells ko ${on ? 'Activate' : 'Deactivate'} karein?`)) return;
       const r = await runBulk(rows, u => api('/api/upsells/' + u.id, 'PUT', { is_active: on }));
       reportBulk(on ? 'Activate' : 'Deactivate', r);
       loadUpsells();
@@ -1941,7 +1964,7 @@
 
     async function bulkUpsellDelete() {
       const rows = upsellRows.filter(u => selUps.has(Number(u.id)));
-      if (!rows.length || !confirm(`${rows.length} upsells delete honge. Continue?`)) return;
+      if (!rows.length || !await uiConfirm(`${rows.length} upsells delete honge. Continue?`)) return;
       const r = await runBulk(rows, u => api('/api/upsells/' + u.id, 'DELETE'));
       rows.forEach(u => selUps.delete(Number(u.id)));
       reportBulk('Delete', r);

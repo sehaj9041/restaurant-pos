@@ -218,11 +218,19 @@ app.get('/api/categories', (req, res) => {
 });
 
 app.post('/api/categories', (req, res) => {
-  const { name } = req.body;
+  const { name, image } = req.body;
   if (!name) return res.status(400).json({ error: 'Category name is required' });
-  db.run("INSERT INTO categories (name) VALUES (?) ON CONFLICT(name) DO NOTHING", [name.trim()], function(err) {
+  db.run("INSERT INTO categories (name, image) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET image = COALESCE(NULLIF(excluded.image, ''), categories.image)", [name.trim(), image || ''], function(err) {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ success: true, id: this.lastID });
+  });
+});
+
+app.put('/api/categories/:id', (req, res) => {
+  const image = req.body && typeof req.body.image === 'string' ? req.body.image : '';
+  db.run("UPDATE categories SET image = ? WHERE id = ?", [image, req.params.id], function(err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ success: true });
   });
 });
 

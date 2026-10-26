@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Order Online - Vishal Foodiez</title>
+  <script src="/ui-dialogs.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -418,13 +419,19 @@
           </div>`;
       });
 
+    let categoryImages = {};
+    fetch('/api/categories').then(r => r.json()).then(rows => {
+      (rows || []).forEach(c => { if (c.image) categoryImages[String(c.name).trim()] = c.image; });
+      if (menu.length) { renderCategories(); renderMenu(); }
+    }).catch(() => {});
+
     function renderCategories() {
       categoryList = [...new Set(menu.map(i => i.category || 'General'))];
       if (!categoryList.includes(activeCategory)) activeCategory = categoryList[0] || '';
       const bar = document.getElementById('categoryBar');
       bar.innerHTML = categoryList.map((cat, idx) => `
-        <button data-cat="${idx}" onclick="scrollToCat(${idx})" class="px-3.5 py-1.5 rounded-full text-xs font-bold shrink-0 transition ${activeCategory === cat ? 'bg-indigo-600 text-white shadow-xs' : 'bg-white border text-gray-600'}">
-          ${esc(cat)}
+        <button data-cat="${idx}" onclick="scrollToCat(${idx})" class="px-3.5 py-1.5 rounded-full text-xs font-bold shrink-0 transition inline-flex items-center gap-1.5 ${activeCategory === cat ? 'bg-indigo-600 text-white shadow-xs' : 'bg-white border text-gray-600'}">
+          ${categoryImages[cat] ? `<img src="${esc(categoryImages[cat])}" class="w-5 h-5 rounded-full object-cover" alt="">` : ''}${esc(cat)}
         </button>
       `).join('');
       const on = bar.querySelector(`[data-cat="${categoryList.indexOf(activeCategory)}"]`);
@@ -488,7 +495,7 @@
         const its = list.filter(i => (i.category || 'General') === cat);
         if (!its.length) return '';
         return `<section id="cat-${idx}" style="scroll-margin-top:190px">
-          <h2 class="text-base font-black text-gray-900 mb-2.5 flex items-center gap-2">${esc(cat)} <span class="text-[10px] font-black text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">${its.length}</span></h2>
+          <h2 class="text-base font-black text-gray-900 mb-2.5 flex items-center gap-2">${categoryImages[cat] ? `<img src="${esc(categoryImages[cat])}" class="w-8 h-8 rounded-lg object-cover" alt="">` : ''}${esc(cat)} <span class="text-[10px] font-black text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">${its.length}</span></h2>
           <div class="space-y-3">${its.map(itemCard).join('')}</div>
         </section>`;
       }).join('');
@@ -1058,8 +1065,8 @@
     }
     function closeOrders() { document.getElementById('ordersPage').classList.add('hidden'); }
 
-    function logoutProfile() {
-      if (!confirm('Is device se profile hata dein? Aapke orders restaurant ke records me safe rahenge.')) return;
+    async function logoutProfile() {
+      if (!(await uiConfirm('Is device se profile hata dein? Aapke orders restaurant ke records me safe rahenge.'))) return;
       try { localStorage.removeItem('vf_profile'); localStorage.removeItem('vf_order_ids'); } catch (e) {}
       closeOrders();
       refreshProfileUI();

@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Settings & System Tools</title>
+  <script src="/ui-dialogs.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -732,8 +733,8 @@
       renderTimers();
       toast(n ? `${n} stages aapke numbers par set hue (Save karna na bhoolein)` : 'Abhi koi timing data nahi hai', !n);
     }
-    function resetTimers() {
-      if (!confirm('Saare timers default values par reset karein?')) return;
+    async function resetTimers() {
+      if (!(await uiConfirm('Saare timers default values par reset karein?', {title:'Reset timers?', okText:'Reset'}))) return;
       T = defaultTimers(); renderTimers(); toast('Defaults set hue (Save karna na bhoolein)');
     }
     function saveTimers() {
@@ -867,9 +868,9 @@
       sections.push({ id: Math.max(0, ...sections.map(x => x.id || 0)) + 1, name: 'Section ' + (sections.length + 1), color: palette[sections.length % palette.length], assign: {} });
       persistSections().then(renderSections);
     }
-    function removeSection(i) { if (!confirm(`"${sections[i].name}" section hata dein?`)) return; sections.splice(i, 1); persistSections().then(renderSections); }
-    function assignWaiter(i) {
-      const n = (prompt('Waiter ka naam:') || '').trim();
+    async function removeSection(i) { if (!(await uiConfirm(`"${sections[i].name}" section hata dein?`, {title:"Remove section?", okText:"Remove"}))) return; sections.splice(i, 1); persistSections().then(renderSections); }
+    async function assignWaiter(i) {
+      const n = ((await uiPrompt('Waiter ka naam:', '', {title:'Assign waiter', okText:'Assign'})) || '').trim();
       if (!n) return;
       const day = $('shiftDate').value || todayStr(), sec = sections[i];
       sec.assign = sec.assign || {};
@@ -1197,8 +1198,8 @@
     const TAB_INIT = { hours: initHours, charges: initCharges, taxes: initTaxes, waiters: initWaiters, payments: initPayments, qr: initQr, storefront: initStorefront, receipt: initReceipt };
 
     // ---------- data tools ----------
-    function resetSalesData() {
-      const ans = prompt("WARNING: Isse sales reports aur expenses clear ho jayenge. Type 'RESET':");
+    async function resetSalesData() {
+      const ans = await uiPrompt("WARNING: Isse sales reports aur expenses clear ho jayenge. Type 'RESET':", "", {title:"Reset sales data", okText:"Reset", placeholder:"RESET"});
       if (ans === 'RESET') fetch('/api/system/reset-orders', { method: 'POST' }).then(r => r.json()).then(() => toast('Data clear ho gaya'));
     }
 

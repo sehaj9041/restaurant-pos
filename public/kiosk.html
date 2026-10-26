@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Self-Order Kiosk - Vishal Foodiez</title>
+  <script src="/ui-dialogs.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     :root { --yellow: #FFBC0D; --yellow-dark: #E5A800; --ink: #292929; --red: #DB0007; --line: #d6d6d6; }
@@ -349,6 +350,12 @@
       return '🍽';
     }
 
+    let categoryImages = {};
+    fetch('/api/categories').then(r => r.json()).then(rows => {
+      (rows || []).forEach(c => { if (c.image) categoryImages[String(c.name).trim()] = c.image; });
+      if (typeof menuItems !== 'undefined' && menuItems.length) renderCategories();
+    }).catch(() => {});
+
     function renderCategories() {
       categories = [...new Set(menuItems.map(i => i.category))];
       if ((!activeCategory || !categories.includes(activeCategory)) && categories.length) activeCategory = categories[0];
@@ -357,7 +364,7 @@
         const isActive = cat === activeCategory;
         return `
           <button onclick="selectCategory(${idx})" class="flex items-center gap-2 px-2 py-3.5 text-left border-b border-neutral-100 last:border-0 ${isActive ? 'bg-neutral-50' : ''}">
-            <span class="text-2xl w-8 shrink-0 text-center">${getCategoryIcon(cat)}</span>
+            ${categoryImages[cat] ? `<img src="${esc(resolveImgPath(categoryImages[cat]))}" class="w-8 h-8 rounded-md object-cover shrink-0" alt="">` : `<span class="text-2xl w-8 shrink-0 text-center">${getCategoryIcon(cat)}</span>`}
             <span class="min-w-0">
               <span class="block text-[13px] leading-tight break-words ${isActive ? 'font-black' : ''}">${esc(cat)}</span>
               ${isActive ? '<span class="block h-[3px] w-8 bg-[var(--yellow)] mt-1"></span>' : ''}
@@ -1283,8 +1290,8 @@
       $('modeSelectionScreen').classList.add('hidden');
     }
 
-    function startOver() {
-      if (kioskTray.length && !confirm('Start over? Your bag will be cleared.')) return;
+    async function startOver() {
+      if (kioskTray.length && !(await uiConfirm('Start over? Your bag will be cleared.', {title:'Start over?', okText:'Yes, start over'}))) return;
       resetKioskSession();
     }
 
