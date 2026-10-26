@@ -145,8 +145,18 @@ pool.query(`
   
   await pool.query(`ALTER TABLE menu ADD COLUMN IF NOT EXISTS is_visible INTEGER DEFAULT 1;`).catch(() => {});
   await pool.query(`ALTER TABLE menu ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0;`).catch(() => {});
+  await pool.query(`ALTER TABLE menu ADD COLUMN IF NOT EXISTS description TEXT;`).catch(() => {});
+  await pool.query(`ALTER TABLE menu ADD COLUMN IF NOT EXISTS tags TEXT;`).catch(() => {});
+  await pool.query(`ALTER TABLE menu ADD COLUMN IF NOT EXISTS allergens TEXT;`).catch(() => {});
+  await pool.query(`ALTER TABLE menu ADD COLUMN IF NOT EXISTS is_featured INTEGER DEFAULT 0;`).catch(() => {});
+  await pool.query(`ALTER TABLE menu ADD COLUMN IF NOT EXISTS send_to_kds INTEGER DEFAULT 1;`).catch(() => {});
+  await pool.query(`ALTER TABLE menu ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'available';`).catch(() => {});
+  await pool.query(`ALTER TABLE menu ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;`).catch(() => {});
+  await pool.query(`ALTER TABLE menu ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP;`).catch(() => {});
   await pool.query(`ALTER TABLE categories ADD COLUMN IF NOT EXISTS is_visible INTEGER DEFAULT 1;`).catch(() => {});
   await pool.query(`ALTER TABLE categories ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0;`).catch(() => {});
+  await pool.query(`ALTER TABLE addon_groups ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0;`).catch(() => {});
+  await pool.query(`ALTER TABLE variation_masters ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0;`).catch(() => {});
   await pool.query(`ALTER TABLE categories ADD COLUMN IF NOT EXISTS image TEXT;`).catch(() => {});
 
   // Upsells, inventory and recipes (populated by the Excel import)

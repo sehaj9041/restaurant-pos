@@ -206,7 +206,7 @@ app.delete('/api/floor-tables/:id', (req, res) => {
 
 // ================= CATEGORIES APIS =================
 app.get('/api/categories', (req, res) => {
-  db.all("SELECT * FROM categories ORDER BY id ASC", [], (err, rows) => {
+  db.all("SELECT * FROM categories ORDER BY COALESCE(sort_order, 0), id ASC", [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows || []);
   });
@@ -230,7 +230,7 @@ app.delete('/api/categories/:id', (req, res) => {
 
 // ================= GLOBAL ADD-ON GROUPS APIS (ROBUST & SAFE) =================
 app.get('/api/addon-groups', (req, res) => {
-  db.all("SELECT * FROM addon_groups ORDER BY id DESC", [], (err, rows) => {
+  db.all("SELECT * FROM addon_groups ORDER BY COALESCE(sort_order, 0), id DESC", [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows || []);
   });
@@ -279,7 +279,7 @@ app.delete('/api/addon-groups/:id', (req, res) => {
 
 // 5. VARIATION SETS MASTER APIS
 app.get('/api/variation-masters', (req, res) => {
-  db.all("SELECT * FROM variation_masters ORDER BY id DESC", [], (err, rows) => {
+  db.all("SELECT * FROM variation_masters ORDER BY COALESCE(sort_order, 0), id DESC", [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows || []);
   });
@@ -334,6 +334,15 @@ app.get('/api/menu', (req, res) => {
   db.all(`SELECT m.* FROM menu m LEFT JOIN categories c ON c.name = m.category
           ORDER BY COALESCE(c.sort_order, 9999), m.category, COALESCE(m.sort_order, 0), m.name`, [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
+    // Inactive ("Off") variants are hidden from POS/kiosk/QR; admin asks for everything with ?admin=1.
+    if (req.query.admin !== '1') {
+      (rows || []).forEach(r => {
+        try {
+          const vars = JSON.parse(r.variations || '[]');
+          if (vars.some(v => v.active === false)) r.variations = JSON.stringify(vars.filter(v => v.active !== false));
+        } catch (e) {}
+      });
+    }
     res.json(rows || []);
   });
 });
@@ -352,7 +361,8 @@ app.post('/api/menu', (req, res) => {
 });
 
 app.put('/api/menu/:id', (req, res) => {
-  const { name, category, price, stock, image, variations, assigned_addon_groups, is_exempt, is_visible } = req.body;
+  const { name, category, price, stock, image, variations, assigned_addon_groups, is_exempt, is_visible,
+          description, tags, allergens, is_featured, send_to_kds, status } = req.body;
   // Fields that are not sent stay as they are (the POS edit form only sends name/category/price/stock).
   const opt = v => (v === undefined ? null : v);
   const optJson = v => (v === undefined ? null : JSON.stringify(v || []));
@@ -360,8 +370,12 @@ app.put('/api/menu/:id', (req, res) => {
   db.run(
     `UPDATE menu SET name = COALESCE(?, name), category = COALESCE(?, category), price = COALESCE(?, price), stock = COALESCE(?, stock),
        image = COALESCE(?, image), variations = COALESCE(?, variations), assigned_addon_groups = COALESCE(?, assigned_addon_groups),
-       is_exempt = COALESCE(?, is_exempt), is_visible = COALESCE(?, is_visible) WHERE id = ?`,
-    [opt(name), opt(category), opt(price), opt(stock), opt(image), optJson(variations), optJson(assigned_addon_groups), optFlag(is_exempt), optFlag(is_visible), req.params.id],
+       is_exempt = COALESCE(?, is_exempt), is_visible = COALESCE(?, is_visible),
+       description = COALESCE(?, description), tags = COALESCE(?, tags), allergens = COALESCE(?, allergens),
+       is_featured = COALESCE(?, is_featured), send_to_kds = COALESCE(?, send_to_kds), status = COALESCE(?, status),
+       updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+    [opt(name), opt(category), opt(price), opt(stock), opt(image), optJson(variations), optJson(assigned_addon_groups), optFlag(is_exempt), optFlag(is_visible),
+     opt(description), optJson(tags), optJson(allergens), optFlag(is_featured), optFlag(send_to_kds), opt(status), req.params.id],
     function (err) {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ success: true });
@@ -369,11 +383,42 @@ app.put('/api/menu/:id', (req, res) => {
   );
 });
 
+// Sales stats for one menu item (matched by order_item name; variant names are stored as "Item (Variant)").
+app.get('/api/menu/:id/performance', (req, res) => {
+  db.all("SELECT name FROM menu WHERE id = ?", [req.params.id], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!rows || !rows[0]) return res.status(404).json({ error: 'Item not found' });
+    const name = rows[0].name;
+    const stat = (since) => new Promise(resolve => {
+      db.all(`SELECT COUNT(DISTINCT oi.order_id) AS orders, COALESCE(SUM(oi.qty), 0) AS qty, COALESCE(SUM(oi.qty * oi.price), 0) AS revenue
+              FROM order_items oi JOIN orders o ON o.id = oi.order_id
+              WHERE (oi.name = ? OR oi.name LIKE ?) AND o.created_at >= ${since} AND COALESCE(o.status, '') NOT IN ('CANCELLED', 'HOLD')`,
+        [name, name + ' (%'], (e, r) => resolve(e || !r || !r[0] ? { orders: 0, qty: 0, revenue: 0 } : r[0]));
+    });
+    Promise.all([stat("date_trunc('week', CURRENT_TIMESTAMP)"), stat("date_trunc('month', CURRENT_TIMESTAMP)")])
+      .then(([week, month]) => res.json({ week, month }));
+  });
+});
+
 app.delete('/api/menu/:id', (req, res) => {
   db.run("DELETE FROM menu WHERE id = ?", [req.params.id], function (err) {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ success: true });
   });
+});
+
+// ================= REORDER (drag & drop / arrows) =================
+// Body: { table, ids: [id, id, ...] } - sort_order becomes the position in ids (1-based).
+const REORDERABLE = ['menu', 'categories', 'addon_groups', 'variation_masters', 'upsells'];
+app.post('/api/reorder', async (req, res) => {
+  const { table, ids } = req.body || {};
+  if (!REORDERABLE.includes(table) || !Array.isArray(ids)) return res.status(400).json({ error: 'Invalid reorder request' });
+  try {
+    for (let i = 0; i < ids.length; i++) {
+      await new Promise((resolve, reject) => db.run(`UPDATE ${table} SET sort_order = ? WHERE id = ?`, [i + 1, Number(ids[i])], e => (e ? reject(e) : resolve())));
+    }
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ================= UPSELLS =================

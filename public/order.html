@@ -237,7 +237,7 @@
       
       let html = variations.map((v) => `
         <button onclick='selectOnlineVariationItem(${JSON.stringify(item)}, ${JSON.stringify(v)})' class="w-full text-left p-3 rounded-xl border border-gray-200 hover:border-indigo-500 hover:bg-indigo-50/50 flex justify-between items-center transition shadow-2xs">
-          <span class="font-black text-gray-800">${v.name}</span>
+          <span class="flex items-center gap-3 font-black text-gray-800">${v.image ? `<img src="${(/^(https?:)?\//.test(v.image) ? v.image : '/uploads/' + v.image)}" class="w-12 h-12 rounded-lg object-cover">` : ''}${v.name}</span>
           <span class="font-black text-emerald-600 text-sm">₹${v.price}</span>
         </button>
       `).join('');

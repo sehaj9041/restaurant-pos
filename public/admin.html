@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Menu & Master Manager - Admin</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>.sort-over { box-shadow: inset 0 3px 0 #6366f1; background: #eef2ff; }</style>
 </head>
 <body class="bg-gray-100 min-h-screen p-6 font-sans">
 
@@ -397,74 +398,152 @@
     </div>
   </div>
 
-  <!-- Edit Item Modal with Variation-wise Addons Linking -->
+  <!-- Edit Item Modal (tabbed) -->
   <div id="editItemModal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl p-6 max-w-2xl w-full shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
-      <div class="flex justify-between items-center border-b pb-2">
-        <h3 class="text-base font-black text-gray-800">Edit Item & Variation-Wise Addons</h3>
-        <button onclick="closeEditModal()" class="text-gray-400 hover:text-black font-bold text-lg">✕</button>
+    <div class="bg-white rounded-2xl max-w-3xl w-full shadow-2xl max-h-[92vh] flex flex-col overflow-hidden">
+      <div class="flex justify-between items-center border-b px-5 py-3 gap-3">
+        <h3 id="editTitle" class="text-base font-black text-gray-800 truncate">Edit Item</h3>
+        <div class="flex items-center gap-2 shrink-0">
+          <button onclick="submitItemEdit()" id="editSaveBtn" class="bg-orange-600 hover:bg-orange-700 text-white font-bold px-4 py-2 rounded-lg text-xs transition">Save Changes</button>
+          <button onclick="closeEditModal()" class="text-gray-400 hover:text-black font-bold text-lg px-1">✕</button>
+        </div>
       </div>
-
       <input type="hidden" id="edit_id">
 
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label class="block text-xs font-bold text-gray-600 mb-1">Item Name</label>
-          <input type="text" id="edit_name" required class="w-full border p-2 rounded-xl text-xs outline-none">
-        </div>
-        <div>
-          <label class="block text-xs font-bold text-gray-600 mb-1">Category</label>
-          <input type="text" id="edit_cat" list="catList" required class="w-full border p-2 rounded-xl text-xs outline-none">
-        </div>
+      <div id="editTabs" class="flex gap-1 border-b px-3 overflow-x-auto text-xs font-bold text-gray-500">
+        <button type="button" data-tab="basic" onclick="switchEditTab('basic')" class="edit-tab px-3 py-2.5 whitespace-nowrap">Basic Info</button>
+        <button type="button" data-tab="variants" onclick="switchEditTab('variants')" class="edit-tab px-3 py-2.5 whitespace-nowrap">Variants</button>
+        <button type="button" data-tab="addons" onclick="switchEditTab('addons')" class="edit-tab px-3 py-2.5 whitespace-nowrap">Add-ons</button>
+        <button type="button" data-tab="availability" onclick="switchEditTab('availability')" class="edit-tab px-3 py-2.5 whitespace-nowrap">Availability</button>
+        <button type="button" data-tab="allergens" onclick="switchEditTab('allergens')" class="edit-tab px-3 py-2.5 whitespace-nowrap">Allergens</button>
+        <button type="button" data-tab="tags" onclick="switchEditTab('tags')" class="edit-tab px-3 py-2.5 whitespace-nowrap">Tags</button>
+        <button type="button" data-tab="performance" onclick="switchEditTab('performance')" class="edit-tab px-3 py-2.5 whitespace-nowrap">Performance</button>
+        <button type="button" data-tab="recipe" onclick="switchEditTab('recipe')" class="edit-tab px-3 py-2.5 whitespace-nowrap">Recipe</button>
       </div>
 
-      <div class="grid grid-cols-4 gap-3 items-end">
-        <div>
-          <label class="block text-xs font-bold text-gray-600 mb-1">Base Price (₹)</label>
-          <input type="number" id="edit_price" min="0" step="any" required class="w-full border p-2 rounded-xl text-xs font-bold outline-none">
+      <div class="overflow-y-auto p-5 flex-1">
+        <!-- Basic Info -->
+        <div data-panel="basic" class="edit-panel space-y-4">
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-gray-600 mb-1">Item Name *</label>
+              <input type="text" id="edit_name" class="w-full border p-2 rounded-xl text-xs outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-gray-600 mb-1">Category *</label>
+              <input type="text" id="edit_cat" list="catList" class="w-full border p-2 rounded-xl text-xs outline-none">
+            </div>
+          </div>
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-gray-600 mb-1">Base Price (₹) *</label>
+              <input type="number" id="edit_price" min="0" step="any" class="w-full border p-2 rounded-xl text-xs font-bold outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-gray-600 mb-1">Stock</label>
+              <input type="number" id="edit_stock" min="0" class="w-full border p-2 rounded-xl text-xs font-bold outline-none">
+            </div>
+            <div class="space-y-1 pt-5">
+              <label class="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-gray-600 select-none">
+                <input type="checkbox" id="edit_is_exempt" class="rounded text-indigo-600"><span>No GST</span>
+              </label>
+              <label class="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-gray-600 select-none">
+                <input type="checkbox" id="edit_is_visible" class="rounded text-indigo-600"><span>Menu me dikhao</span>
+              </label>
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-600 mb-1">Description</label>
+            <textarea id="edit_description" rows="3" class="w-full border p-2 rounded-xl text-xs outline-none"></textarea>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-600 mb-1">Item Image</label>
+            <div class="flex items-center gap-3">
+              <div id="editImgPreview" class="w-28 h-28 rounded-xl border bg-gray-50 flex items-center justify-center text-[10px] text-gray-400 overflow-hidden">No image</div>
+              <div class="space-y-2">
+                <div class="flex gap-2">
+                  <button type="button" onclick="document.getElementById('edit_file').click()" class="border px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-50">Replace</button>
+                  <button type="button" onclick="removeEditImage()" class="bg-red-50 text-red-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-100">Remove</button>
+                </div>
+                <input type="file" id="edit_file" accept="image/*" class="hidden" onchange="previewEditImage()">
+                <p class="text-[10px] text-gray-400">Square (1:1), ~1000×1000 px. JPG / PNG / WebP, under 5 MB.</p>
+              </div>
+            </div>
+          </div>
+          <div id="editTimestamps" class="bg-gray-100 rounded-lg px-3 py-2 text-[11px] text-gray-600"></div>
         </div>
-        <div>
-          <label class="block text-xs font-bold text-gray-600 mb-1">Stock</label>
-          <input type="number" id="edit_stock" min="0" required class="w-full border p-2 rounded-xl text-xs font-bold outline-none">
+
+        <!-- Variants -->
+        <div data-panel="variants" class="edit-panel hidden">
+          <p class="text-[11px] text-gray-500 mb-3">⠿ handle drag karein ya ▲▼ arrows se order set karein — yahi order POS, QR, kiosk aur customer app me dikhega. <b>Save Changes</b> se save hota hai.</p>
+          <div id="editVariationsList" class="space-y-2"></div>
+          <div class="flex gap-2 mt-3 items-center">
+            <input id="var_name_inp" type="text" placeholder="Size (e.g. Regular)" class="flex-1 border p-1.5 rounded-lg text-xs outline-none">
+            <input id="var_price_inp" type="number" min="0" step="any" placeholder="₹ Price" class="w-20 border p-1.5 rounded-lg text-xs font-bold outline-none">
+            <input type="file" id="var_img_inp" accept="image/*" class="text-[10px] text-gray-500 file:py-1 file:px-2 file:rounded-md file:border-0 file:bg-amber-100">
+            <button type="button" onclick="addVariationRow()" class="border border-orange-300 text-orange-700 bg-orange-50 hover:bg-orange-100 font-bold px-3 py-1.5 rounded-lg text-xs">+ Add Variant</button>
+          </div>
         </div>
-        <div class="space-y-1 pb-1">
-          <label class="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-gray-600 select-none">
-            <input type="checkbox" id="edit_is_exempt" class="rounded text-indigo-600">
-            <span>No GST</span>
+
+        <!-- Add-ons -->
+        <div data-panel="addons" class="edit-panel hidden">
+          <p class="text-[11px] text-gray-500 mb-3">Group ka order <b>sirf is item</b> ke liye save hota hai. Options ki availability group me shared hoti hai (jahan bhi group use ho wahan apply hogi).</p>
+          <div id="editAddonGroups" class="space-y-3"></div>
+          <div class="flex gap-2 mt-3">
+            <select id="addGroupSelect" class="flex-1 border p-2 rounded-xl text-xs outline-none"></select>
+            <button type="button" onclick="addGroupToItem()" class="border border-orange-300 text-orange-700 bg-orange-50 hover:bg-orange-100 font-bold px-3 py-1.5 rounded-lg text-xs">+ Add Group</button>
+          </div>
+        </div>
+
+        <!-- Availability -->
+        <div data-panel="availability" class="edit-panel hidden space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-gray-600 mb-1">Status</label>
+            <select id="edit_status" class="w-full border p-2 rounded-xl text-xs outline-none">
+              <option value="available">Available</option>
+              <option value="unavailable">Unavailable (sold out)</option>
+            </select>
+          </div>
+          <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-gray-700 select-none">
+            <input type="checkbox" id="edit_is_featured" class="rounded"> Featured item
           </label>
-          <label class="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-gray-600 select-none">
-            <input type="checkbox" id="edit_is_visible" class="rounded text-indigo-600">
-            <span>Menu me dikhao</span>
+          <label class="flex items-center justify-between border-t pt-4 cursor-pointer select-none">
+            <div>
+              <div class="text-xs font-bold text-gray-800">Send to kitchen (KDS)</div>
+              <div class="text-[10px] text-gray-400">Item needs preparation in the kitchen</div>
+            </div>
+            <input type="checkbox" id="edit_send_to_kds" class="w-5 h-5 accent-orange-600">
           </label>
         </div>
-        <div>
-          <label class="block text-xs font-bold text-gray-600 mb-1">Item Image</label>
-          <input type="file" id="edit_file" accept="image/*" class="text-[10px] text-gray-500 file:py-1 file:px-2 file:rounded-md file:border-0 file:bg-gray-100">
+
+        <!-- Allergens -->
+        <div data-panel="allergens" class="edit-panel hidden">
+          <div id="editAllergens" class="grid grid-cols-4 gap-3 text-xs"></div>
         </div>
-      </div>
 
-      <!-- Variations with Custom Specific Addons -->
-      <div class="border-t pt-3 bg-amber-50/60 p-3 rounded-xl border border-amber-200">
-        <label class="block text-xs font-bold text-amber-900 uppercase mb-1">1. Variations / Sizes</label>
-
-        <div class="flex gap-2 mb-2">
-          <input id="var_name_inp" type="text" placeholder="Size (e.g. Regular)" class="flex-1 border p-1.5 rounded-lg text-xs outline-none bg-white">
-          <input id="var_price_inp" type="number" min="0" step="any" placeholder="₹ Price" class="w-20 border p-1.5 rounded-lg text-xs font-bold outline-none bg-white">
-          <input type="file" id="var_img_inp" accept="image/*" class="text-[10px] text-gray-500 file:py-1 file:px-2 file:rounded-md file:border-0 file:bg-amber-100">
-          <button type="button" onclick="addVariationRow()" class="bg-amber-600 hover:bg-amber-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs">+ Add Size</button>
+        <!-- Tags -->
+        <div data-panel="tags" class="edit-panel hidden">
+          <div class="flex justify-between items-center mb-3">
+            <p class="text-[11px] text-gray-500">Customers kiosk & app par in tags se menu filter karte hain.</p>
+            <button type="button" onclick="autoGenerateTags()" class="border px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-50">✨ Auto-generate</button>
+          </div>
+          <div id="editTagsChips" class="flex flex-wrap gap-2 mb-3"></div>
+          <div class="flex gap-2">
+            <input id="tag_inp" type="text" placeholder="Add a tag (e.g. Paneer)..." onkeydown="if(event.key==='Enter'){event.preventDefault();addEditTag();}" class="flex-1 border p-2 rounded-xl text-xs outline-none">
+            <button type="button" onclick="addEditTag()" class="border border-orange-300 text-orange-700 bg-orange-50 hover:bg-orange-100 font-bold px-3 py-1.5 rounded-lg text-xs">+ Add</button>
+          </div>
+          <p class="text-[10px] text-gray-400 mt-2">Tip: tags <b>Save Changes</b> dabane par persist hote hain.</p>
         </div>
-        <div id="editVariationsList" class="space-y-2 max-h-40 overflow-y-auto pr-1"></div>
-      </div>
 
-      <!-- Default Item-level Addons -->
-      <div class="border-t pt-3 bg-indigo-50/60 p-3 rounded-xl border border-indigo-200">
-        <label class="block text-xs font-bold text-indigo-900 uppercase mb-1">2. Default Fallback Add-on Groups</label>
-        <div id="assignGroupsCheckboxes" class="space-y-1.5 max-h-28 overflow-y-auto pr-1"></div>
-      </div>
+        <!-- Performance -->
+        <div data-panel="performance" class="edit-panel hidden">
+          <div id="editPerformance" class="text-xs"></div>
+        </div>
 
-      <div class="grid grid-cols-2 gap-2 pt-2 border-t">
-        <button onclick="submitItemEdit()" id="editSaveBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-xs transition">Save Item Changes</button>
-        <button onclick="closeEditModal()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-xs transition">Cancel</button>
+        <!-- Recipe -->
+        <div data-panel="recipe" class="edit-panel hidden">
+          <div id="editRecipe" class="text-xs"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -595,13 +674,93 @@
     }
 
     // ---------- data loading ----------
+    // ---------- drag & drop / arrow reordering ----------
+    const sortRegistry = {};
+    let sortDrag = null;
+    function moveItem(arr, from, to) {
+      if (!arr || from === to || to < 0 || to >= arr.length || from < 0 || from >= arr.length) return false;
+      arr.splice(to, 0, arr.splice(from, 1)[0]);
+      return true;
+    }
+    function sortHandle(key, idx) {
+      return `<span draggable="true" ondragstart="sortStart(event,'${key}',${idx})" ondragend="sortEnd()" class="cursor-grab select-none text-gray-400 hover:text-gray-700 px-0.5" title="Drag to reorder">⠿</span>`;
+    }
+    function sortRow(key, idx) {
+      return `data-sortrow ondragover="sortOver(event,'${key}')" ondragleave="this.classList.remove('sort-over')" ondrop="sortDrop(event,'${key}',${idx})"`;
+    }
+    function sortArrows(key, idx, n) {
+      return `<span class="inline-flex flex-col text-[9px] leading-none text-gray-400 align-middle">
+        <button type="button" ${idx === 0 ? 'disabled style="opacity:.3"' : ''} onclick="sortMove('${key}',${idx},-1)">▲</button>
+        <button type="button" ${idx === n - 1 ? 'disabled style="opacity:.3"' : ''} onclick="sortMove('${key}',${idx},1)">▼</button></span>`;
+    }
+    function sortStart(e, key, idx) {
+      sortDrag = { key, idx };
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', '');
+      const row = e.target.closest('[data-sortrow]');
+      if (row) { e.dataTransfer.setDragImage(row, 10, 10); setTimeout(() => row.classList.add('opacity-50'), 0); }
+    }
+    function sortEnd() {
+      sortDrag = null;
+      document.querySelectorAll('.sort-over').forEach(el => el.classList.remove('sort-over'));
+      document.querySelectorAll('[data-sortrow].opacity-50').forEach(el => el.classList.remove('opacity-50'));
+    }
+    function sortOver(e, key) {
+      if (!sortDrag || sortDrag.key !== key) return;
+      e.preventDefault();
+      e.currentTarget.classList.add('sort-over');
+    }
+    function sortDrop(e, key, idx) {
+      e.preventDefault();
+      e.currentTarget.classList.remove('sort-over');
+      if (!sortDrag || sortDrag.key !== key) return;
+      const from = sortDrag.idx;
+      sortEnd();
+      if (from !== idx && sortRegistry[key]) sortRegistry[key](from, idx);
+    }
+    function sortMove(key, idx, dir) { if (sortRegistry[key]) sortRegistry[key](idx, idx + dir); }
+
+    async function persistOrder(table, ids) {
+      try { await api('/api/reorder', 'POST', { table, ids }); } catch (err) { toast(err.message, true); }
+      loadData();
+    }
+
+    let itemDragGroups = [];
+    function reorderItems(g, from, to) {
+      const grp = itemDragGroups[g];
+      if (!grp || to < 0 || to >= grp.ids.length) return;
+      const full = menuItems.filter(i => (i.category || 'Uncategorized') === grp.cat).map(i => Number(i.id));
+      if (moveItem(full, full.indexOf(grp.ids[from]), full.indexOf(grp.ids[to]))) persistOrder('menu', full);
+    }
+    sortRegistry.cats = (f, t) => {
+      const names = allCategoryNames();
+      const a = categories.find(c => c.name === names[f]), b = categories.find(c => c.name === names[t]);
+      if (!a || !b) return;
+      const ids = categories.map(c => Number(c.id));
+      if (moveItem(ids, ids.indexOf(Number(a.id)), ids.indexOf(Number(b.id)))) persistOrder('categories', ids);
+    };
+    sortRegistry.grps = (f, t) => {
+      const ids = globalAddonGroups.map(g => Number(g.id));
+      if (moveItem(ids, f, t)) persistOrder('addon_groups', ids);
+    };
+    sortRegistry.vsets = (f, t) => {
+      const ids = globalVariationMasters.map(v => Number(v.id));
+      if (moveItem(ids, f, t)) persistOrder('variation_masters', ids);
+    };
+    sortRegistry.ups = (f, t) => {
+      const ids = upsellRows.map(u => Number(u.id));
+      if (moveItem(ids, f, t)) persistOrder('upsells', ids);
+    };
+    sortRegistry.var = (f, t) => { if (moveItem(currentEditVariations, f, t)) renderEditVariations(); };
+    sortRegistry.egrp = (f, t) => { if (moveItem(currentEditGroupIds, f, t)) renderEditAddonGroups(); };
+
     async function loadData() {
       try {
         const [g, v, c, items] = await Promise.all([
           api('/api/addon-groups'),
           api('/api/variation-masters'),
           api('/api/categories'),
-          api('/api/menu')
+          api('/api/menu?admin=1')
         ]);
         globalAddonGroups = g;
         globalVariationMasters = v;
@@ -659,15 +818,28 @@
       document.getElementById('itemCountBadge').innerText =
         (list.length === menuItems.length ? list.length : list.length + ' / ' + menuItems.length) + ' Items';
 
+      let lastCat = null;
+      itemDragGroups = [];
+      const catCounts = {};
+      list.forEach(i => { const c = i.category || 'Uncategorized'; catCounts[c] = (catCounts[c] || 0) + 1; });
       document.getElementById('menuTableBody').innerHTML = list.length ? list.map(i => {
+        const catName = i.category || 'Uncategorized';
+        const catHeader = catName !== lastCat
+          ? `<tr class="bg-indigo-50/70"><td colspan="9" class="px-3 py-2 text-xs font-black uppercase tracking-wide text-indigo-800">${esc(catName)} <span class="ml-1 text-[10px] font-bold text-indigo-500">${catCounts[catName]} items</span></td></tr>`
+          : '';
+        if (catName !== lastCat) itemDragGroups.push({ cat: catName, ids: [] });
+        lastCat = catName;
+        const gIdx = itemDragGroups.length - 1;
+        const pos = itemDragGroups[gIdx].ids.push(Number(i.id)) - 1;
+        sortRegistry['items' + gIdx] = (f, t) => reorderItems(gIdx, f, t);
         const vars = parseJson(i.variations, []);
         const grps = parseJson(i.assigned_addon_groups, []);
         const itemImg = resolveImgPath(i.image || i.image_url || i.img || '');
         const stock = Number(i.stock) || 0;
         const unavailable = stock <= 0;
-        return `
-          <tr class="hover:bg-gray-50 ${unavailable ? 'opacity-60' : ''}">
-            <td class="p-3"><input type="checkbox" ${selItems.has(Number(i.id)) ? 'checked' : ''} onchange="toggleSel(selItems, ${Number(i.id)}, this.checked, updateItemBar)"></td>
+        return catHeader + `
+          <tr class="hover:bg-gray-50 ${unavailable ? 'opacity-60' : ''}" ${sortRow('items' + gIdx, pos)}>
+            <td class="p-3 whitespace-nowrap">${sortHandle('items' + gIdx, pos)} ${sortArrows('items' + gIdx, pos, catCounts[catName])} <input type="checkbox" ${selItems.has(Number(i.id)) ? 'checked' : ''} onchange="toggleSel(selItems, ${Number(i.id)}, this.checked, updateItemBar)"></td>
             <td class="p-3">
               ${itemImg ? `<img src="${esc(itemImg)}" class="w-10 h-10 object-cover rounded-lg border" onerror="this.onerror=null; this.style.display='none';">` : `<div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs">No Img</div>`}
             </td>
@@ -794,9 +966,11 @@
       document.getElementById('categoriesList').innerHTML = names.length ? names.map(n => {
         const count = menuItems.filter(i => i.category === n).length;
         const rec = categories.find(c => c.name === n);
+        const ci = names.indexOf(n);
         return `
-          <div class="flex justify-between items-center p-3 text-sm">
+          <div class="flex justify-between items-center p-3 text-sm" ${rec ? sortRow('cats', ci) : ''}>
             <div class="flex items-center gap-2">
+              ${rec ? sortHandle('cats', ci) + ' ' + sortArrows('cats', ci, names.length) : ''}
               ${rec ? `<input type="checkbox" ${selCats.has(Number(rec.id)) ? 'checked' : ''} onchange="toggleSel(selCats, ${Number(rec.id)}, this.checked, updateCatBar)">` : '<span class="w-[13px]"></span>'}
               <span class="font-bold text-gray-800">${esc(n)}</span>
               <span class="ml-2 text-xs text-gray-500">${count} items</span></div>
@@ -932,12 +1106,13 @@
     }
 
     function renderGlobalGroups() {
-      document.getElementById('globalGroupsGrid').innerHTML = globalAddonGroups.map(g => {
+      document.getElementById('globalGroupsGrid').innerHTML = globalAddonGroups.map((g, gi) => {
         const items = parseJson(g.items, []);
         const linked = linkedItemsForGroup(Number(g.id)).length;
         return `
-          <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
+          <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm" ${sortRow('grps', gi)}>
             <div class="flex justify-between items-start mb-2">
+              <div class="mt-0.5 mr-2 flex items-center gap-1">${sortHandle('grps', gi)} ${sortArrows('grps', gi, globalAddonGroups.length)}</div>
               <input type="checkbox" class="mt-1 mr-2" ${selGroups.has(Number(g.id)) ? 'checked' : ''} onchange="toggleSel(selGroups, ${Number(g.id)}, this.checked, updateGroupBar)">
               <div class="flex-1">
                 <h3 class="font-black text-sm text-gray-800">${esc(g.name)}</h3>
@@ -1069,15 +1244,16 @@
     }
 
     function renderGlobalVariations() {
-      document.getElementById('globalVariationsGrid').innerHTML = globalVariationMasters.map(v => {
+      document.getElementById('globalVariationsGrid').innerHTML = globalVariationMasters.map((v, vi) => {
         const opts = parseJson(v.options, []);
         return `
-          <div class="bg-white p-4 rounded-2xl border border-amber-200 shadow-sm">
+          <div class="bg-white p-4 rounded-2xl border border-amber-200 shadow-sm" ${sortRow('vsets', vi)}>
             <div class="flex justify-between items-start mb-2">
+              <div class="flex items-center gap-2">${sortHandle('vsets', vi)} ${sortArrows('vsets', vi, globalVariationMasters.length)}
               <label class="flex items-center gap-2">
                 <input type="checkbox" ${selVars.has(Number(v.id)) ? 'checked' : ''} onchange="toggleSel(selVars, ${Number(v.id)}, this.checked, updateVarBar)">
                 <h3 class="font-black text-sm text-gray-800">${esc(v.name)}</h3>
-              </label>
+              </label></div>
               <div class="space-x-3 text-xs">
                 <button onclick="editVariation(${Number(v.id)})" class="text-indigo-600 font-bold hover:underline">Edit</button>
                 <button onclick="deleteVariation(${Number(v.id)})" class="text-red-500 font-bold hover:underline">Delete</button>
@@ -1104,38 +1280,91 @@
     }
 
     // ---------- edit item modal ----------
+    const ALLERGENS = ['Dairy', 'Gluten', 'Nuts', 'Egg', 'Soy', 'Shellfish', 'Fish', 'Sesame'];
+    let currentEditTags = [];
+    let currentEditGroupIds = [];
+    let editGroupsDirty = new Set();
+    let editGroupsDraft = {}; // group id -> items (with `available` flags) while the modal is open
+
+    function switchEditTab(tab) {
+      document.querySelectorAll('#editTabs .edit-tab').forEach(b => {
+        const on = b.dataset.tab === tab;
+        b.classList.toggle('text-orange-600', on);
+        b.classList.toggle('border-b-2', on);
+        b.classList.toggle('border-orange-600', on);
+      });
+      document.querySelectorAll('.edit-panel').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== tab));
+      const id = document.getElementById('edit_id').value;
+      if (tab === 'performance') loadEditPerformance(id);
+      if (tab === 'recipe') loadEditRecipe();
+    }
+
+    function fmtDateTime(v) {
+      if (!v) return '—';
+      const d = new Date(v);
+      return isNaN(d) ? '—' : d.toLocaleString('en-GB');
+    }
+
+    function renderEditImage() {
+      const box = document.getElementById('editImgPreview');
+      const f = document.getElementById('edit_file').files[0];
+      if (f) box.innerHTML = `<img src="${esc(URL.createObjectURL(f))}" class="w-full h-full object-cover">`;
+      else if (currentEditImage) box.innerHTML = `<img src="${esc(resolveImgPath(currentEditImage))}" class="w-full h-full object-cover">`;
+      else box.textContent = 'No image';
+    }
+    function previewEditImage() { renderEditImage(); }
+    function removeEditImage() {
+      currentEditImage = '';
+      document.getElementById('edit_file').value = '';
+      renderEditImage();
+    }
+
     function openEditModal(id) {
       const item = menuItems.find(i => Number(i.id) === id);
       if (!item) return;
       document.getElementById('edit_id').value = item.id;
+      document.getElementById('editTitle').innerText = item.name;
       document.getElementById('edit_name').value = item.name;
       document.getElementById('edit_cat').value = item.category || '';
       document.getElementById('edit_price').value = item.price;
       document.getElementById('edit_stock').value = item.stock ?? 50;
+      document.getElementById('edit_description').value = item.description || '';
       document.getElementById('edit_is_exempt').checked = !!Number(item.is_exempt);
       document.getElementById('edit_is_visible').checked = Number(item.is_visible) !== 0;
       document.getElementById('edit_file').value = '';
       currentEditImage = item.image || '';
+      renderEditImage();
+      document.getElementById('editTimestamps').innerHTML =
+        `Created: <b>${esc(fmtDateTime(item.created_at))}</b> &nbsp;·&nbsp; Updated: <b>${esc(fmtDateTime(item.updated_at))}</b>`;
 
-      currentEditVariations = parseJson(item.variations, []);
+      currentEditVariations = parseJson(item.variations, []).map(v => Object.assign({}, v, { active: v.active !== false }));
       renderEditVariations();
 
-      const assignedIds = parseJson(item.assigned_addon_groups, []).map(Number);
-      document.getElementById('assignGroupsCheckboxes').innerHTML = globalAddonGroups.map(g => `
-        <label class="flex items-center justify-between p-2 rounded-lg bg-white border border-indigo-100 cursor-pointer hover:bg-indigo-50/50">
-          <div>
-            <input type="checkbox" value="${esc(g.id)}" ${assignedIds.includes(Number(g.id)) ? 'checked' : ''} class="addonGroupCheckbox rounded text-indigo-600">
-            <span class="text-xs font-bold text-gray-800 ml-1.5">${esc(g.name)}</span>
-          </div>
-          <span class="text-[10px] text-gray-500">${Number(g.is_mandatory) ? 'Mandatory' : 'Optional'}</span>
-        </label>
-      `).join('') || '<p class="text-xs text-gray-400">Pehle add-on group banayein</p>';
+      currentEditGroupIds = parseJson(item.assigned_addon_groups, []).map(Number);
+      editGroupsDirty = new Set();
+      editGroupsDraft = {};
+      globalAddonGroups.forEach(g => { editGroupsDraft[Number(g.id)] = parseJson(g.items, []).map(o => Object.assign({}, o)); });
+      renderEditAddonGroups();
+
+      document.getElementById('edit_status').value = item.status || 'available';
+      document.getElementById('edit_is_featured').checked = !!Number(item.is_featured);
+      document.getElementById('edit_send_to_kds').checked = item.send_to_kds === undefined || item.send_to_kds === null || !!Number(item.send_to_kds);
+
+      const al = parseJson(item.allergens, []);
+      document.getElementById('editAllergens').innerHTML = ALLERGENS.map(a => `
+        <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" class="editAllergen" value="${a}" ${al.includes(a) ? 'checked' : ''}> ${a}</label>
+      `).join('');
+
+      currentEditTags = parseJson(item.tags, []);
+      renderEditTags();
 
       document.getElementById('editItemModal').classList.remove('hidden');
+      switchEditTab('basic');
     }
 
     function closeEditModal() { document.getElementById('editItemModal').classList.add('hidden'); }
 
+    // ----- variants -----
     async function addVariationRow() {
       const name = document.getElementById('var_name_inp').value.trim();
       const priceRaw = document.getElementById('var_price_inp').value;
@@ -1143,7 +1372,7 @@
       if (!name || priceRaw === '' || isNaN(price) || price < 0) return toast('Size name aur valid price daalein!', true);
       try {
         const image = await uploadFileHelper(document.getElementById('var_img_inp'));
-        currentEditVariations.push({ name, price, image, addon_groups: [] });
+        currentEditVariations.push({ name, price, image, addon_groups: [], active: true });
       } catch (err) { return toast(err.message, true); }
       document.getElementById('var_name_inp').value = '';
       document.getElementById('var_price_inp').value = '';
@@ -1151,28 +1380,55 @@
       renderEditVariations();
     }
 
+    async function uploadVariationImage(idx, input) {
+      try {
+        const url = await uploadFileHelper(input);
+        if (url) currentEditVariations[idx].image = url;
+      } catch (err) { toast(err.message, true); }
+      renderEditVariations();
+    }
+
+    function moveInList(list, idx, dir) {
+      const j = idx + dir;
+      if (j < 0 || j >= list.length) return;
+      [list[idx], list[j]] = [list[j], list[idx]];
+    }
+    function moveVariation(idx, dir) { moveInList(currentEditVariations, idx, dir); renderEditVariations(); }
+    function setVariationField(idx, key, val) {
+      const v = currentEditVariations[idx];
+      if (key === 'price') v.price = Number(val) || 0;
+      else if (key === 'name') v.name = val;
+      else if (key === 'active') v.active = !!val;
+      else if (key === 'is_default') currentEditVariations.forEach((x, i) => { x.is_default = i === idx ? !!val : false; });
+      renderEditVariations();
+    }
+
     function renderEditVariations() {
+      const n = currentEditVariations.length;
       document.getElementById('editVariationsList').innerHTML = currentEditVariations.map((v, idx) => {
         const count = (v.addon_groups || []).length;
-        const vImg = resolveImgPath(v.image);
         return `
-          <div class="flex justify-between items-center bg-white border border-amber-200 p-2 rounded-xl text-xs">
-            <div class="flex items-center gap-2">
-              ${vImg ? `<img src="${esc(vImg)}" class="w-6 h-6 object-cover rounded">` : ''}
-              <div>
-                <span class="font-bold text-gray-800">${esc(v.name)}</span>
-                <span class="font-black text-emerald-600 ml-2">₹${esc(v.price)}</span>
-              </div>
+          <div class="flex items-center gap-2 text-xs" ${sortRow('var', idx)}>
+            ${sortHandle('var', idx)}
+            <div class="flex flex-col text-[9px] leading-none text-gray-400">
+              <button type="button" ${idx === 0 ? 'disabled class="opacity-30"' : ''} onclick="moveVariation(${idx}, -1)">▲</button>
+              <button type="button" ${idx === n - 1 ? 'disabled class="opacity-30"' : ''} onclick="moveVariation(${idx}, 1)">▼</button>
             </div>
-            <div class="flex items-center gap-2">
-              <button type="button" onclick="openSubModal(${idx})" class="text-[11px] font-bold px-2 py-1 rounded-lg border ${count > 0 ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'bg-gray-50 border-gray-200 text-gray-600'} hover:bg-indigo-100">
-                🧩 ${count > 0 ? count + ' Groups Assigned' : '+ Custom Addons'}
-              </button>
-              <button type="button" onclick="currentEditVariations.splice(${idx}, 1); renderEditVariations();" class="text-red-500 font-bold ml-1">✕</button>
+            <div class="flex items-center gap-1 shrink-0">
+              <label class="w-10 h-10 rounded-lg border bg-gray-50 overflow-hidden flex items-center justify-center cursor-pointer text-gray-400 hover:border-orange-400" title="Variant image upload / replace">
+                ${v.image ? `<img src="${esc(resolveImgPath(v.image))}" class="w-full h-full object-cover">` : '📷'}
+                <input type="file" accept="image/*" class="hidden" onchange="uploadVariationImage(${idx}, this)">
+              </label>
+              ${v.image ? `<button type="button" onclick="currentEditVariations[${idx}].image = ''; renderEditVariations();" class="text-red-500 text-[10px] font-bold" title="Remove image">✕</button>` : ''}
             </div>
-          </div>
-        `;
-      }).join('');
+            <input type="text" value="${esc(v.name)}" onchange="currentEditVariations[${idx}].name = this.value" class="flex-1 border p-2 rounded-lg outline-none">
+            <input type="number" min="0" step="any" value="${esc(v.price)}" onchange="currentEditVariations[${idx}].price = Number(this.value) || 0" class="w-24 border p-2 rounded-lg font-bold outline-none">
+            <label class="flex items-center gap-1 text-[10px] text-gray-600"><input type="checkbox" ${v.is_default ? 'checked' : ''} onchange="setVariationField(${idx}, 'is_default', this.checked)"> Default</label>
+            <label class="flex items-center gap-1 text-[10px] text-gray-600"><input type="checkbox" ${v.active !== false ? 'checked' : ''} onchange="setVariationField(${idx}, 'active', this.checked)"> On</label>
+            <button type="button" onclick="openSubModal(${idx})" class="text-[10px] font-bold px-2 py-1 rounded-lg border ${count > 0 ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'bg-gray-50 border-gray-200 text-gray-600'}">🧩 ${count > 0 ? count : '+'}</button>
+            <button type="button" onclick="currentEditVariations.splice(${idx}, 1); renderEditVariations();" class="border border-red-200 text-red-500 rounded-lg w-8 h-8 font-bold">✕</button>
+          </div>`;
+      }).join('') || '<p class="text-xs text-gray-400">Koi variant nahi — item base price par bikega.</p>';
     }
 
     function openSubModal(varIdx) {
@@ -1208,31 +1464,160 @@
       renderEditVariations();
     }
 
+    // ----- add-ons -----
+    function renderEditAddonGroups() {
+      const n = currentEditGroupIds.length;
+      currentEditGroupIds.forEach(gid => {
+        sortRegistry['opt' + gid] = (f, t) => { if (moveItem(editGroupsDraft[gid], f, t)) { editGroupsDirty.add(gid); renderEditAddonGroups(); } };
+      });
+      document.getElementById('editAddonGroups').innerHTML = currentEditGroupIds.map((gid, idx) => {
+        const g = globalAddonGroups.find(x => Number(x.id) === gid);
+        if (!g) return '';
+        const opts = editGroupsDraft[gid] || [];
+        return `
+          <div class="border rounded-xl overflow-hidden">
+            <div class="flex items-center gap-2 bg-gray-50 px-3 py-2" ${sortRow('egrp', idx)}>
+              ${sortHandle('egrp', idx)}
+              <div class="flex flex-col text-[9px] leading-none text-gray-400">
+                <button type="button" ${idx === 0 ? 'disabled class="opacity-30"' : ''} onclick="moveEditGroup(${idx}, -1)">▲</button>
+                <button type="button" ${idx === n - 1 ? 'disabled class="opacity-30"' : ''} onclick="moveEditGroup(${idx}, 1)">▼</button>
+              </div>
+              <span class="flex-1 text-xs font-black text-gray-800">${esc(g.name)}</span>
+              <span class="text-[10px] font-bold ${Number(g.is_mandatory) ? 'text-red-600' : 'text-emerald-700'}">${Number(g.is_mandatory) ? 'MANDATORY' : 'OPTIONAL'} · max ${esc(g.max_selection)}</span>
+              <button type="button" onclick="removeEditGroup(${idx})" class="text-[11px] font-bold text-red-500 bg-red-50 px-2 py-1 rounded">Remove</button>
+            </div>
+            <div class="divide-y">
+              ${opts.map((o, oi) => `
+                <div class="flex items-center gap-2 px-3 py-1.5 text-xs" ${sortRow('opt' + gid, oi)}>
+                  ${sortHandle('opt' + gid, oi)}
+                  <div class="flex flex-col text-[9px] leading-none text-gray-400">
+                    <button type="button" onclick="moveGroupOption(${gid}, ${oi}, -1)">▲</button>
+                    <button type="button" onclick="moveGroupOption(${gid}, ${oi}, 1)">▼</button>
+                  </div>
+                  <span class="flex-1 text-gray-800">${esc(o.name)}</span>
+                  <span class="text-gray-500">${Number(o.price) ? '+₹' + esc(o.price) : 'Free'}</span>
+                  <label class="flex items-center gap-1 text-[10px] ${o.available === false ? 'text-red-500' : 'text-emerald-700'}">
+                    <input type="checkbox" ${o.available !== false ? 'checked' : ''} onchange="toggleGroupOption(${gid}, ${oi}, this.checked)"> ${o.available === false ? 'Unavailable' : 'Available'}
+                  </label>
+                </div>`).join('')}
+            </div>
+          </div>`;
+      }).join('') || '<p class="text-xs text-gray-400">Is item par koi add-on group nahi hai.</p>';
+
+      const free = globalAddonGroups.filter(g => !currentEditGroupIds.includes(Number(g.id)));
+      document.getElementById('addGroupSelect').innerHTML = free.length
+        ? free.map(g => `<option value="${esc(g.id)}">${esc(g.name)}</option>`).join('')
+        : '<option value="">Sab groups assigned hain</option>';
+    }
+    function moveEditGroup(idx, dir) { moveInList(currentEditGroupIds, idx, dir); renderEditAddonGroups(); }
+    function removeEditGroup(idx) { currentEditGroupIds.splice(idx, 1); renderEditAddonGroups(); }
+    function addGroupToItem() {
+      const v = Number(document.getElementById('addGroupSelect').value);
+      if (!v) return;
+      currentEditGroupIds.push(v);
+      renderEditAddonGroups();
+    }
+    function moveGroupOption(gid, oi, dir) { moveInList(editGroupsDraft[gid], oi, dir); editGroupsDirty.add(gid); renderEditAddonGroups(); }
+    function toggleGroupOption(gid, oi, on) { editGroupsDraft[gid][oi].available = !!on; editGroupsDirty.add(gid); renderEditAddonGroups(); }
+
+    // ----- tags -----
+    function renderEditTags() {
+      document.getElementById('editTagsChips').innerHTML = currentEditTags.map((t, i) => `
+        <span class="inline-flex items-center gap-1 bg-orange-50 text-orange-700 border border-orange-200 px-2.5 py-1 rounded-full text-xs font-bold">
+          ${esc(t)} <button type="button" onclick="currentEditTags.splice(${i}, 1); renderEditTags();" class="text-orange-500">✕</button>
+        </span>`).join('') || '<span class="text-xs text-gray-400">Koi tag nahi</span>';
+    }
+    function addEditTag() {
+      const inp = document.getElementById('tag_inp');
+      const t = inp.value.trim();
+      if (!t) return;
+      if (!currentEditTags.some(x => x.toLowerCase() === t.toLowerCase())) currentEditTags.push(t);
+      inp.value = '';
+      renderEditTags();
+    }
+    function autoGenerateTags() {
+      const name = document.getElementById('edit_name').value;
+      const cat = document.getElementById('edit_cat').value;
+      const words = (name + ' ' + cat).replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/)
+        .filter(w => w.length > 2 && !['and', 'the', 'with', 'meal', 'meals'].includes(w.toLowerCase()));
+      words.concat(cat.trim() ? [cat.trim()] : []).forEach(w => {
+        const t = w.charAt(0).toUpperCase() + w.slice(1);
+        if (!currentEditTags.some(x => x.toLowerCase() === t.toLowerCase())) currentEditTags.push(t);
+      });
+      renderEditTags();
+    }
+
+    // ----- performance & recipe -----
+    async function loadEditPerformance(id) {
+      const box = document.getElementById('editPerformance');
+      box.innerHTML = '<p class="text-gray-400">Loading…</p>';
+      try {
+        const p = await api('/api/menu/' + id + '/performance');
+        const row = (l, v) => `<div class="flex justify-between border-b py-2"><span class="text-gray-600">${l}</span><b>${v}</b></div>`;
+        const inr = n => '₹' + Math.round(Number(n) || 0).toLocaleString('en-IN');
+        box.innerHTML =
+          row('Orders this week', Number(p.week.orders)) + row('Qty sold this week', Number(p.week.qty)) + row('Revenue this week', inr(p.week.revenue)) +
+          row('Orders this month', Number(p.month.orders)) + row('Qty sold this month', Number(p.month.qty)) + row('Revenue this month', inr(p.month.revenue));
+      } catch (err) { box.innerHTML = `<p class="text-red-500">${esc(err.message)}</p>`; }
+    }
+
+    async function loadEditRecipe() {
+      const box = document.getElementById('editRecipe');
+      const name = document.getElementById('edit_name').value.trim().toLowerCase();
+      box.innerHTML = '<p class="text-gray-400">Loading…</p>';
+      try {
+        const recipes = await api('/api/inventory/recipes');
+        const mine = recipes.filter(r => String(r.item_name || '').trim().toLowerCase() === name);
+        box.innerHTML = mine.map(r => `
+          <details class="border rounded-xl mb-2">
+            <summary class="px-3 py-2 cursor-pointer font-bold">${esc(r.recipe_name || r.item_name)}
+              <span class="ml-2 text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">${r.lines.length} ingredients</span></summary>
+            <table class="w-full text-[11px]">
+              ${r.lines.map(l => `<tr class="border-t"><td class="px-3 py-1.5">${esc(l.ingredient)}</td><td class="px-3 py-1.5 text-right">${esc(l.quantity)} ${esc(l.unit_abbr || l.unit || '')}</td></tr>`).join('')}
+            </table>
+          </details>`).join('') || '<p class="text-gray-400">Is item ki koi recipe nahi mili (recipes Excel import se aati hain).</p>';
+      } catch (err) { box.innerHTML = `<p class="text-red-500">${esc(err.message)}</p>`; }
+    }
+
     async function submitItemEdit() {
       const id = document.getElementById('edit_id').value;
       const name = document.getElementById('edit_name').value.trim();
       const category = document.getElementById('edit_cat').value.trim();
       const price = Number(document.getElementById('edit_price').value);
       const stock = Number(document.getElementById('edit_stock').value);
-      if (!name || !category) return toast('Item name aur category zaroori hai', true);
-      if (isNaN(price) || price < 0) return toast('Valid price daalein', true);
-      if (isNaN(stock) || stock < 0) return toast('Valid stock daalein', true);
+      if (!name || !category) { switchEditTab('basic'); return toast('Item name aur category zaroori hai', true); }
+      if (isNaN(price) || price < 0) { switchEditTab('basic'); return toast('Valid price daalein', true); }
+      if (isNaN(stock) || stock < 0) { switchEditTab('basic'); return toast('Valid stock daalein', true); }
 
       busy('editSaveBtn', true);
       try {
         const fileInp = document.getElementById('edit_file');
         if (fileInp.files && fileInp.files[0]) currentEditImage = await uploadFileHelper(fileInp);
 
-        const assignedGroups = [];
-        document.querySelectorAll('.addonGroupCheckbox:checked').forEach(cb => assignedGroups.push(Number(cb.value)));
+        for (const gid of editGroupsDirty) {
+          const g = globalAddonGroups.find(x => Number(x.id) === gid);
+          if (!g) continue;
+          await api('/api/addon-groups/' + gid, 'PUT', {
+            name: g.name, min_selection: g.min_selection, max_selection: g.max_selection,
+            is_mandatory: Number(g.is_mandatory) ? 1 : 0, items: editGroupsDraft[gid]
+          });
+        }
+
+        const allergens = [];
+        document.querySelectorAll('.editAllergen:checked').forEach(cb => allergens.push(cb.value));
 
         await api('/api/menu/' + id, 'PUT', {
           name, category, price, stock,
           image: currentEditImage,
+          description: document.getElementById('edit_description').value.trim(),
           variations: currentEditVariations,
-          assigned_addon_groups: assignedGroups,
+          assigned_addon_groups: currentEditGroupIds,
           is_exempt: document.getElementById('edit_is_exempt').checked ? 1 : 0,
-          is_visible: document.getElementById('edit_is_visible').checked ? 1 : 0
+          is_visible: document.getElementById('edit_is_visible').checked ? 1 : 0,
+          status: document.getElementById('edit_status').value,
+          is_featured: document.getElementById('edit_is_featured').checked ? 1 : 0,
+          send_to_kds: document.getElementById('edit_send_to_kds').checked ? 1 : 0,
+          allergens, tags: currentEditTags
         });
         await ensureCategory(category);
         closeEditModal();
@@ -1483,9 +1868,9 @@
       const q = document.getElementById('upsSearch').value.trim().toLowerCase();
       const list = upsellRows.filter(u => !q || String(u.item_name).toLowerCase().includes(q));
       document.getElementById('upsCountBadge').innerText = list.length + ' Upsells';
-      document.getElementById('upsellsBody').innerHTML = list.length ? list.map(u => `
-        <tr class="hover:bg-gray-50 ${Number(u.is_active) ? '' : 'opacity-60'}">
-          <td class="p-3"><input type="checkbox" ${selUps.has(Number(u.id)) ? 'checked' : ''} onchange="toggleSel(selUps, ${Number(u.id)}, this.checked, updateUpsBar)"></td>
+      document.getElementById('upsellsBody').innerHTML = list.length ? list.map((u, ui) => `
+        <tr class="hover:bg-gray-50 ${Number(u.is_active) ? '' : 'opacity-60'}" ${q ? '' : sortRow('ups', ui)}>
+          <td class="p-3 whitespace-nowrap">${q ? '' : sortHandle('ups', ui) + ' ' + sortArrows('ups', ui, list.length)} <input type="checkbox" ${selUps.has(Number(u.id)) ? 'checked' : ''} onchange="toggleSel(selUps, ${Number(u.id)}, this.checked, updateUpsBar)"></td>
           <td class="p-3 font-bold text-gray-800">${esc(u.item_name)}</td>
           <td class="p-3"><span class="px-2 py-0.5 rounded text-[11px] font-bold ${u.upsell_type === 'upgrade' ? 'bg-amber-50 text-amber-800' : 'bg-indigo-50 text-indigo-800'}">${u.upsell_type === 'upgrade' ? 'Upgrade' : 'Cross-sell'}</span></td>
           <td class="p-3 text-gray-700">${u.suggested_item ? esc(u.suggested_item) : '📁 ' + esc(u.suggested_category)}</td>

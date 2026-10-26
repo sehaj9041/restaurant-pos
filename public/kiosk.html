@@ -135,6 +135,7 @@
         <h3 id="custItemTitle" class="text-4xl font-black leading-tight">Burger</h3>
         <div id="modalItemRunningTotal" class="text-4xl font-black leading-tight mt-1">₹0.00</div>
         <p id="custItemCategory" class="text-[12px] font-bold text-neutral-500 uppercase tracking-widest mt-2"></p>
+        <p id="custStepInfo" class="text-[12px] font-bold text-[var(--red)] uppercase tracking-widest mt-1"></p>
       </div>
 
       <div class="flex-1 overflow-y-auto px-6 py-4 min-h-0">
@@ -148,14 +149,14 @@
       </div>
 
       <div class="shrink-0 px-6 pb-4 pt-3 bg-white border-t border-[var(--line)]">
-        <div class="flex items-stretch border border-[#9a9a9a] bg-white mb-3 h-14">
+        <div id="custQtyRow" class="flex items-stretch border border-[#9a9a9a] bg-white mb-3 h-14">
           <button onclick="changeCustQty(-1)" class="w-16 text-3xl text-neutral-500 active:bg-neutral-100">−</button>
           <div id="custQty" class="flex-1 flex items-center justify-center text-lg border-x border-[#9a9a9a]">1</div>
           <button onclick="changeCustQty(1)" class="w-16 text-3xl active:bg-neutral-100">+</button>
         </div>
         <div class="flex gap-3">
-          <button onclick="closeCustomizerModal()" class="btn-outline w-[36%] py-4 text-lg">Cancel Item</button>
-          <button id="addToTrayBtn" onclick="confirmKioskItemAdd()" class="btn-yellow flex-1 py-4 text-lg">Add To Order</button>
+          <button id="custBackBtn" onclick="custBack()" class="btn-outline w-[36%] py-4 text-lg">Cancel Item</button>
+          <button id="addToTrayBtn" onclick="custNext()" class="btn-yellow flex-1 py-4 text-lg">Add To Order</button>
         </div>
       </div>
     </div>
@@ -363,24 +364,26 @@
       try { variations = JSON.parse(item.variations || '[]'); } catch (e) {}
       const varSec = $('modalVarSection');
 
+      custVariations = variations;
       if (variations.length > 0) {
-        selectedVariation = { ...variations[0], price: Number(variations[0].price) };
-        varSec.classList.remove('hidden');
+        const defIdx = Math.max(0, variations.findIndex(v => v.is_default));
+        selectedVariation = { ...variations[defIdx], price: Number(variations[defIdx].price) };
         $('modalVarGrid').innerHTML = variations.map((v, idx) => `
-          <label class="tile ${idx === 0 ? 'selected' : ''} p-4 flex flex-col items-center text-center cursor-pointer" data-var-tile>
-            <input type="radio" name="kioskVarRadio" class="hidden" ${idx === 0 ? 'checked' : ''} onchange="selectKioskVariation(${idx}, this)">
+          <label class="tile ${idx === defIdx ? 'selected' : ''} p-4 flex flex-col items-center text-center cursor-pointer" data-var-tile>
+            <input type="radio" name="kioskVarRadio" class="hidden" ${idx === defIdx ? 'checked' : ''} onchange="selectKioskVariation(${idx}, this)">
+            ${v.image ? `<img src="${esc(resolveImgPath(v.image))}" class="w-20 h-20 rounded-lg object-cover mb-2">` : ''}
             <span class="font-bold text-base">${esc(v.name)}</span>
             <span class="text-sm text-neutral-600 mt-1">${money(v.price)}</span>
           </label>`).join('');
       } else {
         selectedVariation = null;
-        varSec.classList.add('hidden');
       }
 
-      renderKioskAddonGroups();
+      buildCustSteps();
+      custStepIdx = 0;
+      renderCustStep();
       updateCustomizerTotal();
       $('customizerModal').classList.remove('hidden');
-      $('customizerModal').querySelector('.overflow-y-auto').scrollTop = 0;
     }
 
     function selectKioskVariation(idx, input) {
@@ -390,7 +393,8 @@
       selectedVariation = { ...v, price: Number(v.price) };
       document.querySelectorAll('[data-var-tile]').forEach(t => t.classList.remove('selected'));
       input.closest('label').classList.add('selected');
-      renderKioskAddonGroups();
+      selectedGroupAddons = {};
+      buildCustSteps();
       updateCustomizerTotal();
     }
 
@@ -399,38 +403,88 @@
       try { return JSON.parse(selectedMenuItem.assigned_addon_groups || '[]'); } catch (e) { return []; }
     }
 
-    function renderKioskAddonGroups() {
-      selectedGroupAddons = {};
-      const activeGroups = allMasterGroups.filter(g => activeGroupIds().includes(g.id));
+    // ---------- Step-by-step flow: size first, then add-on groups in the order assigned to the item ----------
+    let custSteps = [], custStepIdx = 0, custVariations = [];
+
+    function groupOptions(g) {
+      let items = [];
+      try { items = JSON.parse(g.items || '[]'); } catch (e) {}
+      return items.map((addon, aIdx) => ({ addon, aIdx })).filter(o => o.addon.available !== false);
+    }
+
+    function buildCustSteps() {
+      const steps = [];
+      if (custVariations.length) steps.push({ type: 'var' });
+      activeGroupIds().forEach(gid => {
+        const g = allMasterGroups.find(x => Number(x.id) === Number(gid));
+        if (g && groupOptions(g).length) steps.push({ type: 'group', id: g.id });
+      });
+      custSteps = steps;
+    }
+
+    function renderCustStep() {
+      const step = custSteps[custStepIdx];
+      const last = custStepIdx >= custSteps.length - 1;
+      $('modalVarSection').classList.toggle('hidden', !(step && step.type === 'var'));
+      if (step && step.type === 'group') renderKioskAddonGroup(step.id); else $('modalAddonGroups').innerHTML = '';
+      $('custStepInfo').innerText = custSteps.length > 1 ? `Step ${custStepIdx + 1} of ${custSteps.length}` : '';
+      $('addToTrayBtn').innerText = last ? 'Add To Order' : 'Next';
+      $('custBackBtn').innerText = custStepIdx === 0 ? 'Cancel Item' : 'Back';
+      $('custQtyRow').classList.toggle('hidden', !last);
+      $('customizerModal').querySelector('.overflow-y-auto').scrollTop = 0;
+    }
+
+    function custBack() {
+      if (custStepIdx === 0) return cancelCustomizer();
+      custStepIdx--;
+      renderCustStep();
+    }
+
+    function custNext() {
+      const step = custSteps[custStepIdx];
+      if (step && step.type === 'group') {
+        const grp = allMasterGroups.find(g => Number(g.id) === Number(step.id));
+        if (grp && grp.is_mandatory && (selectedGroupAddons[grp.id] || []).length < grp.min_selection) {
+          return alert(`"${grp.name}" select karna zaroori hai!`);
+        }
+      }
+      if (custStepIdx >= custSteps.length - 1) return confirmKioskItemAdd();
+      custStepIdx++;
+      renderCustStep();
+    }
+
+    function cancelCustomizer() {
+      closeCustomizerModal();
+      if (upsellStack.length && !showNextUpsell()) showAddedConfirmation();
+    }
+
+    function renderKioskAddonGroup(gid) {
+      const g = allMasterGroups.find(x => Number(x.id) === Number(gid));
       const box = $('modalAddonGroups');
-
-      if (!activeGroups.length) { box.innerHTML = ''; return; }
-
-      box.innerHTML = activeGroups.map(g => {
-        let items = [];
-        try { items = JSON.parse(g.items || '[]'); } catch (e) {}
-        selectedGroupAddons[g.id] = [];
-
-        return `
-          <div>
-            <div class="flex justify-between items-baseline mb-3">
-              <span class="text-xl font-black">${esc(g.name)}</span>
-              <span class="text-[11px] font-bold ${g.is_mandatory ? 'text-[var(--red)]' : 'text-neutral-500'}">
-                ${g.is_mandatory ? 'Required (Min ' + g.min_selection + ')' : 'Optional'}
-              </span>
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-              ${items.map((addon, aIdx) => `
-                <label class="tile p-3 flex items-center justify-between gap-2 cursor-pointer">
-                  <span class="min-w-0">
-                    <span class="block text-[13px] font-bold leading-tight">${esc(addon.name)}</span>
-                    <span class="block text-[12px] text-neutral-600">+${money(addon.price)}</span>
-                  </span>
-                  <input type="checkbox" onchange="toggleKioskAddon(${g.id}, ${aIdx}, this)" class="w-6 h-6 shrink-0 accent-[#FFBC0D]">
-                </label>`).join('')}
-            </div>
-          </div>`;
-      }).join('');
+      if (!g) { box.innerHTML = ''; return; }
+      const chosen = selectedGroupAddons[g.id] || (selectedGroupAddons[g.id] = []);
+      box.innerHTML = `
+        <div>
+          <div class="flex justify-between items-baseline mb-3">
+            <span class="text-xl font-black">${esc(g.name)}</span>
+            <span class="text-[11px] font-bold ${g.is_mandatory ? 'text-[var(--red)]' : 'text-neutral-500'}">
+              ${g.is_mandatory ? 'Required (Min ' + g.min_selection + ')' : 'Optional'}
+            </span>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            ${groupOptions(g).map(({ addon, aIdx }) => {
+              const on = chosen.some(a => a.name === addon.name);
+              return `
+              <label class="tile ${on ? 'selected' : ''} p-3 flex items-center justify-between gap-2 cursor-pointer">
+                <span class="min-w-0">
+                  <span class="block text-[13px] font-bold leading-tight">${esc(addon.name)}</span>
+                  <span class="block text-[12px] text-neutral-600">+${money(addon.price)}</span>
+                </span>
+                <input type="checkbox" ${on ? 'checked' : ''} onchange="toggleKioskAddon(${g.id}, ${aIdx}, this)" class="w-6 h-6 shrink-0 accent-[#FFBC0D]">
+              </label>`;
+            }).join('')}
+          </div>
+        </div>`;
     }
 
     function toggleKioskAddon(groupId, addonIdx, cb) {
@@ -492,6 +546,8 @@
         if (grp && grp.is_mandatory) {
           const chosenCount = (selectedGroupAddons[gid] || []).length;
           if (chosenCount < grp.min_selection) {
+            const si = custSteps.findIndex(st => st.type === 'group' && Number(st.id) === Number(gid));
+            if (si >= 0) { custStepIdx = si; renderCustStep(); }
             return alert(`"${grp.name}" select karna zaroori hai!`);
           }
         }
@@ -535,13 +591,17 @@
 
       closeCustomizerModal();
       updateTrayUI();
-      if (!showUpsells(addedItem, line.cartId, addedQty)) showAddedConfirmation();
+      if (!showUpsells(addedItem, line.cartId, addedQty) && !showNextUpsell()) showAddedConfirmation();
     }
 
     // ---------- Upsells ("Make it a meal" / "Add a drink") ----------
+    // Asked one at a time, in the rank (sort_order) set in admin. upsellStack keeps the unfinished
+    // questions of an earlier item while a suggested item is being customised.
+    let upsellFrame = null;
+    let upsellStack = [];
     function showUpsells(item, cartId, qty) {
       const mine = upsells.filter(u => u.item_name === item.name)
-        .sort((a, b) => (a.upsell_type === 'upgrade' ? 0 : 1) - (b.upsell_type === 'upgrade' ? 0 : 1));
+        .sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0) || Number(a.id) - Number(b.id));
       const seen = new Set([item.id]);
       const sections = [];
       mine.forEach(u => {
@@ -557,7 +617,17 @@
         if (list.length) sections.push({ u, list });
       });
       if (!sections.length) return false;
+      upsellFrame = { sections, cartId, qty };
+      return showNextUpsell();
+    }
 
+    function showNextUpsell() {
+      while (!upsellFrame || !upsellFrame.sections.length) {
+        upsellFrame = upsellStack.pop() || null;
+        if (!upsellFrame) return false;
+      }
+      const { cartId, qty } = upsellFrame;
+      const sections = [upsellFrame.sections.shift()];
       $('upsellList').innerHTML = sections.map(({ u, list }) => {
         const upgrade = u.upsell_type === 'upgrade';
         const title = u.label || (upgrade ? 'Make it a meal?' : 'You may also like');
@@ -588,13 +658,15 @@
 
     function pickUpsell(itemId, upgrade, cartId, qty) {
       $('upsellModal').classList.add('hidden');
+      if (upsellFrame) upsellStack.push(upsellFrame);
+      upsellFrame = null;
       openCustomizer(itemId);
       pendingUpgrade = upgrade ? { cartId, qty } : null;
     }
 
     function closeUpsell() {
       $('upsellModal').classList.add('hidden');
-      showAddedConfirmation();
+      if (!showNextUpsell()) showAddedConfirmation();
     }
 
     function showAddedConfirmation() {
@@ -735,6 +807,8 @@
       selectedVariation = null;
       selectedGroupAddons = {};
       pendingUpgrade = null;
+      upsellFrame = null;
+      upsellStack = [];
       updateTrayUI();
       ['tokenSuccessModal', 'trayReviewModal', 'paymentModal', 'customizerModal', 'modeSelectionScreen', 'addedModal', 'upsellModal', 'thinkingModal']
         .forEach(id => $(id).classList.add('hidden'));
