@@ -272,7 +272,8 @@
         <label class="text-xs font-bold text-neutral-500">Copies</label>
         <input id="ps_copies" type="number" min="1" max="3" class="w-full border p-2.5 rounded-xl text-sm mb-4">
         <button id="ps_appBtn" onclick="window.AndroidPrinter && AndroidPrinter.changeUrl()" class="hidden btn-outline w-full py-2 rounded-xl text-xs font-bold mb-3">Change server link (APK)</button>
-        <p id="ps_status" class="text-[11px] font-bold mb-3"></p>
+        <p id="ps_status" class="text-[11px] font-bold mb-1"></p>
+        <p id="ps_logoStatus" class="text-[11px] font-bold mb-3"></p>
         <div class="flex gap-2">
           <button onclick="testKioskPrint()" class="btn-outline flex-1 py-2.5 rounded-xl text-sm font-bold">Test print</button>
           <button onclick="savePrinterSetup()" class="btn-yellow flex-1 py-2.5 rounded-xl text-sm">Save</button>
@@ -983,6 +984,14 @@
       $('ps_status').innerText = window.AndroidPrinter ? ('USB printer: ' + (AndroidPrinter.status() === 'NO_PRINTER' ? 'not detected ✗' : AndroidPrinter.status().replace('OK ', '') + ' ✓')) : 'Kiosk APK nahi mila (normal browser) - USB print yahan nahi chalega.';
       $('printerSetupModal').classList.remove('hidden');
       clearTimeout(idleTimer);
+      checkLogoStatus();
+    }
+    function checkLogoStatus() {
+      const el = $('ps_logoStatus'), src = kioskReceiptCfg.logo;
+      if (!src) { el.innerText = 'Logo: Settings mein set nahi hai (ya config load nahi hua) ✗'; return; }
+      el.innerText = 'Logo: ' + src + ' - loading...';
+      urlToDataUrl(src).then(() => { el.innerText = 'Logo: ' + src + ' ✓ load ho raha hai'; })
+        .catch(e => { el.innerText = 'Logo: ' + src + ' ✗ ' + (e && e.message || e); });
     }
     function closePrinterSetup() { $('printerSetupModal').classList.add('hidden'); }
     function savePrinterSetup() {
@@ -1101,6 +1110,11 @@
       return out;
     }
 
+    function kioskNotify(msg) {
+      console.warn(msg);
+      if (window.AndroidPrinter && AndroidPrinter.toast) AndroidPrinter.toast(msg); else if (!document.getElementById('printerSetupModal').classList.contains('hidden')) alert(msg);
+    }
+
     // Fetches the logo and shrinks it (uploads can be 1 MB+ / 1300px) so it embeds cheaply in the bill image
     function urlToDataUrl(src) {
       return fetch(src).then(r => r.blob()).then(b => new Promise((res, rej) => {
@@ -1127,6 +1141,7 @@
       // The logo is drawn straight onto the canvas afterwards (an image nested inside the SVG may not be decoded in time),
       // so the bill only reserves a blank box of the right size at the top.
       let logoImg = null, lw = 0, lh = 0;
+      if (withLogo && !kioskReceiptCfg.logo) kioskNotify('Logo print nahi hua: Settings > Receipt & Print mein logo set nahi hai (ya kiosk ko mila nahi).');
       if (withLogo && kioskReceiptCfg.logo) {
         try {
           const du = await urlToDataUrl(kioskReceiptCfg.logo);
@@ -1134,7 +1149,7 @@
           await new Promise((res, rej) => { logoImg.onload = res; logoImg.onerror = () => rej(new Error('logo decode failed')); logoImg.src = du; });
           const k = Math.min(cssW * 45 / 68 / logoImg.naturalWidth, cssW * 22 / 68 / logoImg.naturalHeight);
           lw = Math.max(1, Math.round(logoImg.naturalWidth * k)); lh = Math.max(1, Math.round(logoImg.naturalHeight * k));
-        } catch (e) { console.warn('logo load failed', e); logoImg = null; }
+        } catch (e) { console.warn('logo load failed', e); logoImg = null; kioskNotify('Logo load nahi hua (' + kioskReceiptCfg.logo + '): ' + (e && e.message || e)); }
       }
       const p = kioskBillParts(data, o, logoImg ? '<div style="height:' + lh + 'px"></div>' : '');
       const host = document.createElement('div');
