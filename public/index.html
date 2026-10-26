@@ -233,7 +233,8 @@
       <div class="bg-orange-50 border-2 border-orange-300 rounded-2xl p-4 shadow-sm">
         <div class="flex items-center gap-2 mb-3 border-b border-orange-200 pb-2">
           <span id="needsApprovalCountBadge" class="bg-orange-500 text-white font-black px-2 py-0.5 rounded-md text-xs animate-pulse">1</span>
-          <span class="text-xs font-bold text-orange-800">Customer orders waiting for review before reaching the kitchen</span>
+          <span class="text-xs font-bold text-orange-800 flex-1">Customer orders waiting for review before reaching the kitchen</span>
+          <button id="approvalBellBtn" onclick="toggleApprovalBell()" class="bg-white border border-orange-300 text-orange-700 font-bold px-3 py-1 rounded-lg text-xs hover:bg-orange-100 transition">🔔 Silence</button>
         </div>
         <div id="needsApprovalList" class="space-y-3">
           <!-- Dynamic Approval Cards Will Load Here -->
@@ -1291,6 +1292,80 @@
     }
 
     // ================= NEEDS APPROVAL MODULE =================
+    var approvalAudioCtx = null;
+    var approvalBellTimer = null;
+    var approvalBellSilenced = false;
+    var approvalKnownIds = {};
+
+    function unlockApprovalAudio() {
+      try {
+        if (!approvalAudioCtx) approvalAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (approvalAudioCtx.state === 'suspended') approvalAudioCtx.resume();
+      } catch (e) {}
+    }
+    document.addEventListener('click', unlockApprovalAudio);
+    document.addEventListener('touchstart', unlockApprovalAudio);
+    document.addEventListener('keydown', unlockApprovalAudio);
+
+    function playApprovalBell() {
+      if (!approvalAudioCtx || approvalAudioCtx.state !== 'running') return;
+      var t = approvalAudioCtx.currentTime;
+      [0, 0.35].forEach(function(offset) {
+        [880, 1320].forEach(function(freq) {
+          var osc = approvalAudioCtx.createOscillator();
+          var gain = approvalAudioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.0001, t + offset);
+          gain.gain.exponentialRampToValueAtTime(freq === 880 ? 0.35 : 0.15, t + offset + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, t + offset + 0.6);
+          osc.connect(gain);
+          gain.connect(approvalAudioCtx.destination);
+          osc.start(t + offset);
+          osc.stop(t + offset + 0.65);
+        });
+      });
+    }
+
+    function updateApprovalBellBtn() {
+      var btn = document.getElementById('approvalBellBtn');
+      if (!btn) return;
+      btn.innerText = approvalBellSilenced ? '🔕 Silenced (tap to unmute)' : '🔔 Silence';
+    }
+
+    function startApprovalBell() {
+      if (approvalBellTimer) return;
+      playApprovalBell();
+      approvalBellTimer = setInterval(playApprovalBell, 3000);
+    }
+
+    function stopApprovalBell() {
+      if (approvalBellTimer) { clearInterval(approvalBellTimer); approvalBellTimer = null; }
+    }
+
+    function toggleApprovalBell() {
+      unlockApprovalAudio();
+      approvalBellSilenced = !approvalBellSilenced;
+      if (approvalBellSilenced) stopApprovalBell(); else startApprovalBell();
+      updateApprovalBellBtn();
+    }
+
+    function syncApprovalBell(orders) {
+      if (!orders || orders.length === 0) {
+        stopApprovalBell();
+        approvalBellSilenced = false;
+        approvalKnownIds = {};
+        updateApprovalBellBtn();
+        return;
+      }
+      // Naya order aaye to silence hat jaye taaki bell phir bajti rahe
+      var hasNew = false, ids = {};
+      orders.forEach(function(o) { ids[o.id] = true; if (!approvalKnownIds[o.id]) hasNew = true; });
+      approvalKnownIds = ids;
+      if (hasNew && approvalBellSilenced) { approvalBellSilenced = false; updateApprovalBellBtn(); }
+      if (!approvalBellSilenced) startApprovalBell();
+    }
+
     function fetchNeedsApprovalOrders() {
       fetch('/api/orders/needs-approval')
         .then(function(res) { return res.json(); })
@@ -1303,10 +1378,12 @@
           if (!orders || orders.length === 0) {
             wrapper.classList.add('hidden');
             container.innerHTML = '';
+            syncApprovalBell([]);
             return;
           }
 
           wrapper.classList.remove('hidden');
+          syncApprovalBell(orders);
           if (badge) badge.innerText = orders.length;
 
           var newHtml = orders.map(function(order) {

@@ -247,7 +247,38 @@
       <p class="text-sm text-neutral-500 mt-6">Kitchen is preparing your fresh meal...</p>
     </div>
 
+    <!-- ============ PRINTER SETUP (staff only: tap the store name 5 times) ============ -->
+    <div id="printerSetupModal" class="hidden screen z-[120] bg-black/70 flex items-center justify-center px-5">
+      <div class="bg-white w-full max-w-[420px] rounded-2xl p-5 text-left">
+        <div class="flex justify-between items-center mb-3">
+          <h2 class="text-lg font-black">🖨 Printer Setup</h2>
+          <button onclick="closePrinterSetup()" class="text-2xl font-black px-2">×</button>
+        </div>
+        <label class="text-xs font-bold text-neutral-500">Print method</label>
+        <select id="ps_method" class="w-full border p-2.5 rounded-xl text-sm mb-1">
+          <option value="off">Off (no bill print)</option>
+          <option value="browser">Android Print Service (print dialog)</option>
+          <option value="rawbt">RawBT app (silent thermal print)</option>
+        </select>
+        <p id="ps_help" class="text-[11px] text-neutral-500 mb-3"></p>
+        <label class="text-xs font-bold text-neutral-500">Paper width</label>
+        <select id="ps_width" class="w-full border p-2.5 rounded-xl text-sm mb-3">
+          <option value="32">58 mm (32 chars)</option>
+          <option value="42">80 mm (42 chars)</option>
+          <option value="48">80 mm (48 chars)</option>
+        </select>
+        <label class="flex items-center gap-2 text-sm font-bold mb-3"><input id="ps_logo" type="checkbox" class="w-4 h-4"> Print logo on bill (from Settings &gt; Receipt &amp; Print)</label>
+        <label class="text-xs font-bold text-neutral-500">Copies</label>
+        <input id="ps_copies" type="number" min="1" max="3" class="w-full border p-2.5 rounded-xl text-sm mb-4">
+        <div class="flex gap-2">
+          <button onclick="testKioskPrint()" class="btn-outline flex-1 py-2.5 rounded-xl text-sm font-bold">Test print</button>
+          <button onclick="savePrinterSetup()" class="btn-yellow flex-1 py-2.5 rounded-xl text-sm">Save</button>
+        </div>
+      </div>
+    </div>
+
   </div>
+  <iframe id="kioskPrintFrame" style="position:fixed;right:0;bottom:0;width:0;height:0;border:0;"></iframe>
 
   <script>
     let menuItems = [];
@@ -265,6 +296,8 @@
     let selectedGroupAddons = {};
     let custQty = 1;
     let pendingPaymentMode = '';
+    let kioskStoreCfg = {};
+    let kioskReceiptCfg = {};
 
     const $ = id => document.getElementById(id);
     const money = n => '₹' + Number(n).toFixed(2);
@@ -273,6 +306,7 @@
     fetch('/api/settings').then(res => res.json()).then(s => {
       const name = s.restaurant_name || 'VISHAL FOODIEZ';
       $('idleStoreName').innerText = name;
+      kioskStoreCfg = s || {};
       $('brandBadge').innerText = name.trim().charAt(0).toUpperCase();
     }).catch(() => {});
 
@@ -872,6 +906,7 @@
       closePaymentModal();
       pendingPaymentMode = payMethod;
       const total = trayTotal();
+      const snapshot = { items: kioskTray.map(i => ({ ...i })), subtotal: traySubtotal(), gst: trayGst(), total: total, order_type: kioskOrderType, payment_mode: payMethod };
 
       fetch('/api/orders', {
         method: 'POST',
@@ -893,6 +928,7 @@
       })
       .then(res => res.json())
       .then(data => {
+        printKioskBill(data, snapshot);
         $('kioskTokenDisplay').innerText = '#' + (data.token_no || data.orderId);
         $('kioskModeNote').innerText = kioskOrderType + ' • Pending Approval';
         $('tokenSuccessModal').classList.remove('hidden');
@@ -902,6 +938,194 @@
         alert('Order could not be placed. Please try again or ask staff for help.');
         openPaymentChoice();
       });
+    }
+
+    // ---------- Bill printing (settings are per-device, kept in localStorage) ----------
+    // Setup: tap the store name on the idle screen 5 times.
+    const PRINT_KEY = 'kioskPrintCfg';
+    function getPrintCfg() {
+      let c = {};
+      try { c = JSON.parse(localStorage.getItem(PRINT_KEY) || '{}'); } catch (e) {}
+      return { method: c.method || 'off', width: Number(c.width) || 42, logo: c.logo !== false, copies: Math.max(1, Math.min(3, Number(c.copies) || 1)) };
+    }
+    function loadKioskReceiptCfg() {
+      fetch('/api/settings/config').then(r => r.json()).then(c => { kioskReceiptCfg = (c && c.receipt) || {}; }).catch(() => {});
+    }
+    loadKioskReceiptCfg();
+
+    let psTaps = 0, psTapTimer = null;
+    $('idleStoreName').addEventListener('click', e => {
+      e.stopPropagation();
+      psTaps++;
+      clearTimeout(psTapTimer);
+      psTapTimer = setTimeout(() => { psTaps = 0; }, 1500);
+      if (psTaps >= 5) { psTaps = 0; openPrinterSetup(); }
+    });
+    function updatePrinterHelp() {
+      const m = $('ps_method').value;
+      $('ps_help').innerText = m === 'rawbt'
+        ? 'Install the free "RawBT" app, pair the Bluetooth/USB thermal printer inside it, and set it as default. Bill then prints without any dialog.'
+        : m === 'browser'
+          ? 'Uses the Android print dialog. Install your printer\'s Print Service plugin (or RawBT as a print service) first. Staff must tap Print on each bill.'
+          : 'Bills will not be printed from this kiosk.';
+    }
+    function openPrinterSetup() {
+      const c = getPrintCfg();
+      $('ps_method').value = c.method; $('ps_width').value = String(c.width); $('ps_copies').value = c.copies; $('ps_logo').checked = c.logo;
+      $('ps_method').onchange = updatePrinterHelp;
+      updatePrinterHelp();
+      $('printerSetupModal').classList.remove('hidden');
+      clearTimeout(idleTimer);
+    }
+    function closePrinterSetup() { $('printerSetupModal').classList.add('hidden'); }
+    function savePrinterSetup() {
+      localStorage.setItem(PRINT_KEY, JSON.stringify({ method: $('ps_method').value, width: $('ps_width').value, logo: $('ps_logo').checked, copies: $('ps_copies').value }));
+      closePrinterSetup();
+    }
+    function testKioskPrint() {
+      savePrinterSetup();
+      printKioskBill({ orderId: 'TEST', token_no: 'TEST' }, { items: [{ name: 'Test Item', qty: 1, price: 100, notes: '' }], subtotal: 100, gst: 5, total: 105, order_type: 'Dine-In', payment_mode: 'TEST' }, true);
+    }
+
+    // Plain-text bill for RawBT (thermal printers don't have the rupee glyph, so "Rs")
+    function kioskBillText(data, o, width) {
+      const s = kioskStoreCfg, c = kioskReceiptCfg;
+      const clean = v => String(v == null ? '' : v).replace(/[^\x20-\x7E]/g, '');
+      const center = t => { t = clean(t).slice(0, width); return ' '.repeat(Math.max(0, Math.floor((width - t.length) / 2))) + t; };
+      const lr = (l, r) => { l = clean(l); r = clean(r); const gap = Math.max(1, width - l.length - r.length); return l.slice(0, Math.max(0, width - r.length - 1)) + ' '.repeat(gap) + r; };
+      const money2 = n => Number(n).toFixed(2);
+      const line = '-'.repeat(width);
+      const out = [];
+      out.push(center(s.restaurant_name || 'VISHAL FOODIEZ'));
+      if (s.address) out.push(center(s.address));
+      if (s.phone) out.push(center('Ph: ' + s.phone));
+      if (s.gstin) out.push(center('GSTIN: ' + s.gstin));
+      out.push(line);
+      out.push(center('TOKEN #' + (data.token_no || data.orderId)));
+      out.push(line);
+      out.push(lr('Order: #' + data.orderId, String(o.order_type).toUpperCase()));
+      out.push('Date: ' + new Date().toLocaleDateString('en-IN') + ' ' + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }));
+      out.push(line);
+      out.push(lr('Item x Qty', 'Amount'));
+      o.items.forEach(i => {
+        out.push(lr(clean(i.name).slice(0, width - 12) + ' x' + i.qty, money2(i.price * i.qty)));
+        if (i.notes) out.push('  ' + clean(i.notes).slice(0, width - 2));
+      });
+      out.push(line);
+      out.push(lr('Subtotal', money2(o.subtotal)));
+      out.push(lr('CGST (2.5%)', money2(o.gst / 2)));
+      out.push(lr('SGST (2.5%)', money2(o.gst / 2)));
+      out.push(lr('TOTAL', 'Rs ' + money2(o.total)));
+      out.push(line);
+      out.push(center('Payment: ' + o.payment_mode));
+      out.push(center(c.thank_you || 'Thanks For Visiting Us!'));
+      if (c.footer) out.push(center(c.footer));
+      return out.join('\n') + '\n\n\n\n';
+    }
+
+    function kioskBillHtml(data, o) {
+      const s = kioskStoreCfg, c = kioskReceiptCfg;
+      const rows = o.items.map(i => `<tr><td>${esc(i.name)}${i.notes ? `<div style="font-size:10px;font-weight:400">${esc(i.notes)}</div>` : ''}</td><td style="text-align:center">${i.qty}</td><td style="text-align:right">${(i.price * i.qty).toFixed(2)}</td></tr>`).join('');
+      return `<html><head><style>
+        @page { margin: 0; size: 80mm auto; }
+        body { font-family: Arial, sans-serif; font-size: 13px; font-weight: 700; color: #000; padding: 0 6px 4px; width: 68mm; }
+        .center { text-align: center; } .divider { border-top: 1.5px dashed #000; margin: 6px 0; }
+        .row { display: flex; justify-content: space-between; }
+        .token { border: 2.5px solid #000; font-size: 26px; font-weight: 900; text-align: center; padding: 4px 0; margin: 6px 0; }
+        table { width: 100%; border-collapse: collapse; } td { padding: 3px 0; vertical-align: top; }
+      </style></head><body>
+        ${o.logo && c.logo ? `<div class="center"><img src="${esc(c.logo)}" style="max-width:45mm;max-height:22mm;object-fit:contain;filter:grayscale(1) contrast(1.4);"></div>` : ''}
+        <div class="center" style="font-size:18px;font-weight:900">${esc(s.restaurant_name || 'VISHAL FOODIEZ')}</div>
+        ${s.address ? `<div class="center" style="font-size:11px">${esc(s.address)}</div>` : ''}
+        ${s.phone ? `<div class="center" style="font-size:11px">Ph: ${esc(s.phone)}</div>` : ''}
+        ${s.gstin ? `<div class="center" style="font-size:11px">GSTIN: ${esc(s.gstin)}</div>` : ''}
+        <div class="token">TOKEN #${esc(data.token_no || data.orderId)}</div>
+        <div class="row"><span>Order: #${esc(data.orderId)}</span><span>(${esc(String(o.order_type).toUpperCase())})</span></div>
+        <div>Date: ${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
+        <div class="divider"></div><table>${rows}</table><div class="divider"></div>
+        <div class="row"><span>Subtotal:</span><span>${money(o.subtotal)}</span></div>
+        <div class="row"><span>CGST (2.50%):</span><span>${money(o.gst / 2)}</span></div>
+        <div class="row"><span>SGST (2.50%):</span><span>${money(o.gst / 2)}</span></div>
+        <div class="row" style="font-size:16px;font-weight:900"><span>TOTAL BILL:</span><span>${money(o.total)}</span></div>
+        <div class="divider"></div>
+        <div class="center" style="font-size:11px">Payment Mode: <b>${esc(o.payment_mode)}</b></div>
+        <div class="center" style="font-size:11px;margin-top:4px">${esc(c.thank_you || 'Thanks For Visiting Us!')}</div>
+        ${c.footer ? `<div class="center" style="font-size:10px">${esc(c.footer)}</div>` : ''}
+      </body></html>`;
+    }
+
+    // Logo -> ESC/POS raster bytes (GS v 0), 1-bit black/white, sent in bands so small printer buffers cope
+    function logoToEscPos(src, paperChars) {
+      return new Promise(resolve => {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const maxW = paperChars >= 42 ? 384 : 256;   // keep the logo smaller than the full paper width
+            const scale = Math.min(1, maxW / img.naturalWidth, 160 / img.naturalHeight);
+            const w = Math.max(8, Math.floor(img.naturalWidth * scale / 8) * 8);
+            const h = Math.max(1, Math.round(img.naturalHeight * scale));
+            const cv = document.createElement('canvas');
+            cv.width = w; cv.height = h;
+            const ctx = cv.getContext('2d');
+            ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+            ctx.drawImage(img, 0, 0, w, h);
+            const px = ctx.getImageData(0, 0, w, h).data;
+            const bpr = w / 8, out = [];
+            for (let y0 = 0; y0 < h; y0 += 96) {
+              const bh = Math.min(96, h - y0);
+              out.push(0x1D, 0x76, 0x30, 0x00, bpr & 255, bpr >> 8, bh & 255, bh >> 8);
+              for (let y = y0; y < y0 + bh; y++) {
+                for (let bx = 0; bx < bpr; bx++) {
+                  let byte = 0;
+                  for (let bit = 0; bit < 8; bit++) {
+                    const i = (y * w + bx * 8 + bit) * 4;
+                    const lum = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+                    if (lum < 160) byte |= 0x80 >> bit;
+                  }
+                  out.push(byte);
+                }
+              }
+            }
+            resolve(out);
+          } catch (e) { resolve([]); }   // e.g. blocked canvas -> print without logo
+        };
+        img.onerror = () => resolve([]);
+        setTimeout(() => resolve([]), 4000);
+        img.src = src;
+      });
+    }
+
+    async function printKioskBill(data, o, force) {
+      const cfg = getPrintCfg();
+      if (cfg.method === 'off' && !force) return;
+      const wantLogo = cfg.logo && kioskReceiptCfg.logo;
+      try {
+        if (cfg.method === 'rawbt') {
+          const logo = wantLogo ? await logoToEscPos(kioskReceiptCfg.logo, cfg.width) : [];
+          const text = Array.from(new TextEncoder().encode(kioskBillText(data, o, cfg.width)));
+          let bytes = [];
+          for (let n = 0; n < cfg.copies; n++) {
+            bytes.push(0x1B, 0x40);                                  // init
+            if (logo.length) bytes.push(0x1B, 0x61, 0x01, ...logo, 0x0A, 0x1B, 0x61, 0x00);  // centered logo
+            bytes = bytes.concat(text);
+            bytes.push(0x1D, 0x56, 0x42, 0x00);                      // feed + partial cut
+          }
+          let bin = '';
+          for (let i = 0; i < bytes.length; i += 8192) bin += String.fromCharCode.apply(null, bytes.slice(i, i + 8192));
+          window.location.href = 'intent:base64,' + btoa(bin) + '#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;';
+        } else if (cfg.method === 'browser') {
+          let html = kioskBillHtml(data, Object.assign({ logo: wantLogo }, o));
+          if (cfg.copies > 1) {
+            const m = html.match(/<body>([\s\S]*)<\/body>/);
+            if (m) html = html.replace(m[0], () => '<body>' + new Array(cfg.copies).fill(m[1]).join('<div style="page-break-after:always;height:1px"></div>') + '</body>');
+          }
+          const frame = $('kioskPrintFrame');
+          const doc = frame.contentWindow.document;
+          doc.open(); doc.write(html); doc.close();
+          frame.contentWindow.focus();
+          setTimeout(() => { try { frame.contentWindow.print(); } catch (e) {} }, wantLogo ? 700 : 250);   // give the logo time to load
+        }
+      } catch (e) { console.error('Kiosk print failed', e); }
     }
 
     // ---------- Navigation ----------
