@@ -271,6 +271,8 @@
         </select>
         <label class="flex items-center gap-2 text-sm font-bold mb-3"><input id="ps_logo" type="checkbox" class="w-4 h-4"> Print logo on bill (from Settings &gt; Receipt &amp; Print)</label>
         <label class="flex items-center gap-2 text-sm font-bold mb-3"><input id="ps_fast" type="checkbox" class="w-4 h-4"> Fast mode (text bill, no image - use if printing is slow)</label>
+        <label class="text-xs font-bold text-neutral-500">Feed before cut (lines, 0-20) - kam karo agar niche khali paper zyada aaye, badhao agar bill kate</label>
+        <input id="ps_feed" type="number" min="0" max="20" class="w-full border p-2.5 rounded-xl text-sm mb-3">
         <label class="text-xs font-bold text-neutral-500">Copies</label>
         <input id="ps_copies" type="number" min="1" max="3" class="w-full border p-2.5 rounded-xl text-sm mb-4">
         <button id="ps_appBtn" onclick="window.AndroidPrinter && AndroidPrinter.changeUrl()" class="hidden btn-outline w-full py-2 rounded-xl text-xs font-bold mb-3">Change server link (APK)</button>
@@ -1016,12 +1018,13 @@
     // ---------- Bill printing (settings are per-device, kept in localStorage) ----------
     // Setup: tap the store name on the idle screen 5 times.
     const PRINT_KEY = 'kioskPrintCfg';
-    // ESC d n: feed n lines before the cut so the last lines clear the cutter (it sits below the print head)
-    const FEED_BEFORE_CUT = [0x1B, 0x64, 4];
+    // ESC d n: feed n lines before the cut so the last lines clear the cutter (it sits below the print head).
+    // The distance differs per printer model, so it is a setting (Printer Setup > Feed before cut).
+    const feedBeforeCut = () => [0x1B, 0x64, getPrintCfg().feed];
     function getPrintCfg() {
       let c = {};
       try { c = JSON.parse(localStorage.getItem(PRINT_KEY) || '{}'); } catch (e) {}
-      return { method: c.method || (window.AndroidPrinter ? 'usb' : 'off'), width: Number(c.width) || 42, logo: c.logo !== false, fast: c.fast === true, copies: Math.max(1, Math.min(3, Number(c.copies) || 1)) };
+      return { method: c.method || (window.AndroidPrinter ? 'usb' : 'off'), width: Number(c.width) || 42, logo: c.logo !== false, fast: c.fast === true, feed: c.feed === undefined || c.feed === '' ? 4 : Math.max(0, Math.min(20, Number(c.feed) || 0)), copies: Math.max(1, Math.min(3, Number(c.copies) || 1)) };
     }
     function loadKioskReceiptCfg() {
       fetch('/api/settings/config').then(r => r.json()).then(c => { kioskReceiptCfg = (c && c.receipt) || {}; }).catch(() => {});
@@ -1048,7 +1051,7 @@
     }
     function openPrinterSetup() {
       const c = getPrintCfg();
-      $('ps_method').value = c.method; $('ps_width').value = String(c.width); $('ps_copies').value = c.copies; $('ps_logo').checked = c.logo; $('ps_fast').checked = c.fast;
+      $('ps_method').value = c.method; $('ps_width').value = String(c.width); $('ps_copies').value = c.copies; $('ps_logo').checked = c.logo; $('ps_fast').checked = c.fast; $('ps_feed').value = c.feed;
       $('ps_method').onchange = updatePrinterHelp;
       updatePrinterHelp();
       $('ps_appBtn').classList.toggle('hidden', !window.AndroidPrinter);
@@ -1066,7 +1069,7 @@
     }
     function closePrinterSetup() { $('printerSetupModal').classList.add('hidden'); }
     function savePrinterSetup() {
-      localStorage.setItem(PRINT_KEY, JSON.stringify({ method: $('ps_method').value, width: $('ps_width').value, logo: $('ps_logo').checked, fast: $('ps_fast').checked, copies: $('ps_copies').value }));
+      localStorage.setItem(PRINT_KEY, JSON.stringify({ method: $('ps_method').value, width: $('ps_width').value, logo: $('ps_logo').checked, fast: $('ps_fast').checked, feed: $('ps_feed').value, copies: $('ps_copies').value }));
       closePrinterSetup();
     }
     function testKioskPrint() {
@@ -1312,14 +1315,14 @@
           let one = [];
           try {
             if (cfg.fast) throw new Error('fast-mode');
-            one = [0x1B, 0x40, ...await renderBillRaster(data, o, dots, wantLogo), ...FEED_BEFORE_CUT, 0x1D, 0x56, 0x42, 0x00];   // cut cmd feeds to the cutter itself
+            one = [0x1B, 0x40, ...await renderBillRaster(data, o, dots, wantLogo), ...feedBeforeCut(), 0x1D, 0x56, 0x42, 0x00];   // cut cmd feeds to the cutter itself
           } catch (e) {
             console.warn('Image bill failed, using text bill', e);
             if (!cfg.fast && window.AndroidPrinter && AndroidPrinter.toast) AndroidPrinter.toast('Bill image nahi ban paayi, text bill print ho raha hai');
             const logo = wantLogo ? await logoToEscPos(kioskReceiptCfg.logo, cfg.width) : [];
             one = [0x1B, 0x40];
             if (logo.length) one.push(0x1B, 0x61, 0x01, ...logo, 0x0A, 0x1B, 0x61, 0x00);
-            one = one.concat(Array.from(new TextEncoder().encode(kioskBillText(data, o, cfg.width))), FEED_BEFORE_CUT, [0x1D, 0x56, 0x42, 0x00]);
+            one = one.concat(Array.from(new TextEncoder().encode(kioskBillText(data, o, cfg.width))), feedBeforeCut(), [0x1D, 0x56, 0x42, 0x00]);
           }
           let bytes = [];
           for (let n = 0; n < cfg.copies; n++) bytes = bytes.concat(one);
