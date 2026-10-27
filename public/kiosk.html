@@ -1016,6 +1016,8 @@
     // ---------- Bill printing (settings are per-device, kept in localStorage) ----------
     // Setup: tap the store name on the idle screen 5 times.
     const PRINT_KEY = 'kioskPrintCfg';
+    // ESC d n: feed n lines before the cut so the last lines clear the cutter (it sits below the print head)
+    const FEED_BEFORE_CUT = [0x1B, 0x64, 6];
     function getPrintCfg() {
       let c = {};
       try { c = JSON.parse(localStorage.getItem(PRINT_KEY) || '{}'); } catch (e) {}
@@ -1310,14 +1312,14 @@
           let one = [];
           try {
             if (cfg.fast) throw new Error('fast-mode');
-            one = [0x1B, 0x40, ...await renderBillRaster(data, o, dots, wantLogo), 0x1D, 0x56, 0x42, 0x00];   // cut cmd feeds to the cutter itself
+            one = [0x1B, 0x40, ...await renderBillRaster(data, o, dots, wantLogo), ...FEED_BEFORE_CUT, 0x1D, 0x56, 0x42, 0x00];   // cut cmd feeds to the cutter itself
           } catch (e) {
             console.warn('Image bill failed, using text bill', e);
             if (!cfg.fast && window.AndroidPrinter && AndroidPrinter.toast) AndroidPrinter.toast('Bill image nahi ban paayi, text bill print ho raha hai');
             const logo = wantLogo ? await logoToEscPos(kioskReceiptCfg.logo, cfg.width) : [];
             one = [0x1B, 0x40];
             if (logo.length) one.push(0x1B, 0x61, 0x01, ...logo, 0x0A, 0x1B, 0x61, 0x00);
-            one = one.concat(Array.from(new TextEncoder().encode(kioskBillText(data, o, cfg.width))), [0x1D, 0x56, 0x42, 0x00]);
+            one = one.concat(Array.from(new TextEncoder().encode(kioskBillText(data, o, cfg.width))), FEED_BEFORE_CUT, [0x1D, 0x56, 0x42, 0x00]);
           }
           let bytes = [];
           for (let n = 0; n < cfg.copies; n++) bytes = bytes.concat(one);

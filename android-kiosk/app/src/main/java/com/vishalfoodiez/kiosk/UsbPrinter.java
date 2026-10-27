@@ -89,9 +89,11 @@ class UsbPrinter {
                     int n = Math.min(chunk, data.length - off);
                     System.arraycopy(data, off, buf, 0, n);
                     int w = -1;
-                    for (int tries = 0; tries < 3 && w < 0; tries++) {
-                        w = conn.bulkTransfer(out, buf, n, 3000);
-                        if (w < 0) { try { Thread.sleep(250); } catch (InterruptedException ignored) {} }
+                    // Attempt 0 fails fast (the first transfer after opening this printer often stalls; a reopen fixes it)
+                    int maxTries = attempt == 0 ? 1 : 3, timeout = attempt == 0 ? 800 : 3000;
+                    for (int tries = 0; tries < maxTries && w < 0; tries++) {
+                        w = conn.bulkTransfer(out, buf, n, timeout);
+                        if (w < 0 && attempt > 0) { try { Thread.sleep(250); } catch (InterruptedException ignored) {} }
                     }
                     if (w < 0) { last = " (offset " + off + "/" + data.length + ", iface " + iface.getId() + " class " + iface.getInterfaceClass() + ", ep " + out.getAddress() + ", mps " + out.getMaxPacketSize() + ")"; failed = true; break; }
                     off += w;
@@ -105,7 +107,7 @@ class UsbPrinter {
             } finally {
                 conn.close();
             }
-            try { Thread.sleep(1500); } catch (InterruptedException ignored) {}   // let the printer recover, then reopen
+            try { Thread.sleep(attempt == 0 ? 100 : 1500); } catch (InterruptedException ignored) {}   // let the printer recover, then reopen
         }
         return "ERROR: print data bhejna fail hua." + last;
     }
