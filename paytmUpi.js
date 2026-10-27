@@ -50,6 +50,13 @@ function register(app, { dbAllAsync, createOrderHandler }) {
     checked_ms BIGINT DEFAULT 0
   )`, []).catch(e => console.error('upi_payments table error:', e.message));
 
+  dbAllAsync(`CREATE TABLE IF NOT EXISTS paytm_callback_log (
+    id SERIAL PRIMARY KEY,
+    content_type TEXT,
+    body TEXT,
+    created_ms BIGINT
+  )`, []).catch(e => console.error('paytm_callback_log table error:', e.message));
+
   const mockPaid = new Set();
   const getRow = async (paytmOrderId) => (await dbAllAsync('SELECT * FROM upi_payments WHERE paytm_order_id = ?', [paytmOrderId]))[0];
 
@@ -169,9 +176,18 @@ function register(app, { dbAllAsync, createOrderHandler }) {
   });
 
   // Paytm webhook. The payload is NOT trusted: it only tells us which order to re-check via the Status API.
-  app.post('/api/paytm/callback', express.urlencoded({ extended: true }), async (req, res) => {
+  app.post('/api/paytm/callback', express.urlencoded({ extended: true }), express.text({ type: '*/*' }), async (req, res) => {
     try {
-      const b = req.body || {};
+      const b = typeof req.body === 'string' ? {} : (req.body || {});
+      // Keep every raw callback so the real Paytm payload format can be inspected (static-QR flow needs it).
+      const raw = (typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {})).slice(0, 5000);
+      console.log('[PAYTM CALLBACK RAW]', req.headers['content-type'], raw);
+      // Optional: keep an older software working by relaying every callback to its URL (set PAYTM_FORWARD_URL).
+      if (process.env.PAYTM_FORWARD_URL) {
+        fetch(process.env.PAYTM_FORWARD_URL, { method: 'POST', headers: { 'Content-Type': String(req.headers['content-type'] || 'application/json') }, body: typeof req.body === 'string' ? req.body : (/json/i.test(req.headers['content-type'] || '') ? JSON.stringify(req.body || {}) : new URLSearchParams(req.body || {}).toString()) })
+          .catch(e => console.error('[PAYTM CALLBACK] forward failed:', e.message));
+      }
+      dbAllAsync('INSERT INTO paytm_callback_log (content_type, body, created_ms) VALUES (?, ?, ?) RETURNING id', [String(req.headers['content-type'] || ''), raw, Date.now()]).catch(() => {});
       const orderId = b.ORDERID || b.orderId || b.order_id || (b.body && b.body.orderId);
       const row = orderId && await getRow(String(orderId));
       if (row) await checkWithPaytm(row);
@@ -180,6 +196,12 @@ function register(app, { dbAllAsync, createOrderHandler }) {
       console.error('[PAYTM CALLBACK] error:', e.message);
     }
     res.status(200).send('OK');
+  });
+
+  // View recent raw callbacks: GET /api/paytm/callback-log?key=<PAYTM_LOG_KEY>. Disabled unless PAYTM_LOG_KEY is set.
+  app.get('/api/paytm/callback-log', async (req, res) => {
+    if (!process.env.PAYTM_LOG_KEY || req.query.key !== process.env.PAYTM_LOG_KEY) return res.status(404).end();
+    res.json(await dbAllAsync('SELECT * FROM paytm_callback_log ORDER BY id DESC LIMIT 50', []));
   });
 
   // Local testing without Paytm credentials: PAYTM_ENV=mock, then POST /api/upi/mock-pay/<paytmOrderId>.
