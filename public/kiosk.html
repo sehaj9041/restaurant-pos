@@ -1210,7 +1210,10 @@
     // Draws the index-style bill (incl. logo) to a canvas via an SVG foreignObject and returns ESC/POS raster bytes.
     // Throws on any failure so the caller can fall back to the plain-text bill.
     async function renderBillRaster(data, o, dots, withLogo) {
-      const cssW = Math.round(dots * 96 / 203);            // printer dots -> CSS px (203 dpi)
+      // Some printers can only print ~512 of the 576 dots (or ~360 of 384), which clipped the right edge of the bill,
+      // so the bill is drawn in a narrower safe area, shifted slightly from the left edge.
+      const contentDots = dots >= 576 ? 496 : 360, offX = 8;
+      const cssW = Math.round(contentDots * 96 / 203);     // printer dots -> CSS px (203 dpi)
       // The logo is drawn straight onto the canvas afterwards (an image nested inside the SVG may not be decoded in time),
       // so the bill only reserves a blank box of the right size at the top.
       let logoImg = null, lw = 0, lh = 0;
@@ -1240,13 +1243,13 @@
       const img = new Image();
       await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error('bill render failed')); img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg); });
       const cv = document.createElement('canvas');
-      cv.width = dots; cv.height = Math.ceil(cssH * dots / cssW);
+      cv.width = dots; cv.height = Math.ceil(cssH * contentDots / cssW);
       const ctx = cv.getContext('2d');
       ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
-      ctx.drawImage(img, 0, 0, cv.width, cv.height);
+      ctx.drawImage(img, offX, 0, contentDots, cv.height);
       if (logoImg) {
-        const kk = cv.width / cssW;
-        ctx.drawImage(logoImg, Math.round((cssW - lw) / 2 * kk), 0, Math.round(lw * kk), Math.round(lh * kk));
+        const kk = contentDots / cssW;
+        ctx.drawImage(logoImg, offX + Math.round((cssW - lw) / 2 * kk), 0, Math.round(lw * kk), Math.round(lh * kk));
       }
       return canvasToEscPos(trimBottom(cv));                // throws if the canvas got tainted
     }
