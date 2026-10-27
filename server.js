@@ -12,7 +12,7 @@ const db = require('./database');
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
 
 // Auto-migrate paid_amount column in orders table if not present
 db.run("ALTER TABLE orders ADD COLUMN paid_amount REAL DEFAULT 0", (err) => {});
@@ -1219,7 +1219,9 @@ const createOrderHandler = async (req, res) => {
   let status = 'RUNNING_TABLE';
   const isKioskOrOnline = is_kiosk || upperType.includes('KIOSK') || upperType.includes('ONLINE') || upperType.includes('SWIGGY') || upperType.includes('ZOMATO');
   
-  if (isKioskOrOnline && !is_hold) {
+  if (isOnlineOrder && req.body.pay_online) {
+    status = 'HOLD'; // hidden until Razorpay payment is verified (see razorpayPay.js)
+  } else if (isKioskOrOnline && !is_hold) {
     status = 'NEEDS_APPROVAL';
   } else {
     status = 'RUNNING_TABLE';
@@ -1641,7 +1643,7 @@ app.post('/api/whatsapp/disconnect', (req, res) => {
   res.json({ success: true, message: 'Disconnected successfully' });
 });
 
-require('./paytmUpi').register(app, { dbAllAsync, createOrderHandler });
+require('./paytmUpi').register(app, { dbAllAsync, createOrderHandler }); require('./razorpayPay').register(app, { dbAllAsync, createOrderHandler });
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, '0.0.0.0', () => {

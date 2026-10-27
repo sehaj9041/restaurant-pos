@@ -124,6 +124,15 @@
         <input type="tel" id="cPhone" inputmode="numeric" placeholder="10-digit Phone Number" maxlength="10" oninput="this.value=this.value.replace(/\D/g,'')" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs font-mono outline-none focus:border-indigo-500 font-medium">
       </div>
 
+      <!-- Payment choice (shown only when Razorpay is configured) -->
+      <div id="payChoice" class="hidden pt-1">
+        <p class="text-[10px] text-gray-400 uppercase font-black tracking-wider mb-1.5">Payment</p>
+        <div class="grid grid-cols-2 gap-2 text-xs font-bold">
+          <button type="button" id="payBtnCod" onclick="setPayMode('COD')" class="border-2 rounded-xl py-2.5 px-2 transition">💵 Pay on Delivery / Pickup</button>
+          <button type="button" id="payBtnOnline" onclick="setPayMode('ONLINE')" class="border-2 rounded-xl py-2.5 px-2 transition">💳 Pay Online</button>
+        </div>
+      </div>
+
       <!-- Bill Total & Send Button -->
       <div class="pt-3 border-t text-xs text-gray-600 space-y-1">
         <div class="flex justify-between"><span>Subtotal</span><span id="cSub" class="font-bold">₹0</span></div>
@@ -288,6 +297,45 @@
     let pendingVariants = [];
     let placing = false;
     let deliveryLoc = null;
+    let payMode = 'COD';
+
+    // Razorpay online payment (option appears only if the server has keys configured)
+    function setPayMode(m) {
+      payMode = m;
+      const on = 'border-emerald-600 bg-emerald-50 text-emerald-700', off = 'border-gray-200 text-gray-500';
+      document.getElementById('payBtnCod').className = 'border-2 rounded-xl py-2.5 px-2 transition ' + (m === 'COD' ? on : off);
+      document.getElementById('payBtnOnline').className = 'border-2 rounded-xl py-2.5 px-2 transition ' + (m === 'ONLINE' ? on : off);
+    }
+    fetch('/api/razorpay/config').then(r => r.json()).then(c => {
+      if (c && c.enabled) { document.getElementById('payChoice').classList.remove('hidden'); setPayMode('COD'); }
+    }).catch(() => {});
+    function loadRazorpay() {
+      if (window.Razorpay) return Promise.resolve();
+      return new Promise((ok, bad) => {
+        const s = document.createElement('script');
+        s.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        s.onload = ok;
+        s.onerror = () => bad(new Error('Payment page load nahi ho paaya. Internet check karein.'));
+        document.head.appendChild(s);
+      });
+    }
+    const jsonOrThrow = r => r.json().catch(() => ({})).then(d => { if (!r.ok) throw new Error((d && d.error) || ('HTTP ' + r.status)); return d; });
+    function payOnline(orderBody, ctx) {
+      return fetch('/api/razorpay/create-order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(orderBody) })
+        .then(jsonOrThrow)
+        .then(d => loadRazorpay().then(() => new Promise((resolve, reject) => {
+          const rz = new Razorpay({
+            key: d.keyId, amount: d.amount, currency: 'INR', order_id: d.rpOrderId,
+            name: 'Vishal Foodiez', description: 'Order #' + (d.token_no || d.orderId),
+            prefill: { name: ctx.name, contact: ctx.phone },
+            theme: { color: '#059669' },
+            handler: resp => resolve(resp),
+            modal: { ondismiss: () => reject(Object.assign(new Error('Payment cancel ho gayi. Order place nahi hua.'), { rpOrderId: d.rpOrderId })) }
+          });
+          rz.open();
+        })))
+        .then(resp => fetch('/api/razorpay/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(resp) }).then(jsonOrThrow));
+    }
 
     function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
     function imgSrc(im) { return im ? (/^(https?:)?\//.test(im) ? im : '/uploads/' + im) : ''; }
@@ -965,10 +1013,7 @@
       const items = cart.map((c, i) => ({ ...c, notes: i === 0 ? note : '' }));
       const itemCount = cart.reduce((n, c) => n + c.qty, 0);
 
-      fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const orderBody = {
           order_type: `Online ${mode}`,
           table_no: mode,
           customer_name: name || 'Online Guest',
@@ -982,9 +1027,12 @@
           delivery_address: isDelivery ? address : undefined,
           delivery_lat: isDelivery && deliveryLoc ? deliveryLoc.lat : undefined,
           delivery_lng: isDelivery && deliveryLoc ? deliveryLoc.lng : undefined
-        })
-      })
-      .then(r => r.json().catch(() => ({})).then(d => { if (!r.ok) throw new Error((d && d.error) || ('HTTP ' + r.status)); return d; }))
+      };
+      const ctx = { name, phone, btn };
+      const request = payMode === 'ONLINE'
+        ? payOnline(orderBody, ctx)
+        : fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(orderBody) }).then(jsonOrThrow);
+      request
       .then(d => {
         if (!d || !d.success) throw new Error('order failed');
         const total = sub + gst;
@@ -1006,9 +1054,10 @@
         rememberOrderId(d.orderId);
         lastPlaced = { id: d.orderId, phone };
         refreshProfileUI();
-        showSuccess(d.token_no || d.orderId, `${itemCount} ${itemCount === 1 ? 'item' : 'items'} • ₹${total} • ${mode}`);
+        showSuccess(d.token_no || d.orderId, `${itemCount} ${itemCount === 1 ? 'item' : 'items'} • ₹${total} • ${mode}` + (payMode === 'ONLINE' ? ' • Paid online ✓' : ''));
       })
       .catch(err => {
+        if (err.rpOrderId) fetch('/api/razorpay/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rpOrderId: err.rpOrderId }) }).catch(() => {});
         placing = false;
         toast(/^HTTP|Failed to fetch|NetworkError|order failed/.test(err.message) ? 'Order nahi bhej paaye. Connection check karke dobara try karein.' : err.message, true);
         btnState(btn, false);
