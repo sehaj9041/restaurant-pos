@@ -1017,7 +1017,7 @@
     // Setup: tap the store name on the idle screen 5 times.
     const PRINT_KEY = 'kioskPrintCfg';
     // ESC d n: feed n lines before the cut so the last lines clear the cutter (it sits below the print head)
-    const FEED_BEFORE_CUT = [0x1B, 0x64, 6];
+    const FEED_BEFORE_CUT = [0x1B, 0x64, 4];
     function getPrintCfg() {
       let c = {};
       try { c = JSON.parse(localStorage.getItem(PRINT_KEY) || '{}'); } catch (e) {}
