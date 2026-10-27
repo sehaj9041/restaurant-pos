@@ -20,7 +20,7 @@ db.run("ALTER TABLE orders ADD COLUMN paid_amount REAL DEFAULT 0", (err) => {});
 // Payment modes jinme koi amount receive nahi hota (paid_amount hamesha 0)
 const UNPAID_PAYMENT_MODES = ['UNPAID', 'DUE', 'ONLINE_PENDING'];
 // Payment modes jinme amount na bheja ho toh poora total paid maana jata hai
-const FULL_PAYMENT_MODES = ['CASH', 'UPI', 'CARD', 'PAID'];
+const FULL_PAYMENT_MODES = ['CASH', 'UPI', 'CARD', 'PAID', 'RAZORPAY'];
 
 // Ngrok warning bypass & Customer ordering route
 app.use((req, res, next) => {
