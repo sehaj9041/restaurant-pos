@@ -270,6 +270,7 @@
           <option value="48">80 mm (48 chars)</option>
         </select>
         <label class="flex items-center gap-2 text-sm font-bold mb-3"><input id="ps_logo" type="checkbox" class="w-4 h-4"> Print logo on bill (from Settings &gt; Receipt &amp; Print)</label>
+        <label class="flex items-center gap-2 text-sm font-bold mb-3"><input id="ps_fast" type="checkbox" class="w-4 h-4"> Fast mode (text bill, no image - use if printing is slow)</label>
         <label class="text-xs font-bold text-neutral-500">Copies</label>
         <input id="ps_copies" type="number" min="1" max="3" class="w-full border p-2.5 rounded-xl text-sm mb-4">
         <button id="ps_appBtn" onclick="window.AndroidPrinter && AndroidPrinter.changeUrl()" class="hidden btn-outline w-full py-2 rounded-xl text-xs font-bold mb-3">Change server link (APK)</button>
@@ -1018,7 +1019,7 @@
     function getPrintCfg() {
       let c = {};
       try { c = JSON.parse(localStorage.getItem(PRINT_KEY) || '{}'); } catch (e) {}
-      return { method: c.method || (window.AndroidPrinter ? 'usb' : 'off'), width: Number(c.width) || 42, logo: c.logo !== false, copies: Math.max(1, Math.min(3, Number(c.copies) || 1)) };
+      return { method: c.method || (window.AndroidPrinter ? 'usb' : 'off'), width: Number(c.width) || 42, logo: c.logo !== false, fast: c.fast === true, copies: Math.max(1, Math.min(3, Number(c.copies) || 1)) };
     }
     function loadKioskReceiptCfg() {
       fetch('/api/settings/config').then(r => r.json()).then(c => { kioskReceiptCfg = (c && c.receipt) || {}; }).catch(() => {});
@@ -1045,7 +1046,7 @@
     }
     function openPrinterSetup() {
       const c = getPrintCfg();
-      $('ps_method').value = c.method; $('ps_width').value = String(c.width); $('ps_copies').value = c.copies; $('ps_logo').checked = c.logo;
+      $('ps_method').value = c.method; $('ps_width').value = String(c.width); $('ps_copies').value = c.copies; $('ps_logo').checked = c.logo; $('ps_fast').checked = c.fast;
       $('ps_method').onchange = updatePrinterHelp;
       updatePrinterHelp();
       $('ps_appBtn').classList.toggle('hidden', !window.AndroidPrinter);
@@ -1063,7 +1064,7 @@
     }
     function closePrinterSetup() { $('printerSetupModal').classList.add('hidden'); }
     function savePrinterSetup() {
-      localStorage.setItem(PRINT_KEY, JSON.stringify({ method: $('ps_method').value, width: $('ps_width').value, logo: $('ps_logo').checked, copies: $('ps_copies').value }));
+      localStorage.setItem(PRINT_KEY, JSON.stringify({ method: $('ps_method').value, width: $('ps_width').value, logo: $('ps_logo').checked, fast: $('ps_fast').checked, copies: $('ps_copies').value }));
       closePrinterSetup();
     }
     function testKioskPrint() {
@@ -1308,10 +1309,11 @@
           const dots = cfg.width <= 32 ? 384 : 576;
           let one = [];
           try {
+            if (cfg.fast) throw new Error('fast-mode');
             one = [0x1B, 0x40, ...await renderBillRaster(data, o, dots, wantLogo), 0x1D, 0x56, 0x42, 0x00];   // cut cmd feeds to the cutter itself
           } catch (e) {
             console.warn('Image bill failed, using text bill', e);
-            if (window.AndroidPrinter && AndroidPrinter.toast) AndroidPrinter.toast('Bill image nahi ban paayi, text bill print ho raha hai');
+            if (!cfg.fast && window.AndroidPrinter && AndroidPrinter.toast) AndroidPrinter.toast('Bill image nahi ban paayi, text bill print ho raha hai');
             const logo = wantLogo ? await logoToEscPos(kioskReceiptCfg.logo, cfg.width) : [];
             one = [0x1B, 0x40];
             if (logo.length) one.push(0x1B, 0x61, 0x01, ...logo, 0x0A, 0x1B, 0x61, 0x00);

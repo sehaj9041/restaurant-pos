@@ -51,46 +51,55 @@ class UsbPrinter {
         if (dev == null) return "ERROR: USB printer nahi mila. Cable check karein.";
         if (!usb.hasPermission(dev) && !askPermission(dev)) return "ERROR: USB permission nahi mili.";
 
+        // Prefer the printer-class (7) interface; composite devices may expose other bulk OUT endpoints too.
         UsbInterface iface = null;
         UsbEndpoint out = null;
-        for (int i = 0; i < dev.getInterfaceCount() && out == null; i++) {
-            UsbInterface c = dev.getInterface(i);
-            for (int e = 0; e < c.getEndpointCount(); e++) {
-                UsbEndpoint ep = c.getEndpoint(e);
-                if (ep.getType() == UsbConstants.USB_ENDPOINT_XFER_BULK && ep.getDirection() == UsbConstants.USB_DIR_OUT) {
-                    iface = c; out = ep; break;
+        for (int pass = 0; pass < 2 && out == null; pass++) {
+            for (int i = 0; i < dev.getInterfaceCount() && out == null; i++) {
+                UsbInterface c = dev.getInterface(i);
+                if (pass == 0 && c.getInterfaceClass() != UsbConstants.USB_CLASS_PRINTER) continue;
+                for (int e = 0; e < c.getEndpointCount(); e++) {
+                    UsbEndpoint ep = c.getEndpoint(e);
+                    if (ep.getType() == UsbConstants.USB_ENDPOINT_XFER_BULK && ep.getDirection() == UsbConstants.USB_DIR_OUT) {
+                        iface = c; out = ep; break;
+                    }
                 }
             }
         }
         if (out == null) return "ERROR: printer ka OUT endpoint nahi mila.";
 
-        UsbDeviceConnection conn = usb.openDevice(dev);
-        if (conn == null) return "ERROR: printer open nahi hua.";
-        try {
-            if (!conn.claimInterface(iface, true)) return "ERROR: printer interface claim nahi hua.";
-            // Small chunks + long timeout + retry: some printers have a tiny buffer and stall while they are
-            // still printing the previous raster, which made a single 5s transfer fail.
-            int chunk = 1024, off = 0;
-            byte[] buf = new byte[chunk];
-            while (off < data.length) {
-                int n = Math.min(chunk, data.length - off);
-                System.arraycopy(data, off, buf, 0, n);
-                int w = -1;
-                for (int tries = 0; tries < 6 && w < 0; tries++) {
-                    w = conn.bulkTransfer(out, buf, n, 10000);
-                    if (w < 0) { try { Thread.sleep(300); } catch (InterruptedException ignored) {} }
+        String last = "";
+        for (int attempt = 0; attempt < 3; attempt++) {
+            UsbDeviceConnection conn = usb.openDevice(dev);
+            if (conn == null) return "ERROR: printer open nahi hua.";
+            try {
+                if (!conn.claimInterface(iface, true)) return "ERROR: printer interface claim nahi hua.";
+                if (iface.getAlternateSetting() != 0) conn.setInterface(iface);
+                // Fast first (4096); if the printer stalls, retry with smaller chunks down to one packet.
+                int mps = Math.max(64, out.getMaxPacketSize());
+                int chunk = attempt == 0 ? 4096 : attempt == 1 ? 1024 : mps, off = 0;
+                if (chunk < mps) chunk = mps;
+                byte[] buf = new byte[chunk];
+                boolean failed = false;
+                while (off < data.length) {
+                    int n = Math.min(chunk, data.length - off);
+                    System.arraycopy(data, off, buf, 0, n);
+                    int w = -1;
+                    for (int tries = 0; tries < 6 && w < 0; tries++) {
+                        w = conn.bulkTransfer(out, buf, n, 10000);
+                        if (w < 0) { try { Thread.sleep(250); } catch (InterruptedException ignored) {} }
+                    }
+                    if (w < 0) { last = " (offset " + off + "/" + data.length + ", iface " + iface.getId() + " class " + iface.getInterfaceClass() + ", ep " + out.getAddress() + ", mps " + out.getMaxPacketSize() + ")"; failed = true; break; }
+                    off += w;
                 }
-                if (w < 0) return "ERROR: print data bhejna fail hua.";
-                off += w;
-                if (w < n) { // partial write: resend the rest from the new offset
-                    continue;
-                }
+                conn.releaseInterface(iface);
+                if (!failed) return "OK";
+            } finally {
+                conn.close();
             }
-            conn.releaseInterface(iface);
-            return "OK";
-        } finally {
-            conn.close();
+            try { Thread.sleep(1500); } catch (InterruptedException ignored) {}   // let the printer recover, then reopen
         }
+        return "ERROR: print data bhejna fail hua." + last;
     }
 
     private boolean askPermission(UsbDevice dev) {
