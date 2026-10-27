@@ -271,6 +271,8 @@
         </select>
         <label class="flex items-center gap-2 text-sm font-bold mb-3"><input id="ps_logo" type="checkbox" class="w-4 h-4"> Print logo on bill (from Settings &gt; Receipt &amp; Print)</label>
         <label class="flex items-center gap-2 text-sm font-bold mb-3"><input id="ps_fast" type="checkbox" class="w-4 h-4"> Fast mode (text bill, no image - use if printing is slow)</label>
+        <label class="text-xs font-bold text-neutral-500">Bill width (dots, image bill) - khali chhodo = auto (80mm: 496, 58mm: 360). Right side kate to kam karo (jaise 460), zyada khali aaye to badhao (max 568)</label>
+        <input id="ps_billw" type="number" min="240" max="568" placeholder="auto" class="w-full border p-2.5 rounded-xl text-sm mb-3">
         <label class="text-xs font-bold text-neutral-500">Feed before cut (lines, 0-20) - kam karo agar niche khali paper zyada aaye, badhao agar bill kate</label>
         <input id="ps_feed" type="number" min="0" max="20" class="w-full border p-2.5 rounded-xl text-sm mb-3">
         <label class="text-xs font-bold text-neutral-500">Copies</label>
@@ -1024,7 +1026,7 @@
     function getPrintCfg() {
       let c = {};
       try { c = JSON.parse(localStorage.getItem(PRINT_KEY) || '{}'); } catch (e) {}
-      return { method: c.method || (window.AndroidPrinter ? 'usb' : 'off'), width: Number(c.width) || 42, logo: c.logo !== false, fast: c.fast === true, feed: c.feed === undefined || c.feed === '' ? 4 : Math.max(0, Math.min(20, Number(c.feed) || 0)), copies: Math.max(1, Math.min(3, Number(c.copies) || 1)) };
+      return { method: c.method || (window.AndroidPrinter ? 'usb' : 'off'), width: Number(c.width) || 42, logo: c.logo !== false, fast: c.fast === true, billw: Number(c.billw) > 0 ? Number(c.billw) : '', feed: c.feed === undefined || c.feed === '' ? 4 : Math.max(0, Math.min(20, Number(c.feed) || 0)), copies: Math.max(1, Math.min(3, Number(c.copies) || 1)) };
     }
     function loadKioskReceiptCfg() {
       fetch('/api/settings/config').then(r => r.json()).then(c => { kioskReceiptCfg = (c && c.receipt) || {}; }).catch(() => {});
@@ -1051,7 +1053,7 @@
     }
     function openPrinterSetup() {
       const c = getPrintCfg();
-      $('ps_method').value = c.method; $('ps_width').value = String(c.width); $('ps_copies').value = c.copies; $('ps_logo').checked = c.logo; $('ps_fast').checked = c.fast; $('ps_feed').value = c.feed;
+      $('ps_method').value = c.method; $('ps_width').value = String(c.width); $('ps_copies').value = c.copies; $('ps_logo').checked = c.logo; $('ps_fast').checked = c.fast; $('ps_feed').value = c.feed; $('ps_billw').value = c.billw;
       $('ps_method').onchange = updatePrinterHelp;
       updatePrinterHelp();
       $('ps_appBtn').classList.toggle('hidden', !window.AndroidPrinter);
@@ -1069,7 +1071,7 @@
     }
     function closePrinterSetup() { $('printerSetupModal').classList.add('hidden'); }
     function savePrinterSetup() {
-      localStorage.setItem(PRINT_KEY, JSON.stringify({ method: $('ps_method').value, width: $('ps_width').value, logo: $('ps_logo').checked, fast: $('ps_fast').checked, feed: $('ps_feed').value, copies: $('ps_copies').value }));
+      localStorage.setItem(PRINT_KEY, JSON.stringify({ method: $('ps_method').value, width: $('ps_width').value, logo: $('ps_logo').checked, fast: $('ps_fast').checked, feed: $('ps_feed').value, billw: $('ps_billw').value, copies: $('ps_copies').value }));
       closePrinterSetup();
     }
     function testKioskPrint() {
@@ -1218,7 +1220,8 @@
     async function renderBillRaster(data, o, dots, withLogo) {
       // Some printers can only print ~512 of the 576 dots (or ~360 of 384), which clipped the right edge of the bill,
       // so the bill is drawn in a narrower safe area, shifted slightly from the left edge.
-      const contentDots = dots >= 576 ? 496 : 360, offX = 8;
+      const defW = dots >= 576 ? 496 : 360, setW = Number(getPrintCfg().billw);
+      const contentDots = Math.max(240, Math.min(dots - 8, setW > 0 ? setW : defW)), offX = 8;   // Printer Setup > Bill width
       const cssW = Math.round(contentDots * 96 / 203);     // printer dots -> CSS px (203 dpi)
       // The logo is drawn straight onto the canvas afterwards (an image nested inside the SVG may not be decoded in time),
       // so the bill only reserves a blank box of the right size at the top.
