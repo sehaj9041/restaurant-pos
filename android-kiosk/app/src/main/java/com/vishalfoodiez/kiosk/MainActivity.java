@@ -90,7 +90,10 @@ public class MainActivity extends Activity {
             final byte[] data;
             try { data = Base64.decode(base64, Base64.DEFAULT); }
             catch (IllegalArgumentException e) { report("ERROR: bad data"); return; }
-            new Thread(() -> report(printer.send(data))).start();
+            new Thread(() -> {
+                String r = printer.send(data);
+                report(r);
+            }).start();
         }
 
         @JavascriptInterface

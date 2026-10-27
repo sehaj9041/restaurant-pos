@@ -46,7 +46,10 @@ class UsbPrinter {
     }
 
     /** Blocking; call off the main thread. Returns "OK" or an error text. */
+    volatile String lastInfo = "";
+
     String send(byte[] data) {
+        final long t0 = System.currentTimeMillis();
         UsbDevice dev = findPrinter();
         if (dev == null) return "ERROR: USB printer nahi mila. Cable check karein.";
         if (!usb.hasPermission(dev) && !askPermission(dev)) return "ERROR: USB permission nahi mili.";
@@ -70,14 +73,15 @@ class UsbPrinter {
 
         String last = "";
         for (int attempt = 0; attempt < 3; attempt++) {
+            final long tOpen = System.currentTimeMillis();
             UsbDeviceConnection conn = usb.openDevice(dev);
             if (conn == null) return "ERROR: printer open nahi hua.";
             try {
                 if (!conn.claimInterface(iface, true)) return "ERROR: printer interface claim nahi hua.";
                 if (iface.getAlternateSetting() != 0) conn.setInterface(iface);
-                // Fast first (4096); if the printer stalls, retry with smaller chunks down to one packet.
+                // This printer (Posiflex PP7900) stalls on big transfers (4096 took 60s+); 1024 works. Fall back to smaller chunks if it stalls.
                 int mps = Math.max(64, out.getMaxPacketSize());
-                int chunk = attempt == 0 ? 4096 : attempt == 1 ? 1024 : mps, off = 0;
+                int chunk = attempt == 0 ? 1024 : attempt == 1 ? 512 : mps, off = 0;
                 if (chunk < mps) chunk = mps;
                 byte[] buf = new byte[chunk];
                 boolean failed = false;
@@ -85,15 +89,19 @@ class UsbPrinter {
                     int n = Math.min(chunk, data.length - off);
                     System.arraycopy(data, off, buf, 0, n);
                     int w = -1;
-                    for (int tries = 0; tries < 6 && w < 0; tries++) {
-                        w = conn.bulkTransfer(out, buf, n, 10000);
+                    for (int tries = 0; tries < 3 && w < 0; tries++) {
+                        w = conn.bulkTransfer(out, buf, n, 3000);
                         if (w < 0) { try { Thread.sleep(250); } catch (InterruptedException ignored) {} }
                     }
                     if (w < 0) { last = " (offset " + off + "/" + data.length + ", iface " + iface.getId() + " class " + iface.getInterfaceClass() + ", ep " + out.getAddress() + ", mps " + out.getMaxPacketSize() + ")"; failed = true; break; }
                     off += w;
                 }
                 conn.releaseInterface(iface);
-                if (!failed) return "OK";
+                if (!failed) {
+                    long t1 = System.currentTimeMillis();
+                    lastInfo = "DEBUG: " + data.length + " bytes, attempt " + (attempt + 1) + ", chunk " + chunk + ", open+send " + (t1 - tOpen) + "ms, total " + (t1 - t0) + "ms";
+                    return "OK";
+                }
             } finally {
                 conn.close();
             }
