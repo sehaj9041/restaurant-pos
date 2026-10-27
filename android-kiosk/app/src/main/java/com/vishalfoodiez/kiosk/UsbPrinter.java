@@ -68,14 +68,23 @@ class UsbPrinter {
         if (conn == null) return "ERROR: printer open nahi hua.";
         try {
             if (!conn.claimInterface(iface, true)) return "ERROR: printer interface claim nahi hua.";
-            int chunk = 4096, off = 0;
+            // Small chunks + long timeout + retry: some printers have a tiny buffer and stall while they are
+            // still printing the previous raster, which made a single 5s transfer fail.
+            int chunk = 1024, off = 0;
             byte[] buf = new byte[chunk];
             while (off < data.length) {
                 int n = Math.min(chunk, data.length - off);
                 System.arraycopy(data, off, buf, 0, n);
-                int w = conn.bulkTransfer(out, buf, n, 5000);
+                int w = -1;
+                for (int tries = 0; tries < 6 && w < 0; tries++) {
+                    w = conn.bulkTransfer(out, buf, n, 10000);
+                    if (w < 0) { try { Thread.sleep(300); } catch (InterruptedException ignored) {} }
+                }
                 if (w < 0) return "ERROR: print data bhejna fail hua.";
-                off += n;
+                off += w;
+                if (w < n) { // partial write: resend the rest from the new offset
+                    continue;
+                }
             }
             conn.releaseInterface(iface);
             return "OK";
