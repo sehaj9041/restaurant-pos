@@ -194,6 +194,16 @@
       </div>
     </div>
 
+    <!-- ============ UPI QR ============ -->
+    <div id="upiQrModal" class="hidden screen z-[70] kiosk-bg flex flex-col items-center justify-center px-8 text-center">
+      <h3 class="text-3xl font-black leading-tight">Scan &amp; pay with any UPI app</h3>
+      <div class="mt-6 bg-white rounded-3xl p-4 shadow-lg"><img id="upiQrImg" alt="UPI QR" class="w-72 h-72"></div>
+      <div id="upiAmount" class="text-4xl font-black mt-6"></div>
+      <div id="upiStatus" class="text-lg mt-2 opacity-80">Waiting for payment…</div>
+      <div id="upiTimer" class="text-base mt-1 opacity-60"></div>
+      <button onclick="cancelUpiPayment()" class="btn-outline w-full py-3 text-base mt-8">Cancel</button>
+    </div>
+
     <!-- ============ SINGLE OR MEAL ============ -->
     <div id="mealChoiceModal" class="hidden screen z-[45] kiosk-bg flex flex-col">
       <div class="shrink-0 px-6 pt-8 pb-4 text-center">
@@ -984,37 +994,99 @@
       pendingPaymentMode = payMethod;
       const total = trayTotal();
       const snapshot = { items: kioskTray.map(i => ({ ...i })), subtotal: traySubtotal(), gst: trayGst(), total: total, order_type: kioskOrderType, payment_mode: payMethod };
+      const orderBody = {
+        order_type: kioskOrderType,
+        is_kiosk: true,
+        table_no: '',
+        customer_name: 'Self Kiosk Guest',
+        customer_phone: '',
+        items: kioskTray,
+        payment_mode: pendingPaymentMode,
+        subtotal: traySubtotal(),
+        discount: 0,
+        gst: trayGst(),
+        total: total,
+        is_hold: false
+      };
+      // UPI: the order is created by the server only after Paytm confirms the payment.
+      if (payMethod === 'UPI_QR') return startUpiPayment(orderBody, { ...snapshot, payment_mode: 'UPI' });
 
       fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          order_type: kioskOrderType,
-          is_kiosk: true,
-          table_no: '',
-          customer_name: 'Self Kiosk Guest',
-          customer_phone: '',
-          items: kioskTray,
-          payment_mode: pendingPaymentMode,
-          subtotal: traySubtotal(),
-          discount: 0,
-          gst: trayGst(),
-          total: total,
-          is_hold: false
-        })
+        body: JSON.stringify(orderBody)
       })
       .then(res => res.json())
-      .then(data => {
-        printKioskBill(data, snapshot);
-        $('kioskTokenDisplay').innerText = '#' + (data.token_no || data.orderId);
-        $('kioskModeNote').innerText = kioskOrderType + ' • Pending Approval';
-        $('tokenSuccessModal').classList.remove('hidden');
-        setTimeout(resetKioskSession, 5000);
-      })
+      .then(data => showKioskToken(data, snapshot, kioskOrderType + ' • Pending Approval'))
       .catch(() => {
         alert('Order could not be placed. Please try again or ask staff for help.');
         openPaymentChoice();
       });
+    }
+
+    function showKioskToken(data, snapshot, note) {
+      printKioskBill(data, snapshot);
+      $('kioskTokenDisplay').innerText = '#' + (data.token_no || data.orderId);
+      $('kioskModeNote').innerText = note;
+      $('tokenSuccessModal').classList.remove('hidden');
+      setTimeout(resetKioskSession, 5000);
+    }
+
+    // ---------- UPI QR payment (Paytm) ----------
+    let upiPaytmId = null, upiPollTimer = null, upiCountTimer = null, upiSnapshot = null;
+    function stopUpiTimers() {
+      clearInterval(upiPollTimer); clearInterval(upiCountTimer);
+      upiPollTimer = upiCountTimer = null;
+      $('upiQrModal').classList.add('hidden');
+    }
+    function upiPaid(d) {
+      const snap = upiSnapshot; const id = upiPaytmId;
+      upiPaytmId = null; stopUpiTimers();
+      if (id && snap) showKioskToken(d, snap, kioskOrderType + ' • Paid via UPI');
+    }
+    function upiFailed(msg) {
+      upiPaytmId = null; stopUpiTimers();
+      alert(msg);
+      openPaymentChoice();
+    }
+    function startUpiPayment(orderBody, snapshot) {
+      upiSnapshot = snapshot;
+      fetch('/api/upi/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(orderBody) })
+        .then(r => r.json().then(d => { if (!r.ok) throw new Error(d.error || 'UPI error'); return d; }))
+        .then(d => {
+          upiPaytmId = d.paytmOrderId;
+          $('upiQrImg').src = d.qrImage;
+          $('upiAmount').innerText = '₹' + d.amount;
+          $('upiQrModal').classList.remove('hidden');
+          let left = d.expiresInSec;
+          const tick = () => { $('upiTimer').innerText = 'QR valid for ' + Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0'); };
+          tick();
+          upiCountTimer = setInterval(() => { left--; tick(); if (left <= 0) cancelUpiPayment(true); }, 1000);
+          upiPollTimer = setInterval(() => {
+            const id = upiPaytmId;
+            if (!id) return;
+            fetch('/api/upi/status/' + encodeURIComponent(id)).then(r => r.json()).then(s => {
+              if (id !== upiPaytmId) return;
+              if (s.status === 'PAID') upiPaid(s);
+              else if (s.status === 'EXPIRED') upiFailed('QR expire ho gaya. Dobara try karein.');
+            }).catch(() => {});
+          }, 3000);
+        })
+        .catch(e => upiFailed(e.message || 'UPI start nahi ho paaya. Dobara try karein.'));
+    }
+    function cancelUpiPayment(timedOut) {
+      const id = upiPaytmId;
+      if (!id) return;
+      fetch('/api/upi/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paytmOrderId: id }) })
+        .then(r => r.json())
+        .then(s => {
+          if (id !== upiPaytmId) return;
+          if (s.status === 'PAID') return upiPaid(s);
+          upiPaytmId = null; stopUpiTimers();
+          if (timedOut) alert('QR expire ho gaya. Dobara try karein.');
+          openPaymentChoice();
+        })
+        .catch(() => { if (id === upiPaytmId) { upiPaytmId = null; stopUpiTimers(); openPaymentChoice(); } });
     }
 
     // ---------- Bill printing (settings are per-device, kept in localStorage) ----------
@@ -1370,6 +1442,7 @@
     }
 
     function resetKioskSession() {
+      if (upiPaytmId) cancelUpiPayment();
       kioskTray = [];
       selectedMenuItem = null;
       selectedVariation = null;
@@ -1378,7 +1451,7 @@
       upsellFrame = null;
       upsellStack = [];
       updateTrayUI();
-      ['tokenSuccessModal', 'trayReviewModal', 'paymentModal', 'customizerModal', 'modeSelectionScreen', 'addedModal', 'upsellModal', 'mealChoiceModal', 'thinkingModal']
+      ['tokenSuccessModal', 'trayReviewModal', 'paymentModal', 'upiQrModal', 'customizerModal', 'modeSelectionScreen', 'addedModal', 'upsellModal', 'mealChoiceModal', 'thinkingModal']
         .forEach(id => $(id).classList.add('hidden'));
       $('idleScreensaver').classList.remove('hidden');
       if (categories.length) { activeCategory = categories[0]; renderCategories(); }
@@ -1406,6 +1479,7 @@
     }
 
     function showThinking() {
+      if (!$('upiQrModal').classList.contains('hidden')) { armIdleTimer(); return; } // customer is scanning the QR
       let left = 10;
       $('thinkingCountdown').innerText = left;
       $('thinkingModal').classList.remove('hidden');

@@ -1115,7 +1115,7 @@ app.post('/api/delivery-charge', async (req, res) => {
   res.json(out);
 });
 
-app.post('/api/orders', async (req, res) => {
+const createOrderHandler = async (req, res) => {
   console.log('[DEBUG ORDER PAYLOAD]:', req.body);
   let { order_type, table_no, customer_name, customer_phone, items, payment_mode, subtotal, discount, is_hold, paid_amount, is_kiosk } = req.body;
   let deliveryAddress = null, deliveryLat = null, deliveryLng = null;
@@ -1301,7 +1301,8 @@ app.post('/api/orders', async (req, res) => {
       res.json({ success: true, orderId: orderId, token_no: tokenNo });
     }
   });
-});
+};
+app.post('/api/orders', createOrderHandler);
 // ================= FULL TABLE SETTLEMENT ROUTE (FOOLPROOF FIX) =================
 // ================= FULL TABLE SETTLEMENT ROUTE (FOOLPROOF FIX) =================
 app.post('/api/tables/:id/settle', (req, res) => {
@@ -1640,6 +1641,7 @@ app.post('/api/whatsapp/disconnect', (req, res) => {
   res.json({ success: true, message: 'Disconnected successfully' });
 });
 
+require('./paytmUpi').register(app, { dbAllAsync, createOrderHandler });
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, '0.0.0.0', () => {
