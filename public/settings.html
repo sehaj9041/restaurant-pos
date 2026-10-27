@@ -407,6 +407,19 @@
             <p class="text-[10px] text-gray-400 border-t pt-3">Drinks aur sides exclude hain. Ise category ke hisaab se Menu → Edit category me badal sakte hain.</p>
           </div>
         </div>
+        <div class="bg-white border rounded-2xl p-5">
+          <h2 class="font-black text-base">Kiosk Welcome Background</h2>
+          <p class="text-[11px] text-gray-500 mb-3">Kiosk ke welcome screen ka background. 9:16 (portrait) video ya photo — MP4/WebM ya PNG/JPG/WebP, max 25 MB. Video bina awaaz ke loop me chalegi. Set nahi karne par default offer design dikhega.</p>
+          <div class="flex items-center gap-4">
+            <div class="w-24 h-[170px] border rounded-xl flex items-center justify-center bg-gray-50 overflow-hidden"><div id="kwPreview" class="w-full h-full hidden"></div><span id="kwNone" class="text-[10px] text-gray-400">Default</span></div>
+            <div class="space-y-2">
+              <input type="file" id="kwFile" accept="image/png,image/jpeg,image/webp,video/mp4,video/webm" onchange="uploadKioskWelcome()" class="hidden">
+              <button onclick="$('kwFile').click()" class="border text-xs font-black px-3 py-2 rounded-lg hover:bg-gray-50">Upload video / photo</button>
+              <button id="kwRemove" onclick="removeKioskWelcome()" class="hidden border border-rose-200 text-rose-600 text-xs font-black px-3 py-2 rounded-lg hover:bg-rose-50 ml-2">Remove</button>
+              <p id="kwStatus" class="text-[10px] text-gray-400">MP4, WebM, PNG, JPG, WebP — max 25 MB</p>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- ================= RECEIPT & PRINT ================= -->
@@ -1018,6 +1031,7 @@
       $('sfBadgeRows').innerHTML = rowsHTML('sfb', [{ k: 'show', def: true, label: 'Show "Highly ordered" badge', desc: 'Website aur QR menu par qualifying dishes ke neeche ek chhota label lagata hai.' }], { show: g.show });
       $('sf_badge_weeks').value = g.look_back_weeks || 12;
       $('sf_badge_limit').value = g.limit || 20;
+      showKioskWelcome(cfg.kiosk_welcome);
     }
     function saveBranding() {
       const email = $('sf_email').value.trim();
@@ -1089,6 +1103,40 @@
     }
     function removeReceiptLogo() {
       putConfig({ receipt: receiptObj({ logo: '' }) }).then(() => { showReceiptLogo(''); toast('Logo hata diya'); }).catch(e => toast(e.message, true));
+    }
+
+    // ---------- Kiosk welcome background ----------
+    function showKioskWelcome(w) {
+      const box = $('kwPreview'), url = w && w.url;
+      box.classList.toggle('hidden', !url);
+      $('kwNone').classList.toggle('hidden', !!url);
+      $('kwRemove').classList.toggle('hidden', !url);
+      box.innerHTML = !url ? '' : w.type === 'video'
+        ? `<video src="${url}" class="w-full h-full object-cover" muted loop autoplay playsinline></video>`
+        : `<img src="${url}" class="w-full h-full object-cover" alt="">`;
+    }
+    async function uploadKioskWelcome() {
+      const f = $('kwFile').files[0];
+      if (!f) return;
+      const isVideo = /^video\/(mp4|webm)$/.test(f.type), isImage = /^image\/(png|jpeg|webp)$/.test(f.type);
+      if (!isVideo && !isImage) { $('kwFile').value = ''; return toast('Sirf MP4/WebM video ya PNG/JPG/WebP photo', true); }
+      if (f.size > 25 * 1024 * 1024) { $('kwFile').value = ''; return toast('File 25 MB se chhoti honi chahiye', true); }
+      $('kwStatus').innerText = 'Uploading...';
+      const fd = new FormData(); fd.append('image', f);
+      try {
+        const r = await fetch('/api/upload', { method: 'POST', body: fd });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok || !d.imageUrl) throw new Error(d.error || 'Upload fail');
+        const w = { url: d.imageUrl, type: isVideo ? 'video' : 'image' };
+        await putConfig({ kiosk_welcome: w });
+        showKioskWelcome(w);
+        toast('Welcome background save ho gaya ✓');
+      } catch (e) { toast(e.message, true); }
+      $('kwStatus').innerText = 'MP4, WebM, PNG, JPG, WebP — max 25 MB';
+      $('kwFile').value = '';
+    }
+    function removeKioskWelcome() {
+      putConfig({ kiosk_welcome: null }).then(() => { showKioskWelcome(null); toast('Default design wapas laga diya'); }).catch(e => toast(e.message, true));
     }
 
     // ---------- Operating Hours ----------

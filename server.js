@@ -43,7 +43,17 @@ app.get('/uploads/:name', (req, res, next) => {
     if (err || !row) return next(); // DB mein nahi hai toh purani committed files static se serve hongi
     res.setHeader('Content-Type', row.mime || 'application/octet-stream');
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-    res.send(row.data);
+    res.setHeader('Accept-Ranges', 'bytes'); // video (kiosk welcome background) ko seek/loop ke liye Range chahiye
+    const buf = row.data, m = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
+    if (m && (m[1] || m[2])) {
+      let start = m[1] ? parseInt(m[1], 10) : Math.max(0, buf.length - parseInt(m[2], 10));
+      let end = m[1] && m[2] ? Math.min(parseInt(m[2], 10), buf.length - 1) : buf.length - 1;
+      if (start >= buf.length || start > end) { res.setHeader('Content-Range', 'bytes */' + buf.length); return res.status(416).end(); }
+      res.status(206).setHeader('Content-Range', 'bytes ' + start + '-' + end + '/' + buf.length);
+      res.setHeader('Content-Length', end - start + 1);
+      return res.end(buf.subarray(start, end + 1));
+    }
+    res.send(buf);
   });
 });
 app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
@@ -63,7 +73,7 @@ let liveCustomerCart = {
 db.run("CREATE TABLE IF NOT EXISTS uploaded_files (name TEXT PRIMARY KEY, mime TEXT, data BYTEA)", (err) => {
   if (err) console.error('uploaded_files table error:', err.message);
 });
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 30 * 1024 * 1024 } });
 const uploadExcel = multer({ dest: 'uploads/' });
 
 app.post('/api/upload', upload.single('image'), (req, res) => {

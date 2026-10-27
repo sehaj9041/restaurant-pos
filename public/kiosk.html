@@ -28,6 +28,23 @@
     .screen { position: absolute; inset: 0; }
     .pop { animation: pop .35s cubic-bezier(.22,1,.36,1); }
     @keyframes pop { from { transform: scale(.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    /* Zyada add-ons wale step: photo/logo chhupa kar header chhota, taaki sab ek screen me dikhe */
+    #customizerModal.dense .cust-logo, #customizerModal.dense #custImgContainer { display: none; }
+    #customizerModal.dense #custItemTitle, #customizerModal.dense #modalItemRunningTotal { font-size: 1.5rem; margin-top: 0; }
+    #customizerModal.dense .cust-head { padding-top: 1rem; }
+    .brand-badge.has-logo { background: transparent; border-radius: 0; width: auto; height: 3.5rem; max-width: 70%; }
+    .brand-badge.has-logo img { height: 100%; width: auto; max-width: 100%; object-fit: contain; }
+    .brand-badge.brand-side.has-logo { width: 100%; max-width: 100%; height: 6rem; }
+    /* Category kholne par items upar se neeche row-by-row slide + fade hote hain */
+    @keyframes itemDrop { from { opacity: 0; transform: translateY(-18px); } to { opacity: 1; transform: none; } }
+    #itemsGrid > .item-drop { opacity: 0; animation: itemDrop .38s cubic-bezier(.2,.7,.3,1) forwards; }
+    @media (prefers-reduced-motion: reduce) { #itemsGrid > .item-drop { animation: none; opacity: 1; } }
+    /* Customizer steps: agla step right se slide-in, Back par left se */
+    @keyframes stepInRight { from { opacity: 0; transform: translateX(48px); } to { opacity: 1; transform: none; } }
+    @keyframes stepInLeft { from { opacity: 0; transform: translateX(-48px); } to { opacity: 1; transform: none; } }
+    .step-fwd { animation: stepInRight .32s cubic-bezier(.2,.7,.3,1); }
+    .step-back { animation: stepInLeft .32s cubic-bezier(.2,.7,.3,1); }
+    @media (prefers-reduced-motion: reduce) { .step-fwd, .step-back { animation: none; } }
   </style>
 </head>
 <body class="bg-neutral-900 flex justify-center items-center h-screen w-screen overflow-hidden">
@@ -38,9 +55,9 @@
     <div class="flex-1 flex overflow-hidden min-h-0">
       <!-- Sidebar -->
       <aside class="w-[27%] shrink-0 flex flex-col pt-4 pb-2 pl-3 overflow-y-auto">
-        <div class="bg-white border border-[var(--line)] shadow-sm flex items-center justify-center py-4 mb-4">
-          <div class="flex items-center gap-2">
-            <div class="w-9 h-9 rounded-full bg-[var(--yellow)] flex items-center justify-center font-black text-lg" id="brandBadge">V</div>
+        <div class="bg-white border border-[var(--line)] shadow-sm flex items-center justify-center p-2 mb-4">
+          <div class="flex items-center justify-center gap-2 w-full">
+            <div class="brand-badge brand-side w-9 h-9 rounded-full bg-[var(--yellow)] flex items-center justify-center font-black text-lg">V</div>
           </div>
         </div>
         <button onclick="startOver()" class="tile flex items-center gap-2 px-2 py-3 mb-3 text-left">
@@ -53,13 +70,13 @@
       <section class="flex-1 min-w-0 flex flex-col px-4 pt-6">
         <h2 id="activeCategoryHeading" class="text-4xl font-black tracking-tight leading-none truncate">Menu</h2>
         <p class="text-[13px] text-neutral-600 mt-3 mb-4">Browse between categories on the left</p>
-        <div id="itemsGrid" class="flex-1 overflow-y-auto grid grid-cols-2 gap-3 content-start pb-4"></div>
+        <div id="itemsGrid" class="flex-1 overflow-y-auto grid grid-cols-3 gap-2.5 content-start pb-4"></div>
       </section>
     </div>
 
     <!-- Bottom bar -->
     <footer class="shrink-0 bg-white border-t border-[var(--line)] px-4 pt-3 pb-3">
-      <div class="flex items-center justify-between mb-3">
+      <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
           <div class="relative" id="cartIconBox">
             <span class="text-3xl">🛍️</span>
@@ -67,17 +84,16 @@
           </div>
           <span id="trayTotalDisplay" class="text-2xl font-black">₹0.00</span>
         </div>
-        <button id="viewOrderBtn" onclick="openTrayReviewModal()" class="btn-yellow px-8 py-3.5 text-[15px]" disabled>View My Order</button>
-      </div>
-      <div class="flex gap-3">
-        <button onclick="startOver()" class="btn-outline flex-1 py-2 text-[12px]">Start Over</button>
-        <button onclick="toggleBigText()" class="btn-outline flex-1 py-2 text-[12px]">♿ Accessibility</button>
+        <div class="flex items-center gap-2">
+          <button onclick="startOver()" class="btn-outline px-4 py-2 text-[12px]">Start Over</button>
+          <button id="viewOrderBtn" onclick="openTrayReviewModal()" class="btn-yellow px-8 py-3.5 text-[15px]" disabled>View My Order</button>
+        </div>
       </div>
     </footer>
 
     <!-- ============ START SCREEN ============ -->
     <div id="idleScreensaver" onclick="showModeSelection()" class="screen z-50 bg-white flex flex-col cursor-pointer">
-      <div class="flex-1 relative bg-[#0f4c5c] text-white flex flex-col items-center overflow-hidden">
+      <div id="idleDefault" class="flex-1 relative bg-[#0f4c5c] text-white flex flex-col items-center overflow-hidden">
         <div class="bg-white w-full text-center pt-10 pb-8" style="background:linear-gradient(180deg,#eefaf8,#d8f1ee)">
           <h1 class="text-5xl font-black leading-[1.05] text-[#2a9d9f] px-6">You've caught<br>a big offer!</h1>
           <div class="inline-block mt-6 bg-[#0f4c5c] text-white px-8 py-3 rotate-[-3deg] shadow-xl">
@@ -91,25 +107,15 @@
           <p id="idleStoreName" class="text-xl font-black tracking-widest mt-2">VISHAL FOODIEZ</p>
         </div>
       </div>
-      <div class="bg-[#f5f5f5] px-5 pt-5 pb-6 flex gap-4">
-        <div class="w-[38%] bg-[var(--yellow)] p-4 flex flex-col items-center justify-center text-center">
-          <p class="font-black text-[15px] leading-tight">Scan or tap for</p>
-          <p class="text-[11px] mb-2">Deals &amp; more</p>
-          <span class="text-5xl">▦</span>
-        </div>
-        <div class="flex-1 flex flex-col gap-3">
-          <button class="tile flex-1 py-5 text-center">
-            <p class="font-black text-xl">Start Order</p>
-            <p class="text-[12px] text-neutral-600 mt-1">to get deliciousness</p>
-          </button>
-          <button onclick="event.stopPropagation(); toggleBigText()" class="btn-outline py-2 text-[12px]">♿ Accessibility</button>
-        </div>
+      <div id="idleMedia" class="hidden absolute inset-0 bg-black"></div>
+      <div class="absolute inset-x-0 bottom-0 pb-14 flex justify-center">
+        <button class="btn-yellow px-20 py-6 text-3xl shadow-2xl pop">Start Order</button>
       </div>
     </div>
 
     <!-- ============ EAT IN / TAKE AWAY ============ -->
     <div id="modeSelectionScreen" class="hidden screen z-40 kiosk-bg flex flex-col items-center px-6">
-      <div class="w-12 h-12 mt-14 rounded-full bg-[var(--yellow)] flex items-center justify-center font-black text-2xl">V</div>
+      <div class="brand-badge w-12 h-12 mt-14 rounded-full bg-[var(--yellow)] flex items-center justify-center font-black text-2xl">V</div>
       <h2 class="text-5xl font-black text-center leading-tight mt-16">Where would you<br>like to eat?</h2>
       <div class="grid grid-cols-2 gap-5 w-full mt-14">
         <button onclick="startKioskOrderWithMode('Dine-In')" class="tile pt-6 pb-0 flex flex-col items-center">
@@ -125,14 +131,13 @@
       </div>
       <div class="mt-auto w-full pb-6 flex gap-3">
         <button onclick="startOver()" class="btn-outline flex-1 py-2.5 text-[13px]">Start Over</button>
-        <button onclick="toggleBigText()" class="btn-outline flex-1 py-2.5 text-[13px]">♿ Accessibility</button>
       </div>
     </div>
 
     <!-- ============ ITEM CUSTOMIZER ============ -->
     <div id="customizerModal" class="hidden screen z-40 kiosk-bg flex flex-col">
-      <div class="px-6 pt-8 shrink-0">
-        <div class="w-10 h-10 rounded-full bg-[var(--yellow)] flex items-center justify-center font-black text-lg mb-5">V</div>
+      <div class="cust-head px-6 pt-8 shrink-0">
+        <div class="cust-logo brand-badge w-10 h-10 rounded-full bg-[var(--yellow)] flex items-center justify-center font-black text-lg mb-5">V</div>
         <h3 id="custItemTitle" class="text-4xl font-black leading-tight">Burger</h3>
         <div id="modalItemRunningTotal" class="text-4xl font-black leading-tight mt-1">₹0.00</div>
         <p id="custItemCategory" class="text-[12px] font-bold text-neutral-500 uppercase tracking-widest mt-2"></p>
@@ -166,7 +171,7 @@
     <!-- ============ YOUR ORDER ============ -->
     <div id="trayReviewModal" class="hidden screen z-40 kiosk-bg flex flex-col">
       <div class="px-6 pt-8 flex items-center gap-3 shrink-0">
-        <div class="w-10 h-10 rounded-full bg-[var(--yellow)] flex items-center justify-center font-black text-lg">V</div>
+        <div class="brand-badge w-10 h-10 rounded-full bg-[var(--yellow)] flex items-center justify-center font-black text-lg">V</div>
         <h3 class="text-4xl font-black">Your Order</h3>
       </div>
       <div id="trayItemsList" class="flex-1 overflow-y-auto px-6 pt-6 min-h-0"></div>
@@ -216,16 +221,14 @@
       </div>
     </div>
 
-    <!-- ============ UPSELL ============ -->
+    <!-- ============ CAN WE SUGGEST? (cart kholne par) ============ -->
     <div id="upsellModal" class="hidden screen z-[65] kiosk-bg flex flex-col">
-      <div class="shrink-0 px-6 pt-8 pb-4 text-center">
-        <div class="text-5xl pop">🛍️</div>
-        <h3 class="text-3xl font-black mt-3">Item added to Bag!</h3>
-        <p class="text-sm text-neutral-600 mt-1">Kuch aur add karenge?</p>
+      <div class="shrink-0 px-6 pt-10 pb-4 text-center">
+        <h3 class="text-3xl font-black">Can we suggest?</h3>
       </div>
-      <div id="upsellList" class="flex-1 overflow-y-auto px-6 pb-4 space-y-5 min-h-0"></div>
+      <div id="upsellList" class="flex-1 overflow-y-auto px-6 pb-4 min-h-0"></div>
       <div class="shrink-0 px-6 pb-6 pt-2">
-        <button onclick="closeUpsell()" class="btn-outline w-full py-4 text-lg">No, thanks</button>
+        <button onclick="closeUpsell()" class="btn-outline w-full py-4 text-lg">Not Today</button>
       </div>
     </div>
 
@@ -318,6 +321,15 @@
     let pendingPaymentMode = '';
     let kioskStoreCfg = {};
     let kioskReceiptCfg = {};
+    // Top-of-screen "V" badge ki jagah receipt wala restaurant logo (Settings > Receipt & Print)
+    let brandLetter = 'V';
+    function paintBrand() {
+      const url = kioskReceiptCfg.logo;
+      document.querySelectorAll('.brand-badge').forEach(el => {
+        el.classList.toggle('has-logo', !!url);
+        el.innerHTML = url ? `<img src="${esc(url)}" alt="" onerror="this.parentElement.classList.remove('has-logo');this.parentElement.textContent='${brandLetter}'">` : esc(brandLetter);
+      });
+    }
 
     const $ = id => document.getElementById(id);
     const money = n => '₹' + Number(n).toFixed(2);
@@ -327,7 +339,8 @@
       const name = s.restaurant_name || 'VISHAL FOODIEZ';
       $('idleStoreName').innerText = name;
       kioskStoreCfg = s || {};
-      $('brandBadge').innerText = name.trim().charAt(0).toUpperCase();
+      brandLetter = name.trim().charAt(0).toUpperCase() || 'V';
+      paintBrand();
     }).catch(() => {});
 
     fetch('/api/addon-groups').then(res => res.json()).then(g => { allMasterGroups = g; });
@@ -394,6 +407,17 @@
       activeCategory = categories[idx];
       renderCategories();
       $('itemsGrid').scrollTop = 0;
+      animateItemCards();
+    }
+
+    // Items upar se neeche row-by-row aate hain (category badalne par, aur Dine-In/Take-away ke baad menu khulne par)
+    function animateItemCards() {
+      [...$('itemsGrid').children].forEach((el, i) => {
+        el.classList.remove('item-drop');
+        void el.offsetWidth; // animation dobara chalane ke liye reflow
+        el.style.animationDelay = (Math.floor(i / 3) * 70 + (i % 3) * 25) + 'ms'; // 3 columns: row-by-row cascade
+        el.classList.add('item-drop');
+      });
     }
 
     const itemUnavailable = i => outCategories[String(i.category || '').trim()] || (Number(i.stock) || 0) <= 0 || i.status === 'Out of Stock';
@@ -415,10 +439,10 @@
             <div class="h-28 flex items-center justify-center ${na ? 'opacity-40 grayscale' : ''}">
               ${img ? `<img src="${esc(img)}" class="max-h-full max-w-full object-contain" onerror="this.onerror=null; this.replaceWith(Object.assign(document.createElement('span'),{className:'text-6xl',textContent:'🍔'}));">` : '<span class="text-6xl">🍔</span>'}
             </div>
-            <h3 class="font-bold text-[12px] leading-tight mt-2 line-clamp-2 min-h-[2.1em] ${na ? 'opacity-50' : ''}">${esc(item.name)}</h3>
-            <span class="font-bold text-[12px] mt-1 ${na ? 'opacity-50' : ''}">${priceTag}</span>
+            <h3 class="font-bold text-[12px] leading-tight mt-2 break-words ${na ? 'opacity-50' : ''}">${esc(item.name)}</h3>
+            <span class="font-bold text-[12px] mt-auto pt-1 ${na ? 'opacity-50' : ''}">${priceTag}</span>
           </button>`;
-      }).join('') || '<p class="col-span-2 text-neutral-500 text-sm">No items in this category.</p>';
+      }).join('') || '<p class="col-span-3 text-neutral-500 text-sm">No items in this category.</p>';
     }
 
     // ---------- "Single or Meal?" - asked right after an item is tapped ----------
@@ -464,7 +488,6 @@
 
     function cancelMealChoice() {
       $('mealChoiceModal').classList.add('hidden');
-      if (upsellStack.length && !showNextUpsell()) showAddedConfirmation();
     }
 
     // ---------- Item customizer ----------
@@ -505,6 +528,7 @@
       buildCustSteps();
       custStepIdx = 0;
       custEditing = false;
+      custDir = 1;
       renderCustStep();
       updateCustomizerTotal();
       $('customizerModal').classList.remove('hidden');
@@ -551,12 +575,15 @@
       custSteps = steps;
     }
 
+    let custDir = 1; // 1 = aage (right se slide-in), -1 = peeche
     function renderCustStep() {
       const step = custSteps[custStepIdx];
       const review = !step || step.type === 'review';
       $('modalVarSection').classList.toggle('hidden', !(step && step.type === 'var'));
       if (step && step.type === 'group') renderKioskAddonGroup(step.id); else $('modalAddonGroups').innerHTML = '';
       $('modalReview').classList.toggle('hidden', !review);
+      const stepGroup = step && step.type === 'group' ? allMasterGroups.find(x => Number(x.id) === Number(step.id)) : null;
+      $('customizerModal').classList.toggle('dense', !!stepGroup && groupOptions(stepGroup).length > 6);
       $('custImgContainer').innerHTML = review && custHidePrice ? mealHeroTiles() : custHeroHtml;
       if (review) renderCustReview();
       $('custStepInfo').innerText = custSteps.length > 1 ? (review ? 'Review your order' : `Step ${custStepIdx + 1} of ${custSteps.length - 1}`) : '';
@@ -564,6 +591,13 @@
       $('custBackBtn').innerText = custStepIdx === 0 || (review && custSteps.length === 1) ? 'Cancel Item' : 'Back';
       $('custQtyRow').classList.toggle('hidden', !review);
       $('customizerModal').querySelector('.overflow-y-auto').scrollTop = 0;
+      ['modalVarSection', 'modalAddonGroups', 'modalReview'].forEach(id => {
+        const el = $(id);
+        el.classList.remove('step-fwd', 'step-back');
+        void el.offsetWidth; // animation dobara chalane ke liye reflow
+        el.classList.add(custDir > 0 ? 'step-fwd' : 'step-back');
+      });
+      custDir = 1;
     }
 
     // Meal ka single burger item (upsell "upgrade" mapping se, warna naam se "Meal" hata kar)
@@ -667,6 +701,7 @@
 
     function custBack() {
       const step = custSteps[custStepIdx];
+      custDir = -1;
       if (custEditing) { custEditing = false; custStepIdx = custSteps.length - 1; return renderCustStep(); }
       if (custStepIdx === 0) return cancelCustomizer();
       custStepIdx--;
@@ -688,7 +723,6 @@
 
     function cancelCustomizer() {
       closeCustomizerModal();
-      if (upsellStack.length && !showNextUpsell()) showAddedConfirmation();
     }
 
     function renderKioskAddonGroup(gid) {
@@ -704,17 +738,17 @@
               ${g.is_mandatory ? 'Required (Min ' + g.min_selection + ')' : 'Optional'}
             </span>
           </div>
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-3 gap-2.5">
             ${groupOptions(g).map(({ addon, aIdx }) => {
               const on = chosen.some(a => a.name === addon.name);
               return `
-              <label class="tile ${on ? 'selected' : ''} p-3 flex items-center justify-between gap-2 cursor-pointer">
-                ${addon.image ? `<img src="${esc(resolveImgPath(addon.image))}" class="w-14 h-14 rounded-lg object-cover shrink-0">` : ''}
-                <span class="min-w-0 flex-1">
-                  <span class="block text-[13px] font-bold leading-tight">${esc(addon.name)}</span>
-                  <span class="block text-[12px] text-neutral-600">+${money(addon.price)}</span>
-                </span>
-                <input type="checkbox" ${on ? 'checked' : ''} onchange="toggleKioskAddon(${g.id}, ${aIdx}, this)" class="w-6 h-6 shrink-0 accent-[#FFBC0D]">
+              <label class="tile ${on ? 'selected' : ''} p-2.5 flex flex-col items-center text-center relative cursor-pointer">
+                <input type="checkbox" ${on ? 'checked' : ''} onchange="toggleKioskAddon(${g.id}, ${aIdx}, this)" class="absolute top-2 right-2 w-5 h-5 accent-[#FFBC0D]">
+                <div class="h-16 w-full flex items-center justify-center">
+                  ${addon.image ? `<img src="${esc(resolveImgPath(addon.image))}" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">` : '<span class="text-4xl">🍽️</span>'}
+                </div>
+                <span class="block text-[12px] font-bold leading-tight mt-1.5 line-clamp-2 min-h-[2.1em]">${esc(addon.name)}</span>
+                <span class="block text-[12px] text-neutral-600 mt-0.5">+${money(addon.price)}</span>
               </label>`;
             }).join('')}
           </div>
@@ -803,8 +837,6 @@
       const finalPrice = unitPrice();
       const displayName = selectedVariation ? `${selectedMenuItem.name} (${selectedVariation.name})` : selectedMenuItem.name;
 
-      const addedItem = selectedMenuItem;
-      const addedQty = custQty;
       let line = kioskTray.find(i => i.menu_id === selectedMenuItem.id && i.name === displayName && i.notes === noteText);
       if (line) line.qty += custQty;
       else {
@@ -831,89 +863,70 @@
 
       closeCustomizerModal();
       updateTrayUI();
-      if (!showUpsells(addedItem, line.cartId, addedQty) && !showNextUpsell()) showAddedConfirmation();
+      showAddedConfirmation();
     }
 
-    // ---------- Upsells ("Make it a meal" / "Add a drink") ----------
-    // Asked one at a time, in the rank (sort_order) set in admin. upsellStack keeps the unfinished
-    // questions of an earlier item while a suggested item is being customised.
-    let upsellFrame = null;
-    let upsellStack = [];
-    function showUpsells(item, cartId, qty) {
-      // "Make it a meal" upgrades are asked up-front (startKioskItem), so only cross-sells are left here.
-      const mine = upsells.filter(u => u.item_name === item.name && u.upsell_type !== 'upgrade')
-        .sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0) || Number(a.id) - Number(b.id));
-      const seen = new Set([item.id]);
-      const sections = [];
-      mine.forEach(u => {
-        let list = [];
-        if (u.suggested_item) {
-          const t = allKioskItems.find(i => i.name === u.suggested_item);
-          if (t && Number(t.stock) > 0) list = [t];
-        } else if (u.suggested_category) {
-          list = allKioskItems.filter(i => i.category === u.suggested_category && Number(i.stock) > 0).slice(0, 6);
-        }
-        list = list.filter(i => !seen.has(i.id));
-        list.forEach(i => seen.add(i.id));
-        if (list.length) sections.push({ u, list });
-      });
-      if (!sections.length) return false;
-      upsellFrame = { sections, cartId, qty };
-      return showNextUpsell();
+    // ---------- Suggestions ("Can we suggest?") - cart kholne par ek baar poori tray ke liye ----------
+    let suggestDismissed = new Set();
+    function trayCrossSells() {
+      const inTray = new Set(kioskTray.map(l => l.menu_id));
+      const names = new Set(kioskTray.map(l => (allKioskItems.find(i => i.id === l.menu_id) || {}).name).filter(Boolean));
+      const out = [];
+      const seen = new Set();
+      upsells.filter(u => names.has(u.item_name) && u.upsell_type !== 'upgrade')
+        .sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0) || Number(a.id) - Number(b.id))
+        .forEach(u => {
+          let list = [];
+          if (u.suggested_item) {
+            const t = allKioskItems.find(i => i.name === u.suggested_item);
+            if (t) list = [t];
+          } else if (u.suggested_category) {
+            list = allKioskItems.filter(i => i.category === u.suggested_category).slice(0, 6);
+          }
+          list.forEach(t => {
+            if (Number(t.stock) > 0 && !inTray.has(t.id) && !seen.has(t.id) && !suggestDismissed.has(t.id)) { seen.add(t.id); out.push(t); }
+          });
+        });
+      return out;
     }
 
-    function showNextUpsell() {
-      while (!upsellFrame || !upsellFrame.sections.length) {
-        upsellFrame = upsellStack.pop() || null;
-        if (!upsellFrame) return false;
-      }
-      const { cartId, qty } = upsellFrame;
-      const sections = [upsellFrame.sections.shift()];
-      $('upsellList').innerHTML = sections.map(({ u, list }) => {
-        const upgrade = u.upsell_type === 'upgrade';
-        const title = u.label || (upgrade ? 'Make it a meal?' : 'You may also like');
+    // Returns true if the suggestion popup was shown (cart review then opens from "Not Today").
+    function showSuggestions() {
+      const list = trayCrossSells();
+      if (!list.length) return false;
+      $('upsellList').innerHTML = `<div class="flex flex-wrap justify-center gap-3">${list.map(t => {
+        let vars = [];
+        try { vars = JSON.parse(t.variations || '[]'); } catch (e) {}
+        const price = vars.length ? `From ${money(vars[0].price)}` : money(t.price);
+        const img = itemImgOf(t);
         return `
-          <div>
-            <h4 class="text-xl font-black mb-3">${esc(title)}</h4>
-            <div class="grid grid-cols-2 gap-3">
-              ${list.map(t => {
-                let vars = [];
-                try { vars = JSON.parse(t.variations || '[]'); } catch (e) {}
-                const price = vars.length ? `From ${money(vars[0].price)}` : money(t.price);
-                const img = itemImgOf(t);
-                return `
-                  <button onclick="pickUpsell(${t.id}, ${upgrade}, ${cartId}, ${qty})" class="tile p-2.5 flex flex-col text-left">
-                    <div class="h-24 flex items-center justify-center">
-                      ${img ? `<img src="${esc(img)}" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">` : '<span class="text-5xl">🍽️</span>'}
-                    </div>
-                    <h3 class="font-bold text-[12px] leading-tight mt-2 line-clamp-2 min-h-[2.1em]">${esc(t.name)}</h3>
-                    <span class="font-bold text-[12px] mt-1">${price}</span>
-                  </button>`;
-              }).join('')}
+          <button onclick="pickUpsell(${t.id})" class="tile p-2.5 flex flex-col text-left w-[calc(50%-0.375rem)]">
+            <div class="h-28 flex items-center justify-center">
+              ${img ? `<img src="${esc(img)}" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">` : '<span class="text-5xl">🍽️</span>'}
             </div>
-          </div>`;
-      }).join('');
+            <h3 class="font-bold text-[13px] leading-tight mt-2 line-clamp-2 min-h-[2.1em]">${esc(t.name)}</h3>
+            <span class="font-bold text-[13px] mt-1">${price}</span>
+          </button>`;
+      }).join('')}</div>`;
+      list.forEach(t => suggestDismissed.add(t.id)); // ek baar dikha diya, dobara nahi poochenge
       $('upsellModal').classList.remove('hidden');
       return true;
-    }
-
-    function pickUpsell(itemId, upgrade, cartId, qty) {
-      $('upsellModal').classList.add('hidden');
-      if (upsellFrame) upsellStack.push(upsellFrame);
-      upsellFrame = null;
-      startKioskItem(itemId);
-      pendingUpgrade = upgrade ? { cartId, qty } : null;
-    }
-
-    function closeUpsell() {
-      $('upsellModal').classList.add('hidden');
-      if (!showNextUpsell()) showAddedConfirmation();
     }
 
     function showAddedConfirmation() {
       $('addedTotal').innerText = money(trayTotal());
       $('addedModal').classList.remove('hidden');
       setTimeout(() => $('addedModal').classList.add('hidden'), 1400);
+    }
+
+    function pickUpsell(itemId) {
+      $('upsellModal').classList.add('hidden');
+      startKioskItem(itemId);
+    }
+
+    function closeUpsell() {
+      $('upsellModal').classList.add('hidden');
+      $('trayReviewModal').classList.remove('hidden');
     }
 
     // ---------- Tray ----------
@@ -978,6 +991,7 @@
 
     function openTrayReviewModal() {
       if (!kioskTray.length) return;
+      if (showSuggestions()) return;
       $('trayReviewModal').classList.remove('hidden');
     }
     function closeTrayReviewModal() { $('trayReviewModal').classList.add('hidden'); }
@@ -1100,8 +1114,17 @@
       try { c = JSON.parse(localStorage.getItem(PRINT_KEY) || '{}'); } catch (e) {}
       return { method: c.method || (window.AndroidPrinter ? 'usb' : 'off'), width: Number(c.width) || 42, logo: c.logo !== false, fast: c.fast === true, billw: Number(c.billw) > 0 ? Number(c.billw) : '', feed: c.feed === undefined || c.feed === '' ? 4 : Math.max(0, Math.min(20, Number(c.feed) || 0)), copies: Math.max(1, Math.min(3, Number(c.copies) || 1)) };
     }
+    // Welcome screen ka background (Settings > Storefront > Kiosk Welcome Background): video ya photo, warna default offer design
+    function paintWelcomeMedia(w) {
+      const url = w && w.url;
+      $('idleDefault').classList.toggle('hidden', !!url);
+      $('idleMedia').classList.toggle('hidden', !url);
+      $('idleMedia').innerHTML = !url ? '' : w.type === 'video'
+        ? `<video src="${esc(url)}" class="w-full h-full object-cover" autoplay muted loop playsinline></video>`
+        : `<img src="${esc(url)}" class="w-full h-full object-cover" alt="">`;
+    }
     function loadKioskReceiptCfg() {
-      fetch('/api/settings/config').then(r => r.json()).then(c => { kioskReceiptCfg = (c && c.receipt) || {}; }).catch(() => {});
+      fetch('/api/settings/config').then(r => r.json()).then(c => { kioskReceiptCfg = (c && c.receipt) || {}; paintBrand(); paintWelcomeMedia(c && c.kiosk_welcome); }).catch(() => {});
     }
     loadKioskReceiptCfg();
 
@@ -1434,10 +1457,13 @@
       kioskOrderType = mode;
       $('idleScreensaver').classList.add('hidden');
       $('modeSelectionScreen').classList.add('hidden');
+      $('itemsGrid').scrollTop = 0;
+      animateItemCards();
     }
 
     async function startOver() {
-      if (kioskTray.length && !(await uiConfirm('Start over? Your bag will be cleared.', {title:'Start over?', okText:'Yes, start over'}))) return;
+      const msg = kioskTray.length ? 'Start over? Your bag will be cleared.' : 'Start over and go back to the welcome screen?';
+      if (!(await uiConfirm(msg, {title:'Start over?', okText:'Yes, start over', cancelText:'No, stay'}))) return;
       resetKioskSession();
     }
 
@@ -1448,8 +1474,7 @@
       selectedVariation = null;
       selectedGroupAddons = {};
       pendingUpgrade = null;
-      upsellFrame = null;
-      upsellStack = [];
+      suggestDismissed = new Set();
       updateTrayUI();
       ['tokenSuccessModal', 'trayReviewModal', 'paymentModal', 'upiQrModal', 'customizerModal', 'modeSelectionScreen', 'addedModal', 'upsellModal', 'mealChoiceModal', 'thinkingModal']
         .forEach(id => $(id).classList.add('hidden'));
@@ -1457,12 +1482,6 @@
       if (categories.length) { activeCategory = categories[0]; renderCategories(); }
       clearTimeout(idleTimer);
       clearInterval(countdownTimer);
-    }
-
-    // ---------- Accessibility: larger text ----------
-    function toggleBigText() {
-      const f = $('kioskFrameContainer');
-      f.style.zoom = f.style.zoom ? '' : '1.15';
     }
 
     // ---------- "Still thinking?" inactivity prompt ----------
