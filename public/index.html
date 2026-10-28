@@ -13,6 +13,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
   <script src="/ui-dialogs.js"></script>
+  <script src="/html2canvas.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     ::-webkit-scrollbar { width: 5px; height: 5px; }
@@ -3302,20 +3303,13 @@
       `;
       // Receipt copies (Settings > Receipt & Print): every copy on its own page
       var copies = Math.max(1, Math.min(5, Number(billCfg.c.copies) || 1));
+      var htmlOne = html;
       if (copies > 1) {
         var bm = html.match(/<body>([\s\S]*)<\/body>/);
         if (bm) html = html.replace(bm[0], function() { return '<body>' + new Array(copies).fill(bm[1]).join('<div style="page-break-after:always;height:1px"></div>') + '</body>'; });
       }
 
-      var frame = document.getElementById('silentPrintFrame');
-      var doc = frame.contentWindow.document;
-      doc.open();
-      doc.write(html);
-      doc.close();
-      frame.contentWindow.focus();
-      setTimeout(function() {
-        try { frame.contentWindow.print(); } catch(e) {}
-      }, 250);
+      printHtmlSilent(htmlOne, copies, html);
     }
 
     function triggerManualKOTDirect() {
@@ -3352,15 +3346,57 @@
         </html>
       `;
 
+      printHtmlSilent(html, 1, html);
+    }
+
+    // ---------- Silent printing through the local printer agent (127.0.0.1:4567) ----------
+    // The receipt HTML is rendered exactly as before, turned into a black/white bitmap and sent to the agent,
+    // which writes it RAW to the thermal printer (no print dialog). If anything fails, the normal browser print dialog opens.
+    function printDialogFallback(html) {
       var frame = document.getElementById('silentPrintFrame');
+      frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
       var doc = frame.contentWindow.document;
-      doc.open();
-      doc.write(html);
-      doc.close();
+      doc.open(); doc.write(html); doc.close();
       frame.contentWindow.focus();
-      setTimeout(function() {
-        try { frame.contentWindow.print(); } catch(e) {}
-      }, 250);
+      setTimeout(function() { try { frame.contentWindow.print(); } catch(e) {} }, 250);
+    }
+    function printHtmlSilent(htmlOne, copies, fallbackHtml) {
+      var fallback = function() { printDialogFallback(fallbackHtml); };
+      if (!window.html2canvas) return fallback();
+      var frame = document.getElementById('silentPrintFrame');
+      // off-screen but laid out, so html2canvas can measure it
+      frame.style.cssText = 'position:fixed;left:-2000px;top:0;width:330px;height:1200px;border:0;';
+      var doc = frame.contentWindow.document;
+      doc.open(); doc.write(htmlOne); doc.close();
+      var waitImgs = function(tries) {
+        var pending = Array.prototype.some.call(doc.images, function(i) { return !i.complete; });
+        if (pending && tries < 20) return setTimeout(function() { waitImgs(tries + 1); }, 100);
+        renderBitmap();
+      };
+      var renderBitmap = function() {
+        var body = doc.body, w = body.offsetWidth || 270;
+        window.html2canvas(body, { scale: 576 / w, backgroundColor: '#ffffff', useCORS: true, logging: false, width: w, height: body.scrollHeight, windowWidth: 330 })
+          .then(function(cv) {
+            var W = 576, H = Math.round(cv.height * W / cv.width);
+            var out = document.createElement('canvas'); out.width = W; out.height = H;
+            var ctx = out.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H); ctx.drawImage(cv, 0, 0, W, H);
+            var px = ctx.getImageData(0, 0, W, H).data, rowBytes = W / 8, bytes = new Uint8Array(rowBytes * H);
+            for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+              var i = (y * W + x) * 4;
+              if (px[i + 3] > 40 && (px[i] * 0.3 + px[i + 1] * 0.59 + px[i + 2] * 0.11) < 170) bytes[y * rowBytes + (x >> 3)] |= (0x80 >> (x & 7));
+            }
+            var bin = '', CH = 0x8000;
+            for (var k = 0; k < bytes.length; k += CH) bin += String.fromCharCode.apply(null, bytes.subarray(k, k + CH));
+            var ctl = new AbortController(), timer = setTimeout(function() { ctl.abort(); }, 8000);
+            return fetch('http://127.0.0.1:4567/print-image', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ctl.signal,
+              body: JSON.stringify({ width: W, height: H, copies: copies, data: btoa(bin) })
+            }).then(function(r) { clearTimeout(timer); return r.json(); })
+              .then(function(d) { if (!d || !d.success) throw new Error('agent print failed'); });
+          })
+          .catch(function(e) { console.warn('Silent print failed, using print dialog:', e); fallback(); });
+      };
+      waitImgs(0);
     }
 
     function openCashDrawer() {
