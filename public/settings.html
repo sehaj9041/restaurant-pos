@@ -446,6 +446,17 @@
           </div>
         </div>
         <div class="bg-white border rounded-2xl p-5">
+          <div class="flex justify-between items-center mb-2"><h2 class="font-black text-base">Bill layout</h2><button onclick="saveBillLayout()" class="bg-orange-600 hover:bg-orange-700 text-white font-black text-xs px-4 py-2 rounded-lg">Save</button></div>
+          <p class="text-[11px] text-gray-500 mb-4">Bill kaisa dikhe: size, spacing aur kaun si lines print hon. Save karke POS page reload karein (Ctrl+Shift+R), phir ek bill print karke dekhein.</p>
+          <div class="space-y-5">
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><div><div class="text-xs font-bold text-gray-500">Bill size (zoom)</div><p class="text-[10px] text-gray-400 mt-1">Bill right se kat raha ho to kam karein (jaise 85%). Chhota lage to badhayein.</p></div><div class="flex items-center gap-2"><input id="rc_zoom" type="number" min="60" max="110" step="1" class="w-24 border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"><span class="text-xs text-gray-500">% (default 90)</span></div></div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><div><div class="text-xs font-bold text-gray-500">Text size</div><p class="text-[10px] text-gray-400 mt-1">Bill ke text ka size.</p></div><div class="flex items-center gap-2"><input id="rc_font" type="number" min="9" max="20" step="1" class="w-24 border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"><span class="text-xs text-gray-500">px (default 13)</span></div></div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><div><div class="text-xs font-bold text-gray-500">Logo width</div><p class="text-[10px] text-gray-400 mt-1">Bill par logo ki max chaudai.</p></div><div class="flex items-center gap-2"><input id="rc_logow" type="number" min="15" max="66" step="1" class="w-24 border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"><span class="text-xs text-gray-500">mm (default 45)</span></div></div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><div><div class="text-xs font-bold text-gray-500">Left margin</div><p class="text-[10px] text-gray-400 mt-1">Bill ko kagaz par right ki taraf khiskane ke liye.</p></div><div class="flex items-center gap-2"><input id="rc_left" type="number" min="0" max="20" step="0.5" class="w-24 border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"><span class="text-xs text-gray-500">mm (default 0)</span></div></div>
+            <div id="rcLayoutRows" class="space-y-5"></div>
+          </div>
+        </div>
+        <div class="bg-white border rounded-2xl p-5">
           <div class="flex justify-between items-center mb-4"><h2 class="font-black text-base">Bill printing</h2><button onclick="savePrinting()" class="bg-orange-600 hover:bg-orange-700 text-white font-black text-xs px-4 py-2 rounded-lg">Save</button></div>
           <div id="rcPrintRows" class="space-y-5"></div>
           <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start mt-5"><div><div class="text-xs font-bold text-gray-500">Receipt copies</div><p class="text-[10px] text-gray-400 mt-1">Bill ki kitni copies print karni hain (har copy alag page par).</p></div><input id="rc_copies" type="number" min="1" max="5" class="w-24 border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"></div>
@@ -1066,7 +1077,33 @@
       $('rc_footer').value = r.footer || '';
       $('rcPrintRows').innerHTML = rowsHTML('rcp', [{ k: 'auto_print_bill', def: true, label: 'Auto-print bill', desc: 'Payment record hote hi bill apne aap print ho. OFF karne par bill sirf "Print Receipt" button se niklega.' }], r);
       $('rc_copies').value = r.copies || 1;
+      $('rc_zoom').value = Math.round((Number(r.bill_zoom) || 0.9) * 100);
+      $('rc_font').value = Number(r.font_size) || 13;
+      $('rc_logow').value = Number(r.logo_width) || 45;
+      $('rc_left').value = Number(r.left_offset) || 0;
+      $('rcLayoutRows').innerHTML = rowsHTML('rcl', BILL_LAYOUT_ROWS, r);
       showReceiptLogo(r.logo);
+    }
+    const BILL_LAYOUT_ROWS = [
+      { head: 'SHOW ON BILL' },
+      { k: 'show_logo', def: true, label: 'Logo' },
+      { k: 'show_store_phone', def: true, label: 'Restaurant phone', desc: 'General tab wala phone number.' },
+      { k: 'show_gstin', def: true, label: 'GSTIN' },
+      { k: 'show_token', def: true, label: 'Token number box' },
+      { k: 'show_guest', def: true, label: 'Guest name' },
+      { k: 'show_customer_phone', def: true, label: 'Customer phone' },
+      { k: 'show_address', def: true, label: 'Delivery address' },
+      { k: 'show_date', def: true, label: 'Date & time' },
+      { k: 'show_tax_split', def: true, label: 'CGST / SGST split', desc: 'OFF karne par ek hi "GST" line aayegi.' }
+    ];
+    function saveBillLayout() {
+      const zoom = Number($('rc_zoom').value), font = Number($('rc_font').value), logow = Number($('rc_logow').value), left = Number($('rc_left').value);
+      if (!(zoom >= 60 && zoom <= 110)) return toast('Bill size 60 se 110 % ke beech rakhein', true);
+      if (!(font >= 9 && font <= 20)) return toast('Text size 9 se 20 px ke beech rakhein', true);
+      if (!(logow >= 15 && logow <= 66)) return toast('Logo width 15 se 66 mm ke beech rakhein', true);
+      if (!(left >= 0 && left <= 20)) return toast('Left margin 0 se 20 mm ke beech rakhein', true);
+      putConfig({ receipt: receiptObj(Object.assign({ bill_zoom: zoom / 100, font_size: font, logo_width: logow, left_offset: left }, collectRows('rcl', BILL_LAYOUT_ROWS))) })
+        .then(() => toast('Bill layout save ho gaya ✓')).catch(e => toast(e.message, true));
     }
     function showReceiptLogo(url) {
       $('rcLogoImg').classList.toggle('hidden', !url);

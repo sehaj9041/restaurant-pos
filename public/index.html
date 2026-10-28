@@ -3252,12 +3252,17 @@
         }).join('');
       }
 
+      // Settings > Receipt & Print > Bill layout
+      var bc = billCfg.c || {};
+      var bOn = function(k) { return bc[k] !== false; };
+      var bNum = function(k, def, lo, hi) { var v = Number(bc[k]); return isFinite(v) && bc[k] !== '' && bc[k] != null ? Math.min(hi, Math.max(lo, v)) : def; };
+      var bZoom = bNum('bill_zoom', 0.9, 0.6, 1.1), bFont = bNum('font_size', 13, 9, 20), bLogoW = bNum('logo_width', 45, 15, 66), bLeft = bNum('left_offset', 0, 0, 20);
       var html = `
         <html>
         <head>
           <style>
             @page { margin: 0; size: 80mm auto; }
-            body { font-family: Arial, sans-serif; font-size: 13px; font-weight: 700; color: #000; margin: 0; padding: 2px 6px 0; width: 68mm; zoom: 0.9; }
+            body { font-family: Arial, sans-serif; font-size: ${bFont}px; font-weight: 700; color: #000; margin: 0 0 0 ${bLeft}mm; padding: 2px 6px 0; width: 68mm; zoom: ${bZoom}; }
             .center { text-align: center; }
             .token { border: 2.5px solid #000; font-size: 26px; font-weight: 900; text-align: center; padding: 4px 0; margin: 6px 0; }
             .divider { border-top: 1.5px dashed #000; margin: 6px 0; }
@@ -3272,24 +3277,26 @@
           </style>
         </head>
         <body>
-          ${billCfg.c.logo ? `<div class="center"><img src="${billEsc(billCfg.c.logo)}" style="max-width:45mm;max-height:22mm;object-fit:contain;filter:grayscale(1) contrast(1.4);"></div>` : ''}
+          ${billCfg.c.logo && bOn('show_logo') ? `<div class="center"><img src="${billEsc(billCfg.c.logo)}" style="max-width:${bLogoW}mm;max-height:22mm;object-fit:contain;filter:grayscale(1) contrast(1.4);"></div>` : ''}
           <div class="center" style="font-size:18px; font-weight:900;">${billEsc(billCfg.s.restaurant_name || 'VISHAL FOODIEZ')}</div>
           <div class="center" style="font-size:11px;">${billEsc(billCfg.s.address || 'Railway Road, Budhlada')}</div>
-          ${billCfg.s.phone ? `<div class="center" style="font-size:11px;">Ph: ${billEsc(billCfg.s.phone)}</div>` : ''}
-          ${billCfg.s.gstin ? `<div class="center" style="font-size:11px;">GSTIN: ${billEsc(billCfg.s.gstin)}</div>` : ''}
-          <div class="token">TOKEN #${payload.token_no || orderId || '---'}</div>
+          ${billCfg.s.phone && bOn('show_store_phone') ? `<div class="center" style="font-size:11px;">Ph: ${billEsc(billCfg.s.phone)}</div>` : ''}
+          ${billCfg.s.gstin && bOn('show_gstin') ? `<div class="center" style="font-size:11px;">GSTIN: ${billEsc(billCfg.s.gstin)}</div>` : ''}
+          ${bOn('show_token') ? `<div class="token">TOKEN #${payload.token_no || orderId || '---'}</div>` : ''}
           <div class="row"><span>Order: #${orderId}</span><span>(${payload.order_type.toUpperCase()})</span></div>
           ${payload.table_no ? `<div>Table: ${payload.table_no}</div>` : ''}
-          ${payload.customer_name ? `<div>Guest: ${payload.customer_name}</div>` : ''}
-          ${payload.customer_phone ? `<div>Phone: ${payload.customer_phone}</div>` : ''}
-          ${payload.customer_address ? `<div>Address: ${String(payload.customer_address).replace(/[&<>]/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; })}</div>` : ''}
-          <div>Date: ${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' })}</div>
+          ${payload.customer_name && bOn('show_guest') ? `<div>Guest: ${payload.customer_name}</div>` : ''}
+          ${payload.customer_phone && bOn('show_customer_phone') ? `<div>Phone: ${payload.customer_phone}</div>` : ''}
+          ${payload.customer_address && bOn('show_address') ? `<div>Address: ${String(payload.customer_address).replace(/[&<>]/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; })}</div>` : ''}
+          ${bOn('show_date') ? `<div>Date: ${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' })}</div>` : ''}
           <div class="divider"></div>
           ${itemsRows}
           <div class="divider"></div>
           <div class="row"><span>Subtotal:</span><span>₹${calc.subtotal.toFixed(2)}</span></div>
-          <div class="row"><span>CGST (2.50%):</span><span>₹${(Number(calc.gst) / 2).toFixed(2)}</span></div>
-          <div class="row"><span>SGST (2.50%):</span><span>₹${(Number(calc.gst) / 2).toFixed(2)}</span></div>
+          ${bOn('show_tax_split')
+            ? `<div class="row"><span>CGST (2.50%):</span><span>₹${(Number(calc.gst) / 2).toFixed(2)}</span></div>
+          <div class="row"><span>SGST (2.50%):</span><span>₹${(Number(calc.gst) / 2).toFixed(2)}</span></div>`
+            : `<div class="row"><span>GST (5%):</span><span>₹${Number(calc.gst).toFixed(2)}</span></div>`}
           <div class="row" style="font-size:16px; font-weight:900;"><span>TOTAL BILL:</span><span>₹${calc.grandTotal.toFixed(2)}</span></div>
           ${diffSection}
           ${cashSection}
