@@ -516,6 +516,12 @@
       $('mealChoiceTitle').innerText = item.name;
       $('mealChoiceList').innerHTML = tile(item, 'Single') + opts.map(o => tile(o.t, o.u.label || 'Meal', true)).join('');
       $('mealChoiceModal').classList.remove('hidden');
+      // same slide-in animation as the size/add-on steps
+      [$('mealChoiceTitle').parentElement, $('mealChoiceList')].forEach(el => {
+        el.classList.remove('step-fwd');
+        void el.offsetWidth; // restart the animation
+        el.classList.add('step-fwd');
+      });
     }
 
     let mealChoiceIds = [], custHidePrice = false, custHeroHtml = '';
