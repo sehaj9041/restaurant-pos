@@ -2321,7 +2321,7 @@
     function actionPrintReceiptFromHistory(orderId) {
       var ord = settledHistoryOrders.find(function(o){ return o.id === orderId; });
       if (!ord) return;
-      var calc = { subtotal: Number(ord.subtotal) || Number(ord.total), gst: Number(ord.gst) || 0, grandTotal: Number(ord.total), payableNow: 0 };
+      var calc = { subtotal: Number(ord.subtotal) || Number(ord.total), gst: Number(ord.gst) || 0, grandTotal: Number(ord.total) || ((Number(ord.subtotal) || 0) + (Number(ord.gst) || 0)), payableNow: 0 };
       dispatchDirectPrintReceipt(ord.id, ord, calc);
     }
 
@@ -2765,7 +2765,7 @@
     function actionPrintReceipt(orderId) {
       var ord = allActiveOrders.find(function(o) { return o.id === orderId; });
       if (!ord) return;
-      var calc = { subtotal: Number(ord.subtotal) || Number(ord.total), gst: Number(ord.gst) || 0, grandTotal: Number(ord.total), payableNow: 0 };
+      var calc = { subtotal: Number(ord.subtotal) || Number(ord.total), gst: Number(ord.gst) || 0, grandTotal: Number(ord.total) || ((Number(ord.subtotal) || 0) + (Number(ord.gst) || 0)), payableNow: 0 };
       dispatchDirectPrintReceipt(ord.id, ord, calc);
     }
 
@@ -3257,14 +3257,14 @@
         <head>
           <style>
             @page { margin: 0; size: 80mm auto; }
-            body { font-family: Arial, sans-serif; font-size: 13px; font-weight: 700; color: #000; margin: 0; padding: 2px 6px 0; width: 62mm; margin: 0 auto; line-height: 1.35; }
+            body { font-family: Arial, sans-serif; font-size: 13px; font-weight: 700; color: #000; margin: 0; padding: 2px 6px 0; width: 68mm; zoom: 0.9; }
             .center { text-align: center; }
-            .token { border: 2.5px solid #000; font-size: 26px; font-weight: 900; text-align: center; padding: 4px 0; margin: 16px 0 8px; line-height: 1.2; }
-            .divider { border-top: 1.5px dashed #000; margin: 16px 0 8px; height: 0; }
+            .token { border: 2.5px solid #000; font-size: 26px; font-weight: 900; text-align: center; padding: 4px 0; margin: 6px 0; }
+            .divider { border-top: 1.5px dashed #000; margin: 6px 0; }
             .row { display: flex; justify-content: space-between; }
             table.items { width: 100%; border-collapse: collapse; table-layout: fixed; }
-            table.items th { border-bottom: 1.5px solid #000; padding: 3px 0 12px; font-size: 12px; }
-            table.items td { padding: 4px 0; vertical-align: top; }
+            table.items th { border-bottom: 1.5px solid #000; padding: 2px 0; font-size: 12px; }
+            table.items td { padding: 3px 0; vertical-align: top; }
             table.items .nm { text-align: left; white-space: normal; word-break: break-word; overflow-wrap: anywhere; padding-right: 4px; }
             table.items .q { width: 8mm; text-align: center; }
             table.items .r { width: 13mm; text-align: right; }
