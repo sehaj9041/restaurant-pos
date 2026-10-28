@@ -3352,6 +3352,8 @@
     // ---------- Silent printing through the local printer agent (127.0.0.1:4567) ----------
     // The receipt HTML is rendered exactly as before, turned into a black/white bitmap and sent to the agent,
     // which writes it RAW to the thermal printer (no print dialog). If anything fails, the normal browser print dialog opens.
+    // Printable width in dots. 512 = 64 mm (safe for the Posiflex 80 mm printer; raise to 576 if the paper edge is not clipped)
+    var PRINT_DOTS = 512;
     function printDialogFallback(html) {
       var frame = document.getElementById('silentPrintFrame');
       frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
@@ -3375,9 +3377,10 @@
       };
       var renderBitmap = function() {
         var body = doc.body, w = body.offsetWidth || 270;
-        window.html2canvas(body, { scale: 576 / w, backgroundColor: '#ffffff', useCORS: true, logging: false, width: w, height: body.scrollHeight, windowWidth: 330 })
+        var last = body.lastElementChild, contentH = Math.ceil(last ? last.getBoundingClientRect().bottom + 8 : body.scrollHeight);
+        window.html2canvas(body, { scale: PRINT_DOTS / w, backgroundColor: '#ffffff', useCORS: true, logging: false, width: w, height: contentH, windowWidth: 330 })
           .then(function(cv) {
-            var W = 576, H = Math.round(cv.height * W / cv.width);
+            var W = PRINT_DOTS, H = Math.round(cv.height * W / cv.width);
             var out = document.createElement('canvas'); out.width = W; out.height = H;
             var ctx = out.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H); ctx.drawImage(cv, 0, 0, W, H);
             var px = ctx.getImageData(0, 0, W, H).data, rowBytes = W / 8, bytes = new Uint8Array(rowBytes * H);
@@ -3385,6 +3388,10 @@
               var i = (y * W + x) * 4;
               if (px[i + 3] > 40 && (px[i] * 0.3 + px[i + 1] * 0.59 + px[i + 2] * 0.11) < 170) bytes[y * rowBytes + (x >> 3)] |= (0x80 >> (x & 7));
             }
+            // drop the blank paper at the bottom: keep only up to the last printed row (+ small margin)
+            var lastRow = 0;
+            for (var yy = H - 1; yy >= 0 && !lastRow; yy--) for (var q = 0; q < rowBytes; q++) if (bytes[yy * rowBytes + q]) { lastRow = yy; break; }
+            H = Math.min(H, lastRow + 16); bytes = bytes.subarray(0, rowBytes * H);
             var bin = '', CH = 0x8000;
             for (var k = 0; k < bytes.length; k += CH) bin += String.fromCharCode.apply(null, bytes.subarray(k, k + CH));
             var ctl = new AbortController(), timer = setTimeout(function() { ctl.abort(); }, 8000);
