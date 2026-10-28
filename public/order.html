@@ -145,17 +145,7 @@
       <!-- Customer Details Input -->
       <div class="space-y-2 pt-1">
         <input type="text" id="cName" placeholder="Your Name" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-500 font-medium">
-        <input type="text" id="cNote" maxlength="100" placeholder="Pickup note (optional)" class="hidden w-full border border-gray-200 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-500 font-medium">
         <input type="tel" id="cPhone" inputmode="numeric" placeholder="10-digit Phone Number" maxlength="10" oninput="this.value=this.value.replace(/\D/g,'')" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs font-mono outline-none focus:border-indigo-500 font-medium">
-      </div>
-
-      <!-- Payment choice (shown only when Razorpay is configured) -->
-      <div id="payChoice" class="hidden pt-1">
-        <p class="text-[10px] text-gray-400 uppercase font-black tracking-wider mb-1.5">Payment</p>
-        <div class="grid grid-cols-2 gap-2 text-xs font-bold">
-          <button type="button" id="payBtnCod" onclick="setPayMode('COD')" class="border-2 rounded-xl py-2.5 px-2 transition">💵 Pay on Delivery / Pickup</button>
-          <button type="button" id="payBtnOnline" onclick="setPayMode('ONLINE')" class="border-2 rounded-xl py-2.5 px-2 transition">💳 Pay Online</button>
-        </div>
       </div>
 
       <!-- Bill Total & Send Button -->
@@ -182,11 +172,20 @@
       <div class="bg-white border-b px-4 py-3 flex items-center gap-3 sticky top-0">
         <button onclick="closeAddressPage()" aria-label="Back" class="text-lg font-black text-gray-600">←</button>
         <div>
-          <h3 class="font-black text-gray-900 text-base">Delivery Address</h3>
-          <p class="text-[11px] text-gray-500 font-semibold">Order kahan deliver karna hai?</p>
+          <h3 class="font-black text-gray-900 text-base">Checkout</h3>
+          <p class="text-[11px] text-gray-500 font-semibold">Takeaway ya Delivery chunein</p>
         </div>
       </div>
       <div class="p-4 space-y-3 flex-1">
+        <div class="bg-white border rounded-2xl p-1.5 grid grid-cols-2 gap-1.5 text-xs font-black">
+          <button type="button" id="modeBtnTakeaway" onclick="pageSetMode('Takeaway')" class="rounded-xl py-2.5 transition">🛍 Takeaway</button>
+          <button type="button" id="modeBtnDelivery" onclick="pageSetMode('Delivery')" class="rounded-xl py-2.5 transition">🛵 Delivery</button>
+        </div>
+        <div id="takeawayBlock" class="hidden bg-white border rounded-2xl p-3.5 space-y-2">
+          <label class="block text-[11px] font-black text-gray-600">Pickup note (optional)</label>
+          <input type="text" id="cNote" maxlength="100" placeholder="e.g. less spicy, extra napkins" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-500 font-medium">
+        </div>
+        <div id="deliveryBlocks" class="space-y-3">
         <div id="locBox" class="bg-white border rounded-2xl p-3.5 space-y-2">
           <div class="flex items-center justify-between gap-2">
             <div>
@@ -205,20 +204,21 @@
           <label class="block text-[11px] font-black text-gray-600">Landmark (optional)</label>
           <input type="text" id="addrLandmark" maxlength="100" placeholder="Near ..." class="w-full border border-gray-200 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-500 font-medium">
         </div>
+        </div>
         <!-- Payment mode (same choice as the review popup; the buttons stay in sync) -->
         <div class="bg-white border rounded-2xl p-3.5">
           <p class="text-[10px] text-gray-400 uppercase font-black tracking-wider mb-1.5">Payment</p>
           <div id="payChoice2" class="hidden grid grid-cols-2 gap-2 text-xs font-bold">
-            <button type="button" id="payBtnCod2" onclick="setPayMode('COD')" class="border-2 rounded-xl py-2.5 px-2 transition">💵 Pay on Delivery</button>
+            <button type="button" id="payBtnCod2" onclick="setPayMode('COD')" class="border-2 rounded-xl py-2.5 px-2 transition">💵 Pay on Delivery / Pickup</button>
             <button type="button" id="payBtnOnline2" onclick="setPayMode('ONLINE')" class="border-2 rounded-xl py-2.5 px-2 transition">💳 Pay Online</button>
           </div>
-          <div id="payCodOnly" class="border-2 border-emerald-600 bg-emerald-50 text-emerald-700 rounded-xl py-2.5 px-3 text-xs font-bold">💵 Pay on Delivery</div>
+          <div id="payCodOnly" class="border-2 border-emerald-600 bg-emerald-50 text-emerald-700 rounded-xl py-2.5 px-3 text-xs font-bold">💵 Pay on Delivery / Pickup</div>
         </div>
         <!-- Bill summary -->
         <div class="bg-white border rounded-2xl p-3.5 text-xs text-gray-600 space-y-1">
           <p class="text-[10px] text-gray-400 uppercase font-black tracking-wider mb-1">Bill Details</p>
           <div class="flex justify-between"><span>Subtotal</span><span id="aSub" class="font-bold">₹0</span></div>
-          <div class="flex justify-between"><span>Delivery charge</span><span id="aDel" class="font-bold">—</span></div>
+          <div id="aDelRow" class="flex justify-between"><span>Delivery charge</span><span id="aDel" class="font-bold">—</span></div>
           <div class="flex justify-between"><span>GST (5%)</span><span id="aGst" class="font-bold">₹0</span></div>
           <div class="flex justify-between border-t pt-1.5 mt-1 text-sm text-gray-900"><span class="font-black">Total Payable</span><span id="aTotal" class="font-black text-emerald-600">₹0</span></div>
         </div>
@@ -342,16 +342,16 @@
     let payMode = 'COD';
 
     // Razorpay online payment (option appears only if the server has keys configured)
+    // The payment mode is chosen on the checkout page (both Takeaway and Delivery).
+    let rpEnabled = false;
     function setPayMode(m) {
       payMode = m;
       const on = 'border-emerald-600 bg-emerald-50 text-emerald-700', off = 'border-gray-200 text-gray-500';
-      document.getElementById('payBtnCod').className = 'border-2 rounded-xl py-2.5 px-2 transition ' + (m === 'COD' ? on : off);
-      document.getElementById('payBtnOnline').className = 'border-2 rounded-xl py-2.5 px-2 transition ' + (m === 'ONLINE' ? on : off);
       document.getElementById('payBtnCod2').className = 'border-2 rounded-xl py-2.5 px-2 transition ' + (m === 'COD' ? on : off);
       document.getElementById('payBtnOnline2').className = 'border-2 rounded-xl py-2.5 px-2 transition ' + (m === 'ONLINE' ? on : off);
     }
     fetch('/api/razorpay/config').then(r => r.json()).then(c => {
-      if (c && c.enabled) { document.getElementById('payChoice').classList.remove('hidden'); document.getElementById('payChoice2').classList.remove('hidden'); document.getElementById('payCodOnly').classList.add('hidden'); setPayMode('COD'); }
+      if (c && c.enabled) { rpEnabled = true; document.getElementById('payChoice2').classList.remove('hidden'); document.getElementById('payCodOnly').classList.add('hidden'); setPayMode('COD'); }
     }).catch(() => {});
     function loadRazorpay() {
       if (window.Razorpay) return Promise.resolve();
@@ -470,8 +470,14 @@
       mode = m;
       document.getElementById('modeChip').innerText = (m === 'Delivery' ? '🛵 Delivery' : '🛍 Takeaway') + ' order';
       document.getElementById('modalModeText').innerText = `${m} Order`;
-      document.getElementById('submitLabel').innerText = m === 'Delivery' ? 'Next: Address →' : '🚀 Place Order';
-      document.getElementById('cNote').classList.toggle('hidden', m !== 'Takeaway');
+      document.getElementById('submitLabel').innerText = 'Next: Checkout →';
+      // checkout page: Takeaway/Delivery toggle + the blocks that belong to each
+      const on = 'bg-indigo-600 text-white', off = 'text-gray-500';
+      document.getElementById('modeBtnTakeaway').className = 'rounded-xl py-2.5 transition ' + (m === 'Takeaway' ? on : off);
+      document.getElementById('modeBtnDelivery').className = 'rounded-xl py-2.5 transition ' + (m === 'Delivery' ? on : off);
+      document.getElementById('takeawayBlock').classList.toggle('hidden', m !== 'Takeaway');
+      document.getElementById('deliveryBlocks').classList.toggle('hidden', m !== 'Delivery');
+      document.getElementById('aDelRow').classList.toggle('hidden', m !== 'Delivery');
     }
     function startOrder(m) {
       if (!storeOpen) return toast(storeMsg || 'Abhi restaurant band hai', true);
@@ -1037,21 +1043,30 @@
       return { phone, loc: mode === 'Takeaway' ? document.getElementById('cNote').value.trim() : '' };
     }
 
-    // Review -> (Delivery: address page) -> place order
+    // Review -> checkout page (Takeaway/Delivery) -> place order
     function checkoutNext() {
       if (!cart.length) return;
       const minV = minOrderValue();
       if (minV > 0 && cartSubtotal() < minV) return toast(`Minimum order ₹${minV} hai — ₹${minV - cartSubtotal()} aur add karein`, true);
       if (!orderBasics()) return;
-      if (mode === 'Delivery') return openAddressPage();
-      placeOrder();
+      openAddressPage();
+    }
+
+    // Switch Takeaway <-> Delivery from the checkout page itself
+    function pageSetMode(m) {
+      if (m === mode) return;
+      setMode(m);
+      lastQuoteKey = '';
+      quoteIfNeeded();
+      updateCartUI();
+      if (m === 'Delivery' && !deliveryLoc) requestLocation(true);
     }
 
     function openAddressPage() {
       closeCheckout();
       document.getElementById('addrTotal').innerText = document.getElementById('cTotal').innerText;
       document.getElementById('addressPage').classList.remove('hidden');
-      if (!deliveryLoc) requestLocation(true);
+      if (mode === 'Delivery' && !deliveryLoc) requestLocation(true);
     }
     function closeAddressPage() {
       document.getElementById('addressPage').classList.add('hidden');
@@ -1103,7 +1118,7 @@
       const { phone, loc } = basics;
       const name = document.getElementById('cName').value.trim();
       const isDelivery = mode === 'Delivery';
-      const btn = document.getElementById(isDelivery ? 'addrSubmitBtn' : 'submitBtn');
+      const btn = document.getElementById('addrSubmitBtn');
 
       let address = '';
       if (isDelivery) {
