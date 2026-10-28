@@ -107,6 +107,19 @@ function Find-Browser {
     return $null
 }
 $printWindows = New-Object System.Collections.ArrayList
+# One fixed profile: the first launch keeps a hidden Chrome running, so every later bill opens in that running instance (fast, ~0.3 s)
+$printProfile = Join-Path $env:LOCALAPPDATA "vf-print-profile"
+function Get-PrintArgs($url) {
+    return @("--kiosk-printing", "--user-data-dir=`"$printProfile`"", "--no-first-run", "--no-default-browser-check", "--disable-extensions", "--disable-background-timer-throttling", "--window-position=-3000,0", "--window-size=420,700", "--app=$url")
+}
+try {
+    $warmBrowser = Find-Browser
+    if ($warmBrowser) {
+        New-Item -ItemType Directory -Force -Path $printProfile | Out-Null
+        Start-Process -FilePath $warmBrowser -ArgumentList (Get-PrintArgs "about:blank") | Out-Null
+        Write-Host "[PRINT] Silent print browser warmed up" -ForegroundColor Yellow
+    }
+} catch {}
 
 # 1. Start Local HTTP Server for Cash Drawer + silent bill printing on Port 4567
 $listener = New-Object System.Net.HttpListener
@@ -165,12 +178,13 @@ while ($true) {
                     New-Item -ItemType Directory -Force -Path $dir | Out-Null
                     $id = [guid]::NewGuid().ToString("N")
                     $file = Join-Path $dir "bill-$id.html"
-                    $profileDir = Join-Path $dir "profile-$id"
+                    
                     [System.IO.File]::WriteAllText($file, [string]$job.html, (New-Object System.Text.UTF8Encoding($false)))
-                    # separate profile = a new browser instance, so --kiosk-printing is honoured even if Chrome is already open
-                    $argList = @("--kiosk-printing", "--user-data-dir=`"$profileDir`"", "--no-first-run", "--no-default-browser-check", "--disable-extensions", "--window-position=-3000,0", "--window-size=420,700", "--app=$(([System.Uri]$file).AbsoluteUri)")
-                    $proc = Start-Process -FilePath $browser -ArgumentList $argList -PassThru
-                    [void]$printWindows.Add(@{ pid = $proc.Id; at = (Get-Date).AddSeconds(15); file = $file; profile = $profileDir })
+                                        # same profile + --kiosk-printing every time; the page closes its own window after printing
+                    New-Item -ItemType Directory -Force -Path $printProfile | Out-Null
+                    $fileUrl = ([System.Uri]$file).AbsoluteUri
+                    Start-Process -FilePath $browser -ArgumentList (Get-PrintArgs $fileUrl) | Out-Null
+                    [void]$printWindows.Add(@{ at = (Get-Date).AddSeconds(60); file = $file })
                     $okPrint = $true
                     Write-Host ">> Bill sent to silent print window" -ForegroundColor Green
                 } catch {
@@ -216,14 +230,12 @@ while ($true) {
         $asyncContext = $listener.BeginGetContext($null, $null)
     }
 
-        # Close the silent print windows after the job has been spooled, then clean up their temp files
+            # Remove the temp bill files a minute after they were printed
     if ($printWindows.Count -gt 0) {
         $now = Get-Date
         foreach ($w in @($printWindows)) {
             if ($now -ge $w.at) {
-                try { & taskkill /PID $w.pid /T /F 2>&1 | Out-Null } catch {}
-                Remove-Item -Force -ErrorAction SilentlyContinue $w.file
-                Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $w.profile
+                                Remove-Item -Force -ErrorAction SilentlyContinue $w.file
                 $printWindows.Remove($w)
             }
         }
