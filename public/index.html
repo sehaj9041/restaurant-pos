@@ -3310,6 +3310,9 @@
       `;
       // Receipt copies (Settings > Receipt & Print): every copy on its own page
       var copies = Math.max(1, Math.min(5, Number(billCfg.c.copies) || 1));
+      // Unpaid delivery orders print 2 copies; everything else (incl. Razorpay-paid) uses the normal copy count
+      var isUnpaidDelivery = /delivery/i.test(String(payload.order_type || '')) && /unpaid/i.test(String(payload.payment_mode || ''));
+      if (isUnpaidDelivery) copies = Math.max(copies, 2);
       var htmlOne = html;
       if (copies > 1) {
         var bm = html.match(/<body>([\s\S]*)<\/body>/);
