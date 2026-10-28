@@ -186,6 +186,10 @@
           <input type="text" id="cNote" maxlength="100" placeholder="e.g. less spicy, extra napkins" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-500 font-medium">
         </div>
         <div id="deliveryBlocks" class="space-y-3">
+        <div id="savedAddrBox" class="hidden bg-white border rounded-2xl p-3.5 space-y-2">
+          <div class="text-xs font-black text-gray-800">🏠 Saved addresses</div>
+          <div id="savedAddrList" class="space-y-2"></div>
+        </div>
         <div id="locBox" class="bg-white border rounded-2xl p-3.5 space-y-2">
           <div class="flex items-center justify-between gap-2">
             <div>
@@ -200,7 +204,7 @@
         <div id="addrQuote" class="hidden rounded-2xl px-3.5 py-2.5 text-xs font-black"></div>
         <div class="bg-white border rounded-2xl p-3.5 space-y-2">
           <label class="block text-[11px] font-black text-gray-600">Full Address *</label>
-          <textarea id="addrText" rows="3" maxlength="300" placeholder="House / Flat no, Street, Area" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-500 font-medium"></textarea>
+          <textarea id="addrText" oninput="clearAddrSel()" rows="3" maxlength="300" placeholder="House / Flat no, Street, Area" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-500 font-medium"></textarea>
           <label class="block text-[11px] font-black text-gray-600">Landmark (optional)</label>
           <input type="text" id="addrLandmark" maxlength="100" placeholder="Near ..." class="w-full border border-gray-200 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-500 font-medium">
         </div>
@@ -209,10 +213,10 @@
         <div class="bg-white border rounded-2xl p-3.5">
           <p class="text-[10px] text-gray-400 uppercase font-black tracking-wider mb-1.5">Payment</p>
           <div id="payChoice2" class="hidden grid grid-cols-2 gap-2 text-xs font-bold">
-            <button type="button" id="payBtnCod2" onclick="setPayMode('COD')" class="border-2 rounded-xl py-2.5 px-2 transition">💵 Pay on Delivery / Pickup</button>
+            <button type="button" id="payBtnCod2" onclick="setPayMode('COD')" class="border-2 rounded-xl py-2.5 px-2 transition">💵 Cash on Delivery</button>
             <button type="button" id="payBtnOnline2" onclick="setPayMode('ONLINE')" class="border-2 rounded-xl py-2.5 px-2 transition">💳 Pay Online</button>
           </div>
-          <div id="payCodOnly" class="border-2 border-emerald-600 bg-emerald-50 text-emerald-700 rounded-xl py-2.5 px-3 text-xs font-bold">💵 Pay on Delivery / Pickup</div>
+          <div id="payCodOnly" class="border-2 border-emerald-600 bg-emerald-50 text-emerald-700 rounded-xl py-2.5 px-3 text-xs font-bold">💵 Cash on Delivery</div>
         </div>
         <!-- Bill summary -->
         <div class="bg-white border rounded-2xl p-3.5 text-xs text-gray-600 space-y-1">
@@ -478,6 +482,9 @@
       document.getElementById('takeawayBlock').classList.toggle('hidden', m !== 'Takeaway');
       document.getElementById('deliveryBlocks').classList.toggle('hidden', m !== 'Delivery');
       document.getElementById('aDelRow').classList.toggle('hidden', m !== 'Delivery');
+      const cashLabel = m === 'Delivery' ? '💵 Cash on Delivery' : '💵 Pay at Pickup';
+      document.getElementById('payBtnCod2').innerText = cashLabel;
+      document.getElementById('payCodOnly').innerText = cashLabel;
     }
     function startOrder(m) {
       if (!storeOpen) return toast(storeMsg || 'Abhi restaurant band hai', true);
@@ -1059,19 +1066,78 @@
       lastQuoteKey = '';
       quoteIfNeeded();
       updateCartUI();
-      if (m === 'Delivery' && !deliveryLoc) requestLocation(true);
+      if (m === 'Delivery' && !deliveryLoc && !getAddresses().length) requestLocation(true);
     }
 
     function openAddressPage() {
       closeCheckout();
       document.getElementById('addrTotal').innerText = document.getElementById('cTotal').innerText;
       document.getElementById('addressPage').classList.remove('hidden');
-      if (mode === 'Delivery' && !deliveryLoc) requestLocation(true);
+      renderSavedAddrs();
+      if (mode === 'Delivery' && !deliveryLoc && !getAddresses().length) requestLocation(true);
     }
     function closeAddressPage() {
       document.getElementById('addressPage').classList.add('hidden');
       openCheckout();
     }
+
+    // Shows a location on the checkout map (fresh GPS fix or one stored with a saved address)
+    function showLocation(loc) {
+      deliveryLoc = loc;
+      document.getElementById('locStatus').innerText = loc.acc != null ? `Location mil gayi ✓ (±${loc.acc} m)` : 'Saved address ki location ✓';
+      const link = document.getElementById('locLink');
+      link.href = `https://www.google.com/maps?q=${loc.lat},${loc.lng}`;
+      link.classList.remove('hidden');
+      const d = 0.004, la = loc.lat, lo = loc.lng, map = document.getElementById('locMap');
+      map.src = `https://www.openstreetmap.org/export/embed.html?bbox=${lo - d},${la - d},${lo + d},${la + d}&layer=mapnik&marker=${la},${lo}`;
+      map.classList.remove('hidden');
+      quoteIfNeeded();
+    }
+
+    // ---------- Saved addresses (kept in this browser, latest 5) ----------
+    let addrSel = -1;
+    function getAddresses() { try { const a = JSON.parse(localStorage.getItem('vf_addresses') || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+    function putAddresses(a) { try { localStorage.setItem('vf_addresses', JSON.stringify(a.slice(0, 5))); } catch (e) {} }
+    function saveAddress(a) {
+      const key = x => String(x.text || '').trim().toLowerCase();
+      putAddresses([a, ...getAddresses().filter(x => key(x) !== key(a))]);
+    }
+    function renderSavedAddrs() {
+      const list = getAddresses(), box = document.getElementById('savedAddrBox');
+      box.classList.toggle('hidden', !list.length);
+      if (!list.length) return;
+      const card = (on, inner) => `border-2 rounded-xl p-2.5 text-left w-full ${on ? 'border-indigo-600 bg-indigo-50' : 'border-gray-200'} ${inner}`;
+      document.getElementById('savedAddrList').innerHTML = list.map((a, i) => `
+        <div class="${card(addrSel === i, 'flex items-start gap-2')}">
+          <button type="button" onclick="useAddress(${i})" class="flex-1 text-left min-w-0">
+            <span class="block text-xs font-black text-gray-900 truncate">${esc(a.text)}</span>
+            ${a.landmark ? `<span class="block text-[11px] text-gray-500 font-semibold truncate">Landmark: ${esc(a.landmark)}</span>` : ''}
+          </button>
+          <button type="button" onclick="deleteAddress(${i})" aria-label="Remove address" class="text-gray-400 hover:text-rose-600 text-sm font-black px-1">✕</button>
+        </div>`).join('') + `
+        <button type="button" onclick="newAddress()" class="${card(addrSel === -2, 'text-xs font-black text-indigo-700')}">➕ New address</button>`;
+    }
+    function useAddress(i) {
+      const a = getAddresses()[i]; if (!a) return;
+      addrSel = i;
+      document.getElementById('addrText').value = a.text || '';
+      document.getElementById('addrLandmark').value = a.landmark || '';
+      if (a.lat != null && a.lng != null) showLocation({ lat: a.lat, lng: a.lng });
+      renderSavedAddrs();
+    }
+    function newAddress() {
+      addrSel = -2;
+      document.getElementById('addrText').value = '';
+      document.getElementById('addrLandmark').value = '';
+      document.getElementById('addrText').focus();
+      renderSavedAddrs();
+      requestLocation(true);
+    }
+    function deleteAddress(i) {
+      const a = getAddresses(); a.splice(i, 1); putAddresses(a);
+      addrSel = -1; renderSavedAddrs();
+    }
+    function clearAddrSel() { if (addrSel !== -1) { addrSel = -1; renderSavedAddrs(); } }
 
     function requestLocation(auto) {
       const st = document.getElementById('locStatus'), btn = document.getElementById('locBtn');
@@ -1079,16 +1145,9 @@
       st.innerText = 'Location dhoondh rahe hain... permission allow karein.';
       btn.disabled = true;
       navigator.geolocation.getCurrentPosition(pos => {
-        deliveryLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: Math.round(pos.coords.accuracy || 0) };
-        st.innerText = `Location mil gayi ✓ (±${deliveryLoc.acc} m)`;
-        const link = document.getElementById('locLink');
-        link.href = `https://www.google.com/maps?q=${deliveryLoc.lat},${deliveryLoc.lng}`;
-        link.classList.remove('hidden');
-        const d = 0.004, la = deliveryLoc.lat, lo = deliveryLoc.lng, map = document.getElementById('locMap');
-        map.src = `https://www.openstreetmap.org/export/embed.html?bbox=${lo - d},${la - d},${lo + d},${la + d}&layer=mapnik&marker=${la},${lo}`;
-        map.classList.remove('hidden');
+        showLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude, acc: Math.round(pos.coords.accuracy || 0) });
         btn.disabled = false; btn.innerText = 'Update';
-        quoteIfNeeded();
+        clearAddrSel();
       }, err => {
         deliveryLoc = null;
         document.getElementById('locMap').classList.add('hidden');
@@ -1120,12 +1179,13 @@
       const isDelivery = mode === 'Delivery';
       const btn = document.getElementById('addrSubmitBtn');
 
-      let address = '';
+      let address = '', addrObj = null;
       if (isDelivery) {
         const a = document.getElementById('addrText').value.trim();
         const lm = document.getElementById('addrLandmark').value.trim();
         if (a.length < 8) return toast('Poora delivery address likhein', true);
         address = a + (lm ? ` (Landmark: ${lm})` : '');
+        addrObj = { text: a, landmark: lm, lat: deliveryLoc ? deliveryLoc.lat : null, lng: deliveryLoc ? deliveryLoc.lng : null };
       }
 
       placing = true;
@@ -1160,6 +1220,7 @@
       request
       .then(d => {
         if (!d || !d.success) throw new Error('order failed');
+        if (addrObj) saveAddress(addrObj);
         const total = sub + gst;
         cart = [];
         saveCart();
