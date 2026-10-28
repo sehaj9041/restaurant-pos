@@ -108,9 +108,11 @@
         </div>
       </div>
       <div id="idleMedia" class="hidden absolute inset-0 bg-black"></div>
-      <div class="absolute inset-x-0 bottom-0 pb-14 flex justify-center">
-        <button class="btn-yellow px-20 py-6 text-3xl shadow-2xl pop">Start Order</button>
+      <div class="absolute inset-x-0 bottom-0 pb-6 flex justify-center">
+        <button class="bg-white text-[var(--ink)] font-semibold rounded-full px-12 py-3.5 text-xl shadow-2xl pop active:scale-95 transition-transform">Start Order</button>
       </div>
+      <!-- staff only: invisible corner (top-left); tap 5 times quickly to open Printer Setup, works even over welcome photo/video -->
+      <div id="staffTapZone" class="absolute top-0 left-0 w-24 h-24 z-10"></div>
     </div>
 
     <!-- ============ EAT IN / TAKE AWAY ============ -->
@@ -149,7 +151,7 @@
 
         <div id="modalVarSection" class="hidden mb-5">
           <p class="text-xl font-black mb-3">Select a size</p>
-          <div id="modalVarGrid" class="grid grid-cols-2 gap-3"></div>
+          <div id="modalVarGrid" class="grid grid-cols-3 gap-2.5"></div>
         </div>
         <div id="modalAddonGroups" class="space-y-5"></div>
         <div id="modalReview" class="hidden"></div>
@@ -183,8 +185,33 @@
         <div class="flex justify-between text-2xl font-black mt-2 mb-4"><span>Total</span><span id="reviewTrayTotal">₹0.00</span></div>
         <div class="flex gap-3">
           <button onclick="closeTrayReviewModal()" class="btn-outline w-[36%] py-4 text-lg">Order More</button>
-          <button onclick="closeTrayReviewModal(); openPaymentChoice();" class="btn-yellow flex-1 py-4 text-lg">Complete Order</button>
+          <button onclick="closeTrayReviewModal(); openPhoneStep();" class="btn-yellow flex-1 py-4 text-lg">Complete Order</button>
         </div>
+      </div>
+    </div>
+
+    <!-- ============ PHONE NUMBER ============ -->
+    <div id="phoneModal" class="hidden screen z-[48] kiosk-bg flex flex-col items-center justify-center px-8 text-center">
+      <h3 class="text-3xl font-black leading-tight">Enter your<br>mobile number</h3>
+      <div id="phoneDisplay" class="tile w-full max-w-[340px] py-4 mt-6 text-4xl font-black tracking-widest min-h-[4.5rem]"></div>
+      <p id="phoneErr" class="text-sm font-bold text-red-600 mt-2 h-5"></p>
+      <div class="grid grid-cols-3 gap-3 w-full max-w-[340px] mt-2">
+        <button onclick="phoneKey('1')" class="tile py-4 text-3xl font-black">1</button>
+        <button onclick="phoneKey('2')" class="tile py-4 text-3xl font-black">2</button>
+        <button onclick="phoneKey('3')" class="tile py-4 text-3xl font-black">3</button>
+        <button onclick="phoneKey('4')" class="tile py-4 text-3xl font-black">4</button>
+        <button onclick="phoneKey('5')" class="tile py-4 text-3xl font-black">5</button>
+        <button onclick="phoneKey('6')" class="tile py-4 text-3xl font-black">6</button>
+        <button onclick="phoneKey('7')" class="tile py-4 text-3xl font-black">7</button>
+        <button onclick="phoneKey('8')" class="tile py-4 text-3xl font-black">8</button>
+        <button onclick="phoneKey('9')" class="tile py-4 text-3xl font-black">9</button>
+        <button onclick="phoneKey('C')" class="tile py-4 text-lg font-bold">Clear</button>
+        <button onclick="phoneKey('0')" class="tile py-4 text-3xl font-black">0</button>
+        <button onclick="phoneKey('B')" class="tile py-4 text-2xl font-black">&#9003;</button>
+      </div>
+      <div class="flex gap-3 w-full max-w-[340px] mt-6">
+        <button onclick="closePhoneStep(true)" class="btn-outline flex-1 py-4 text-lg">Back</button>
+        <button id="phoneNextBtn" onclick="submitPhoneStep()" class="btn-yellow flex-1 py-4 text-lg">Next</button>
       </div>
     </div>
 
@@ -251,17 +278,28 @@
     <!-- ============ ORDER PLACED ============ -->
     <div id="tokenSuccessModal" class="hidden screen z-[80] kiosk-bg flex flex-col items-center justify-center px-6 text-center">
       <div class="w-24 h-24 rounded-full bg-[var(--yellow)] flex items-center justify-center text-5xl font-black pop">✓</div>
-      <h2 class="text-4xl font-black mt-6">Order Placed!</h2>
-      <p class="text-sm text-neutral-600 mt-2">Please take your order token &amp; receipt</p>
-      <div class="tile w-full max-w-[300px] py-6 mt-8">
+      <h2 id="kioskPlacedTitle" class="text-4xl font-black mt-6">Order Placed!</h2>
+      <p id="kioskPlacedSub" class="text-sm text-neutral-600 mt-2">Please take your order token &amp; receipt</p>
+      <div id="kioskTokenTile" class="tile w-full max-w-[300px] py-6 mt-8">
         <span class="text-[11px] font-bold text-neutral-500 uppercase tracking-widest">Order Token</span>
         <div id="kioskTokenDisplay" class="text-7xl font-black my-2">#0</div>
         <p id="kioskModeNote" class="text-[12px] font-bold text-neutral-600 uppercase tracking-wider">Dine In</p>
       </div>
-      <p class="text-sm text-neutral-500 mt-6">Kitchen is preparing your fresh meal...</p>
+      <p id="kioskPlacedFoot" class="text-sm text-neutral-500 mt-6">Kitchen is preparing your fresh meal...</p>
     </div>
 
     <!-- ============ PRINTER SETUP (staff only: tap the store name 5 times) ============ -->
+    <div id="psPinModal" class="hidden screen z-[130] bg-black/70 flex items-center justify-center px-5">
+      <div class="bg-white w-full max-w-[320px] rounded-2xl p-5 text-center">
+        <h2 class="text-lg font-black">Staff PIN</h2>
+        <input id="psPinInput" type="password" inputmode="numeric" autocomplete="off" maxlength="12" class="w-full border-2 border-neutral-300 rounded-xl text-center text-2xl tracking-widest py-2 mt-3" onkeydown="if(event.key==='Enter')submitPsPin()">
+        <p id="psPinErr" class="text-sm font-bold text-red-600 mt-2 h-5"></p>
+        <div class="flex gap-2 mt-2">
+          <button onclick="closePsPin()" class="btn-outline flex-1 py-2.5 rounded-xl text-sm font-bold">Cancel</button>
+          <button onclick="submitPsPin()" class="btn-yellow flex-1 py-2.5 rounded-xl text-sm font-bold">OK</button>
+        </div>
+      </div>
+    </div>
     <div id="printerSetupModal" class="hidden screen z-[120] bg-black/70 flex items-center justify-center px-5">
       <div class="bg-white w-full max-w-[420px] rounded-2xl p-5 text-left">
         <div class="flex justify-between items-center mb-3">
@@ -517,10 +555,10 @@
       selectedVariation = null; // nothing is pre-selected - the customer picks the size
       if (variations.length > 0) {
         $('modalVarGrid').innerHTML = variations.map((v, idx) => `
-          <label class="tile p-4 flex flex-col items-center text-center cursor-pointer" data-var-tile>
+          <label class="tile p-3 flex flex-col items-center text-center cursor-pointer" data-var-tile>
             <input type="radio" name="kioskVarRadio" class="hidden" onchange="selectKioskVariation(${idx}, this)">
-            ${v.image ? `<img src="${esc(resolveImgPath(v.image))}" class="w-20 h-20 rounded-lg object-cover mb-2">` : ''}
-            <span class="font-bold text-base">${esc(v.name)}</span>
+            ${v.image ? `<img src="${esc(resolveImgPath(v.image))}" class="w-16 h-16 rounded-lg object-cover mb-2">` : ''}
+            <span class="font-bold text-sm">${esc(v.name)}</span>
             ${custHidePrice ? '' : `<span class="text-sm text-neutral-600 mt-1">${money(v.price)}</span>`}
           </label>`).join('');
       }
@@ -581,10 +619,11 @@
       const review = !step || step.type === 'review';
       $('modalVarSection').classList.toggle('hidden', !(step && step.type === 'var'));
       if (step && step.type === 'group') renderKioskAddonGroup(step.id); else $('modalAddonGroups').innerHTML = '';
+      $('modalItemRunningTotal').classList.toggle('hidden', custHidePrice || !!(step && step.type === 'var')); // no price on size step
       $('modalReview').classList.toggle('hidden', !review);
       const stepGroup = step && step.type === 'group' ? allMasterGroups.find(x => Number(x.id) === Number(step.id)) : null;
       $('customizerModal').classList.toggle('dense', !!stepGroup && groupOptions(stepGroup).length > 6);
-      $('custImgContainer').innerHTML = review && custHidePrice ? mealHeroTiles() : custHeroHtml;
+      $('custImgContainer').innerHTML = review && custHidePrice ? mealHeroTiles() : (review ? custHeroHtml : ''); // size/add-on steps: photo hidden
       if (review) renderCustReview();
       $('custStepInfo').innerText = custSteps.length > 1 ? (review ? 'Review your order' : `Step ${custStepIdx + 1} of ${custSteps.length - 1}`) : '';
       $('addToTrayBtn').innerText = review ? 'Add To Order' : (custEditing ? 'Done' : 'Next');
@@ -996,6 +1035,35 @@
     }
     function closeTrayReviewModal() { $('trayReviewModal').classList.add('hidden'); }
 
+    // ---------- Phone number step (before payment, required 10 digits) ----------
+    let kioskPhone = '';
+    function renderPhone() {
+      $('phoneDisplay').innerHTML = kioskPhone || '&nbsp;';
+      $('phoneNextBtn').disabled = kioskPhone.length !== 10;
+    }
+    function openPhoneStep() {
+      if (!kioskTray.length) return;
+      $('phoneErr').innerText = '';
+      renderPhone();
+      $('phoneModal').classList.remove('hidden');
+    }
+    function closePhoneStep(backToTray) {
+      $('phoneModal').classList.add('hidden');
+      if (backToTray) $('trayReviewModal').classList.remove('hidden');
+    }
+    function phoneKey(k) {
+      $('phoneErr').innerText = '';
+      if (k === 'C') kioskPhone = '';
+      else if (k === 'B') kioskPhone = kioskPhone.slice(0, -1);
+      else if (kioskPhone.length < 10) kioskPhone += k;
+      renderPhone();
+    }
+    function submitPhoneStep() {
+      if (!/^[6-9]\d{9}$/.test(kioskPhone)) { $('phoneErr').innerText = 'Please enter a valid 10-digit mobile number'; return; }
+      closePhoneStep(false);
+      openPaymentChoice();
+    }
+
     function openPaymentChoice() {
       if (!kioskTray.length) return;
       $('paymentModal').classList.remove('hidden');
@@ -1013,7 +1081,7 @@
         is_kiosk: true,
         table_no: '',
         customer_name: 'Self Kiosk Guest',
-        customer_phone: '',
+        customer_phone: kioskPhone,
         items: kioskTray,
         payment_mode: pendingPaymentMode,
         subtotal: traySubtotal(),
@@ -1031,19 +1099,24 @@
         body: JSON.stringify(orderBody)
       })
       .then(res => res.json())
-      .then(data => showKioskToken(data, snapshot, kioskOrderType + ' • Pending Approval'))
+      .then(data => showKioskToken(data, snapshot, kioskOrderType + ' • Pending Approval', payMethod === 'PAY_COUNTER'))
       .catch(() => {
         alert('Order could not be placed. Please try again or ask staff for help.');
         openPaymentChoice();
       });
     }
 
-    function showKioskToken(data, snapshot, note) {
+    function showKioskToken(data, snapshot, note, payAtCounter) {
       printKioskBill(data, snapshot);
       $('kioskTokenDisplay').innerText = '#' + (data.token_no || data.orderId);
       $('kioskModeNote').innerText = note;
+      // Pay at counter: no token on screen, just tell the customer to pay and collect the receipt
+      $('kioskTokenTile').classList.toggle('hidden', !!payAtCounter);
+      $('kioskPlacedTitle').innerText = payAtCounter ? 'Almost Done!' : 'Order Placed!';
+      $('kioskPlacedSub').innerText = payAtCounter ? 'Please complete your payment at the counter to proceed with your order, and collect your receipt.' : 'Please take your order token & receipt';
+      $('kioskPlacedFoot').classList.toggle('hidden', !!payAtCounter);
       $('tokenSuccessModal').classList.remove('hidden');
-      setTimeout(resetKioskSession, 5000);
+      setTimeout(resetKioskSession, payAtCounter ? 10000 : 5000);
     }
 
     // ---------- UPI QR payment (Paytm) ----------
@@ -1129,13 +1202,13 @@
     loadKioskReceiptCfg();
 
     let psTaps = 0, psTapTimer = null;
-    $('idleStoreName').addEventListener('click', e => {
+    ['idleStoreName', 'staffTapZone'].forEach(id => $(id).addEventListener('click', e => {
       e.stopPropagation();
       psTaps++;
       clearTimeout(psTapTimer);
       psTapTimer = setTimeout(() => { psTaps = 0; }, 1500);
-      if (psTaps >= 5) { psTaps = 0; openPrinterSetup(); }
-    });
+      if (psTaps >= 5) { psTaps = 0; askPrinterPin(); }
+    }));
     function updatePrinterHelp() {
       const m = $('ps_method').value;
       $('ps_help').innerText = m === 'usb'
@@ -1145,6 +1218,25 @@
         : m === 'browser'
           ? 'Uses the Android print dialog. Install your printer\'s Print Service plugin (or RawBT as a print service) first. Staff must tap Print on each bill.'
           : 'Bills will not be printed from this kiosk.';
+    }
+    // Printer setup is staff-only: asks for the admin PIN (same one as the POS, checked by the server) first
+    function askPrinterPin() {
+      $('psPinInput').value = ''; $('psPinErr').innerText = '';
+      $('psPinModal').classList.remove('hidden');
+      clearTimeout(idleTimer);
+      setTimeout(() => $('psPinInput').focus(), 50);
+    }
+    function closePsPin() { $('psPinModal').classList.add('hidden'); $('psPinInput').value = ''; }
+    function submitPsPin() {
+      const pin = $('psPinInput').value;
+      if (!pin) return;
+      fetch('/api/verify-pin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin }) })
+        .then(r => r.json())
+        .then(d => {
+          if (d.valid) { closePsPin(); openPrinterSetup(); }
+          else { $('psPinErr').innerText = 'Wrong PIN'; $('psPinInput').value = ''; }
+        })
+        .catch(() => { $('psPinErr').innerText = 'Could not verify PIN'; });
     }
     function openPrinterSetup() {
       const c = getPrintCfg();
@@ -1470,13 +1562,14 @@
     function resetKioskSession() {
       if (upiPaytmId) cancelUpiPayment();
       kioskTray = [];
+      kioskPhone = '';
       selectedMenuItem = null;
       selectedVariation = null;
       selectedGroupAddons = {};
       pendingUpgrade = null;
       suggestDismissed = new Set();
       updateTrayUI();
-      ['tokenSuccessModal', 'trayReviewModal', 'paymentModal', 'upiQrModal', 'customizerModal', 'modeSelectionScreen', 'addedModal', 'upsellModal', 'mealChoiceModal', 'thinkingModal']
+      ['tokenSuccessModal', 'trayReviewModal', 'phoneModal', 'paymentModal', 'upiQrModal', 'customizerModal', 'modeSelectionScreen', 'addedModal', 'upsellModal', 'mealChoiceModal', 'thinkingModal']
         .forEach(id => $(id).classList.add('hidden'));
       $('idleScreensaver').classList.remove('hidden');
       if (categories.length) { activeCategory = categories[0]; renderCategories(); }
