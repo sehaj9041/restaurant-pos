@@ -3259,11 +3259,11 @@
             @page { margin: 0; size: 80mm auto; }
             body { font-family: Arial, sans-serif; font-size: 13px; font-weight: 700; color: #000; margin: 0; padding: 2px 6px 0; width: 68mm; line-height: 1.35; }
             .center { text-align: center; }
-            .token { border: 2.5px solid #000; font-size: 26px; font-weight: 900; text-align: center; padding: 4px 0; margin: 8px 0; line-height: 1.2; }
-            .divider { border-top: 1.5px dashed #000; margin: 8px 0; height: 0; }
+            .token { border: 2.5px solid #000; font-size: 26px; font-weight: 900; text-align: center; padding: 4px 0; margin: 16px 0 8px; line-height: 1.2; }
+            .divider { border-top: 1.5px dashed #000; margin: 16px 0 8px; height: 0; }
             .row { display: flex; justify-content: space-between; }
             table.items { width: 100%; border-collapse: collapse; table-layout: fixed; }
-            table.items th { border-bottom: 1.5px solid #000; padding: 3px 0 5px; font-size: 12px; }
+            table.items th { border-bottom: 1.5px solid #000; padding: 3px 0 12px; font-size: 12px; }
             table.items td { padding: 4px 0; vertical-align: top; }
             table.items .nm { text-align: left; white-space: normal; word-break: break-word; overflow-wrap: anywhere; padding-right: 4px; }
             table.items .q { width: 8mm; text-align: center; }
@@ -3352,8 +3352,8 @@
     // ---------- Silent printing through the local printer agent (127.0.0.1:4567) ----------
     // The receipt HTML is rendered exactly as before, turned into a black/white bitmap and sent to the agent,
     // which writes it RAW to the thermal printer (no print dialog). If anything fails, the normal browser print dialog opens.
-    // Printable width in dots: 576 = 72 mm on an 80 mm printer (the agent resets the printer's left margin to 0)
-    var PRINT_DOTS = 576;
+    // Printable width in dots (multiple of 8). This printer starts ~10 mm in from the paper's left edge, so 544 keeps the right side from clipping
+    var PRINT_DOTS = 544;
     function printDialogFallback(html) {
       var frame = document.getElementById('silentPrintFrame');
       frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
