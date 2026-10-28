@@ -250,6 +250,14 @@ pool.query(`
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS menu_name_idx ON menu (name);`).catch(() => {});
   console.log('Postgres Cloud DB tables ready.');
 
+  // Seed defaults only on a brand-new database. Re-seeding on every deploy/restart brought back
+  // items and categories the owner had deleted and overwrote their price/image edits.
+  const seeded = await pool.query("SELECT (SELECT COUNT(*) FROM menu) AS m, (SELECT COUNT(*) FROM categories) AS c");
+  if (Number(seeded.rows[0].m) > 0 || Number(seeded.rows[0].c) > 0) {
+    console.log('Existing menu found - skipping default seed.');
+    return;
+  }
+
   // 1. Seed Categories
   const categoriesList = [
     "Garlic Bread's", "New Launch", "Burger Value Meals", "Burgers", 
@@ -413,7 +421,7 @@ pool.query(`
       item
     );
   }
-  console.log('Force-seeded complete 141 items successfully.');
+  console.log('Seeded default menu (fresh database).');
 
 }).catch(err => {
   console.error('Database initialization error:', err);
