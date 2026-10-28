@@ -3364,6 +3364,20 @@
     }
     function printHtmlSilent(htmlOne, copies, fallbackHtml) {
       var fallback = function() { printDialogFallback(fallbackHtml); };
+            // Default: the printer agent opens the bill in its own Chrome window started with --kiosk-printing, so it prints silently
+      // through the normal Windows printer driver (same layout as the print dialog). If the agent is not reachable, the usual print dialog opens.
+      if (localStorage.getItem('vf_agent_print') !== '1') {
+        var pageHtml = String(fallbackHtml).replace(/(src=")\//g, '$1' + location.origin + '/')
+          .replace('</body>', '<scr' + 'ipt>window.onload=function(){setTimeout(function(){window.print();},500);};</scr' + 'ipt></body>');
+        var ctl0 = new AbortController(), t0 = setTimeout(function() { ctl0.abort(); }, 5000);
+        fetch('http://127.0.0.1:4567/print-html', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ctl0.signal,
+          body: JSON.stringify({ html: pageHtml })
+        }).then(function(r) { clearTimeout(t0); return r.json(); })
+          .then(function(d) { if (!d || !d.success) throw new Error('agent print failed'); })
+          .catch(function(e) { clearTimeout(t0); console.warn('Agent print failed, using print dialog:', e); fallback(); });
+        return;
+      }
       if (!window.html2canvas) return fallback();
       var frame = document.getElementById('silentPrintFrame');
       // off-screen but laid out, so html2canvas can measure it

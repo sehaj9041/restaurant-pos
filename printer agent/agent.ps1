@@ -3,6 +3,7 @@ $KitchenPrinterIP = "192.168.1.87"
 $KitchenPrinterPort = 9100
 $LocalPOSPrinterName = "Posiflex PP8803 Printerrr"
 $historyFile = "$PSScriptRoot\processed.txt"
+$BrowserPath = ""   # leave empty to auto-detect Chrome (then Edge); or set the full path to chrome.exe
 
 if (-not (Test-Path $historyFile)) { Set-Content $historyFile "" }
 $processedJobs = [System.Collections.Generic.HashSet[string]]@(Get-Content $historyFile -ErrorAction SilentlyContinue)
@@ -92,6 +93,21 @@ function Build-EscPosImage($job) {
     return $ms.ToArray()
 }
 
+# Chrome/Edge used for silent bill printing (started with --kiosk-printing, prints to the Windows default printer)
+function Find-Browser {
+    if ($BrowserPath -and (Test-Path $BrowserPath)) { return $BrowserPath }
+    $c = @(
+        "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
+        "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe",
+        "$env:LocalAppData\Google\Chrome\Application\chrome.exe",
+        "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe",
+        "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe"
+    )
+    foreach ($p in $c) { if ($p -and (Test-Path $p)) { return $p } }
+    return $null
+}
+$printWindows = New-Object System.Collections.ArrayList
+
 # 1. Start Local HTTP Server for Cash Drawer + silent bill printing on Port 4567
 $listener = New-Object System.Net.HttpListener
 $listener.Prefixes.Add("http://127.0.0.1:4567/")
@@ -138,7 +154,34 @@ while ($true) {
                 $response.StatusCode = 200
                 $response.OutputStream.Write($buffer, 0, $buffer.Length)
                 $response.OutputStream.Close()
-                        } elseif ($request.Url.LocalPath -eq "/print-image" -and $request.HttpMethod -eq "POST") {
+                                    } elseif ($request.Url.LocalPath -eq "/print-html" -and $request.HttpMethod -eq "POST") {
+                $okPrint = $false
+                try {
+                    $reader = New-Object System.IO.StreamReader($request.InputStream, [System.Text.Encoding]::UTF8)
+                    $job = $reader.ReadToEnd() | ConvertFrom-Json
+                    $browser = Find-Browser
+                    if (-not $browser) { throw "Chrome/Edge not found - set `$BrowserPath at the top of agent.ps1" }
+                    $dir = Join-Path $env:TEMP "vf-print"
+                    New-Item -ItemType Directory -Force -Path $dir | Out-Null
+                    $id = [guid]::NewGuid().ToString("N")
+                    $file = Join-Path $dir "bill-$id.html"
+                    $profileDir = Join-Path $dir "profile-$id"
+                    [System.IO.File]::WriteAllText($file, [string]$job.html, (New-Object System.Text.UTF8Encoding($false)))
+                    # separate profile = a new browser instance, so --kiosk-printing is honoured even if Chrome is already open
+                    $argList = @("--kiosk-printing", "--user-data-dir=`"$profileDir`"", "--no-first-run", "--no-default-browser-check", "--disable-extensions", "--window-position=-3000,0", "--window-size=420,700", "--app=$(([System.Uri]$file).AbsoluteUri)")
+                    $proc = Start-Process -FilePath $browser -ArgumentList $argList -PassThru
+                    [void]$printWindows.Add(@{ pid = $proc.Id; at = (Get-Date).AddSeconds(15); file = $file; profile = $profileDir })
+                    $okPrint = $true
+                    Write-Host ">> Bill sent to silent print window" -ForegroundColor Green
+                } catch {
+                    Write-Host "[PRINT ERROR] $_" -ForegroundColor Red
+                }
+                $buffer = [System.Text.Encoding]::UTF8.GetBytes($(if ($okPrint) { '{"success":true}' } else { '{"success":false}' }))
+                $response.ContentType = "application/json"
+                $response.StatusCode = 200
+                $response.OutputStream.Write($buffer, 0, $buffer.Length)
+                $response.OutputStream.Close()
+            } elseif ($request.Url.LocalPath -eq "/print-image" -and $request.HttpMethod -eq "POST") {
                 $okPrint = $false
                 try {
                     $reader = New-Object System.IO.StreamReader($request.InputStream, [System.Text.Encoding]::UTF8)
@@ -173,7 +216,20 @@ while ($true) {
         $asyncContext = $listener.BeginGetContext($null, $null)
     }
 
-    # Poll Cloud Print Queue every 2 seconds (Targets Kitchen IP Printer)
+        # Close the silent print windows after the job has been spooled, then clean up their temp files
+    if ($printWindows.Count -gt 0) {
+        $now = Get-Date
+        foreach ($w in @($printWindows)) {
+            if ($now -ge $w.at) {
+                try { & taskkill /PID $w.pid /T /F 2>&1 | Out-Null } catch {}
+                Remove-Item -Force -ErrorAction SilentlyContinue $w.file
+                Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $w.profile
+                $printWindows.Remove($w)
+            }
+        }
+    }
+
+    # Poll Cloud Print Queue every 2 seconds (Targets Kitchen IP Printer)
     if ($jobTimer.ElapsedMilliseconds -ge 2000) {
         $jobTimer.Restart()
         try {
