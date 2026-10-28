@@ -25,7 +25,7 @@
     <!-- Items Table List -->
     <div class="col-span-8 bg-slate-800/50 rounded-3xl p-6 border border-slate-700/60 shadow-2xl h-[65vh] flex flex-col">
       <h2 class="text-base font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-700 pb-2">Your Order Items</h2>
-      <div id="cartList" class="flex-1 overflow-y-auto space-y-3 pr-2">
+      <div id="cartList" class="flex-1 min-h-0 overflow-y-auto flex flex-col gap-1.5 pr-2">
         <div class="flex flex-col items-center justify-center h-full text-slate-500">
           <span class="text-5xl mb-2">🍽</span>
           <p class="font-bold text-lg">Next order will appear here</p>
@@ -40,7 +40,8 @@
         <div class="space-y-2 mt-4 text-sm text-slate-300">
           <div class="flex justify-between"><span>Subtotal:</span><span id="subTotalVal" class="font-bold text-white">₹0</span></div>
           <div class="flex justify-between text-emerald-400"><span>Discount:</span><span id="discVal" class="font-bold">-₹0</span></div>
-          <div class="flex justify-between"><span>GST:</span><span id="gstVal" class="font-bold text-white">₹0</span></div>
+          <div class="flex justify-between"><span>CGST (2.5%):</span><span id="cgstVal" class="font-bold text-white">₹0</span></div>
+          <div class="flex justify-between"><span>SGST (2.5%):</span><span id="sgstVal" class="font-bold text-white">₹0</span></div>
         </div>
       </div>
 
@@ -64,6 +65,8 @@
       document.getElementById('brandTagline').innerText = s.tagline || 'Welcome To Our Counter';
     });
 
+    function imgSrc(im) { return /^(https?:)?\//.test(im) ? im : '/uploads/' + im; }
+
     function pollCart() {
       fetch('/api/display/current')
         .then(res => res.json())
@@ -79,7 +82,9 @@
 
           document.getElementById('subTotalVal').innerText = '₹' + (data.subtotal || 0);
           document.getElementById('discVal').innerText = '-₹' + (data.discount || 0);
-          document.getElementById('gstVal').innerText = '₹' + (data.gst || 0);
+          const halfGst = ((data.gst || 0) / 2).toFixed(2);
+          document.getElementById('cgstVal').innerText = '₹' + halfGst;
+          document.getElementById('sgstVal').innerText = '₹' + halfGst;
           document.getElementById('totalVal').innerText = '₹' + (data.total || 0);
 
           const list = document.getElementById('cartList');
@@ -92,15 +97,28 @@
             return;
           }
 
+          // Items zyada hone par font/image/padding apne aap chhote ho jate hain taaki sab screen par fit ho
+          const n = data.items.length;
+          const t = n <= 4 ? { name: 'text-lg', note: 'text-xs', qty: 'text-base', price: 'text-xl', pad: 'px-4', gap: 'gap-4', emoji: 'text-3xl' }
+                  : n <= 7 ? { name: 'text-base', note: 'text-xs', qty: 'text-sm', price: 'text-lg', pad: 'px-3', gap: 'gap-3', emoji: 'text-2xl' }
+                  : n <= 10 ? { name: 'text-sm', note: 'text-[10px]', qty: 'text-xs', price: 'text-base', pad: 'px-3', gap: 'gap-2.5', emoji: 'text-xl' }
+                  : { name: 'text-xs', note: 'text-[9px]', qty: 'text-[10px]', price: 'text-sm', pad: 'px-2', gap: 'gap-2', emoji: 'text-base' };
+          list.className = 'flex-1 min-h-0 overflow-y-auto flex flex-col gap-1.5 pr-2';
+
           list.innerHTML = data.items.map(item => `
-            <div class="flex justify-between items-center bg-slate-800/80 p-3.5 rounded-2xl border border-slate-700">
-              <div>
-                <h3 class="font-bold text-base text-white">${item.name}</h3>
-                ${item.notes ? `<p class="text-xs text-amber-400 mt-0.5">↳ ${item.notes}</p>` : ''}
+            <div class="flex-1 min-h-[30px] max-h-[88px] shrink-0 basis-0 flex justify-between items-center bg-slate-800/80 ${t.pad} py-1 rounded-2xl border border-slate-700">
+              <div class="flex items-center ${t.gap} h-full min-w-0">
+                ${item.image
+                  ? `<img src="${imgSrc(item.image)}" class="h-[85%] aspect-square rounded-lg object-cover border border-slate-600">`
+                  : `<div class="h-[85%] aspect-square rounded-lg bg-slate-700 flex items-center justify-center ${t.emoji}">🍔</div>`}
+                <div class="min-w-0">
+                  <h3 class="font-bold ${t.name} text-white leading-tight truncate">${item.name}</h3>
+                  ${item.notes ? `<p class="${t.note} text-amber-400 leading-tight truncate">↳ ${item.notes}</p>` : ''}
+                </div>
               </div>
-              <div class="flex items-center gap-6">
-                <span class="bg-indigo-900/80 text-indigo-300 font-black px-3 py-1 rounded-xl text-sm">x${item.qty}</span>
-                <span class="font-black text-lg text-emerald-400 w-16 text-right">₹${item.price * item.qty}</span>
+              <div class="flex items-center ${t.gap} shrink-0">
+                <span class="bg-indigo-900/80 text-indigo-300 font-black px-2.5 py-0.5 rounded-lg ${t.qty}">x${item.qty}</span>
+                <span class="font-black ${t.price} text-emerald-400 min-w-[4rem] text-right">₹${item.price * item.qty}</span>
               </div>
             </div>
           `).join('');

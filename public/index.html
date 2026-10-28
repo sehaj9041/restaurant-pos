@@ -150,7 +150,7 @@
         <span>Sehaj</span>
       </div>
 
-      <a href="/customer.html" target="_blank" class="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-700 flex items-center gap-1 transition">
+      <a href="/customer.html" target="_blank" onclick="return openCustomerDisplay(event)" class="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-700 flex items-center gap-1 transition">
         <span>🖥</span> Customer Display
       </a>
 
@@ -3003,13 +3003,49 @@
       return { subtotal: subtotal, gst: gst, grandTotal: grandTotal, payableNow: payableNow };
     }
 
+    // Customer display ko secondary screen par kholta hai (Window Management API).
+    // Browser popup tabhi allow karta hai jab user ne click/key dabaya ho, isliye pehle interaction par auto-open hota hai.
+    var customerDisplayWin = null;
+    async function openCustomerDisplay(ev) {
+      if (ev) ev.preventDefault();
+      if (customerDisplayWin && !customerDisplayWin.closed) { customerDisplayWin.focus(); return false; }
+      var left = 0, top = 0, w = 1024, h = 768, scr = null;
+      try {
+        if (window.getScreenDetails) {
+          var d = await window.getScreenDetails();
+          scr = d.screens.find(function(s) { return s !== d.currentScreen && !s.isPrimary; }) ||
+                d.screens.find(function(s) { return s !== d.currentScreen; });
+          if (scr) { left = scr.availLeft; top = scr.availTop; w = scr.availWidth; h = scr.availHeight; }
+        }
+      } catch (e) {}
+      customerDisplayWin = window.open('/customer.html', 'customerDisplay',
+        'left=' + left + ',top=' + top + ',width=' + w + ',height=' + h + ',popup=yes');
+      if (customerDisplayWin && scr) {
+        try { customerDisplayWin.document.documentElement.requestFullscreen({ screen: scr }); } catch (e) {}
+      }
+      return false;
+    }
+    (function autoOpenCustomerDisplay() {
+      if (sessionStorage.getItem('customerDisplayAutoOpened')) return;
+      function once() {
+        document.removeEventListener('click', once, true);
+        document.removeEventListener('keydown', once, true);
+        sessionStorage.setItem('customerDisplayAutoOpened', '1');
+        openCustomerDisplay();
+      }
+      document.addEventListener('click', once, true);
+      document.addEventListener('keydown', once, true);
+    })();
+
     // Cart ko customer display (customer.html) tak bhejta hai
     var customerSyncTimer = null;
     function syncCustomerDisplay(subtotal, gst, grandTotal) {
       clearTimeout(customerSyncTimer);
       customerSyncTimer = setTimeout(function() {
         var payload = {
-          items: posCart.map(function(i) { return { name: i.name, qty: i.qty, price: i.price, notes: i.notes || '' }; }),
+          items: posCart.map(function(i) { var m = i.id != null ? allMenuItems.find(function(x) { return String(x.id) === String(i.id); }) : null;
+          return { name: i.name, qty: i.qty, price: i.price, notes: i.notes || '', image: i.image || (m && m.image) || '' };
+        }),
           subtotal: subtotal,
           discount: 0,
           gst: gst,
@@ -3460,6 +3496,14 @@
       })
       .then(function(res) { return res.json(); })
       .then(function(data) {
+        if (data.valid && targetUrl === '/report.html') {
+          // Report ka asli URL secret hai; sirf sahi PIN par server se milta hai
+          sessionStorage.setItem('ownerPin', pin);
+          fetch('/api/report-location', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: pin }) })
+            .then(function(r) { return r.json(); })
+            .then(function(loc) { if (loc.path) window.location.href = loc.path; });
+          return;
+        }
         if (data.valid) window.location.href = targetUrl;
         else alert('Galat PIN!');
       }).catch(function(){});

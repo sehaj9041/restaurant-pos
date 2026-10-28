@@ -37,8 +37,11 @@
       const s = document.getElementById('filterStartDate').value;
       const e = document.getElementById('filterEndDate').value;
 
-      fetch(`/api/reports/analytics?startDate=${s}&endDate=${e}`)
-        .then(res => res.json())
+      fetch(`/api/reports/analytics?startDate=${s}&endDate=${e}`, { headers: { 'x-owner-pin': sessionStorage.getItem('ownerPin') || '' } })
+        .then(res => {
+          if (res.status === 401) { sessionStorage.removeItem('ownerPin'); window.location.replace('/'); throw new Error('PIN required'); }
+          return res.json();
+        })
         .then(data => {
           currentReport = data;
           renderMetrics(data.summary);

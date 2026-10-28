@@ -36,6 +36,29 @@ app.get('/pos', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// ---- PRIVATE SALES REPORT ----
+// report.html public/ se bahar (private/) rakha hai. Ye sirf ek secret URL par milta hai (env REPORT_PATH),
+// aur /api/reports/* ke liye owner PIN (x-owner-pin header) zaroori hai.
+const REPORT_SECRET = (process.env.REPORT_PATH || '').replace(/[^A-Za-z0-9_-]/g, '') || crypto.randomBytes(16).toString('hex');
+if (!process.env.REPORT_PATH) console.warn('[REPORT] REPORT_PATH env set nahi hai. Is run ka temporary secret URL: /' + REPORT_SECRET + ' (restart par badal jayega, env me permanent set karo)');
+
+function checkOwnerPin(pin, cb) {
+  db.get("SELECT admin_pin FROM settings WHERE id = 1", [], (err, row) => {
+    const real = (row && row.admin_pin) ? row.admin_pin : '1234';
+    cb(!err && typeof pin === 'string' && pin !== '' && pin === real);
+  });
+}
+
+app.use('/api/reports', (req, res, next) => {
+  checkOwnerPin(req.get('x-owner-pin'), (ok) => ok ? next() : res.status(401).json({ error: 'Owner PIN required' }));
+});
+
+app.post('/api/report-location', (req, res) => {
+  checkOwnerPin(req.body && req.body.pin, (ok) => ok ? res.json({ path: '/' + REPORT_SECRET }) : res.status(401).json({ error: 'Invalid PIN' }));
+});
+
+app.get('/' + REPORT_SECRET, (req, res) => res.sendFile(path.join(__dirname, 'private', 'report.html')));
+
 // Static directories setup for public and uploads
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/uploads/:name', (req, res, next) => {
@@ -1466,7 +1489,7 @@ app.get('/api/reports/analytics', (req, res) => {
       COALESCE(SUM(CASE WHEN payment_mode = 'DUE' OR status = 'DUE_PENDING' THEN total ELSE 0 END), 0) AS due_sales
     FROM orders 
     WHERE (created_at::date BETWEEN ?::date AND ?::date OR DATE(created_at) BETWEEN DATE(?) AND DATE(?))
-      AND status = 'COMPLETED'
+      AND status IN ('COMPLETED', 'DISPATCHED')
   `;
 
   const expenseQuery = `
@@ -1482,7 +1505,7 @@ app.get('/api/reports/analytics', (req, res) => {
     FROM order_items oi
     JOIN orders o ON o.id = oi.order_id
     WHERE (o.created_at::date BETWEEN ?::date AND ?::date OR DATE(o.created_at) BETWEEN DATE(?) AND DATE(?))
-      AND o.status = 'COMPLETED'
+      AND o.status IN ('COMPLETED', 'DISPATCHED')
     GROUP BY oi.name
     ORDER BY total_qty DESC
     LIMIT 10
@@ -1492,7 +1515,7 @@ app.get('/api/reports/analytics', (req, res) => {
     SELECT id, token_no, order_type, table_no, customer_name, customer_phone, payment_mode, status, subtotal, discount, gst, total, COALESCE(paid_amount, total) as paid_amount, created_at
     FROM orders 
     WHERE (created_at::date BETWEEN ?::date AND ?::date OR DATE(created_at) BETWEEN DATE(?) AND DATE(?))
-      AND status = 'COMPLETED'
+      AND status IN ('COMPLETED', 'DISPATCHED')
     ORDER BY id DESC
   `;
 
@@ -1627,9 +1650,9 @@ app.get('/api/system/backup', (req, res) => res.download(path.join(__dirname, 'r
 
 app.post('/api/system/reset-orders', (req, res) => {
   db.run(`DELETE FROM order_items WHERE order_id IN (
-    SELECT id FROM orders WHERE status = 'COMPLETED' AND payment_mode != 'DUE'
+    SELECT id FROM orders WHERE status IN ('COMPLETED', 'DISPATCHED') AND payment_mode != 'DUE'
   )`, [], () => {
-    db.run(`DELETE FROM orders WHERE status = 'COMPLETED' AND payment_mode != 'DUE'`, [], () => {
+    db.run(`DELETE FROM orders WHERE status IN ('COMPLETED', 'DISPATCHED') AND payment_mode != 'DUE'`, [], () => {
       db.run("DELETE FROM expenses", [], () => {
         db.run("DELETE FROM customers WHERE due_balance <= 0", [], () => {
           console.log("[SAFE RESET] Sales reset completed. Due orders preserved.");
