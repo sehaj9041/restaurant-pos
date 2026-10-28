@@ -77,14 +77,16 @@ function Build-EscPosImage($job) {
     $copies = [Math]::Max(1, [Math]::Min(5, [int]$job.copies))
     $ms = New-Object System.IO.MemoryStream
     for ($c = 0; $c -lt $copies; $c++) {
-        $ms.Write([byte[]](0x1B, 0x40), 0, 2)
+        # reset, left margin 0 (GS L), print area width 576 dots (GS W) - a saved printer margin was clipping the right side
+        $init = [byte[]](0x1B, 0x40, 0x1D, 0x4C, 0x00, 0x00, 0x1D, 0x57, 0x40, 0x02)
+        $ms.Write($init, 0, $init.Length)
         for ($y = 0; $y -lt $h; $y += 200) {
             $band = [Math]::Min(200, $h - $y)
             $hdr = [byte[]](0x1D, 0x76, 0x30, 0x00, ($rowBytes -band 0xFF), ($rowBytes -shr 8), ($band -band 0xFF), ($band -shr 8))
             $ms.Write($hdr, 0, $hdr.Length)
             $ms.Write($img, $y * $rowBytes, $band * $rowBytes)
         }
-        $tail = [byte[]](0x1B, 0x64, 0x04, 0x1D, 0x56, 0x41, 0x03)   # feed 4 lines, partial cut
+        $tail = [byte[]](0x1D, 0x56, 0x41, 0x03)   # feed to the cutter + 3 dots, partial cut (no extra blank feed)
         $ms.Write($tail, 0, $tail.Length)
     }
     return $ms.ToArray()

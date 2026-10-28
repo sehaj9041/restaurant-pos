@@ -3257,14 +3257,14 @@
         <head>
           <style>
             @page { margin: 0; size: 80mm auto; }
-            body { font-family: Arial, sans-serif; font-size: 13px; font-weight: 700; color: #000; padding: 0 6px 4px; width: 68mm; }
+            body { font-family: Arial, sans-serif; font-size: 13px; font-weight: 700; color: #000; margin: 0; padding: 2px 6px 0; width: 68mm; line-height: 1.35; }
             .center { text-align: center; }
-            .token { border: 2.5px solid #000; font-size: 26px; font-weight: 900; text-align: center; padding: 4px 0; margin: 6px 0; }
-            .divider { border-top: 1.5px dashed #000; margin: 6px 0; }
+            .token { border: 2.5px solid #000; font-size: 26px; font-weight: 900; text-align: center; padding: 4px 0; margin: 8px 0; line-height: 1.2; }
+            .divider { border-top: 1.5px dashed #000; margin: 8px 0; height: 0; }
             .row { display: flex; justify-content: space-between; }
             table.items { width: 100%; border-collapse: collapse; table-layout: fixed; }
-            table.items th { border-bottom: 1.5px solid #000; padding: 2px 0; font-size: 12px; }
-            table.items td { padding: 3px 0; vertical-align: top; }
+            table.items th { border-bottom: 1.5px solid #000; padding: 3px 0 5px; font-size: 12px; }
+            table.items td { padding: 4px 0; vertical-align: top; }
             table.items .nm { text-align: left; white-space: normal; word-break: break-word; overflow-wrap: anywhere; padding-right: 4px; }
             table.items .q { width: 8mm; text-align: center; }
             table.items .r { width: 13mm; text-align: right; }
@@ -3352,8 +3352,8 @@
     // ---------- Silent printing through the local printer agent (127.0.0.1:4567) ----------
     // The receipt HTML is rendered exactly as before, turned into a black/white bitmap and sent to the agent,
     // which writes it RAW to the thermal printer (no print dialog). If anything fails, the normal browser print dialog opens.
-    // Printable width in dots. 512 = 64 mm (safe for the Posiflex 80 mm printer; raise to 576 if the paper edge is not clipped)
-    var PRINT_DOTS = 512;
+    // Printable width in dots: 576 = 72 mm on an 80 mm printer (the agent resets the printer's left margin to 0)
+    var PRINT_DOTS = 576;
     function printDialogFallback(html) {
       var frame = document.getElementById('silentPrintFrame');
       frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
@@ -3391,7 +3391,7 @@
             // drop the blank paper at the bottom: keep only up to the last printed row (+ small margin)
             var lastRow = 0;
             for (var yy = H - 1; yy >= 0 && !lastRow; yy--) for (var q = 0; q < rowBytes; q++) if (bytes[yy * rowBytes + q]) { lastRow = yy; break; }
-            H = Math.min(H, lastRow + 16); bytes = bytes.subarray(0, rowBytes * H);
+            H = Math.min(H, lastRow + 6); bytes = bytes.subarray(0, rowBytes * H);
             var bin = '', CH = 0x8000;
             for (var k = 0; k < bytes.length; k += CH) bin += String.fromCharCode.apply(null, bytes.subarray(k, k + CH));
             var ctl = new AbortController(), timer = setTimeout(function() { ctl.abort(); }, 8000);
