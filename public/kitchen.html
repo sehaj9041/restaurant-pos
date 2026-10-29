@@ -52,8 +52,8 @@
     }
     .kot-card-box .kot-btn {
       font-size: calc(14px * var(--kot-scale));
-      padding-top: calc(10px * var(--kot-scale));
-      padding-bottom: calc(10px * var(--kot-scale));
+      padding-top: calc(6px * var(--kot-scale));
+      padding-bottom: calc(6px * var(--kot-scale));
     }
     .kot-card-box .kot-timer {
       font-size: calc(12px * var(--kot-scale));
@@ -869,7 +869,7 @@
           <!-- LIGHT THEME KOT CARD -->
           <div class="kot-card-box bg-white border-2 ${cardBorderClass} rounded-2xl flex flex-col justify-between overflow-hidden shadow-xs hover:shadow-md transition self-start w-full">
             <!-- HEADER -->
-            <div class="p-3.5 border-b border-slate-100 ${theme.headerBg} flex justify-between items-center">
+            <div class="px-3 py-2 border-b border-slate-100 ${theme.headerBg} flex justify-between items-center">
               <div>
                 <div class="flex items-center gap-2">
                   <h3 class="font-black text-slate-900">#${order.token_no || order.id}</h3>
@@ -905,7 +905,7 @@
             ` : ''}
 
             <!-- ITEMS LIST -->
-            <div class="p-3.5 space-y-3">
+            <div class="px-3 py-2 space-y-1.5">
                ${(order.items || []).map(function(item, idx) {
                 var rowKey = order.id + '_row_' + idx;
                 var isDone = !!checkedMap[rowKey];
@@ -915,7 +915,7 @@
                 var cleanBaseName = (item.name || '').trim();
 
                 return `
-                  <div class="border-b border-slate-100 pb-2.5">
+                  <div class="border-b border-slate-100 pb-1.5">
                     <div onclick='toggleItemReady(${order.id}, "row_${idx}", ${JSON.stringify(item)})' class="flex items-center gap-2.5 cursor-pointer select-none transition ${isDone ? 'opacity-35' : 'hover:bg-slate-50'}">
                       <div class="kot-check-box rounded-md flex items-center justify-center border shrink-0 transition ${isDone ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-slate-300 bg-white'}">
                         ${isDone ? '✓' : ''}
@@ -943,7 +943,7 @@
 
                     <!-- INDIVIDUAL ADD-ONS TICK BOXES (No Duplicate Text Below) -->
                     ${addonsList.length > 0 ? `
-                      <div class="mt-1.5 ml-8 space-y-1 pl-2 border-l-2 border-slate-200">
+                      <div class="mt-1 ml-8 space-y-0.5 pl-2 border-l-2 border-slate-200">
                         ${addonsList.map(function(addon, aIdx) {
                           var addonKey = order.id + '_row_' + idx + '_addon_' + aIdx;
                           var isAddonDone = !!checkedMap[addonKey];
@@ -964,7 +964,7 @@
                ${((getStoredSnapshots()[strId] || {}).cancelled || []).map(function(c) {
                 var cBase = (c.name || '').replace(/\s*\(.*?\)\s*$/, '').trim();
                 return `
-                  <div class="border-b border-slate-100 pb-2.5">
+                  <div class="border-b border-slate-100 pb-1.5">
                     <div class="flex items-center gap-2.5 select-none opacity-60">
                       <span class="kot-qty-badge font-black text-slate-500 bg-slate-100 border border-slate-200 px-2 py-1 rounded-md shrink-0 line-through">x${c.qty}</span>
                       <span class="kot-item-title font-bold text-slate-400 flex-1 line-through">${cBase}</span>
@@ -976,7 +976,7 @@
             </div>
 
             <!-- TWO-STAGE BUTTON FOOTER -->
-            <div class="p-3 bg-slate-50 border-t border-slate-100">
+            <div class="px-3 py-2 bg-slate-50 border-t border-slate-100">
               ${isReadyForDispatch ? `
                 <button onclick="executeDispatch(${order.id})" class="kot-btn w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-black rounded-xl transition flex items-center justify-center gap-2 shadow-sm animate-bounce">
                   <span>🚀</span>
