@@ -754,11 +754,12 @@ app.get('/api/rider/:token/orders', async (req, res) => {
   try {
     const rider = await riderByToken(req.params.token);
     if (!rider) return res.status(401).json({ error: 'Invalid rider link' });
+    const history = req.query.history === '1';
     const orders = await dbAllAsync(`SELECT id, token_no, customer_name, customer_phone, total, COALESCE(paid_amount, 0) AS paid_amount, payment_mode, status,
         delivery_address, delivery_lat, delivery_lng, created_at, delivered_at, rider_cash_received, rider_cash_change FROM orders
       WHERE rider_id = ? AND UPPER(status) NOT IN ('VOID', 'MERGED')
-        AND (delivered_at IS NULL OR delivered_at >= NOW() - INTERVAL '3 hours')
-      ORDER BY delivered_at IS NOT NULL, id DESC`, [rider.id]);
+        AND ${history ? "delivered_at IS NOT NULL AND delivered_at >= NOW() - INTERVAL '7 days'" : 'delivered_at IS NULL'}
+      ORDER BY ${history ? 'delivered_at DESC' : 'id DESC'} LIMIT 100`, [rider.id]);
     for (const o of orders) {
       o.items = await dbAllAsync('SELECT name, qty, user_note FROM order_items WHERE order_id = ?', [o.id]);
       o.to_collect = Math.max(0, Number(o.total) - Number(o.paid_amount));

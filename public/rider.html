@@ -16,6 +16,10 @@
       <button onclick="enableAlerts()" id="btnAlerts" class="bg-white/20 px-3 py-1.5 rounded-lg text-xs font-black">🔔 Alerts</button>
     </div>
   </header>
+  <div class="flex bg-white border-b sticky top-[60px] z-10">
+    <button id="tabActive" onclick="setTab(false)" class="flex-1 py-2.5 text-sm font-black"></button>
+    <button id="tabHistory" onclick="setTab(true)" class="flex-1 py-2.5 text-sm font-black">History</button>
+  </div>
   <main id="list" class="p-3 space-y-3 pb-10"></main>
 
   <div id="payModal" class="hidden fixed inset-0 bg-black/60 z-20 flex items-end sm:items-center justify-center">
@@ -41,7 +45,7 @@
 
   <script>
     var token = new URLSearchParams(location.search).get('t') || '';
-    var knownIds = null, audioCtx = null;
+    var knownIds = null, audioCtx = null, showHistory = false;
 
     function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 
@@ -69,6 +73,22 @@
       return 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(o.delivery_address || '');
     }
 
+    function fmtTime(t) {
+      var d = new Date(t);
+      return d.toLocaleDateString([], { day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function historyCard(o) {
+      return '<div class="bg-white rounded-2xl shadow-sm p-3.5 space-y-1">' +
+        '<div class="flex justify-between items-center"><div class="font-black text-gray-900">ORD-' + o.id + ' <span class="text-[11px] font-bold text-gray-400">Token ' + esc(o.token_no || '-') + '</span></div>' +
+        '<span class="text-xs font-black bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full">Delivered ✓</span></div>' +
+        '<div class="text-xs text-gray-500">' + fmtTime(o.delivered_at) + ' • ' + esc(o.customer_name || 'Guest') + '</div>' +
+        '<div class="text-xs text-gray-600 line-clamp-1">📍 ' + (esc(o.delivery_address) || '-') + '</div>' +
+        '<div class="text-xs font-bold text-gray-700">₹' + o.total + (o.rider_cash_received ? ' • Cash mile ₹' + o.rider_cash_received + (Number(o.rider_cash_change) > 0 ? ', change ₹' + o.rider_cash_change : '') : '') + '</div></div>';
+    }
+
+    function setTab(h) { showHistory = h; document.getElementById('list').innerHTML = ''; load(); }
+
     function card(o) {
       var done = !!o.delivered_at;
       var items = (o.items || []).map(function(i) { return esc(i.qty + ' x ' + i.name) + (i.user_note ? ' <i class="text-yellow-700">(' + esc(i.user_note) + ')</i>' : ''); }).join('<br>');
@@ -88,7 +108,7 @@
     }
 
     function load() {
-      fetch('/api/rider/' + encodeURIComponent(token) + '/orders')
+      fetch('/api/rider/' + encodeURIComponent(token) + '/orders' + (showHistory ? '?history=1' : ''))
         .then(function(r) {
           return r.text().then(function(t) {
             var d; try { d = JSON.parse(t); } catch (e) { throw new Error('Is address (' + location.host + ') par POS server nahi mila. Manager se sahi rider link maangein.'); }
@@ -98,7 +118,15 @@
         })
         .then(function(d) {
           document.getElementById('riderName').innerText = d.rider.name;
-          var fresh = d.orders.filter(function(o) { return !o.delivered_at; }).map(function(o) { return o.id; });
+          var act = 'flex-1 py-2.5 text-sm font-black border-b-2 border-orange-500 text-orange-600', off = 'flex-1 py-2.5 text-sm font-black border-b-2 border-transparent text-gray-400';
+          document.getElementById('tabActive').className = showHistory ? off : act;
+          document.getElementById('tabHistory').className = showHistory ? act : off;
+          if (showHistory) {
+            document.getElementById('list').innerHTML = d.orders.length ? d.orders.map(historyCard).join('') : '<p class="text-center text-gray-400 italic py-16">Pichle 7 din mein koi delivery nahi</p>';
+            return;
+          }
+          document.getElementById('tabActive').innerText = 'Active (' + d.orders.length + ')';
+          var fresh = d.orders.map(function(o) { return o.id; });
           if (knownIds) {
             var added = fresh.filter(function(id) { return knownIds.indexOf(id) < 0; });
             if (added.length) {
