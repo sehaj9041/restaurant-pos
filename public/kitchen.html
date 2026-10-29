@@ -249,7 +249,7 @@
       var printerCfg = getKdsPrinterConfig();
       if (!printerCfg.enabled || !printerCfg.ip) return;
 
-      var cleanName = item.name.replace(/\s*\(.*?\)\s*$/, '').trim();
+      var cleanName = (item.name || '').trim();
       var addonsStr = '';
       if (item.addons && Array.isArray(item.addons)) {
         addonsStr = item.addons.map(a => a.name).join(', ');
@@ -485,14 +485,6 @@
           var clean = p.trim().replace(/\s*\(\+?₹?[0-9]+\)\s*$/, '');
           return { name: clean };
         }).filter(function(a){ return a.name.length > 0; });
-      } else if (item.name && item.name.includes('(') && item.name.endsWith(')')) {
-        var parts = item.name.match(/\(([^)]+)\)/);
-        if (parts && parts[1]) {
-          addonsList = parts[1].split(',').map(function(s){ 
-            var subClean = s.trim().replace(/\s*\(\+?₹?[0-9]+\)\s*$/, '');
-            return { name: subClean }; 
-          });
-        }
       }
       return addonsList;
     }
@@ -887,7 +879,7 @@
                 var badgeTag = persistentBadges[rowKey];
 
                 var addonsList = extractAddonsList(item);
-                var cleanBaseName = item.name.replace(/\s*\(.*?\)\s*$/, '').trim();
+                var cleanBaseName = (item.name || '').trim();
 
                 return `
                   <div class="border-b border-slate-100 pb-2.5">

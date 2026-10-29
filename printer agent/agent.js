@@ -53,17 +53,21 @@ function buildPrintPayload(job) {
   const LEFT = ESC + 'a' + '\x00';
   const CUT = GS + 'V' + '\x41' + '\x00';
 
-  return (
-    INIT +
-    CENTER + BOLD_ON + "ITEM READY\n" + BOLD_OFF +
-    `Order #${job.order_id} | ${job.table}\n` +
-    "--------------------------------\n" +
-    LEFT + BOLD_ON + `${job.qty} x ${job.item_name}\n` + BOLD_OFF +
-    (job.addons ? `+ ${job.addons}\n` : '') +
-    "--------------------------------\n" +
-    CENTER + `Time: ${job.time}\n\n\n` +
-    CUT
-  );
+  const count = Math.max(1, parseInt(job.qty, 10) || 1);
+  let out = '';
+  for (let n = 1; n <= count; n++) {
+    out +=
+      INIT +
+      CENTER + BOLD_ON + `ITEM READY (${n}/${count})\n` + BOLD_OFF +
+      `Order #${job.order_id} | ${job.table}\n` +
+      "--------------------------------\n" +
+      LEFT + BOLD_ON + `1 x ${job.item_name}\n` + BOLD_OFF +
+      (job.addons ? `+ ${job.addons}\n` : '') +
+      "--------------------------------\n" +
+      CENTER + `Time: ${job.time}\n\n\n` +
+      CUT;
+  }
+  return out;
 }
 
 // Native HTTPS GET Request to fetch pending print queue from cloud
@@ -146,4 +150,4 @@ const server = http.createServer((req, res) => {
 
 server.listen(4567, '127.0.0.1', () => {
   console.log('TadkaTech Zero-Paper Agent Running (Polling Active)!');
-});
+});

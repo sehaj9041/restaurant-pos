@@ -1,4 +1,8 @@
-﻿$CloudHost = "menu.vishalfoodiez.in"
+﻿$createdNew = $false
+$script:agentMutex = New-Object System.Threading.Mutex($true, "Global\TadkaTechPrinterAgent", [ref]$createdNew)
+if (-not $createdNew) { exit }
+
+$CloudHost = "menu.vishalfoodiez.in"
 $KitchenPrinterIP = "192.168.1.87"
 $KitchenPrinterPort = 9100
 $LocalPOSPrinterName = "Posiflex PP8803 Printerrr"
@@ -269,11 +273,15 @@ while ($true) {
                         $BIG_ON = "$ESC" + "!" + [char]0x38;
                         $BIG_OFF = "$ESC" + "!" + [char]0x00;
 
-                        $printData = "$INIT$CENTER$BOLD_ON" + "ITEM READY`n" + "$BOLD_OFF" + "Order #$($job.order_id) | $($job.table)`n--------------------------------`n$LEFT$BIG_ON$($job.qty) x $($job.item_name)`n$BIG_OFF";
-                        if ($job.addons) { $printData += "+ $($job.addons)`n" };
-                        $printData += "--------------------------------`n$CENTER" + "Time: $($job.time)`n`n`n$CUT";
+                        $tokenCount = [int]$job.qty; if ($tokenCount -lt 1) { $tokenCount = 1 }
+                        $printData = "";
+                        for ($t = 1; $t -le $tokenCount; $t++) {
+                            $printData += "$INIT$CENTER$BOLD_ON" + "ITEM READY ($t/$tokenCount)`n" + "$BOLD_OFF" + "Order #$($job.order_id) | $($job.table)`n--------------------------------`n$LEFT$BIG_ON" + "1 x $($job.item_name)`n$BIG_OFF";
+                            if ($job.addons) { $printData += "+ $($job.addons)`n" };
+                            $printData += "--------------------------------`n$CENTER" + "Time: $($job.time)`n`n`n$CUT";
+                        }
 
-                        # Send to Kitchen IP Printer via Network Socket
+                        # Send to Kitchen IP Printer via Network Socket
                         $socket = New-Object System.Net.Sockets.TcpClient;
                         $connect = $socket.BeginConnect($KitchenPrinterIP, $KitchenPrinterPort,$null, $null);$success = $connect.AsyncWaitHandle.WaitOne(5000,$true);
                         
