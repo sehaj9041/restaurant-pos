@@ -1431,8 +1431,8 @@
                   <div>
                     <div class="flex items-center gap-2">
                       <span class="bg-slate-100 border border-slate-200 text-slate-800 font-black px-2 py-0.5 rounded text-xs">${order.order_type || 'Kiosk'}</span>
-                      <span class="font-black text-slate-900 text-sm">#ORD-${order.id}</span>
-                      <span class="bg-gray-100 text-gray-600 font-bold px-1.5 py-0.5 rounded text-[10px]">Token ${tokenLabel(order)}</span>
+                      <span class="font-bold text-slate-500 text-[11px]">#ORD-${order.id}</span>
+                      <span class="bg-orange-100 text-orange-800 font-black px-2 py-0.5 rounded text-base">Token ${tokenLabel(order)}</span>
                       <span class="text-xs font-bold text-slate-600">${order.customer_name || 'Guest'} (${order.customer_phone || 'N/A'})</span>
                     </div>
                   </div>
@@ -1971,8 +1971,8 @@
           <div class="py-3 flex justify-between items-center text-xs hover:bg-orange-50/40 px-2 rounded-xl transition">
             <div>
               <div class="flex items-center gap-2">
-                <span class="font-black text-gray-900 text-sm">ORD-${o.id}</span>
-                <span class="bg-gray-100 text-gray-600 font-bold px-1.5 py-0.5 rounded text-[10px]">Token ${tokenLabel(o)}</span>
+                <span class="bg-orange-100 text-orange-800 font-black px-2 py-0.5 rounded text-base">Token ${tokenLabel(o)}</span>
+                <span class="font-bold text-gray-500 text-[11px]">ORD-${o.id}</span>
               </div>
               <div class="text-[11px] font-bold text-gray-600 mt-0.5">
                 ${o.customer_name || 'Walk-in'} • <span class="font-mono text-gray-500">${o.customer_phone || '-'}</span>
@@ -2420,8 +2420,8 @@
         return `
           <tr class="hover:bg-orange-50/60 transition text-gray-700 cursor-pointer" onclick="openSettledOrderInPOS(${o.id})">
             <td class="p-3 font-mono font-black text-gray-900">
-              <div>ORD-${o.id}</div>
-              <div class="text-[10px] text-gray-400 font-normal">Token ${tokenLabel(o)}</div>
+              <div class="text-base font-black text-gray-900">Token ${tokenLabel(o)}</div>
+              <div class="text-[10px] text-gray-400 font-normal">ORD-${o.id}</div>
             </td>
             <td class="p-3">
               <div class="flex items-center gap-1.5">
@@ -2808,8 +2808,8 @@
                 <div>
                   <div class="flex items-center gap-1.5">
                     <span class="bg-pink-100 text-pink-700 font-black px-1.5 py-0.5 rounded text-[10px]">Kiosk Order</span>
-                    <span class="text-gray-500 font-bold text-[10px]">Token ${tokenLabel(o)}</span>
-                    <span class="font-black text-gray-800 text-xs">ORD-${o.id}</span>
+                    <span class="text-gray-900 font-black text-base">Token ${tokenLabel(o)}</span>
+                    <span class="text-gray-500 font-bold text-[10px]">ORD-${o.id}</span>
                   </div>
                   <div class="text-[11px] text-gray-600 mt-0.5 line-clamp-1">${itemsText || 'Order placed'}</div>
                   <div class="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
@@ -2873,8 +2873,8 @@
             <div class="flex justify-between items-start">
               <div>
                 <div class="flex items-center gap-1.5">
-                  <span class="text-gray-500 font-bold text-[10px]">Token ${tokenLabel(o)}</span>
-                  <span class="font-black text-gray-800 text-xs">ORD-${o.id}</span>
+                  <span class="text-gray-900 font-black text-base">Token ${tokenLabel(o)}</span>
+                  <span class="text-gray-500 font-bold text-[10px]">ORD-${o.id}</span>
                 </div>
                 <div class="text-[11px] text-gray-600 mt-0.5 line-clamp-1">${itemsText || 'Order placed'}</div>
                 <div class="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">

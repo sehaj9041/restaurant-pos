@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <title>Rider Orders</title>
+  <meta name="theme-color" content="#f97316">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <script>document.write('<link rel="manifest" href="/rider-manifest.json?t=' + encodeURIComponent(new URLSearchParams(location.search).get('t') || '') + '">');</script>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 min-h-screen">
@@ -13,7 +16,10 @@
         <div class="text-[11px] opacity-90 font-bold uppercase">Delivery Rider</div>
         <div id="riderName" class="font-black text-lg leading-tight">...</div>
       </div>
-      <button onclick="enableAlerts()" id="btnAlerts" class="bg-white/20 px-3 py-1.5 rounded-lg text-xs font-black">🔔 Alerts</button>
+      <div class="flex gap-1.5">
+        <button onclick="installApp()" id="btnInstall" class="hidden bg-white text-orange-600 px-3 py-1.5 rounded-lg text-xs font-black">📲 Install App</button>
+        <button onclick="enableAlerts()" id="btnAlerts" class="bg-white/20 px-3 py-1.5 rounded-lg text-xs font-black">🔔 Alerts</button>
+      </div>
     </div>
   </header>
   <div class="flex bg-white border-b sticky top-[60px] z-10">
@@ -46,6 +52,29 @@
   <script>
     var token = new URLSearchParams(location.search).get('t') || '';
     var knownIds = null, audioCtx = null, showHistory = false;
+
+    // ---- Install as app (PWA) ----
+    var installEvt = null;
+    var isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+    var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function() {});
+    window.addEventListener('beforeinstallprompt', function(e) {
+      e.preventDefault(); installEvt = e;
+      document.getElementById('btnInstall').classList.remove('hidden');
+    });
+    window.addEventListener('appinstalled', function() { installEvt = null; document.getElementById('btnInstall').classList.add('hidden'); });
+    if (!isStandalone && isIOS) document.addEventListener('DOMContentLoaded', function() { document.getElementById('btnInstall').classList.remove('hidden'); });
+
+    function installApp() {
+      if (installEvt) {
+        installEvt.prompt();
+        installEvt.userChoice.then(function() { installEvt = null; document.getElementById('btnInstall').classList.add('hidden'); });
+      } else if (isIOS) {
+        alert('iPhone par install karne ke liye: Safari mein Share button dabayein, phir "Add to Home Screen" chunein.');
+      } else {
+        alert('Browser menu (⋮) kholkar "Install app" ya "Add to Home screen" chunein.');
+      }
+    }
 
     function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 
@@ -80,7 +109,7 @@
 
     function historyCard(o) {
       return '<div class="bg-white rounded-2xl shadow-sm p-3.5 space-y-1">' +
-        '<div class="flex justify-between items-center"><div class="font-black text-gray-900">ORD-' + o.id + ' <span class="text-[11px] font-bold text-gray-400">Token ' + esc(o.token_no || '-') + '</span></div>' +
+        '<div class="flex justify-between items-center"><div class="text-xl font-black text-gray-900">Token ' + esc(o.token_no || '-') + ' <span class="text-[11px] font-bold text-gray-400">ORD-' + o.id + '</span></div>' +
         '<span class="text-xs font-black bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full">Delivered ✓</span></div>' +
         '<div class="text-xs text-gray-500">' + fmtTime(o.delivered_at) + ' • ' + esc(o.customer_name || 'Guest') + '</div>' +
         '<div class="text-xs text-gray-600 line-clamp-1">📍 ' + (esc(o.delivery_address) || '-') + '</div>' +
@@ -94,7 +123,7 @@
       var items = (o.items || []).map(function(i) { return esc(i.qty + ' x ' + i.name) + (i.user_note ? ' <i class="text-yellow-700">(' + esc(i.user_note) + ')</i>' : ''); }).join('<br>');
       var phone = String(o.customer_phone || '').replace(/[^0-9+]/g, '');
       return '<div class="bg-white rounded-2xl shadow p-4 space-y-3 ' + (done ? 'opacity-60' : 'border-2 border-orange-300') + '">' +
-        '<div class="flex justify-between items-start"><div><div class="text-[11px] font-bold text-gray-500">Token ' + esc(o.token_no || '-') + '</div><div class="font-black text-gray-900">ORD-' + o.id + '</div></div>' +
+        '<div class="flex justify-between items-start"><div><div class="text-2xl font-black text-gray-900 leading-none">Token ' + esc(o.token_no || '-') + '</div><div class="text-[11px] font-bold text-gray-400 mt-1">ORD-' + o.id + '</div></div>' +
         (done ? '<span class="text-xs font-black bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full">Delivered ✓' + (o.rider_cash_received ? ' • ₹' + o.rider_cash_received + ' mile' : '') + '</span>' :
           (o.to_collect > 0 ? '<span class="text-sm font-black bg-rose-100 text-rose-700 px-2.5 py-1 rounded-full">Collect ₹' + o.to_collect + '</span>' : '<span class="text-xs font-black bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full">Paid ✓</span>')) + '</div>' +
         '<div class="text-sm text-gray-800"><div class="font-bold">👤 ' + esc(o.customer_name || 'Guest') + '</div>' +
@@ -162,7 +191,7 @@
 
     function openPay(o) {
       payOrder = o; payMode = 'CASH';
-      document.getElementById('payOrd').innerText = 'ORD-' + o.id;
+      document.getElementById('payOrd').innerText = 'Token ' + (o.token_no || o.id);
       document.getElementById('payDue').innerText = '₹' + o.to_collect;
       document.getElementById('payReceived').value = '';
       var amounts = [o.to_collect].concat([50, 100, 200, 500, 2000].filter(function(a) { return a > o.to_collect; }).slice(0, 3));

@@ -73,6 +73,23 @@ app.get('/manifest.json', async (req, res, next) => {
     res.send(JSON.stringify(m));
   } catch (e) { next(); }
 });
+// Rider PWA manifest: start_url keeps the rider's own token so the installed app opens straight to their orders
+app.get('/rider-manifest.json', async (req, res) => {
+  const t = String(req.query.t || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 64);
+  const rider = await riderByToken(t).catch(() => null);
+  const logo = ((await getSettingsConfig().catch(() => ({}))).receipt || {}).logo;
+  const type = logo ? (/\.webp$/i.test(logo) ? 'image/webp' : /\.jpe?g$/i.test(logo) ? 'image/jpeg' : 'image/png') : 'image/png';
+  const src = logo || 'https://cdn-icons-png.flaticon.com/512/2972/2972185.png';
+  res.setHeader('Content-Type', 'application/manifest+json');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.json({
+    name: 'Delivery Rider' + (rider ? ' - ' + rider.name : ''), short_name: 'Rider',
+    start_url: '/rider.html?t=' + t, scope: '/rider.html', display: 'standalone',
+    background_color: '#f3f4f6', theme_color: '#f97316',
+    icons: ['192x192', '512x512'].map(sizes => ({ src, sizes, type, purpose: 'any' }))
+  });
+});
+
 // Static directories setup for public and uploads
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/uploads/:name', (req, res, next) => {
