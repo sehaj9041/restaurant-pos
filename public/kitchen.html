@@ -22,6 +22,7 @@
     /* DYNAMIC CARD SCALING & AUTO-FLOW GRID ENGINE */
     :root {
       --kot-scale: 1;
+      --kot-font-scale: 1;
       --kot-card-min-width: 290px;
     }
 
@@ -39,11 +40,14 @@
       font-size: calc(20px * var(--kot-scale));
     }
     .kot-card-box .kot-item-title {
-      font-size: calc(15px * var(--kot-scale));
+      font-size: calc(15px * var(--kot-scale) * var(--kot-font-scale));
+    }
+    .kot-card-box .kot-addon-text {
+      font-size: calc(12px * var(--kot-scale) * var(--kot-font-scale));
     }
     /* BIGGER & PROMINENT QUANTITY FONT */
     .kot-card-box .kot-qty-badge {
-      font-size: calc(18px * var(--kot-scale));
+      font-size: calc(18px * var(--kot-scale) * var(--kot-font-scale));
       line-height: 1;
     }
     .kot-card-box .kot-btn {
@@ -70,52 +74,52 @@
     }
   </style>
 </head>
-<body class="bg-slate-100 min-h-screen p-6 font-sans text-slate-800 select-none">
+<body class="bg-slate-100 min-h-screen p-3 font-sans text-slate-800 select-none">
 
-  <!-- TOP HEADER -->
-  <div class="flex justify-between items-center mb-6 border-b border-slate-200 pb-4 flex-wrap gap-4 bg-white p-4 rounded-2xl shadow-xs">
-    <div class="flex items-center gap-3">
-      <span class="inline-block w-3 h-3 bg-emerald-500 rounded-full animate-pulse"></span>
-      <h1 class="text-2xl font-black tracking-wide text-slate-900">Live Kitchen Orders</h1>
-    </div>
-    
-    <div class="flex items-center gap-3 flex-wrap">
+  <!-- TOP HEADER (compact: saari settings hamburger menu ke andar) -->
+  <div class="relative mb-4 border-b border-slate-200 bg-white px-3 py-2 rounded-2xl shadow-xs flex items-center gap-3">
+    <button id="btnMenu" onclick="toggleTopMenu()" title="Menu" class="bg-slate-800 hover:bg-slate-700 text-white rounded-lg w-10 h-10 flex flex-col items-center justify-center gap-1 shrink-0">
+      <span class="block w-5 h-0.5 bg-white"></span>
+      <span class="block w-5 h-0.5 bg-white"></span>
+      <span class="block w-5 h-0.5 bg-white"></span>
+    </button>
+    <span class="inline-block w-3 h-3 bg-emerald-500 rounded-full animate-pulse"></span>
+    <h1 class="text-xl font-black tracking-wide text-slate-900 flex-1">Live Kitchen Orders</h1>
+    <span id="pendingCount" class="bg-indigo-600 text-white font-bold px-3 py-1.5 rounded-lg text-sm shadow-2xs">0 Pending</span>
+
+    <div id="topMenuPanel" class="hidden absolute left-0 top-full mt-2 z-40 w-80 bg-white border border-slate-200 rounded-2xl shadow-2xl p-3 flex flex-col gap-3">
       <!-- CARD SIZE SCROLLER -->
-      <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg shadow-2xs">
-        <span class="text-xs font-bold text-slate-600 flex items-center gap-1">
-          <span>🔍</span> <span>Size:</span>
-        </span>
-        <input 
-          type="range" 
-          id="kotSizeSlider" 
-          min="65" 
-          max="140" 
-          value="100" 
-          step="5"
-          oninput="changeKOTCardScale(this.value)"
-          class="w-24 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-orange-500"
-        />
-        <span id="lblSizePercent" class="text-[11px] font-mono font-bold text-orange-600 w-9 text-right">100%</span>
+      <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg">
+        <span class="text-xs font-bold text-slate-600 w-20 shrink-0">🔍 Card Size</span>
+        <input type="range" id="kotSizeSlider" min="65" max="140" value="100" step="5" oninput="changeKOTCardScale(this.value)" class="flex-1 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-orange-500" />
+        <span id="lblSizePercent" class="text-[11px] font-mono font-bold text-orange-600 w-10 text-right">100%</span>
         <button onclick="resetKOTCardScale()" title="Reset Size" class="text-slate-400 hover:text-slate-800 text-xs px-1 font-bold">↺</button>
       </div>
 
+      <!-- KOT FONT SIZE -->
+      <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg">
+        <span class="text-xs font-bold text-slate-600 w-20 shrink-0">🔤 KOT Font</span>
+        <input type="range" id="kotFontSlider" min="80" max="200" value="100" step="10" oninput="changeKOTFontScale(this.value)" class="flex-1 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-orange-500" />
+        <span id="lblFontPercent" class="text-[11px] font-mono font-bold text-orange-600 w-10 text-right">100%</span>
+        <button onclick="resetKOTFontScale()" title="Reset Font" class="text-slate-400 hover:text-slate-800 text-xs px-1 font-bold">↺</button>
+      </div>
+
       <!-- KDS PRINTER SETTINGS BUTTON -->
-      <button onclick="openKdsSettingsModal()" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold px-3 py-1.5 rounded-lg text-xs transition flex items-center gap-1.5 shadow-2xs">
+      <button onclick="openKdsSettingsModal()" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold px-3 py-2 rounded-lg text-xs transition flex items-center gap-1.5">
         <span>🖨️</span> <span id="lblPrinterStatus">Printer: OFF</span>
       </button>
 
       <!-- FULLSCREEN TOGGLE BUTTON -->
-      <button id="btnFullScreen" onclick="toggleFullScreen()" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold px-3 py-1.5 rounded-lg text-xs transition flex items-center gap-1.5 shadow-2xs">
+      <button id="btnFullScreen" onclick="toggleFullScreen()" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold px-3 py-2 rounded-lg text-xs transition flex items-center gap-1.5">
         <span id="fullScreenIcon">⛶</span> <span id="fullScreenText">Fullscreen</span>
       </button>
 
       <!-- AUDIO ALERT TOGGLE -->
-      <button id="btnAudioToggle" onclick="toggleAudioSetting()" class="bg-emerald-600 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition flex items-center gap-1.5 shadow-2xs">
+      <button id="btnAudioToggle" onclick="toggleAudioSetting()" class="bg-emerald-600 text-white font-bold px-3 py-2 rounded-lg text-xs transition flex items-center gap-1.5">
         <span>🔔</span> <span id="lblAudioStatus">Sound Alert Active</span>
       </button>
 
-      <span id="pendingCount" class="bg-indigo-600 text-white font-bold px-3 py-1.5 rounded-lg text-sm shadow-2xs">0 Pending</span>
-      <a href="/" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-bold text-sm transition shadow-2xs">
+      <a href="/" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-bold text-xs transition text-center">
         ← POS Counter
       </a>
     </div>
@@ -376,6 +380,7 @@
       var slider = document.getElementById('kotSizeSlider');
       if (slider) slider.value = savedScale;
       applyDynamicCardWidthAndScale(savedScale);
+      applyKOTFontScale(localStorage.getItem('kot_font_scale') || '100');
     }
 
     function changeKOTCardScale(val) {
@@ -393,6 +398,34 @@
       document.documentElement.style.setProperty('--kot-scale', numericScale);
       document.documentElement.style.setProperty('--kot-card-min-width', calculatedWidth + 'px');
     }
+
+    function changeKOTFontScale(val) {
+      applyKOTFontScale(val);
+      localStorage.setItem('kot_font_scale', val);
+    }
+
+    function applyKOTFontScale(val) {
+      var label = document.getElementById('lblFontPercent');
+      if (label) label.innerText = val + '%';
+      var slider = document.getElementById('kotFontSlider');
+      if (slider) slider.value = val;
+      document.documentElement.style.setProperty('--kot-font-scale', Number(val) / 100);
+    }
+
+    function resetKOTFontScale() { changeKOTFontScale(100); }
+
+    function toggleTopMenu(force) {
+      var panel = document.getElementById('topMenuPanel');
+      if (!panel) return;
+      var open = (typeof force === 'boolean') ? force : panel.classList.contains('hidden');
+      panel.classList.toggle('hidden', !open);
+    }
+
+    document.addEventListener('click', function(e) {
+      var panel = document.getElementById('topMenuPanel');
+      var btn = document.getElementById('btnMenu');
+      if (panel && !panel.classList.contains('hidden') && !panel.contains(e.target) && !btn.contains(e.target)) toggleTopMenu(false);
+    });
 
     function resetKOTCardScale() {
       var slider = document.getElementById('kotSizeSlider');
@@ -919,7 +952,7 @@
                               <div class="kot-sub-check-box rounded flex items-center justify-center border shrink-0 transition ${isAddonDone ? 'bg-emerald-600 border-emerald-600 text-white text-[10px]' : 'border-slate-300 bg-white'}">
                                 ${isAddonDone ? '✓' : ''}
                               </div>
-                              <span class="text-xs font-semibold">+ ${addon.name}</span>
+                              <span class="kot-addon-text font-semibold">+ ${addon.name}</span>
                             </div>
                           `;
                         }).join('')}
