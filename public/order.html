@@ -1292,7 +1292,7 @@
       const isDel = /delivery/i.test(o.order_type);
       if (o.state === 'rejected') return { label: 'Cancelled', cls: 'bg-rose-100 text-rose-700' };
       if (o.state === 'done') return { label: isDel ? 'Delivered' : 'Picked Up', cls: 'bg-emerald-100 text-emerald-700' };
-      return { label: ['Received', 'Preparing', 'Ready'][o.step] || 'Received', cls: 'bg-indigo-100 text-indigo-700' };
+      return { label: ['Received', 'Preparing', 'Ready', 'Out for Delivery'][o.step] || 'Received', cls: 'bg-indigo-100 text-indigo-700' };
     }
 
     function openOrders() {
@@ -1410,9 +1410,10 @@
       const steps = [
         ['Order Received', 'Restaurant ke accept karne ka intezaar'],
         ['Accepted & Preparing', 'Aapka khana ban raha hai'],
-        ['Ready', isDel ? 'Delivery ke liye taiyaar' : (isTake ? 'Pickup ke liye taiyaar' : 'Serve hone wala hai')],
-        [isDel ? 'Delivered' : (isTake ? 'Picked Up' : 'Served'), 'Order complete']
+        ['Ready', isDel ? 'Delivery ke liye taiyaar' : (isTake ? 'Pickup ke liye taiyaar' : 'Serve hone wala hai')]
       ];
+      if (isDel) steps.push(['Rider Assigned • Out for Delivery', (o.rider_name ? o.rider_name + ' ' : 'Rider ') + 'aapka order le kar aa raha hai']);
+      steps.push([isDel ? 'Delivered' : (isTake ? 'Picked Up' : 'Served'), 'Order complete']);
       const card = document.getElementById('trackStatusCard');
       if (o.state === 'rejected') {
         card.innerHTML = `<div class="text-center space-y-1"><div class="text-4xl">❌</div><div class="font-black text-rose-600">Order cancel ho gaya</div><div class="text-xs text-gray-500">Restaurant ne ye order accept nahi kiya. Zyada jaankari ke liye restaurant se sampark karein.</div></div>`;

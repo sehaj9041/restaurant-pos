@@ -18,6 +18,27 @@
   </header>
   <main id="list" class="p-3 space-y-3 pb-10"></main>
 
+  <div id="payModal" class="hidden fixed inset-0 bg-black/60 z-20 flex items-end sm:items-center justify-center">
+    <div class="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 space-y-4">
+      <div class="flex justify-between items-center">
+        <div class="font-black text-gray-900">Payment collect karein <span id="payOrd" class="text-orange-600"></span></div>
+        <button onclick="closePay()" class="text-gray-400 text-xl font-black">✕</button>
+      </div>
+      <div class="bg-rose-50 rounded-2xl p-3 text-center">
+        <div class="text-xs font-bold text-rose-600">Customer se lene hain</div>
+        <div id="payDue" class="text-4xl font-black text-rose-700"></div>
+      </div>
+      <div class="grid grid-cols-3 gap-2" id="payModes"></div>
+      <div id="cashBox" class="space-y-2">
+        <label class="text-xs font-bold text-gray-500">Customer ne diye (₹)</label>
+        <input id="payReceived" type="number" inputmode="decimal" oninput="updateChange()" class="w-full border-2 border-gray-300 rounded-xl px-3 py-3 text-xl font-black">
+        <div id="payChips" class="flex flex-wrap gap-2"></div>
+        <div id="payChange" class="text-center rounded-2xl p-3 font-black text-lg bg-gray-100 text-gray-500">Change: ₹0</div>
+      </div>
+      <button id="payConfirm" onclick="confirmPay()" class="w-full bg-orange-500 disabled:bg-gray-300 text-white py-3.5 rounded-2xl font-black">✔ Payment mili • Delivered</button>
+    </div>
+  </div>
+
   <script>
     var token = new URLSearchParams(location.search).get('t') || '';
     var knownIds = null, audioCtx = null;
@@ -54,7 +75,7 @@
       var phone = String(o.customer_phone || '').replace(/[^0-9+]/g, '');
       return '<div class="bg-white rounded-2xl shadow p-4 space-y-3 ' + (done ? 'opacity-60' : 'border-2 border-orange-300') + '">' +
         '<div class="flex justify-between items-start"><div><div class="text-[11px] font-bold text-gray-500">Token ' + esc(o.token_no || '-') + '</div><div class="font-black text-gray-900">ORD-' + o.id + '</div></div>' +
-        (done ? '<span class="text-xs font-black bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full">Delivered ✓</span>' :
+        (done ? '<span class="text-xs font-black bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full">Delivered ✓' + (o.rider_cash_received ? ' • ₹' + o.rider_cash_received + ' mile' : '') + '</span>' :
           (o.to_collect > 0 ? '<span class="text-sm font-black bg-rose-100 text-rose-700 px-2.5 py-1 rounded-full">Collect ₹' + o.to_collect + '</span>' : '<span class="text-xs font-black bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full">Paid ✓</span>')) + '</div>' +
         '<div class="text-sm text-gray-800"><div class="font-bold">👤 ' + esc(o.customer_name || 'Guest') + '</div>' +
         '<div class="text-gray-600 mt-0.5">📍 ' + (esc(o.delivery_address) || '<i>Address nahi hai</i>') + '</div></div>' +
@@ -68,7 +89,13 @@
 
     function load() {
       fetch('/api/rider/' + encodeURIComponent(token) + '/orders')
-        .then(function(r) { return r.json().then(function(d) { if (!r.ok) throw new Error(d.error || 'Error'); return d; }); })
+        .then(function(r) {
+          return r.text().then(function(t) {
+            var d; try { d = JSON.parse(t); } catch (e) { throw new Error('Is address (' + location.host + ') par POS server nahi mila. Manager se sahi rider link maangein.'); }
+            if (!r.ok) throw new Error(d.error || 'Error');
+            return d;
+          });
+        })
         .then(function(d) {
           document.getElementById('riderName').innerText = d.rider.name;
           var fresh = d.orders.filter(function(o) { return !o.delivered_at; }).map(function(o) { return o.id; });
@@ -79,6 +106,7 @@
               if ('Notification' in window && Notification.permission === 'granted') new Notification('Naya delivery order', { body: 'ORD-' + added[0] + ' assign hua hai' });
             }
           }
+          orders = d.orders;
           knownIds = fresh;
           document.getElementById('list').innerHTML = d.orders.length ? d.orders.map(card).join('') : '<p class="text-center text-gray-400 italic py-16">Abhi koi order assign nahi hai</p>';
         })
@@ -87,10 +115,65 @@
         });
     }
 
+    var orders = [], payOrder = null, payMode = 'CASH';
+
     function markDelivered(id) {
+      var o = orders.filter(function(x) { return x.id === id; })[0];
+      if (o && o.to_collect > 0) return openPay(o);
       if (!confirm('Order deliver ho gaya?')) return;
-      fetch('/api/rider/' + encodeURIComponent(token) + '/orders/' + id + '/delivered', { method: 'POST' }).then(load);
+      sendDelivered(id, {});
     }
+
+    function sendDelivered(id, body) {
+      fetch('/api/rider/' + encodeURIComponent(token) + '/orders/' + id + '/delivered', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+      }).then(function(r) { return r.json().then(function(d) { if (!r.ok) throw new Error(d.error || 'Error'); return d; }); })
+        .then(function() { closePay(); load(); })
+        .catch(function(err) { alert(err.message); });
+    }
+
+    function openPay(o) {
+      payOrder = o; payMode = 'CASH';
+      document.getElementById('payOrd').innerText = 'ORD-' + o.id;
+      document.getElementById('payDue').innerText = '₹' + o.to_collect;
+      document.getElementById('payReceived').value = '';
+      var amounts = [o.to_collect].concat([50, 100, 200, 500, 2000].filter(function(a) { return a > o.to_collect; }).slice(0, 3));
+      document.getElementById('payChips').innerHTML = amounts.map(function(a, i) {
+        return '<button onclick="setReceived(' + a + ')" class="px-3 py-1.5 rounded-full border-2 border-orange-300 text-orange-700 font-black text-sm">' + (i === 0 ? 'Exact ₹' : '₹') + a + '</button>';
+      }).join('');
+      renderModes();
+      document.getElementById('payModal').classList.remove('hidden');
+    }
+
+    function renderModes() {
+      document.getElementById('payModes').innerHTML = ['CASH', 'UPI', 'CARD'].map(function(m) {
+        return '<button onclick="setMode(\'' + m + '\')" class="py-2.5 rounded-xl font-black text-sm border-2 ' + (m === payMode ? 'bg-orange-500 text-white border-orange-600' : 'bg-white text-gray-700 border-gray-300') + '">' + m + '</button>';
+      }).join('');
+      document.getElementById('cashBox').classList.toggle('hidden', payMode !== 'CASH');
+      updateChange();
+    }
+
+    function setMode(m) { payMode = m; renderModes(); }
+    function setReceived(a) { document.getElementById('payReceived').value = a; updateChange(); }
+
+    function updateChange() {
+      if (!payOrder) return;
+      var btn = document.getElementById('payConfirm'), box = document.getElementById('payChange');
+      if (payMode !== 'CASH') { btn.disabled = false; return; }
+      var rec = parseFloat(document.getElementById('payReceived').value);
+      var ok = isFinite(rec) && rec >= payOrder.to_collect;
+      btn.disabled = !ok;
+      if (!isFinite(rec) || rec <= 0) { box.className = 'text-center rounded-2xl p-3 font-black text-lg bg-gray-100 text-gray-500'; box.innerText = 'Change: ₹0'; }
+      else if (!ok) { box.className = 'text-center rounded-2xl p-3 font-black text-lg bg-rose-100 text-rose-700'; box.innerText = '₹' + (Math.round((payOrder.to_collect - rec) * 100) / 100) + ' kam hain'; }
+      else { box.className = 'text-center rounded-2xl p-3 font-black text-2xl bg-emerald-100 text-emerald-800'; box.innerText = 'Wapas dein: ₹' + (Math.round((rec - payOrder.to_collect) * 100) / 100); }
+    }
+
+    function confirmPay() {
+      if (!payOrder) return;
+      sendDelivered(payOrder.id, { mode: payMode, received: parseFloat(document.getElementById('payReceived').value) });
+    }
+
+    function closePay() { payOrder = null; document.getElementById('payModal').classList.add('hidden'); }
 
     load();
     setInterval(load, 8000);

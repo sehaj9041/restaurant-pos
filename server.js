@@ -755,7 +755,7 @@ app.get('/api/rider/:token/orders', async (req, res) => {
     const rider = await riderByToken(req.params.token);
     if (!rider) return res.status(401).json({ error: 'Invalid rider link' });
     const orders = await dbAllAsync(`SELECT id, token_no, customer_name, customer_phone, total, COALESCE(paid_amount, 0) AS paid_amount, payment_mode, status,
-        delivery_address, delivery_lat, delivery_lng, created_at, delivered_at FROM orders
+        delivery_address, delivery_lat, delivery_lng, created_at, delivered_at, rider_cash_received, rider_cash_change FROM orders
       WHERE rider_id = ? AND UPPER(status) NOT IN ('VOID', 'MERGED')
         AND (delivered_at IS NULL OR delivered_at >= NOW() - INTERVAL '3 hours')
       ORDER BY delivered_at IS NOT NULL, id DESC`, [rider.id]);
@@ -770,8 +770,29 @@ app.post('/api/rider/:token/orders/:id/delivered', async (req, res) => {
   try {
     const rider = await riderByToken(req.params.token);
     if (!rider) return res.status(401).json({ error: 'Invalid rider link' });
-    await new Promise((ok, no) => db.run("UPDATE orders SET delivered_at = NOW() WHERE id = ? AND rider_id = ?", [Number(req.params.id), rider.id], e => e ? no(e) : ok()));
-    res.json({ success: true });
+    const id = Number(req.params.id);
+    const o = (await dbAllAsync("SELECT total, COALESCE(paid_amount, 0) AS paid_amount, status, delivered_at FROM orders WHERE id = ? AND rider_id = ?", [id, rider.id]))[0];
+    if (!o) return res.status(404).json({ error: 'Order nahi mila' });
+    if (o.delivered_at) return res.json({ success: true });
+    const due = Math.max(0, Number(o.total) - Number(o.paid_amount));
+    const run = (sql, params) => new Promise((ok, no) => db.run(sql, params, e => e ? no(e) : ok()));
+    if (due <= 0) {
+      await run("UPDATE orders SET delivered_at = NOW() WHERE id = ?", [id]);
+      return res.json({ success: true, change: 0 });
+    }
+    // Payment still pending: the rider collects it now
+    const mode = String((req.body || {}).mode || '').trim().toUpperCase();
+    if (!['CASH', 'UPI', 'CARD'].includes(mode)) return res.status(400).json({ error: 'Payment mode chunein' });
+    let received = due, change = 0;
+    if (mode === 'CASH') {
+      received = Number((req.body || {}).received);
+      if (!isFinite(received) || received < due) return res.status(400).json({ error: 'Cash kam hai. ₹' + due + ' lene hain' });
+      change = Math.round((received - due) * 100) / 100;
+    }
+    await run(`UPDATE orders SET payment_mode = ?, paid_amount = total, delivered_at = NOW(), rider_cash_received = ?, rider_cash_change = ?,
+        status = CASE WHEN UPPER(status) = 'KOT_DONE' THEN 'DISPATCHED' ELSE status END WHERE id = ?`, [mode, received, change, id]);
+    console.log(`[RIDER] Order #${id} delivered by ${rider.name}: ${mode} ₹${received} received, ₹${change} change, due was ₹${due}`);
+    res.json({ success: true, change });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -1222,13 +1243,19 @@ function shapeTrackOrder(o, items) {
   else if (st === 'KOT_DONE') step = 2;
   else if (['DISPATCHED', 'COMPLETED', 'DUE_PENDING'].includes(st)) { step = 3; state = 'done'; }
   else if (['VOID', 'CANCELLED'].includes(st)) { state = 'rejected'; }
+  // Delivery orders have one extra stage: rider assigned = out for delivery (step 3), delivered = step 4
+  const isDelivery = /delivery/i.test(o.order_type || '');
+  if (isDelivery && state !== 'rejected') {
+    if (state === 'done' || o.delivered_at) { step = 4; state = 'done'; }
+    else if (o.rider_name) step = 3;
+  }
   return {
-    id: o.id, order_type: o.order_type, state, step,
+    id: o.id, order_type: o.order_type, state, step, rider_name: o.rider_name || '',
     subtotal: o.subtotal, gst: o.gst, total: o.total, created_at: o.created_at,
     delivery_address: o.delivery_address || '', items: items || []
   };
 }
-const ORDER_TRACK_COLS = 'id, order_type, table_no, status, subtotal, gst, total, created_at, delivery_address, customer_phone';
+const ORDER_TRACK_COLS = 'id, order_type, table_no, status, subtotal, gst, total, created_at, delivery_address, customer_phone, rider_name, delivered_at';
 
 // One order: needs order id + the phone number used while ordering.
 app.get('/api/track/:id', (req, res) => {
