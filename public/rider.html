@@ -63,16 +63,21 @@
       document.getElementById('btnInstall').classList.remove('hidden');
     });
     window.addEventListener('appinstalled', function() { installEvt = null; document.getElementById('btnInstall').classList.add('hidden'); });
-    if (!isStandalone && isIOS) document.addEventListener('DOMContentLoaded', function() { document.getElementById('btnInstall').classList.remove('hidden'); });
+    var inAppBrowser = /WhatsApp|FBAN|FBAV|Instagram|Line\//i.test(navigator.userAgent);
+    // Always offer the button unless already running as an installed app (not every browser fires beforeinstallprompt)
+    if (!isStandalone) document.addEventListener('DOMContentLoaded', function() { document.getElementById('btnInstall').classList.remove('hidden'); });
 
     function installApp() {
       if (installEvt) {
         installEvt.prompt();
         installEvt.userChoice.then(function() { installEvt = null; document.getElementById('btnInstall').classList.add('hidden'); });
+      } else if (inAppBrowser) {
+        alert('Ye link WhatsApp ke andar khula hai. Upar ke menu (⋮) se "Open in Chrome" chunein, phir wahan se Install App dabayein.');
       } else if (isIOS) {
         alert('iPhone par install karne ke liye: Safari mein Share button dabayein, phir "Add to Home Screen" chunein.');
       } else {
-        alert('Browser menu (⋮) kholkar "Install app" ya "Add to Home screen" chunein.');
+        var sw = navigator.serviceWorker && navigator.serviceWorker.controller ? 'ready' : 'abhi load ho raha hai';
+        alert('Chrome menu (⋮) kholkar "Install app" ya "Add to Home screen" chunein.\n\nAgar option na dikhe: page ko ek baar refresh karke 10 second ruk kar dobara ye button dabayein.\n\n(Check: secure=' + window.isSecureContext + ', service worker=' + sw + ')');
       }
     }
 

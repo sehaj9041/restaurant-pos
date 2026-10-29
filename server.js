@@ -84,7 +84,7 @@ app.get('/rider-manifest.json', async (req, res) => {
   res.setHeader('Cache-Control', 'no-cache');
   res.json({
     name: 'Delivery Rider' + (rider ? ' - ' + rider.name : ''), short_name: 'Rider',
-    start_url: '/rider.html?t=' + t, scope: '/rider.html', display: 'standalone',
+    id: '/rider.html?t=' + t, start_url: '/rider.html?t=' + t, scope: '/', display: 'standalone', prefer_related_applications: false,
     background_color: '#f3f4f6', theme_color: '#f97316',
     icons: ['192x192', '512x512'].map(sizes => ({ src, sizes, type, purpose: 'any' }))
   });
