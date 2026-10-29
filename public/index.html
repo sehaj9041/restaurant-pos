@@ -87,9 +87,6 @@
             <button onclick="toggleSidebarMenu(false); showDueOrdersView();" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
               <span class="text-sm">📒</span> Due / Khata
             </button>
-            <button onclick="protectedNav('/report.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
-              <span class="text-sm">💸</span> Expenses
-            </button>
           </div>
         </div>
 
@@ -103,9 +100,6 @@
         <div>
           <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Reports & Support</div>
           <div class="space-y-0.5">
-            <button onclick="protectedNav('/report.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
-              <span class="text-sm">📊</span> Analytics & Reports
-            </button>
             <button onclick="protectedNav('/admin.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
               <span class="text-sm">⚙️</span> Settings
             </button>
@@ -163,10 +157,6 @@
         ✕ Cancel
       </button>
 
-      <button onclick="protectedNav('/report.html')" class="p-1.5 hover:bg-gray-100 text-gray-600 rounded-lg relative transition">
-        <span class="text-base">🔔</span>
-        <span id="topNotificationBadge" class="absolute top-0.5 right-0.5 bg-orange-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">1</span>
-      </button>
 
       <button onclick="showOrderHistoryView()" class="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 flex items-center gap-1 text-gray-700 transition">
         <span>📋</span> All Orders
@@ -477,6 +467,27 @@
     </div>
   </div>
 
+  <!-- ================= RIDER ASSIGNMENT MODAL ================= -->
+  <div id="modalAssignRider" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-5 space-y-3 border border-gray-200">
+      <div class="flex justify-between items-center border-b pb-2">
+        <div>
+          <h3 class="font-black text-gray-900 text-sm">Assign Rider</h3>
+          <p id="riderModalOrderLabel" class="text-[10px] text-gray-500"></p>
+        </div>
+        <button onclick="closeRiderModal()" class="text-gray-400 hover:text-black font-bold text-base">✕</button>
+      </div>
+      <div id="riderModalList" class="space-y-1.5 max-h-60 overflow-y-auto pr-1"></div>
+      <div class="flex gap-1.5 pt-2 border-t">
+        <input id="riderNewName" type="text" placeholder="Naya rider ka naam" class="flex-1 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs">
+        <button onclick="addAndAssignRider()" class="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg text-xs font-black">+ Add & Assign</button>
+      </div>
+      <div class="text-right">
+        <button onclick="closeRiderModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-xl text-xs font-bold transition">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ================= TABLE ASSIGNMENT SELECTION MODAL ================= -->
   <div id="modalAssignTableSelect" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-5 space-y-4 border border-gray-200">
@@ -769,7 +780,7 @@
               <span class="text-[10px] font-bold text-gray-400 block uppercase leading-none">Selected Table</span>
               <span id="posDisplayTable" class="font-black text-gray-800 text-xs">Select Order Type</span>
             </div>
-            <button onclick="closePOSOrderView()" class="text-orange-600 font-bold text-xs underline">Change</button>
+            <button onclick="changePOSTable()" class="text-orange-600 font-bold text-xs underline">Change</button>
           </div>
 
           <div class="grid grid-cols-3 gap-1.5">
@@ -2042,6 +2053,78 @@
       window.open(`https://wa.me/91${cleanPhone.slice(-10)}?text=${text}`, '_blank');
     }
 
+    // ================= RIDER ASSIGNMENT =================
+    var riderAssignOrderId = null;
+
+    function promptAssignRider(orderId) {
+      riderAssignOrderId = orderId;
+      var ord = allActiveOrders.find(function(o) { return o.id === orderId; }) || {};
+      document.getElementById('riderModalOrderLabel').innerText = 'ORD-' + orderId + (ord.rider_name ? ' • Abhi: ' + ord.rider_name : '');
+      document.getElementById('riderNewName').value = '';
+      document.getElementById('modalAssignRider').classList.remove('hidden');
+      fetch('/api/riders').then(function(r) { return r.json(); }).then(function(riders) {
+        var list = document.getElementById('riderModalList');
+        if (!Array.isArray(riders) || !riders.length) {
+          list.innerHTML = '<p class="text-xs text-gray-400 italic text-center py-4">Koi rider saved nahi hai. Neeche naam daalein.</p>';
+        } else {
+          list.innerHTML = riders.map(function(r) {
+            var cur = r.name === ord.rider_name;
+            return `<div class="flex gap-1.5">
+              <button onclick="assignRider(${JSON.stringify(r.name).replace(/"/g, '&quot;')})" class="flex-1 text-left px-3 py-2 rounded-xl border-2 text-xs font-black ${cur ? 'bg-emerald-500 text-white border-emerald-600' : 'bg-sky-50 border-sky-200 hover:bg-sky-500 hover:text-white text-sky-900'} transition">🛵 ${escCartText(r.name)}${cur ? ' ✓' : ''}</button>
+              <button onclick="shareRiderLink('${r.token}', ${JSON.stringify(r.name).replace(/"/g, '&quot;')}, '${(r.phone || '').replace(/[^0-9]/g, '')}')" title="Rider ka phone link bhejein (WhatsApp)" class="px-2 text-xs">📲</button>
+              <button onclick="removeRider(${r.id})" title="Rider list se hatayein" class="px-2 text-gray-300 hover:text-red-600 text-xs">🗑</button>
+            </div>`;
+          }).join('');
+        }
+        if (ord.rider_name) list.innerHTML += '<button onclick="assignRider(\'\')" class="w-full mt-1 text-[11px] font-bold text-rose-600 underline">Rider hatayein</button>';
+      }).catch(function() {});
+    }
+
+    function shareRiderLink(token, name, phone) {
+      var url = location.origin + '/rider.html?t=' + token;
+      var text = encodeURIComponent('Namaste ' + name + ', aapke delivery orders yahan dikhenge: ' + url);
+      if (!phone) {
+        phone = (prompt(name + ' ka WhatsApp number (10-digit):', '') || '').replace(/[^0-9]/g, '');
+        if (phone.length < 10) return;
+      }
+      window.open('https://wa.me/91' + phone.slice(-10) + '?text=' + text, '_blank');
+    }
+
+    function closeRiderModal() {
+      riderAssignOrderId = null;
+      document.getElementById('modalAssignRider').classList.add('hidden');
+    }
+
+    function assignRider(name) {
+      if (!riderAssignOrderId) return;
+      fetch('/api/orders/' + riderAssignOrderId + '/assign-rider', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rider_name: name })
+      })
+      .then(function(res) { return res.json().then(function(d) { if (!res.ok) throw new Error(d.error || 'Rider assign failed'); }); })
+      .then(function() { closeRiderModal(); fetchActiveOrders(); })
+      .catch(function(err) { alert('Rider assign nahi hua: ' + err.message); });
+    }
+
+    function addAndAssignRider() {
+      var name = document.getElementById('riderNewName').value.trim();
+      if (!name) return alert('Rider ka naam daalein');
+      fetch('/api/riders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name })
+      })
+      .then(function(res) { return res.json().then(function(d) { if (!res.ok) throw new Error(d.error || 'Rider add failed'); }); })
+      .then(function() { assignRider(name); })
+      .catch(function(err) { alert(err.message); });
+    }
+
+    async function removeRider(id) {
+      if (!(await uiConfirm('Is rider ko list se hata dein? (purane orders par naam rahega)', {title:'Remove rider?', okText:'Remove'}))) return;
+      fetch('/api/riders/' + id, { method: 'DELETE' }).then(function() { if (riderAssignOrderId) promptAssignRider(riderAssignOrderId); });
+    }
+
     // ================= TABLE ASSIGNMENT MODAL LOGIC =================
     var activeAssignOrderId = null;
 
@@ -2050,15 +2133,115 @@
       var grid = document.getElementById('assignTableModalGrid');
       
       grid.innerHTML = defaultFloorTables.map(function(t) {
+        var busy = tableActiveOrders(t.id)[0];
         return `
-          <button onclick="confirmAssignTable('${t.id}')" class="p-3 bg-emerald-50 hover:bg-emerald-500 hover:text-white border-2 border-emerald-300 rounded-xl font-black text-emerald-950 text-xs transition flex flex-col items-center justify-center shadow-2xs">
+          <button onclick="confirmAssignTable('${t.id}')" class="p-3 ${busy ? 'bg-orange-50 border-orange-300 hover:bg-orange-500' : 'bg-emerald-50 border-emerald-300 hover:bg-emerald-500'} hover:text-white border-2 rounded-xl font-black text-emerald-950 text-xs transition flex flex-col items-center justify-center shadow-2xs">
             <span class="text-sm">${t.label}</span>
-            <span class="text-[9px] opacity-80 font-normal">${t.seats} seats</span>
+            <span class="text-[9px] opacity-80 font-normal">${busy ? 'Running ₹' + busy.total + ' • add to bill' : t.seats + ' seats'}</span>
           </button>
         `;
       }).join('');
 
       document.getElementById('modalAssignTableSelect').classList.remove('hidden');
+    }
+
+    // ---- Move a running table to another free table / print its bill ----
+    function tableActiveOrders(tableId) {
+      var t = defaultFloorTables.find(function(x) { return x.id === tableId; }) || { id: tableId, label: tableId };
+      return allActiveOrders.filter(function(o) {
+        var type = (o.order_type || '').toLowerCase();
+        return type.includes('dine') && o.table_no && (o.table_no.toUpperCase() === t.id || o.table_no === t.label);
+      });
+    }
+
+    function promptMoveTable(fromId) {
+      var anyFree = defaultFloorTables.some(function(t) { return t.id !== fromId && !tableActiveOrders(t.id).length; });
+      if (!anyFree) return alert('Koi free table nahi hai!');
+      // Same order/positions as the floor plan; busy tables (and the source) stay in place but disabled
+      document.getElementById('assignTableModalGrid').innerHTML = defaultFloorTables.map(function(t) {
+        var isSource = t.id === fromId, isBusy = !isSource && tableActiveOrders(t.id).length > 0;
+        if (isSource || isBusy) {
+          return `
+          <div class="p-3 bg-gray-100 border-2 border-gray-200 rounded-xl font-black text-gray-400 text-xs flex flex-col items-center justify-center cursor-not-allowed">
+            <span class="text-sm">${t.label}</span>
+            <span class="text-[9px] font-normal">${isSource ? 'Current' : 'Occupied'}</span>
+          </div>`;
+        }
+        return `
+          <button onclick="confirmMoveTable('${fromId}', '${t.id}')" class="p-3 bg-emerald-50 hover:bg-emerald-500 hover:text-white border-2 border-emerald-300 rounded-xl font-black text-emerald-950 text-xs transition flex flex-col items-center justify-center shadow-2xs">
+            <span class="text-sm">${t.label}</span>
+            <span class="text-[9px] opacity-80 font-normal">${t.seats} seats</span>
+          </button>
+        `;
+      }).join('');
+      document.getElementById('modalAssignTableSelect').classList.remove('hidden');
+    }
+
+    function confirmMoveTable(fromId, toId) {
+      fetch('/api/tables/move', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: fromId, to: toId })
+      })
+      .then(function(res) { return res.json().then(function(d) { if (!res.ok) throw new Error(d.error || 'Move failed'); return d; }); })
+      .then(function() { closeAssignTableModal(); fetchActiveOrders(); })
+      .catch(function(err) { alert(err.message); });
+    }
+
+    // ---- Move one cart item (full line or part of its qty) to another table ----
+    async function promptMoveItem(idx) {
+      var item = posCart[idx];
+      if (!item || !editingActiveOrderId) return;
+      var qty = 1;
+      if (item.qty > 1) {
+        var v = await uiPrompt('Kitni qty move karni hai? (max ' + item.qty + ')', String(item.qty), { title: 'Move item', okText: 'Next' });
+        if (v === null) return;
+        qty = Math.floor(Number(v));
+        if (!(qty >= 1 && qty <= item.qty)) return alert('Qty 1 se ' + item.qty + ' ke beech rakhein');
+      }
+      // Same order/positions as the floor plan; running tables are allowed (item gets added to that table's bill)
+      document.getElementById('assignTableModalGrid').innerHTML = defaultFloorTables.map(function(t) {
+        if (t.id === selectedPOSTableId) {
+          return `
+          <div class="p-3 bg-gray-100 border-2 border-gray-200 rounded-xl font-black text-gray-400 text-xs flex flex-col items-center justify-center cursor-not-allowed">
+            <span class="text-sm">${t.label}</span>
+            <span class="text-[9px] font-normal">Current</span>
+          </div>`;
+        }
+        var busy = tableActiveOrders(t.id)[0];
+        return `
+          <button onclick="confirmMoveItem(${idx}, ${qty}, '${t.id}')" class="p-3 ${busy ? 'bg-orange-50 border-orange-300 hover:bg-orange-500' : 'bg-emerald-50 border-emerald-300 hover:bg-emerald-500'} hover:text-white border-2 rounded-xl font-black text-emerald-950 text-xs transition flex flex-col items-center justify-center shadow-2xs">
+            <span class="text-sm">${t.label}</span>
+            <span class="text-[9px] opacity-80 font-normal">${busy ? 'Running ₹' + busy.total : t.seats + ' seats'}</span>
+          </button>
+        `;
+      }).join('');
+      document.getElementById('modalAssignTableSelect').classList.remove('hidden');
+    }
+
+    function confirmMoveItem(idx, qty, toId) {
+      var item = posCart[idx];
+      if (!item) return;
+      fetch('/api/orders/' + editingActiveOrderId + '/move-item', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: item.name, price: item.price, user_note: item.user_note || '', pack_flip: item.pack_flip ? 1 : 0, qty: qty, to_table: toId })
+      })
+      .then(function(res) { return res.json().then(function(d) { if (!res.ok) throw new Error(d.error || 'Move failed'); return d; }); })
+      .then(function() {
+        closeAssignTableModal();
+        var type = currentPOSOrderType, table = selectedPOSTableId;
+        return fetch('/api/orders/active').then(function(r) { return r.json(); }).then(function(orders) {
+          allActiveOrders = orders || [];
+          openPOSOrderView(type, table);
+          fetchActiveOrders();
+        });
+      })
+      .catch(function(err) { alert(err.message); });
+    }
+
+    function printTableReceipt(tableId) {
+      tableActiveOrders(tableId).forEach(function(o) { actionPrintReceipt(o.id); });
     }
 
     function closeAssignTableModal() {
@@ -2074,13 +2257,14 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ table_no: tableNo })
       })
-      .then(function(res) { return res.json(); })
+      .then(function(res) { return res.json().then(function(d) { if (!res.ok) throw new Error(d.error || 'Table assign failed'); return d; }); })
       .then(function(data) {
         closeAssignTableModal();
         fetchActiveOrders();
       })
       .catch(function(err) {
         console.error('Table assign error:', err);
+        alert('Table assign nahi hua: ' + err.message);
       });
     }
 
@@ -2457,7 +2641,9 @@
       Promise.all([
         fetch('/api/settings').then(function(r) { return r.json(); }).catch(function() { return {}; }),
         fetch('/api/settings/config').then(function(r) { return r.json(); }).catch(function() { return {}; })
-      ]).then(function(a) { billCfg = { s: a[0] || {}, c: (a[1] && a[1].receipt) || {} }; });
+      ]).then(function(a) { billCfg = { s: a[0] || {}, c: (a[1] && a[1].receipt) || {} };
+        if (billCfg.c.logo) { var ti = document.querySelector('link[rel=apple-touch-icon]') || document.head.appendChild(Object.assign(document.createElement('link'), { rel: 'apple-touch-icon' })); ti.href = billCfg.c.logo; }
+      });
     }
     loadBillCfg();
     setInterval(loadBillCfg, 60000);
@@ -2552,7 +2738,11 @@
           <div onclick="openPOSOrderView('Dine-In', '${t.id}')" class="cursor-pointer border-2 rounded-2xl p-3 flex flex-col items-center justify-center transition-all duration-150 transform active:scale-95 shadow-xs ${isBusy ? 'bg-orange-50 border-orange-400 text-orange-950 shadow-orange-100' : 'bg-emerald-50 border-emerald-300 text-emerald-950 hover:border-emerald-500'}">
             <span class="font-black text-sm tracking-wide">${t.label}</span>
             <span class="text-[10px] font-bold opacity-75">${t.seats} seats</span>
-            ${isBusy ? `<span class="text-xs font-black text-orange-700 mt-1">₹${busy.total}</span>${timerStripHTML(busy, true)}` : `<span class="text-[9px] text-emerald-600 font-bold mt-1">Free</span>`}
+            ${isBusy ? `<span class="text-xs font-black text-orange-700 mt-1">₹${busy.total}</span>${timerStripHTML(busy, true)}
+            <div class="flex gap-1 mt-1.5 w-full">
+              <button onclick="event.stopPropagation(); promptMoveTable('${t.id}')" class="flex-1 px-1 py-1 bg-white hover:bg-orange-100 text-orange-700 rounded border border-orange-300 text-[10px] font-black shadow-2xs">⇄ Move</button>
+              <button onclick="event.stopPropagation(); printTableReceipt('${t.id}')" class="flex-1 px-1 py-1 bg-white hover:bg-gray-100 text-gray-700 rounded border border-gray-300 text-[10px] font-black shadow-2xs">🖨 Print</button>
+            </div>` : `<span class="text-[9px] text-emerald-600 font-bold mt-1">Free</span>`}
           </div>
         `;
       }).join('');
@@ -2645,6 +2835,7 @@
                 <button onclick="actionPrintKOT(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🍳</span> KOT</button>
                 <button onclick="actionPrintReceipt(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🖨</span> Print Receipt</button>
                 <button onclick="actionEditAddItems(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>+</span> Add Item</button>
+              ${/delivery/i.test(o.order_type || '') ? `<button onclick="promptAssignRider(${o.id})" class="px-2 py-1 ${o.rider_name ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-sky-50 hover:bg-sky-100 text-sky-800 border-sky-300'} rounded border font-black flex items-center gap-1 shadow-2xs"><span>🛵</span> ${o.rider_name ? escCartText(o.rider_name) + (o.delivered_at ? ' ✓ Delivered' : '') + ' • Change' : 'Assign Rider'}</button>` : ''}
                 <button onclick="actionSettlePopup(${o.id})" class="px-2.5 py-1 bg-orange-100 hover:bg-orange-200 text-orange-800 rounded border border-orange-300 font-black shadow-2xs">Settle</button>
                 <button onclick="actionMarkDue(${o.id})" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded border border-rose-300 font-black shadow-2xs">Mark Due</button>
               </div>
@@ -2709,6 +2900,7 @@
               <button onclick="actionPrintKOT(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🍳</span> KOT</button>
               <button onclick="actionPrintReceipt(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🖨</span> Print Receipt</button>
               <button onclick="actionEditAddItems(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>+</span> Add Item</button>
+              ${/delivery/i.test(o.order_type || '') ? `<button onclick="promptAssignRider(${o.id})" class="px-2 py-1 ${o.rider_name ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-sky-50 hover:bg-sky-100 text-sky-800 border-sky-300'} rounded border font-black flex items-center gap-1 shadow-2xs"><span>🛵</span> ${o.rider_name ? escCartText(o.rider_name) + (o.delivered_at ? ' ✓ Delivered' : '') + ' • Change' : 'Assign Rider'}</button>` : ''}
               <button onclick="actionSettlePopup(${o.id})" class="px-2.5 py-1 bg-orange-100 hover:bg-orange-200 text-orange-800 rounded border border-orange-300 font-black shadow-2xs">Settle</button>
               <button onclick="actionMarkDue(${o.id})" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded border border-rose-300 font-black shadow-2xs">Mark Due</button>
             </div>
@@ -3133,6 +3325,7 @@
             <div class="flex items-center gap-1.5 mt-1.5 ml-1 flex-wrap">
               <button onclick="editCartItemNote(${idx})" class="px-2 py-0.5 rounded border text-[11px] font-bold ${item.user_note ? 'bg-yellow-100 border-yellow-400 text-yellow-800' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-100'}">📝 ${item.user_note ? 'Edit Note' : 'Note'}</button>
               ${packToggleBtnHTML(item, idx)}
+              ${(editingActiveOrderId && selectedPOSTableId && /dine/i.test(currentPOSOrderType || '')) ? `<button onclick="promptMoveItem(${idx})" class="px-2 py-0.5 rounded border text-[11px] font-bold bg-white border-orange-300 text-orange-700 hover:bg-orange-50">⇄ Move</button>` : ''}
             </div>
             ${item.user_note ? `<div class="mt-1 ml-1 text-[11px] font-semibold text-yellow-800 bg-yellow-50 border border-yellow-200 rounded px-1.5 py-0.5 break-words">📝 ${escCartText(item.user_note)}</div>` : ''}
           </div>
@@ -3210,15 +3403,24 @@
       };
 
       if (editingActiveOrderId) {
-        fetch('/api/orders/' + editingActiveOrderId, {
+        var saveOrderId = editingActiveOrderId;
+        // Table changed to one that already has a running bill -> merge this order into it after saving
+        var mergeTable = (currentPOSOrderType === 'Dine-In' && selectedPOSTableId && tableActiveOrders(selectedPOSTableId).some(function(o) { return o.id !== saveOrderId; })) ? selectedPOSTableId : '';
+        fetch('/api/orders/' + saveOrderId, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         }).then(function(r){ return r.json().catch(function(){ return {}; }); }).then(function(d){
           payload.token_no = d && d.token_no;
-          if (paymentCollectedNow && billCfg.c.auto_print_bill !== false) dispatchDirectPrintReceipt(editingActiveOrderId, payload, calc);
-          closePOSOrderView();
-        });
+          if (paymentCollectedNow && billCfg.c.auto_print_bill !== false) dispatchDirectPrintReceipt(saveOrderId, payload, calc);
+          if (!mergeTable) return;
+          return fetch('/api/orders/' + saveOrderId + '/assign-table', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ table_no: mergeTable })
+          }).then(function(r) { return r.json().then(function(x) { if (!r.ok) throw new Error(x.error || 'Table merge failed'); }); });
+        }).catch(function(err) { alert('Table assign nahi hua: ' + err.message); })
+        .then(function() { fetchActiveOrders(); closePOSOrderView(); });
       } else {
         fetch('/api/orders', {
           method: 'POST',
@@ -3496,14 +3698,6 @@
       })
       .then(function(res) { return res.json(); })
       .then(function(data) {
-        if (data.valid && targetUrl === '/report.html') {
-          // Report ka asli URL secret hai; sirf sahi PIN par server se milta hai
-          sessionStorage.setItem('ownerPin', pin);
-          fetch('/api/report-location', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: pin }) })
-            .then(function(r) { return r.json(); })
-            .then(function(loc) { if (loc.path) window.location.href = loc.path; });
-          return;
-        }
         if (data.valid) window.location.href = targetUrl;
         else alert('Galat PIN!');
       }).catch(function(){});
@@ -3600,6 +3794,30 @@
 
       renderPOSCart();
       renderPOSItems();
+    }
+
+    // "Change" next to Selected Table: pick a table in the modal for the order currently in the cart
+    function changePOSTable() {
+      if (!editingActiveOrderId && !currentPOSOrderType) return closePOSOrderView();
+      if (!/dine/i.test(currentPOSOrderType || '')) setPOSOrderType('Dine-In');
+      activeAssignOrderId = null;
+      document.getElementById('assignTableModalGrid').innerHTML = defaultFloorTables.map(function(t) {
+        var busy = tableActiveOrders(t.id).filter(function(o) { return o.id !== editingActiveOrderId; })[0];
+        var cur = t.id === selectedPOSTableId;
+        return `
+          <button onclick="setPOSTableFromModal('${t.id}')" class="p-3 ${cur ? 'bg-orange-500 text-white border-orange-600' : busy ? 'bg-orange-50 border-orange-300 hover:bg-orange-500' : 'bg-emerald-50 border-emerald-300 hover:bg-emerald-500'} hover:text-white border-2 rounded-xl font-black text-emerald-950 text-xs transition flex flex-col items-center justify-center shadow-2xs">
+            <span class="text-sm">${t.label}</span>
+            <span class="text-[9px] opacity-80 font-normal">${cur ? 'Selected' : busy ? 'Running ₹' + busy.total : t.seats + ' seats'}</span>
+          </button>
+        `;
+      }).join('');
+      document.getElementById('modalAssignTableSelect').classList.remove('hidden');
+    }
+
+    function setPOSTableFromModal(tableId) {
+      selectedPOSTableId = tableId;
+      closeAssignTableModal();
+      document.getElementById('posDisplayTable').innerText = tableId + ' • ' + currentPOSOrderType;
     }
 
     function closePOSOrderView() {

@@ -59,6 +59,20 @@ app.post('/api/report-location', (req, res) => {
 
 app.get('/' + REPORT_SECRET, (req, res) => res.sendFile(path.join(__dirname, 'private', 'report.html')));
 
+// PWA manifest: install icon = receipt logo from Settings (falls back to static public/manifest.json icons)
+app.get('/manifest.json', async (req, res, next) => {
+  try {
+    const m = JSON.parse(require('fs').readFileSync(path.join(__dirname, 'public', 'manifest.json'), 'utf8'));
+    const logo = ((await getSettingsConfig()).receipt || {}).logo;
+    if (logo) {
+      const type = /\.webp$/i.test(logo) ? 'image/webp' : /\.jpe?g$/i.test(logo) ? 'image/jpeg' : 'image/png';
+      m.icons = ['192x192', '512x512'].map(sizes => ({ src: logo, sizes, type, purpose: 'any' }));
+    }
+    res.setHeader('Content-Type', 'application/manifest+json');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.send(JSON.stringify(m));
+  } catch (e) { next(); }
+});
 // Static directories setup for public and uploads
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/uploads/:name', (req, res, next) => {
@@ -640,25 +654,207 @@ app.post('/api/orders/:id/reject', (req, res) => {
 });
 
 // Table Assign API Route
-app.post('/api/orders/:id/assign-table', (req, res) => {
-  const orderId = req.params.id;
-  const { table_no } = req.body;
+// If the chosen table already has a running dine-in order, this order's items (and any amount already paid)
+// are merged into that bill instead of creating a second order on the same table.
+app.post('/api/orders/:id/assign-table', async (req, res) => {
+  const run = (sql, params) => new Promise((resolve, reject) => db.run(sql, params, function (e) { e ? reject(e) : resolve(this); }));
+  try {
+    const orderId = Number(req.params.id);
+    const tableNo = String((req.body || {}).table_no || '').trim();
+    const src = (await dbAllAsync('SELECT * FROM orders WHERE id = ?', [orderId]))[0];
+    if (!src) return res.status(404).json({ error: 'Order nahi mila' });
 
-  db.run(
-    "UPDATE orders SET table_no = ?, status = 'RUNNING_TABLE' WHERE id = ?",
-    [table_no || '', orderId],
-    (err) => {
-      if (err) return res.status(500).json({ error: err.message });
-      console.log(`[TABLE ASSIGNED] Order #${orderId} assigned to Table ${table_no} and moved to active queue.`);
-      res.json({ success: true });
+    const target = tableNo ? (await dbAllAsync(
+      `SELECT * FROM orders WHERE id <> ? AND LOWER(order_type) LIKE '%dine%' AND UPPER(status) IN ('RUNNING_TABLE', 'KOT_DONE') AND UPPER(table_no) = ? ORDER BY id LIMIT 1`,
+      [orderId, tableNo.toUpperCase()]))[0] : null;
+
+    if (!target) {
+      await run("UPDATE orders SET table_no = ?, status = 'RUNNING_TABLE' WHERE id = ?", [tableNo, orderId]);
+      console.log(`[TABLE ASSIGNED] Order #${orderId} assigned to Table ${tableNo} and moved to active queue.`);
+      return res.json({ success: true });
     }
-  );
+
+    // merge into the running bill (identical lines are combined)
+    const sameLine = (i, j) => i.name === j.name && Number(i.price) === Number(j.price) && String(i.user_note || '') === String(j.user_note || '') && (Number(i.pack_flip) ? 1 : 0) === (Number(j.pack_flip) ? 1 : 0);
+    const tItems = await dbAllAsync('SELECT * FROM order_items WHERE order_id = ?', [target.id]);
+    const sItems = await dbAllAsync('SELECT * FROM order_items WHERE order_id = ?', [orderId]);
+    for (const it of sItems) {
+      const twin = tItems.find(t => sameLine(t, it));
+      if (twin) { await run('UPDATE order_items SET qty = qty + ? WHERE id = ?', [it.qty, twin.id]); twin.qty = Number(twin.qty) + Number(it.qty); }
+      else await run('INSERT INTO order_items (order_id, name, qty, price, notes, user_note, pack_flip) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [target.id, it.name, it.qty, it.price, it.notes || '', it.user_note || '', Number(it.pack_flip) ? 1 : 0]);
+    }
+    const rows = await dbAllAsync('SELECT price, qty FROM order_items WHERE order_id = ?', [target.id]);
+    const subtotal = rows.reduce((sum, i) => sum + Number(i.price) * Number(i.qty), 0);
+    const gst = Math.round(subtotal * 5 / 100);
+    const paid = (Number(target.paid_amount) || 0) + (Number(src.paid_amount) || 0);
+    // new items need cooking, so the merged bill goes back to the kitchen (RUNNING_TABLE)
+    await run(`UPDATE orders SET subtotal = ?, gst = ?, total = ?, paid_amount = ?, status = 'RUNNING_TABLE',
+        customer_name = COALESCE(NULLIF(customer_name, ''), ?), customer_phone = COALESCE(NULLIF(customer_phone, ''), ?),
+        payment_mode = CASE WHEN ?::numeric > 0 AND COALESCE(payment_mode, '') IN ('', 'UNPAID') THEN ? ELSE payment_mode END
+      WHERE id = ?`,
+      [subtotal, gst, Math.round(subtotal + gst), paid, src.customer_name || '', src.customer_phone || '', Number(src.paid_amount) || 0, src.payment_mode || 'UNPAID', target.id]);
+    // keep the original row for the record, but out of every list and total
+    await run("DELETE FROM order_items WHERE order_id = ?", [orderId]);
+    await run("UPDATE orders SET status = 'MERGED', payment_mode = 'MERGED', subtotal = 0, gst = 0, total = 0, paid_amount = 0, table_no = ? WHERE id = ?", [tableNo, orderId]);
+    console.log(`[TABLE MERGED] Order #${orderId} merged into order #${target.id} on Table ${tableNo}.`);
+    res.json({ success: true, merged_into: target.id });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ---------- Delivery riders ----------
+app.get('/api/riders', async (req, res) => {
+  try {
+    const rows = await dbAllAsync("SELECT id, name, phone, token FROM riders WHERE active = TRUE ORDER BY name", []);
+    for (const r of rows) {
+      if (!r.token) {
+        r.token = crypto.randomBytes(12).toString('hex');
+        await new Promise(ok => db.run("UPDATE riders SET token = ? WHERE id = ?", [r.token, r.id], () => ok()));
+      }
+    }
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/riders', (req, res) => {
+  const name = String((req.body || {}).name || '').trim().slice(0, 60);
+  const phone = String((req.body || {}).phone || '').trim().slice(0, 20);
+  if (!name) return res.status(400).json({ error: 'Rider ka naam daalein' });
+  db.get("SELECT id FROM riders WHERE active = TRUE AND LOWER(name) = ?", [name.toLowerCase()], (e0, dup) => {
+    if (dup) return res.json({ success: true, id: dup.id });
+    db.run("INSERT INTO riders (name, phone, token) VALUES (?, ?, ?)", [name, phone, crypto.randomBytes(12).toString('hex')], function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ success: true });
+    });
+  });
+});
+app.delete('/api/riders/:id', (req, res) => {
+  db.run("UPDATE riders SET active = FALSE WHERE id = ?", [req.params.id], (err) => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+});
+// Assign (or change / clear with an empty name) the rider of an order
+app.post('/api/orders/:id/assign-rider', async (req, res) => {
+  try {
+    const rider = String((req.body || {}).rider_name || '').trim().slice(0, 60);
+    const r = rider ? (await dbAllAsync("SELECT id FROM riders WHERE active = TRUE AND name = ? LIMIT 1", [rider]))[0] : null;
+    await new Promise((ok, no) => db.run("UPDATE orders SET rider_name = ?, rider_id = ?, delivered_at = NULL WHERE id = ?", [rider, r ? r.id : null, req.params.id], e => e ? no(e) : ok()));
+    console.log(`[RIDER] Order #${req.params.id} -> ${rider || '(none)'}`);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ---------- Rider phone interface (rider.html) ----------
+// Each rider has a private token link. It only exposes the orders assigned to that rider.
+async function riderByToken(token) {
+  const t = String(token || '');
+  if (t.length < 16) return null;
+  return (await dbAllAsync("SELECT id, name, phone FROM riders WHERE active = TRUE AND token = ?", [t]))[0] || null;
+}
+app.get('/api/rider/:token/orders', async (req, res) => {
+  try {
+    const rider = await riderByToken(req.params.token);
+    if (!rider) return res.status(401).json({ error: 'Invalid rider link' });
+    const orders = await dbAllAsync(`SELECT id, token_no, customer_name, customer_phone, total, COALESCE(paid_amount, 0) AS paid_amount, payment_mode, status,
+        delivery_address, delivery_lat, delivery_lng, created_at, delivered_at FROM orders
+      WHERE rider_id = ? AND UPPER(status) NOT IN ('VOID', 'MERGED')
+        AND (delivered_at IS NULL OR delivered_at >= NOW() - INTERVAL '3 hours')
+      ORDER BY delivered_at IS NOT NULL, id DESC`, [rider.id]);
+    for (const o of orders) {
+      o.items = await dbAllAsync('SELECT name, qty, user_note FROM order_items WHERE order_id = ?', [o.id]);
+      o.to_collect = Math.max(0, Number(o.total) - Number(o.paid_amount));
+    }
+    res.json({ rider: { name: rider.name }, orders });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/rider/:token/orders/:id/delivered', async (req, res) => {
+  try {
+    const rider = await riderByToken(req.params.token);
+    if (!rider) return res.status(401).json({ error: 'Invalid rider link' });
+    await new Promise((ok, no) => db.run("UPDATE orders SET delivered_at = NOW() WHERE id = ? AND rider_id = ?", [Number(req.params.id), rider.id], e => e ? no(e) : ok()));
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Move a running table's orders to another (free) table
+app.post('/api/tables/move', (req, res) => {
+  const from = String((req.body || {}).from || '').trim().toUpperCase();
+  const to = String((req.body || {}).to || '').trim().toUpperCase();
+  if (!from || !to || from === to) return res.status(400).json({ error: 'Invalid tables' });
+  const live = "LOWER(order_type) LIKE '%dine%' AND UPPER(status) IN ('RUNNING_TABLE', 'KOT_DONE')";
+  db.get(`SELECT COUNT(*) AS n FROM orders WHERE ${live} AND UPPER(table_no) = ?`, [to], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (row && Number(row.n) > 0) return res.status(409).json({ error: 'Target table is already occupied' });
+    db.run(`UPDATE orders SET table_no = ? WHERE ${live} AND UPPER(table_no) = ?`, [to, from], function (err2) {
+      if (err2) return res.status(500).json({ error: err2.message });
+      console.log(`[TABLE MOVED] ${from} -> ${to} (${this.changes} order(s))`);
+      res.json({ success: true, changes: this.changes });
+    });
+  });
+});
+
+// Move (part of) one item line from a running table's order to another table (existing running order or a new one).
+// Bill totals of both orders are recalculated (5% GST, same as the POS cart). The kitchen is NOT re-notified.
+app.post('/api/orders/:id/move-item', async (req, res) => {
+  const run = (sql, params) => new Promise((resolve, reject) => db.run(sql, params, function (e) { e ? reject(e) : resolve(this); }));
+  try {
+    const srcId = Number(req.params.id);
+    const { name, price, user_note, pack_flip } = req.body || {};
+    const toTable = String((req.body || {}).to_table || '').trim().toUpperCase();
+    const reqQty = Math.floor(Number((req.body || {}).qty) || 1);
+    if (!srcId || !name || !toTable || reqQty < 1) return res.status(400).json({ error: 'Invalid request' });
+
+    const src = (await dbAllAsync('SELECT * FROM orders WHERE id = ?', [srcId]))[0];
+    if (!src || !['RUNNING_TABLE', 'KOT_DONE'].includes(String(src.status).toUpperCase())) return res.status(404).json({ error: 'Running order nahi mila' });
+    if (String(src.table_no || '').trim().toUpperCase() === toTable) return res.status(400).json({ error: 'Same table select kiya hai' });
+    if (Number(src.paid_amount) > 0) return res.status(409).json({ error: 'Is order ka payment ho chuka hai, item move nahi ho sakta' });
+
+    const srcItems = await dbAllAsync('SELECT * FROM order_items WHERE order_id = ? ORDER BY id', [srcId]);
+    const sameLine = (i) => i.name === name && Number(i.price) === Number(price) && String(i.user_note || '') === String(user_note || '') && (Number(i.pack_flip) ? 1 : 0) === (pack_flip ? 1 : 0);
+    const line = srcItems.find(sameLine);
+    if (!line) return res.status(404).json({ error: 'Item abhi save nahi hua - pehle order save karein' });
+    const moveQty = Math.min(reqQty, Number(line.qty));
+    const srcLeft = srcItems.reduce((s, i) => s + Number(i.qty), 0) - moveQty;
+    if (srcLeft < 1) return res.status(409).json({ error: 'Aakhri item move nahi ho sakta - poora table move karne ke liye "Move" table button use karein' });
+
+    const live = "LOWER(order_type) LIKE '%dine%' AND UPPER(status) IN ('RUNNING_TABLE', 'KOT_DONE')";
+    let target = (await dbAllAsync(`SELECT * FROM orders WHERE ${live} AND UPPER(table_no) = ? ORDER BY id LIMIT 1`, [toTable]))[0];
+    let targetId;
+    if (target) {
+      targetId = target.id;
+    } else {
+      const ins = await dbAllAsync(`INSERT INTO orders (order_type, table_no, status, payment_mode, subtotal, discount, gst, total, paid_amount, accepted_at, ready_at, token_no)
+        VALUES ('Dine-In', ?, ?, 'UNPAID', 0, 0, 0, 0, 0, ?, ?, COALESCE((SELECT MAX(token_no) FROM orders WHERE created_at::date = CURRENT_DATE), 0) + 1) RETURNING id`,
+        [toTable, src.status, src.accepted_at, src.ready_at]);
+      targetId = ins[0].id;
+    }
+
+    // take from source
+    if (moveQty >= Number(line.qty)) await run('DELETE FROM order_items WHERE id = ?', [line.id]);
+    else await run('UPDATE order_items SET qty = qty - ? WHERE id = ?', [moveQty, line.id]);
+    // add to target (merge into an identical line)
+    const tItems = await dbAllAsync('SELECT * FROM order_items WHERE order_id = ?', [targetId]);
+    const twin = tItems.find(sameLine);
+    if (twin) await run('UPDATE order_items SET qty = qty + ? WHERE id = ?', [moveQty, twin.id]);
+    else await run('INSERT INTO order_items (order_id, name, qty, price, notes, user_note, pack_flip) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [targetId, line.name, moveQty, line.price, line.notes || '', line.user_note || '', Number(line.pack_flip) ? 1 : 0]);
+
+    for (const oid of [srcId, targetId]) {
+      const rows = await dbAllAsync('SELECT price, qty FROM order_items WHERE order_id = ?', [oid]);
+      const subtotal = rows.reduce((s, i) => s + Number(i.price) * Number(i.qty), 0);
+      const gst = Math.round(subtotal * 5 / 100);
+      await run('UPDATE orders SET subtotal = ?, gst = ?, total = ? WHERE id = ?', [subtotal, gst, Math.round(subtotal + gst), oid]);
+    }
+    console.log(`[ITEM MOVED] ${moveQty} x ${name}: order #${srcId} -> table ${toTable} (order #${targetId})`);
+    res.json({ success: true, target_order_id: targetId });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // 7. ACTIVE ORDERS
 app.get('/api/orders/active', (req, res) => {
   const query = `
-    SELECT id, token_no, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount,
+    SELECT id, token_no, order_type, table_no, customer_name, customer_phone, rider_name, delivered_at, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount,
            GREATEST(0, total - COALESCE(paid_amount, 0)) as remaining_balance,
            -- Order timers: kitchen time = accepted (or placed) -> KDS done; still running while the kitchen works on it
            GREATEST(0, EXTRACT(EPOCH FROM ((CASE WHEN ready_at IS NOT NULL AND UPPER(status) = 'KOT_DONE' THEN ready_at ELSE NOW() END) - COALESCE(accepted_at, created_at)))) AS kitchen_sec,
@@ -859,7 +1055,7 @@ app.get('/api/orders/history', (req, res) => {
        OR UPPER(payment_mode) IN ('CASH', 'UPI', 'CARD', 'PAID')
        OR COALESCE(paid_amount, 0) >= total
     ORDER BY id DESC
-    LIMIT 200
+    LIMIT 50
   `;
 
   db.all(query, [], async (err, orders) => {

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>Rider Orders</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <header class="bg-orange-500 text-white px-4 py-3 sticky top-0 z-10 shadow">
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="text-[11px] opacity-90 font-bold uppercase">Delivery Rider</div>
+        <div id="riderName" class="font-black text-lg leading-tight">...</div>
+      </div>
+      <button onclick="enableAlerts()" id="btnAlerts" class="bg-white/20 px-3 py-1.5 rounded-lg text-xs font-black">🔔 Alerts</button>
+    </div>
+  </header>
+  <main id="list" class="p-3 space-y-3 pb-10"></main>
+
+  <script>
+    var token = new URLSearchParams(location.search).get('t') || '';
+    var knownIds = null, audioCtx = null;
+
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+    function beep() {
+      try {
+        audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+        [0, 0.25, 0.5].forEach(function(t) {
+          var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+          o.frequency.value = 880; o.connect(g); g.connect(audioCtx.destination);
+          g.gain.setValueAtTime(0.3, audioCtx.currentTime + t); g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + t + 0.2);
+          o.start(audioCtx.currentTime + t); o.stop(audioCtx.currentTime + t + 0.2);
+        });
+        if (navigator.vibrate) navigator.vibrate([300, 150, 300]);
+      } catch (e) {}
+    }
+
+    function enableAlerts() {
+      beep(); // a tap is needed before the browser allows sound
+      if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+      document.getElementById('btnAlerts').innerText = '🔔 On';
+    }
+
+    function mapsUrl(o) {
+      if (o.delivery_lat && o.delivery_lng) return 'https://www.google.com/maps/dir/?api=1&destination=' + o.delivery_lat + ',' + o.delivery_lng;
+      return 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(o.delivery_address || '');
+    }
+
+    function card(o) {
+      var done = !!o.delivered_at;
+      var items = (o.items || []).map(function(i) { return esc(i.qty + ' x ' + i.name) + (i.user_note ? ' <i class="text-yellow-700">(' + esc(i.user_note) + ')</i>' : ''); }).join('<br>');
+      var phone = String(o.customer_phone || '').replace(/[^0-9+]/g, '');
+      return '<div class="bg-white rounded-2xl shadow p-4 space-y-3 ' + (done ? 'opacity-60' : 'border-2 border-orange-300') + '">' +
+        '<div class="flex justify-between items-start"><div><div class="text-[11px] font-bold text-gray-500">Token ' + esc(o.token_no || '-') + '</div><div class="font-black text-gray-900">ORD-' + o.id + '</div></div>' +
+        (done ? '<span class="text-xs font-black bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full">Delivered ✓</span>' :
+          (o.to_collect > 0 ? '<span class="text-sm font-black bg-rose-100 text-rose-700 px-2.5 py-1 rounded-full">Collect ₹' + o.to_collect + '</span>' : '<span class="text-xs font-black bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full">Paid ✓</span>')) + '</div>' +
+        '<div class="text-sm text-gray-800"><div class="font-bold">👤 ' + esc(o.customer_name || 'Guest') + '</div>' +
+        '<div class="text-gray-600 mt-0.5">📍 ' + (esc(o.delivery_address) || '<i>Address nahi hai</i>') + '</div></div>' +
+        '<div class="text-xs text-gray-600 bg-gray-50 rounded-lg p-2">' + items + '</div>' +
+        (done ? '' : '<div class="grid grid-cols-2 gap-2">' +
+          ((o.delivery_address || o.delivery_lat) ? '<a href="' + mapsUrl(o) + '" target="_blank" class="bg-sky-500 text-white text-center py-3 rounded-xl font-black text-sm">🧭 Navigate</a>' : '<span class="bg-gray-200 text-gray-400 text-center py-3 rounded-xl font-black text-sm">🧭 No location</span>') +
+          (phone ? '<a href="tel:' + phone + '" class="bg-emerald-500 text-white text-center py-3 rounded-xl font-black text-sm">📞 Call</a>' : '<span class="bg-gray-200 text-gray-400 text-center py-3 rounded-xl font-black text-sm">📞 No phone</span>') +
+          '<button onclick="markDelivered(' + o.id + ')" class="col-span-2 bg-orange-500 text-white py-3 rounded-xl font-black text-sm">✔ Delivered</button></div>') +
+        '</div>';
+    }
+
+    function load() {
+      fetch('/api/rider/' + encodeURIComponent(token) + '/orders')
+        .then(function(r) { return r.json().then(function(d) { if (!r.ok) throw new Error(d.error || 'Error'); return d; }); })
+        .then(function(d) {
+          document.getElementById('riderName').innerText = d.rider.name;
+          var fresh = d.orders.filter(function(o) { return !o.delivered_at; }).map(function(o) { return o.id; });
+          if (knownIds) {
+            var added = fresh.filter(function(id) { return knownIds.indexOf(id) < 0; });
+            if (added.length) {
+              beep();
+              if ('Notification' in window && Notification.permission === 'granted') new Notification('Naya delivery order', { body: 'ORD-' + added[0] + ' assign hua hai' });
+            }
+          }
+          knownIds = fresh;
+          document.getElementById('list').innerHTML = d.orders.length ? d.orders.map(card).join('') : '<p class="text-center text-gray-400 italic py-16">Abhi koi order assign nahi hai</p>';
+        })
+        .catch(function(err) {
+          document.getElementById('list').innerHTML = '<p class="text-center text-red-600 font-bold py-16">' + esc(err.message) + '</p>';
+        });
+    }
+
+    function markDelivered(id) {
+      if (!confirm('Order deliver ho gaya?')) return;
+      fetch('/api/rider/' + encodeURIComponent(token) + '/orders/' + id + '/delivered', { method: 'POST' }).then(load);
+    }
+
+    load();
+    setInterval(load, 8000);
+  </script>
+</body>
+</html>
