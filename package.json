@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "build:css": "npx --yes tailwindcss@3 -c tailwind/tailwind.config.js -i tailwind/input.css -o public/kitchen.css --minify",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
