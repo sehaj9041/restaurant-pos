@@ -277,7 +277,7 @@ while ($true) {
                         $printData = "";
                         for ($t = 1; $t -le $tokenCount; $t++) {
                             $printData += "$INIT$CENTER$BOLD_ON" + "ITEM READY ($t/$tokenCount)`n" + "$BOLD_OFF" + "Order #$($job.order_id) | $($job.table)`n--------------------------------`n$LEFT$BIG_ON" + "1 x $($job.item_name)`n$BIG_OFF";
-                            if ($job.addons) { $printData += "+ $($job.addons)`n" };
+                            foreach ($a in @($job.addons)) { if ($a) { $printData += "+ $a`n" } };
                             $printData += "--------------------------------`n$CENTER" + "Time: $($job.time)`n`n`n$CUT";
                         }
 

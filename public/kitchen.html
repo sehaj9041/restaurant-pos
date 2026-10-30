@@ -257,13 +257,8 @@
       var printerCfg = getKdsPrinterConfig();
       if (!printerCfg.enabled || !printerCfg.ip) return;
 
-      var cleanName = (item.name || '').trim();
-      var addonsStr = '';
-      if (item.addons && Array.isArray(item.addons)) {
-        addonsStr = item.addons.map(a => a.name).join(', ');
-      } else if (item.notes) {
-        addonsStr = item.notes;
-      }
+      var addonsArr = extractAddonsList(item).map(function(a){ return a.name; });
+      var cleanName = (addonsArr.length > 0 && !(item.addons && item.addons.length) ? splitNameAddons(item.name).base : (item.name || '')).trim() || (item.name || '').trim();
 
       var printPayload = {
         printer_ip: printerCfg.ip,
@@ -271,7 +266,7 @@
         table: order.table_no || order.order_type,
         qty: item.qty,
         item_name: cleanName,
-        addons: addonsStr,
+        addons: addonsArr,
         time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
       };
 

@@ -62,7 +62,7 @@ function buildPrintPayload(job) {
       `Order #${job.order_id} | ${job.table}\n` +
       "--------------------------------\n" +
       LEFT + BOLD_ON + `1 x ${job.item_name}\n` + BOLD_OFF +
-      (job.addons ? `+ ${job.addons}\n` : '') +
+      [].concat(job.addons || []).filter(Boolean).map(a => `+ ${a}\n`).join('') +
       "--------------------------------\n" +
       CENTER + `Time: ${job.time}\n\n\n` +
       CUT;
