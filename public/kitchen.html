@@ -511,17 +511,55 @@
       localStorage.setItem('kot_ready_dispatch', JSON.stringify(store));
     }
 
+    // Known add-on names (for single-add-on items like "Burger (Spicy Mayo Dip)")
+    var knownAddonNames = {};
+    fetch('/api/addon-groups').then(function(r){ return r.json(); }).then(function(groups){
+      (groups || []).forEach(function(g){
+        try { JSON.parse(g.items || '[]').forEach(function(a){ if (a && a.name) knownAddonNames[a.name.trim().toLowerCase()] = true; }); } catch (e) {}
+      });
+    }).catch(function(){});
+
+    // Server stores add-ons inside the name: "Base (Add1, Add2(small), Add3)".
+    // Split the trailing " (...)" group on top-level commas into base name + add-ons.
+    function splitNameAddons(rawName) {
+      var name = (rawName || '').trim();
+      if (name.charAt(name.length - 1) !== ')') return { base: name, addons: [] };
+      var depth = 0, open = -1;
+      for (var i = name.length - 1; i >= 0; i--) {
+        var ch = name.charAt(i);
+        if (ch === ')') depth++;
+        else if (ch === '(') { depth--; if (depth === 0) { open = i; break; } }
+      }
+      if (open <= 0 || name.charAt(open - 1) !== ' ') return { base: name, addons: [] };
+      var inner = name.slice(open + 1, name.length - 1), parts = [], cur = '';
+      depth = 0;
+      for (var j = 0; j < inner.length; j++) {
+        var c = inner.charAt(j);
+        if (c === '(') depth++;
+        else if (c === ')') depth--;
+        if (c === ',' && depth === 0) { parts.push(cur.trim()); cur = ''; } else cur += c;
+      }
+      parts.push(cur.trim());
+      parts = parts.filter(function(x){ return x.length > 0; });
+      var known = parts.length > 0 && parts.every(function(x){ return knownAddonNames[x.toLowerCase()]; });
+      if (parts.length < 2 && !known) return { base: name, addons: [] };
+      return { base: name.slice(0, open).trim(), addons: parts.map(function(x){ return { name: x }; }) };
+    }
+
     // Helper to get unified addons list for any item without duplication
     function extractAddonsList(item) {
       var addonsList = [];
-      if (item.addons && Array.isArray(item.addons)) {
+      if (item.addons && Array.isArray(item.addons) && item.addons.length > 0) {
         addonsList = item.addons;
-      } else if (item.notes && item.notes.trim() !== '') {
-        var parts = item.notes.split(',');
-        addonsList = parts.map(function(p) {
-          var clean = p.trim().replace(/\s*\(\+?₹?[0-9]+\)\s*$/, '');
-          return { name: clean };
-        }).filter(function(a){ return a.name.length > 0; });
+      } else {
+        addonsList = splitNameAddons(item.name).addons;
+        if (addonsList.length === 0 && item.notes && item.notes.trim() !== '') {
+          var parts = item.notes.split(',');
+          addonsList = parts.map(function(p) {
+            var clean = p.trim().replace(/\s*\(\+?₹?[0-9]+\)\s*$/, '');
+            return { name: clean };
+          }).filter(function(a){ return a.name.length > 0; });
+        }
       }
       return addonsList;
     }
@@ -916,7 +954,7 @@
                 var badgeTag = persistentBadges[rowKey];
 
                 var addonsList = extractAddonsList(item);
-                var cleanBaseName = (item.name || '').trim();
+                var cleanBaseName = (addonsList.length > 0 && !(item.addons && item.addons.length) ? splitNameAddons(item.name).base : (item.name || '')).trim() || (item.name || '').trim();
 
                 return `
                   <div class="border-b border-slate-100 pb-1.5">
