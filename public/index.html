@@ -12,6 +12,14 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
+  <script>
+    // Auto-fit: saved scale wins, otherwise shrink UI on small screens
+    (function () {
+      var v = parseFloat(localStorage.getItem('pos_ui_scale'));
+      if (!(v >= 0.6 && v <= 1.2)) v = window.innerWidth < 1100 ? 0.85 : 1;
+      document.documentElement.style.setProperty('--ui-scale', v);
+    })();
+  </script>
   <script src="/ui-dialogs.js"></script>
   <script src="/html2canvas.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -21,13 +29,17 @@
     ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
     ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     
+    /* Screen-fit: UI scale (set from sidebar, saved per machine) */
+    html { height: 100%; zoom: var(--ui-scale, 1); }
+    body { height: 100%; }
+    @media (max-width: 1100px) { header { padding-left: .5rem; padding-right: .5rem; } }
     .floor-dots {
       background-size: 24px 24px;
       background-image: radial-gradient(circle, #e2e8f0 1.2px, transparent 1.2px);
     }
   </style>
 </head>
-<body class="bg-[#f8fafc] text-gray-800 font-sans h-screen flex flex-col overflow-hidden select-none relative">
+<body class="bg-[#f8fafc] text-gray-800 font-sans flex flex-col overflow-hidden select-none relative">
 
   <iframe id="silentPrintFrame" style="position:fixed;right:0;bottom:0;width:0;height:0;border:0;"></iframe>
 
@@ -47,7 +59,7 @@
         <button onclick="toggleSidebarMenu(false)" class="p-1 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition">✕</button>
       </div>
 
-      <div class="overflow-y-auto max-h-[calc(100vh-130px)] p-2 space-y-3">
+      <div class="overflow-y-auto max-h-[calc(100%-130px)] p-2 space-y-3">
         <div>
           <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">Overview</div>
           <button onclick="toggleSidebarMenu(false); showActiveOrdersView();" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
@@ -95,6 +107,12 @@
           <button onclick="protectedNav('/customers.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
             <span class="text-sm">👥</span> Customers (CRM)
           </button>
+          <button onclick="protectedNav('/staff.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+            <span class="text-sm">🧑‍🍳</span> Staff & Payroll
+          </button>
+          <a href="/punch.html" target="_blank" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+            <span class="text-sm">🕒</span> Staff Punch Screen
+          </a>
         </div>
 
         <div>
@@ -105,6 +123,15 @@
             </button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <div class="px-3 py-2 border-t border-gray-200 flex items-center justify-between text-[11px] font-bold text-gray-500">
+      <span>🔍 Screen Size</span>
+      <div class="flex items-center gap-1">
+        <button onclick="changeUiScale(-0.05)" class="w-6 h-6 rounded border border-gray-200 hover:bg-gray-100">−</button>
+        <button onclick="changeUiScale(0)" id="uiScaleLabel" title="Reset" class="px-1.5 h-6 rounded border border-gray-200 hover:bg-gray-100 min-w-[42px]">100%</button>
+        <button onclick="changeUiScale(0.05)" class="w-6 h-6 rounded border border-gray-200 hover:bg-gray-100">+</button>
       </div>
     </div>
 
@@ -138,7 +165,7 @@
       </div>
     </div>
 
-    <div class="flex items-center gap-2">
+    <div class="flex items-center gap-2 flex-wrap justify-end min-w-0">
       <div class="flex items-center gap-1.5 bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-full text-xs font-bold text-gray-700">
         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
         <span>Sehaj</span>
@@ -733,12 +760,12 @@
 
   <!-- ================= VIEW 2: FULL 3-COLUMN POS BILLING SCREEN ================= -->
   <div id="viewPOSOrderScreen" class="flex-1 flex overflow-hidden hidden bg-white">
-    <div class="w-48 border-r border-gray-200 bg-white flex flex-col overflow-y-auto shrink-0">
+    <div class="w-32 lg:w-40 xl:w-48 border-r border-gray-200 bg-white flex flex-col overflow-y-auto shrink-0">
       <div class="p-3 text-[10px] font-black uppercase text-gray-400 tracking-wider border-b">Categories</div>
       <div id="categoriesList" class="divide-y divide-gray-50 flex-1"></div>
     </div>
 
-    <div class="flex-1 flex flex-col border-r border-gray-200 overflow-hidden bg-[#fafafa]">
+    <div class="flex-1 min-w-0 flex flex-col border-r border-gray-200 overflow-hidden bg-[#fafafa]">
       <div class="p-3 bg-white border-b border-gray-200 space-y-2.5">
         <div class="flex justify-between items-center">
           <h2 class="text-xs font-black text-gray-800 tracking-tight">Step 2 — Select Items</h2>
@@ -760,11 +787,11 @@
         </div>
       </div>
 
-      <div id="posItemsGrid" class="flex-1 overflow-y-auto p-3 grid grid-cols-2 gap-2.5 content-start"></div>
+      <div id="posItemsGrid" class="flex-1 overflow-y-auto p-3 grid grid-cols-2 xl:grid-cols-3 gap-2.5 content-start"></div>
     </div>
 
     <!-- COLUMN 3: ORDER SUMMARY & PAYMENT -->
-    <div class="w-80 flex flex-col bg-white shrink-0 h-full border-l border-gray-200">
+    <div class="w-64 lg:w-72 xl:w-80 flex flex-col bg-white shrink-0 h-full border-l border-gray-200">
       <div class="hidden grid-cols-2 p-1.5 bg-gray-100 border-b text-xs font-bold shrink-0">
         <button id="tabBtnCustomer" onclick="switchRightTab('CUSTOMER')" class="py-1.5 rounded-lg transition bg-white text-orange-600 shadow-2xs font-black">Order Type & Customer</button>
         <button id="tabBtnSummary" onclick="switchRightTab('SUMMARY')" class="py-1.5 rounded-lg transition text-gray-500 hover:text-gray-900 flex items-center justify-center gap-1">
@@ -818,7 +845,7 @@
       </div>
 
       <!-- BILLING & CONTROLS -->
-      <div class="border-t border-gray-200 p-3 bg-white space-y-2 shrink-0 overflow-y-auto max-h-[50vh]">
+      <div class="border-t border-gray-200 p-3 bg-white space-y-2 shrink-0 overflow-y-auto max-h-[50%]">
         <div class="flex justify-between items-center text-xs font-bold text-gray-500">
           <span class="flex items-center gap-1 text-orange-600 cursor-pointer">🏷 Offers</span>
           <div class="flex items-center gap-1.5">
@@ -2589,6 +2616,15 @@
       var event = new Event('input', { bubbles: true });
       el.dispatchEvent(event);
     }
+
+    function changeUiScale(delta) {
+      var cur = parseFloat(document.documentElement.style.getPropertyValue('--ui-scale')) || 1;
+      var next = delta === 0 ? (window.innerWidth < 1100 ? 0.85 : 1) : Math.min(1.2, Math.max(0.6, Math.round((cur + delta) * 100) / 100));
+      document.documentElement.style.setProperty('--ui-scale', next);
+      if (delta === 0) localStorage.removeItem('pos_ui_scale'); else localStorage.setItem('pos_ui_scale', next);
+      var l = document.getElementById('uiScaleLabel'); if (l) l.textContent = Math.round(next * 100) + '%';
+    }
+    document.addEventListener('DOMContentLoaded', function () { var l = document.getElementById('uiScaleLabel'); if (l) l.textContent = Math.round((parseFloat(document.documentElement.style.getPropertyValue('--ui-scale')) || 1) * 100) + '%'; });
 
     function toggleSidebarMenu(show) {
       var drawer = document.getElementById('sidebarDrawer');

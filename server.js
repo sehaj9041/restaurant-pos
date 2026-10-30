@@ -90,6 +90,21 @@ app.get('/rider-manifest.json', async (req, res) => {
   });
 });
 
+// Kitchen display PWA manifest: installed app opens straight to kitchen.html
+app.get('/kitchen-manifest.json', async (req, res) => {
+  const logo = ((await getSettingsConfig().catch(() => ({}))).receipt || {}).logo;
+  const type = logo ? (/\.webp$/i.test(logo) ? 'image/webp' : /\.jpe?g$/i.test(logo) ? 'image/jpeg' : 'image/png') : 'image/png';
+  const src = logo || 'https://cdn-icons-png.flaticon.com/512/1046/1046784.png';
+  res.setHeader('Content-Type', 'application/manifest+json');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.json({
+    name: 'Kitchen Display (KOT)', short_name: 'Kitchen',
+    id: '/kitchen.html', start_url: '/kitchen.html', scope: '/', display: 'standalone', prefer_related_applications: false,
+    background_color: '#f1f5f9', theme_color: '#f97316',
+    icons: ['192x192', '512x512'].map(sizes => ({ src, sizes, type, purpose: 'any' }))
+  });
+});
+
 // Static directories setup for public and uploads
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/uploads/:name', (req, res, next) => {
@@ -1917,6 +1932,7 @@ app.post('/api/whatsapp/disconnect', (req, res) => {
   res.json({ success: true, message: 'Disconnected successfully' });
 });
 
+require('./staffPayroll').register(app, { dbAllAsync, checkOwnerPin });
 require('./paytmUpi').register(app, { dbAllAsync, createOrderHandler }); require('./razorpayPay').register(app, { dbAllAsync, createOrderHandler });
 const PORT = process.env.PORT || 3000;
 

@@ -3,6 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <title>Live Kitchen Display (KOT)</title>
+  <link rel="manifest" href="/kitchen-manifest.json">
+  <meta name="theme-color" content="#f97316">
+  <meta name="mobile-web-app-capable" content="yes">
+  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function () {});</script>
   <script src="/ui-dialogs.js"></script>
   <link rel="stylesheet" href="/kitchen.css">
   <style>

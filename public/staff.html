@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Staff, Attendance & Payroll</title>
+  <script src="/ui-dialogs.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>.tab-btn.active { background: #ffedd5; color: #c2410c; } th { white-space: nowrap; }</style>
+</head>
+<body class="bg-gray-50 min-h-screen font-sans text-gray-800 text-sm">
+
+  <header class="bg-white border-b px-4 py-3 flex justify-between items-center sticky top-0 z-30">
+    <h1 class="text-lg font-black">👥 Staff, Attendance & Payroll</h1>
+    <div class="flex items-center gap-2">
+      <a href="/punch.html" target="_blank" class="border px-3 py-2 rounded-lg font-bold text-xs hover:bg-gray-50">🕒 Punch Screen</a>
+      <a href="/pos" class="bg-gray-900 text-white px-4 py-2 rounded-lg font-bold text-xs hover:bg-black">← Back to POS</a>
+    </div>
+  </header>
+
+  <div class="max-w-6xl mx-auto p-4">
+    <nav class="flex gap-1 mb-4 overflow-x-auto bg-white border rounded-2xl p-1.5 text-xs font-black">
+      <button class="tab-btn px-4 py-2 rounded-xl whitespace-nowrap" data-tab="today">Aaj</button>
+      <button class="tab-btn px-4 py-2 rounded-xl whitespace-nowrap" data-tab="staff">Staff</button>
+      <button class="tab-btn px-4 py-2 rounded-xl whitespace-nowrap" data-tab="attendance">Attendance</button>
+      <button class="tab-btn px-4 py-2 rounded-xl whitespace-nowrap" data-tab="money">Advance / Bonus</button>
+      <button class="tab-btn px-4 py-2 rounded-xl whitespace-nowrap" data-tab="payroll">Payroll</button>
+    </nav>
+
+    <!-- TODAY -->
+    <section id="tab-today" class="hidden bg-white border rounded-2xl p-4">
+      <h2 class="font-black mb-3">Aaj ki attendance</h2>
+      <div class="overflow-x-auto"><table class="w-full text-left"><thead class="text-[11px] uppercase text-gray-400"><tr><th class="py-2 pr-3">Staff</th><th class="pr-3">In</th><th class="pr-3">Out</th><th class="pr-3">Hours</th><th>Source</th></tr></thead><tbody id="todayBody"></tbody></table></div>
+    </section>
+
+    <!-- STAFF -->
+    <section id="tab-staff" class="hidden bg-white border rounded-2xl p-4">
+      <div class="flex justify-between items-center mb-3"><h2 class="font-black">Staff</h2><button onclick="openStaff()" class="bg-orange-600 text-white font-black text-xs px-4 py-2 rounded-lg">+ Add Staff</button></div>
+      <div class="overflow-x-auto"><table class="w-full text-left"><thead class="text-[11px] uppercase text-gray-400"><tr><th class="py-2 pr-3">Name</th><th class="pr-3">Role</th><th class="pr-3">Phone</th><th class="pr-3">₹/hr</th><th class="pr-3">Shift hrs</th><th class="pr-3">OT ×</th><th class="pr-3">PIN</th><th class="pr-3">Status</th><th></th></tr></thead><tbody id="staffBody"></tbody></table></div>
+    </section>
+
+    <!-- ATTENDANCE -->
+    <section id="tab-attendance" class="hidden bg-white border rounded-2xl p-4">
+      <div class="flex flex-wrap gap-2 items-center mb-3">
+        <h2 class="font-black mr-auto">Attendance</h2>
+        <input type="month" id="attMonth" onchange="loadAttendance()" class="border rounded-lg px-2 py-1.5">
+        <select id="attStaff" onchange="loadAttendance()" class="border rounded-lg px-2 py-1.5"></select>
+        <button onclick="openShift()" class="bg-orange-600 text-white font-black text-xs px-4 py-2 rounded-lg">+ Add Entry</button>
+      </div>
+      <div class="overflow-x-auto"><table class="w-full text-left"><thead class="text-[11px] uppercase text-gray-400"><tr><th class="py-2 pr-3">Date</th><th class="pr-3">Staff</th><th class="pr-3">In</th><th class="pr-3">Out</th><th class="pr-3">Hours</th><th class="pr-3">Source</th><th class="pr-3">Note</th><th></th></tr></thead><tbody id="attBody"></tbody></table></div>
+      <div id="attTotal" class="text-xs font-bold text-gray-500 mt-3"></div>
+    </section>
+
+    <!-- ADVANCE / BONUS -->
+    <section id="tab-money" class="hidden grid md:grid-cols-2 gap-4">
+      <div class="bg-white border rounded-2xl p-4 space-y-3">
+        <h2 class="font-black">Advance / Udhaar</h2>
+        <div class="grid grid-cols-2 gap-2">
+          <select id="advStaff" class="border rounded-lg px-2 py-1.5 col-span-2"></select>
+          <input id="advAmount" type="number" min="0" placeholder="Amount ₹" class="border rounded-lg px-2 py-1.5">
+          <select id="advMode" class="border rounded-lg px-2 py-1.5"><option>CASH</option><option>UPI</option><option>CARD</option></select>
+          <input id="advNote" placeholder="Note" class="border rounded-lg px-2 py-1.5 col-span-2">
+          <label class="col-span-2 flex items-center gap-2 text-xs font-bold text-gray-600"><input id="advExpense" type="checkbox" checked> Expenses me bhi entry karo</label>
+          <button onclick="addAdvance()" class="col-span-2 bg-orange-600 text-white font-black text-xs px-4 py-2 rounded-lg">Advance do</button>
+        </div>
+        <div class="overflow-x-auto"><table class="w-full text-left text-xs"><thead class="text-[11px] uppercase text-gray-400"><tr><th class="py-1 pr-2">Date</th><th class="pr-2">Staff</th><th class="pr-2">Amount</th><th class="pr-2">Baaki</th><th></th></tr></thead><tbody id="advBody"></tbody></table></div>
+      </div>
+      <div class="bg-white border rounded-2xl p-4 space-y-3">
+        <h2 class="font-black">Bonus / Deduction</h2>
+        <div class="grid grid-cols-2 gap-2">
+          <input type="month" id="adjMonth" onchange="loadAdjustments()" class="border rounded-lg px-2 py-1.5">
+          <select id="adjStaff" class="border rounded-lg px-2 py-1.5"></select>
+          <select id="adjKind" class="border rounded-lg px-2 py-1.5"><option value="BONUS">Bonus / Incentive (+)</option><option value="DEDUCTION">Deduction (−)</option></select>
+          <input id="adjAmount" type="number" min="0" placeholder="Amount ₹" class="border rounded-lg px-2 py-1.5">
+          <input id="adjNote" placeholder="Note (e.g. Diwali bonus, breakage)" class="border rounded-lg px-2 py-1.5 col-span-2">
+          <button onclick="addAdjustment()" class="col-span-2 bg-orange-600 text-white font-black text-xs px-4 py-2 rounded-lg">Add</button>
+        </div>
+        <div class="overflow-x-auto"><table class="w-full text-left text-xs"><thead class="text-[11px] uppercase text-gray-400"><tr><th class="py-1 pr-2">Staff</th><th class="pr-2">Type</th><th class="pr-2">Amount</th><th class="pr-2">Note</th><th></th></tr></thead><tbody id="adjBody"></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- PAYROLL -->
+    <section id="tab-payroll" class="hidden bg-white border rounded-2xl p-4">
+      <div class="flex flex-wrap gap-2 items-center mb-3">
+        <h2 class="font-black mr-auto">Payroll</h2>
+        <input type="month" id="payMonth" onchange="loadPayroll()" class="border rounded-lg px-2 py-1.5">
+      </div>
+      <div class="overflow-x-auto"><table class="w-full text-left"><thead class="text-[11px] uppercase text-gray-400"><tr><th class="py-2 pr-3">Staff</th><th class="pr-3">Days</th><th class="pr-3">Hours (OT)</th><th class="pr-3">Rate</th><th class="pr-3">Gross</th><th class="pr-3">Bonus</th><th class="pr-3">Ded.</th><th class="pr-3">Advance</th><th class="pr-3">Net</th><th></th></tr></thead><tbody id="payBody"></tbody></table></div>
+      <div id="payTotal" class="text-xs font-bold text-gray-500 mt-3"></div>
+    </section>
+  </div>
+
+  <!-- Modal shell -->
+  <div id="modal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-md p-5 space-y-3 max-h-[90vh] overflow-y-auto"><div id="modalBody"></div></div>
+  </div>
+
+<script>
+  var PIN = sessionStorage.getItem('ownerPin') || '';
+  var STAFF = [];
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var money = function (n) { return '₹' + (Number(n) || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 }); };
+  var nowIST = function () { return new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Kolkata' }).replace(' ', 'T').slice(0, 16); };
+  var thisMonth = function () { return nowIST().slice(0, 7); };
+  var MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function fmtDT(s) { if (!s) return '—'; return s.slice(8, 10) + ' ' + MON[+s.slice(5, 7) - 1] + ' ' + s.slice(11, 16); }
+  function fmtD(s) { return s ? s.slice(8, 10) + ' ' + MON[+s.slice(5, 7) - 1] : ''; }
+
+  async function api(method, url, body) {
+    var r = await fetch(url, { method: method, headers: { 'Content-Type': 'application/json', 'x-owner-pin': PIN }, body: body ? JSON.stringify(body) : undefined });
+    var j = await r.json().catch(function () { return {}; });
+    if (r.status === 401) { sessionStorage.removeItem('ownerPin'); location.reload(); throw new Error('PIN required'); }
+    if (!r.ok) throw new Error(j.error || 'Error');
+    return j;
+  }
+  async function run(fn) { try { await fn(); } catch (e) { if (e.message !== 'PIN required') uiAlert(e.message); } }
+
+  async function ensurePin() {
+    while (!PIN) {
+      var p = await uiPrompt('Owner/Admin Security PIN daalein:', '', { title: 'Security PIN', type: 'password', okText: 'Unlock' });
+      if (!p) { location.href = '/pos'; return; }
+      var j = await fetch('/api/verify-pin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: p }) }).then(function (r) { return r.json(); });
+      if (j.valid) { PIN = p; sessionStorage.setItem('ownerPin', p); } else uiAlert('Galat PIN!');
+    }
+  }
+
+  // ---- tabs ----
+  var LOADERS = { today: loadToday, staff: renderStaff, attendance: loadAttendance, money: loadMoney, payroll: loadPayroll };
+  function showTab(t) {
+    document.querySelectorAll('section[id^=tab-]').forEach(function (s) { s.classList.toggle('hidden', s.id !== 'tab-' + t); });
+    document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.toggle('active', b.dataset.tab === t); });
+    location.hash = t;
+    run(LOADERS[t]);
+  }
+  document.querySelectorAll('.tab-btn').forEach(function (b) { b.onclick = function () { showTab(b.dataset.tab); }; });
+
+  async function loadStaff() {
+    STAFF = await api('GET', '/api/staff');
+    var opts = STAFF.filter(function (s) { return s.active; }).map(function (s) { return '<option value="' + s.id + '">' + esc(s.name) + '</option>'; }).join('');
+    ['advStaff', 'adjStaff'].forEach(function (id) { $(id).innerHTML = opts; });
+    $('attStaff').innerHTML = '<option value="">Sab staff</option>' + STAFF.map(function (s) { return '<option value="' + s.id + '">' + esc(s.name) + '</option>'; }).join('');
+  }
+
+  // ---- today ----
+  async function loadToday() {
+    var rows = await api('GET', '/api/attendance/today');
+    $('todayBody').innerHTML = rows.length ? rows.map(function (r) {
+      return '<tr class="border-t"><td class="py-2 pr-3 font-bold">' + esc(r.name) + '</td><td class="pr-3">' + fmtDT(r.in_local) + '</td><td class="pr-3">' +
+        (r.out_local ? fmtDT(r.out_local) : '<span class="text-emerald-600 font-black">Kaam par</span>') + '</td><td class="pr-3">' + (r.hours == null ? '—' : r.hours + ' h') + '</td><td class="text-xs text-gray-400">' + esc(r.source) + '</td></tr>';
+    }).join('') : '<tr><td colspan="5" class="py-6 text-center text-gray-400">Aaj koi punch nahi hua</td></tr>';
+  }
+
+  // ---- staff ----
+  function renderStaff() {
+    $('staffBody').innerHTML = STAFF.length ? STAFF.map(function (s) {
+      return '<tr class="border-t ' + (s.active ? '' : 'opacity-50') + '"><td class="py-2 pr-3 font-bold">' + esc(s.name) + '</td><td class="pr-3">' + esc(s.role) + '</td><td class="pr-3">' + esc(s.phone) +
+        '</td><td class="pr-3">' + s.hourly_rate + '</td><td class="pr-3">' + s.shift_hours + '</td><td class="pr-3">' + s.ot_multiplier + '</td><td class="pr-3">' + (s.has_pin ? '••••' : '<span class="text-red-500">Nahi</span>') +
+        '</td><td class="pr-3">' + (s.active ? 'Active' : 'Band') + '</td><td><button onclick="openStaff(' + s.id + ')" class="text-orange-600 font-bold">Edit</button></td></tr>';
+    }).join('') : '<tr><td colspan="9" class="py-6 text-center text-gray-400">Abhi koi staff nahi. "+ Add Staff" dabayein.</td></tr>';
+  }
+  function field(label, html) { return '<label class="block text-xs font-bold text-gray-500">' + label + html + '</label>'; }
+  var INP = ' class="mt-1 w-full border rounded-lg px-2 py-1.5 text-sm font-normal text-gray-800"';
+  function openModal(html) { $('modalBody').innerHTML = html; $('modal').classList.remove('hidden'); }
+  function closeModal() { $('modal').classList.add('hidden'); }
+
+  function openStaff(id) {
+    var s = STAFF.filter(function (x) { return x.id === id; })[0] || { name: '', role: '', phone: '', hourly_rate: 0, shift_hours: 8, ot_multiplier: 1.5, active: true, biometric_id: '' };
+    openModal('<h3 class="font-black text-base">' + (id ? 'Staff Edit' : 'Naya Staff') + '</h3>' +
+      field('Naam *', '<input id="f_name"' + INP + ' value="' + esc(s.name) + '">') +
+      '<div class="grid grid-cols-2 gap-2">' + field('Role', '<input id="f_role"' + INP + ' value="' + esc(s.role) + '">') + field('Phone', '<input id="f_phone"' + INP + ' value="' + esc(s.phone) + '">') +
+      field('Rate ₹ / ghanta', '<input id="f_rate" type="number" min="0"' + INP + ' value="' + s.hourly_rate + '">') + field('Shift ke ghante (iske baad OT)', '<input id="f_shift" type="number" min="1"' + INP + ' value="' + s.shift_hours + '">') +
+      field('OT multiplier', '<input id="f_ot" type="number" step="0.1" min="1"' + INP + ' value="' + s.ot_multiplier + '">') + field('Punch PIN (4-6 digit)', '<input id="f_pin" type="password" inputmode="numeric" maxlength="6" placeholder="' + (id && s.has_pin ? 'Khali = purana PIN' : '') + '"' + INP + '>') + '</div>' +
+      field('Biometric Device User ID (baad me device sync ke liye)', '<input id="f_bio"' + INP + ' value="' + esc(s.biometric_id || '') + '">') +
+      (id ? '<label class="flex items-center gap-2 text-xs font-bold text-gray-600"><input id="f_active" type="checkbox"' + (s.active ? ' checked' : '') + '> Active</label>' : '') +
+      '<div class="flex justify-end gap-2 pt-2"><button onclick="closeModal()" class="px-4 py-2 rounded-lg border font-bold text-xs">Cancel</button><button onclick="saveStaff(' + (id || 0) + ')" class="px-4 py-2 rounded-lg bg-orange-600 text-white font-black text-xs">Save</button></div>');
+  }
+  function saveStaff(id) {
+    run(async function () {
+      var b = { name: $('f_name').value, role: $('f_role').value, phone: $('f_phone').value, hourly_rate: $('f_rate').value, shift_hours: $('f_shift').value,
+        ot_multiplier: $('f_ot').value, pin: $('f_pin').value, biometric_id: $('f_bio').value };
+      if (id) { b.active = $('f_active').checked; await api('PUT', '/api/staff/' + id, b); } else await api('POST', '/api/staff', b);
+      closeModal(); await loadStaff(); renderStaff();
+    });
+  }
+
+  // ---- attendance ----
+  async function loadAttendance() {
+    var m = $('attMonth').value || thisMonth(); $('attMonth').value = m;
+    var rows = await api('GET', '/api/attendance?month=' + m + ($('attStaff').value ? '&staff_id=' + $('attStaff').value : ''));
+    var total = 0;
+    $('attBody').innerHTML = rows.length ? rows.map(function (r) {
+      total += r.hours || 0;
+      return '<tr class="border-t"><td class="py-2 pr-3">' + fmtD(r.work_date) + '</td><td class="pr-3 font-bold">' + esc(r.name) + '</td><td class="pr-3">' + fmtDT(r.in_local).slice(7) + '</td><td class="pr-3">' +
+        (r.out_local ? fmtDT(r.out_local).slice(7) : '<span class="text-red-500 font-black">Out nahi</span>') + '</td><td class="pr-3">' + (r.hours == null ? '—' : r.hours) + '</td><td class="pr-3 text-xs text-gray-400">' + esc(r.source) +
+        '</td><td class="pr-3 text-xs">' + esc(r.note) + '</td><td class="whitespace-nowrap"><button onclick=\'openShift(' + JSON.stringify(r).replace(/'/g, '&#39;') + ')\' class="text-orange-600 font-bold mr-2">Edit</button><button onclick="delShift(' + r.id + ')" class="text-red-500 font-bold">✕</button></td></tr>';
+    }).join('') : '<tr><td colspan="8" class="py-6 text-center text-gray-400">Is mahine koi entry nahi</td></tr>';
+    $('attTotal').textContent = 'Total: ' + Math.round(total * 100) / 100 + ' ghante';
+  }
+  function openShift(r) {
+    r = r || { staff_id: '', in_local: nowIST(), out_local: '', note: '' };
+    openModal('<h3 class="font-black text-base">' + (r.id ? 'Entry Edit' : 'Attendance Entry') + '</h3>' +
+      field('Staff', '<select id="s_staff"' + INP + '>' + STAFF.filter(function (s) { return s.active || s.id === r.staff_id; }).map(function (s) { return '<option value="' + s.id + '"' + (s.id === r.staff_id ? ' selected' : '') + '>' + esc(s.name) + '</option>'; }).join('') + '</select>') +
+      field('In', '<input id="s_in" type="datetime-local"' + INP + ' value="' + r.in_local + '">') + field('Out (khali = abhi kaam par)', '<input id="s_out" type="datetime-local"' + INP + ' value="' + (r.out_local || '') + '">') +
+      field('Note', '<input id="s_note"' + INP + ' value="' + esc(r.note || '') + '">') +
+      '<div class="flex justify-end gap-2 pt-2"><button onclick="closeModal()" class="px-4 py-2 rounded-lg border font-bold text-xs">Cancel</button><button onclick="saveShift(' + (r.id || 0) + ')" class="px-4 py-2 rounded-lg bg-orange-600 text-white font-black text-xs">Save</button></div>');
+  }
+  function saveShift(id) {
+    run(async function () {
+      var b = { staff_id: $('s_staff').value, in_time: $('s_in').value, out_time: $('s_out').value, note: $('s_note').value };
+      await api(id ? 'PUT' : 'POST', '/api/attendance' + (id ? '/' + id : ''), b);
+      closeModal(); await loadAttendance();
+    });
+  }
+  function delShift(id) { run(async function () { if (await uiConfirm('Ye entry delete karein?', { danger: true, okText: 'Delete' })) { await api('DELETE', '/api/attendance/' + id); await loadAttendance(); } }); }
+
+  // ---- advance / bonus ----
+  async function loadMoney() { $('adjMonth').value = $('adjMonth').value || thisMonth(); await Promise.all([loadAdvances(), loadAdjustments()]); }
+  async function loadAdvances() {
+    var rows = await api('GET', '/api/staff-advances');
+    $('advBody').innerHTML = rows.length ? rows.map(function (a) {
+      var left = Number(a.amount) - Number(a.recovered);
+      return '<tr class="border-t"><td class="py-1.5 pr-2">' + fmtD(a.given_on) + '</td><td class="pr-2 font-bold">' + esc(a.name) + '</td><td class="pr-2">' + money(a.amount) + '</td><td class="pr-2 ' + (left > 0 ? 'text-red-600 font-bold' : 'text-gray-400') + '">' + money(left) +
+        '</td><td>' + (Number(a.recovered) > 0 ? '' : '<button onclick="delAdvance(' + a.id + ')" class="text-red-500 font-bold">✕</button>') + '</td></tr>';
+    }).join('') : '<tr><td colspan="5" class="py-4 text-center text-gray-400">Koi advance nahi</td></tr>';
+  }
+  function addAdvance() {
+    run(async function () {
+      await api('POST', '/api/staff-advances', { staff_id: $('advStaff').value, amount: $('advAmount').value, note: $('advNote').value, payment_mode: $('advMode').value, add_expense: $('advExpense').checked });
+      $('advAmount').value = ''; $('advNote').value = ''; await loadAdvances();
+    });
+  }
+  function delAdvance(id) { run(async function () { if (await uiConfirm('Advance delete karein? (Expenses entry bhi hat jayegi)', { danger: true, okText: 'Delete' })) { await api('DELETE', '/api/staff-advances/' + id); await loadAdvances(); } }); }
+  async function loadAdjustments() {
+    var rows = await api('GET', '/api/staff-adjustments?month=' + $('adjMonth').value);
+    $('adjBody').innerHTML = rows.length ? rows.map(function (j) {
+      return '<tr class="border-t"><td class="py-1.5 pr-2 font-bold">' + esc(j.name) + '</td><td class="pr-2 ' + (j.kind === 'BONUS' ? 'text-emerald-600' : 'text-red-600') + ' font-bold">' + (j.kind === 'BONUS' ? 'Bonus' : 'Deduction') + '</td><td class="pr-2">' + money(j.amount) + '</td><td class="pr-2">' + esc(j.note) +
+        '</td><td><button onclick="delAdj(' + j.id + ')" class="text-red-500 font-bold">✕</button></td></tr>';
+    }).join('') : '<tr><td colspan="5" class="py-4 text-center text-gray-400">Is mahine kuch nahi</td></tr>';
+  }
+  function addAdjustment() {
+    run(async function () {
+      await api('POST', '/api/staff-adjustments', { staff_id: $('adjStaff').value, month: $('adjMonth').value, kind: $('adjKind').value, amount: $('adjAmount').value, note: $('adjNote').value });
+      $('adjAmount').value = ''; $('adjNote').value = ''; await loadAdjustments();
+    });
+  }
+  function delAdj(id) { run(async function () { await api('DELETE', '/api/staff-adjustments/' + id); await loadAdjustments(); }); }
+
+  // ---- payroll ----
+  var PAYROWS = [];
+  async function loadPayroll() {
+    var m = $('payMonth').value || thisMonth(); $('payMonth').value = m;
+    PAYROWS = await api('GET', '/api/payroll/preview?month=' + m);
+    var net = 0, paid = 0;
+    $('payBody').innerHTML = PAYROWS.length ? PAYROWS.map(function (r, i) {
+      net += r.net; if (r.paid) paid += r.net;
+      return '<tr class="border-t"><td class="py-2 pr-3 font-bold">' + esc(r.name) + (r.open_shifts ? ' <span class="text-[10px] text-red-500 font-black">(' + r.open_shifts + ' Out nahi)</span>' : '') + '</td><td class="pr-3">' + r.days + '</td><td class="pr-3">' + r.hours + (r.ot_hours ? ' (' + r.ot_hours + ')' : '') +
+        '</td><td class="pr-3">' + money(r.rate) + '</td><td class="pr-3">' + money(r.gross) + '</td><td class="pr-3 text-emerald-600">' + (r.bonus ? '+' + money(r.bonus) : '') + '</td><td class="pr-3 text-red-600">' + (r.deductions ? '−' + money(r.deductions) : '') +
+        '</td><td class="pr-3 text-red-600">' + (r.advance_deduct ? '−' + money(r.advance_deduct) : '') + '</td><td class="pr-3 font-black">' + money(r.net) + '</td><td class="whitespace-nowrap">' +
+        (r.paid ? '<span class="text-emerald-600 font-black mr-2">✓ Paid</span><button onclick="payslip(' + r.staff_id + ')" class="text-orange-600 font-bold mr-2">Payslip</button><button onclick="undoPay(' + r.payroll_id + ')" class="text-red-500 font-bold">Undo</button>'
+          : '<button onclick="openPay(' + i + ')" class="bg-orange-600 text-white font-black text-xs px-3 py-1.5 rounded-lg mr-2">Pay</button><button onclick="payslip(' + r.staff_id + ')" class="text-orange-600 font-bold">Preview</button>') + '</td></tr>';
+    }).join('') : '<tr><td colspan="10" class="py-6 text-center text-gray-400">Koi staff nahi</td></tr>';
+    $('payTotal').textContent = 'Total net: ' + money(net) + '   |   Paid: ' + money(paid) + '   |   Baaki: ' + money(net - paid);
+  }
+  function openPay(i) {
+    var r = PAYROWS[i];
+    openModal('<h3 class="font-black text-base">Salary Pay — ' + esc(r.name) + '</h3>' +
+      '<div class="text-xs text-gray-600 space-y-0.5"><div>Gross: <b>' + money(r.gross) + '</b> (' + r.hours + ' h' + (r.ot_hours ? ', OT ' + r.ot_hours + ' h' : '') + ')</div><div>Bonus: ' + money(r.bonus) + ' | Deduction: ' + money(r.deductions) + '</div><div>Advance baaki: <b>' + money(r.advance_due) + '</b></div></div>' +
+      field('Advance is mahine kitna kaate (₹)', '<input id="p_adv" type="number" min="0" max="' + r.advance_due + '"' + INP + ' value="' + r.advance_deduct + '" oninput="payNetCalc(' + i + ')">') +
+      '<div class="text-sm">Net payable: <b id="p_net">' + money(r.net) + '</b></div>' +
+      field('Payment mode', '<select id="p_mode"' + INP + '><option>CASH</option><option>UPI</option><option>CARD</option></select>') +
+      (r.open_shifts ? '<div class="text-xs text-red-600 font-bold">⚠ ' + r.open_shifts + ' shift me Out time nahi hai. Pehle Attendance me theek karein.</div>' : '') +
+      '<div class="flex justify-end gap-2 pt-2"><button onclick="closeModal()" class="px-4 py-2 rounded-lg border font-bold text-xs">Cancel</button><button onclick="doPay(' + i + ')" class="px-4 py-2 rounded-lg bg-orange-600 text-white font-black text-xs">Mark Paid</button></div>');
+  }
+  function payNetCalc(i) {
+    var r = PAYROWS[i], a = Math.max(0, Math.min(Number($('p_adv').value) || 0, r.advance_due, r.net_before_advance));
+    $('p_net').textContent = money(r.net_before_advance - a);
+  }
+  function doPay(i) {
+    var r = PAYROWS[i];
+    run(async function () {
+      await api('POST', '/api/payroll/pay', { staff_id: r.staff_id, month: $('payMonth').value, advance_deduct: $('p_adv').value, payment_mode: $('p_mode').value });
+      closeModal(); await loadPayroll();
+      if (await uiConfirm('Salary paid mark ho gayi. Payslip print karein?', { okText: 'Payslip' })) payslip(r.staff_id);
+    });
+  }
+  function undoPay(id) { run(async function () { if (await uiConfirm('Ye payment undo karein? Expenses entry hategi aur advance wapas jud jayega.', { danger: true, okText: 'Undo' })) { await api('DELETE', '/api/payroll/' + id); await loadPayroll(); } }); }
+
+  function payslip(staffId) {
+    run(async function () {
+      var d = await api('GET', '/api/payroll/payslip?staff_id=' + staffId + '&month=' + $('payMonth').value);
+      var l = d.line, row = function (a, b, bold) { return '<tr' + (bold ? ' style="font-weight:800;border-top:1px solid #000"' : '') + '><td>' + a + '</td><td style="text-align:right">' + b + '</td></tr>'; };
+      var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Payslip</title><style>body{font-family:Arial,sans-serif;max-width:720px;margin:20px auto;color:#111;font-size:13px}h2,h3{margin:2px 0}table{width:100%;border-collapse:collapse}td,th{padding:4px 6px;text-align:left}.s td,.s th{border-bottom:1px solid #ddd;font-size:12px}.hd{text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:10px}</style></head><body>' +
+        '<div class="hd"><h2>' + esc(d.restaurant.restaurant_name || 'Restaurant') + '</h2><div>' + esc(d.restaurant.address || '') + '</div><h3>Salary Slip — ' + MON[+d.month.slice(5) - 1] + ' ' + d.month.slice(0, 4) + (d.paid ? '' : ' (PREVIEW - unpaid)') + '</h3></div>' +
+        '<table><tr><td><b>Naam:</b> ' + esc(d.staff.name) + '</td><td><b>Role:</b> ' + esc(d.staff.role) + '</td></tr><tr><td><b>Kaam ke din:</b> ' + l.days + '</td><td><b>Total ghante:</b> ' + l.hours + (l.ot_hours ? ' (OT ' + l.ot_hours + ')' : '') + '</td></tr></table><br>' +
+        '<table>' + row('Rate (₹/ghanta)', money(l.rate)) + row('Gross salary', money(l.gross)) + row('Bonus / Incentive', '+ ' + money(l.bonus)) + row('Deductions', '− ' + money(l.deductions)) + row('Advance recovered', '− ' + money(l.advance_deduct)) + row('NET PAY', money(l.net), true) + '</table>' +
+        (d.paid ? '<p>Paid on ' + esc(d.paid_on) + ' via ' + esc(d.payment_mode) + '</p>' : '') +
+        (d.adjustments.length ? '<h3>Bonus / Deductions</h3><table class="s">' + d.adjustments.map(function (a) { return '<tr><td>' + (a.kind === 'BONUS' ? 'Bonus' : 'Deduction') + '</td><td>' + esc(a.note) + '</td><td style="text-align:right">' + money(a.amount) + '</td></tr>'; }).join('') + '</table>' : '') +
+        '<h3>Attendance</h3><table class="s"><tr><th>Date</th><th>In</th><th>Out</th><th style="text-align:right">Hours</th></tr>' +
+        d.shifts.map(function (s) { return '<tr><td>' + fmtD(s.date) + '</td><td>' + s.in.slice(11) + '</td><td>' + s.out.slice(11) + '</td><td style="text-align:right">' + s.hours + '</td></tr>'; }).join('') + '</table>' +
+        '<br><br><div style="display:flex;justify-content:space-between"><span>Employee Signature</span><span>Authorised Signature</span></div></body></html>';
+      var w = window.open('', '_blank');
+      if (!w) { uiAlert('Popup block hai. Browser me popup allow karein.'); return; }
+      w.document.write(html); w.document.close(); w.focus(); setTimeout(function () { w.print(); }, 300);
+    });
+  }
+
+  (async function init() {
+    await ensurePin();
+    await run(loadStaff);
+    var t = (location.hash || '').slice(1);
+    showTab(LOADERS[t] ? t : 'today');
+  })();
+</script>
+</body>
+</html>
