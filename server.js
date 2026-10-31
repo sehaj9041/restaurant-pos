@@ -106,6 +106,21 @@ app.get('/kitchen-manifest.json', async (req, res) => {
   });
 });
 
+// Punch In/Out PWA manifest: installed app opens straight to punch.html
+app.get('/punch-manifest.json', async (req, res) => {
+  const logo = ((await getSettingsConfig().catch(() => ({}))).receipt || {}).logo;
+  const type = logo ? (/\.webp$/i.test(logo) ? 'image/webp' : /\.jpe?g$/i.test(logo) ? 'image/jpeg' : 'image/png') : 'image/png';
+  const src = logo || 'https://cdn-icons-png.flaticon.com/512/1046/1046784.png';
+  res.setHeader('Content-Type', 'application/manifest+json');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.json({
+    name: 'Staff Punch In / Out', short_name: 'Punch',
+    id: '/punch.html', start_url: '/punch.html', scope: '/punch.html', display: 'standalone', prefer_related_applications: false,
+    background_color: '#111827', theme_color: '#111827',
+    icons: ['192x192', '512x512'].map(sz => ({ src, sizes: sz, type, purpose: 'any' }))
+  });
+});
+
 // Static directories setup for public and uploads
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/uploads/:name', (req, res, next) => {

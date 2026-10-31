@@ -31,6 +31,7 @@
   <div id="landing" class="fixed inset-0 z-[45] bg-gradient-to-b from-indigo-50 to-white overflow-y-auto">
     <div class="max-w-md mx-auto min-h-full flex flex-col justify-center p-6 space-y-6">
       <div class="text-center space-y-1">
+        <img id="landingLogo" src="" alt="" class="hidden mx-auto h-24 max-w-[60%] object-contain mb-2">
         <h1 class="text-3xl font-black text-gray-900 tracking-tight">VISHAL FOODIEZ</h1>
         <p class="text-xs text-gray-500 font-semibold">Budhlada • Fresh &amp; Fast</p>
         <p id="landingAbout" class="hidden text-[11px] text-gray-500 pt-1"></p>
@@ -59,6 +60,7 @@
     <header class="bg-white sticky top-0 z-30 shadow-xs border-b px-4 py-3 flex justify-between items-center">
       <div class="flex items-center gap-3">
         <button onclick="backToLanding()" aria-label="Change order type" class="text-lg font-black text-gray-600">←</button>
+        <img id="headerLogo" src="" alt="" class="hidden h-8 w-auto max-w-[56px] object-contain">
         <div>
           <h1 class="text-lg font-black text-gray-900 tracking-tight leading-none">VISHAL FOODIEZ</h1>
           <p id="modeChip" class="text-[10px] text-indigo-700 font-black mt-0.5"></p>
@@ -162,7 +164,8 @@
       <!-- Customer Details Input -->
       <div class="space-y-2 pt-1">
         <input type="text" id="cName" placeholder="Your Name" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-500 font-medium">
-        <input type="tel" id="cPhone" inputmode="numeric" placeholder="10-digit Phone Number" maxlength="10" oninput="this.value=this.value.replace(/\D/g,'')" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs font-mono outline-none focus:border-indigo-500 font-medium">
+        <input type="tel" id="cPhone" inputmode="numeric" placeholder="10-digit Phone Number" maxlength="10" oninput="this.value=this.value.replace(/\D/g,'');document.getElementById('cPhone2').classList.remove('hidden')" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs font-mono outline-none focus:border-indigo-500 font-medium">
+        <input type="tel" id="cPhone2" inputmode="numeric" placeholder="Phone Number dobara likhein (confirm)" maxlength="10" autocomplete="off" oninput="this.value=this.value.replace(/\D/g,'')" onpaste="return false" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs font-mono outline-none focus:border-indigo-500 font-medium">
       </div>
 
       <!-- Bill Total & Send Button -->
@@ -465,6 +468,9 @@
         document.body.style.paddingTop = '34px';
       }
       const setTxt = (id, t) => { const el = document.getElementById(id); if (t) { el.innerText = t; el.classList.remove('hidden'); } };
+      const logo = (storeCfg.receipt || {}).logo;
+      if (logo) { const hl = document.getElementById('headerLogo'); hl.onerror = () => hl.classList.add('hidden'); hl.onload = () => hl.classList.remove('hidden'); hl.src = logo; }
+      if (logo) { const li = document.getElementById('landingLogo'); li.onerror = () => li.classList.add('hidden'); li.onload = () => li.classList.remove('hidden'); li.src = logo; }
       setTxt('landingAbout', b.tagline || '');
       if (r.show_prep_time) setTxt('landingPrep', `⏱ Ready in ~${Number(r.prep_time_min) || 30} min`);
       const phone = b.contact_phone, wa = b.contact_whatsapp;
@@ -1072,6 +1078,8 @@
         if (!document.getElementById('cName').value) document.getElementById('cName').value = prof.name || '';
         if (!document.getElementById('cPhone').value) document.getElementById('cPhone').value = prof.phone || '';
       }
+      const c2 = document.getElementById('cPhone2');
+      c2.classList.toggle('hidden', !!(prof && prof.token && prof.phone && prof.phone === document.getElementById('cPhone').value.trim()));
       document.getElementById('checkoutModal').classList.remove('hidden');
     }
 
@@ -1082,7 +1090,10 @@
 
     function orderBasics() {
       const phone = document.getElementById('cPhone').value.trim();
-      if (!/^[6-9]\d{9}$/.test(phone)) { toast('Sahi 10-digit mobile number daalein', true); return null; }
+      if (!/^[6-9]\d{9}$/.test(phone) || /^(\d)\1{9}$/.test(phone) || /^(?:0123456789|1234567890|9876543210|0987654321)$/.test(phone) || /^(\d{2})\1{4}$/.test(phone) || /^(\d{5})\1$/.test(phone)) { toast('Sahi 10-digit mobile number daalein', true); return null; }
+      // Pehle server se verified number (profile token) dobara confirm nahi karwate; naye number ko 2 baar likhwate hain
+      const prof = getProfile();
+      if (!(prof && prof.token && prof.phone === phone) && document.getElementById('cPhone2').value.trim() !== phone) { toast('Dono phone number same likhein', true); return null; }
       return { phone, loc: mode === 'Takeaway' ? document.getElementById('cNote').value.trim() : '' };
     }
 
@@ -1266,6 +1277,7 @@
         renderMenu();
         document.getElementById('cName').value = '';
         document.getElementById('cPhone').value = '';
+        document.getElementById('cPhone2').value = '';
         document.getElementById('cNote').value = '';
         document.getElementById('addrText').value = '';
         document.getElementById('addrLandmark').value = '';
