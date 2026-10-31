@@ -32,7 +32,11 @@ async function paytmPost(path, body, head = {}) {
 function payableAmount(p) {
   let subtotal = Number(p.subtotal) || 0;
   if (!subtotal && Array.isArray(p.items)) subtotal = p.items.reduce((s, i) => s + Number(i.price) * Number(i.qty), 0);
-  const gst = Math.round((subtotal * 5) / 100);
+  // "No GST" (is_exempt) items par tax nahi lagta
+  const taxable = Array.isArray(p.items) && p.items.length
+    ? p.items.reduce((s, i) => Number(i.is_exempt) ? s : s + Number(i.price) * Number(i.qty), 0)
+    : subtotal;
+  const gst = Math.round((taxable * 5) / 100);
   return Math.round(subtotal + gst - (Number(p.discount) || 0));
 }
 

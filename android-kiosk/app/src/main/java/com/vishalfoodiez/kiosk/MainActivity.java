@@ -70,6 +70,12 @@ public class MainActivity extends Activity {
                         | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_FULLSCREEN);
     }
 
+    @Override protected void onResume() {
+        super.onResume();
+        // App khulte hi (ya printer plug hone ke baad) USB permission maange
+        new Thread(() -> printer.ensurePermission()).start();
+    }
+
     @Override public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus) hideBars();

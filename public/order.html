@@ -16,6 +16,9 @@
     /* bottom tab bar lives inside #app, so only shift the overlays that follow it while the menu is showing */
     #app:not(.hidden) ~ #ordersPage { bottom: calc(4rem + env(safe-area-inset-bottom)); }
     #app:not(.hidden) ~ #cartBar { bottom: calc(4rem + env(safe-area-inset-bottom)); }
+    #menuFab { bottom: calc(5rem + env(safe-area-inset-bottom)); }
+    #app.hidden ~ #menuFab { display: none; }
+    #menuFab.above-cart { bottom: calc(9.25rem + env(safe-area-inset-bottom)); }
   </style>
 </head>
 <body class="bg-gray-50 min-h-screen flex flex-col font-sans pb-44">
@@ -125,6 +128,20 @@
       <button onclick="openCheckout()" class="bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-black px-6 py-3 rounded-2xl text-xs shadow-lg transition">
         View Order →
       </button>
+    </div>
+  </div>
+
+  <!-- Floating Menu button + category sheet -->
+  <button id="menuFab" onclick="openCatSheet()" aria-label="Browse menu categories" class="hidden fixed right-3 z-[44] bg-gray-900 text-white font-black text-xs px-4 py-3 rounded-full shadow-xl active:scale-95 transition inline-flex items-center gap-1.5">
+    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg> Menu
+  </button>
+  <div id="catSheet" class="hidden fixed inset-0 bg-black/60 z-[55] flex items-end justify-center" onclick="if (event.target === this) closeCatSheet()">
+    <div class="bg-white w-full max-w-md rounded-t-3xl max-h-[75vh] flex flex-col" style="padding-bottom: env(safe-area-inset-bottom)">
+      <div class="flex items-center justify-between px-5 pt-4 pb-2">
+        <h3 class="font-black text-gray-900 text-base">Menu</h3>
+        <button onclick="closeCatSheet()" aria-label="Close" class="text-gray-500 text-xl font-black px-2">✕</button>
+      </div>
+      <div id="catSheetList" class="overflow-y-auto px-3 pb-4"></div>
     </div>
   </div>
 
@@ -534,6 +551,7 @@
     function renderCategories() {
       categoryList = [...new Set(menu.filter(isShown).map(i => i.category || 'General'))];
       if (!categoryList.includes(activeCategory)) activeCategory = categoryList[0] || '';
+      document.getElementById('menuFab').classList.toggle('hidden', !categoryList.length);
       const bar = document.getElementById('categoryBar');
       bar.innerHTML = categoryList.map((cat, idx) => `
         <button data-cat="${idx}" onclick="scrollToCat(${idx})" class="px-3.5 py-1.5 rounded-full text-xs font-bold shrink-0 transition inline-flex items-center gap-1.5 ${activeCategory === cat ? 'bg-indigo-600 text-white shadow-xs' : 'bg-white border text-gray-600'}">
@@ -551,6 +569,19 @@
       renderCategories();
       el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
+
+    function openCatSheet() {
+      document.getElementById('catSheetList').innerHTML = categoryList.map((cat, idx) => {
+        const n = menu.filter(i => isShown(i) && (i.category || 'General') === cat).length;
+        return `<button onclick="pickCatFromSheet(${idx})" class="w-full flex items-center justify-between gap-3 px-3 py-3 rounded-xl text-left ${activeCategory === cat ? 'bg-indigo-50 text-indigo-700' : 'text-gray-800 hover:bg-gray-50'}">
+          <span class="flex items-center gap-2.5 min-w-0 font-bold text-sm">${categoryImages[cat] ? `<img src="${esc(categoryImages[cat])}" class="w-8 h-8 rounded-lg object-cover shrink-0" alt="">` : ''}<span class="truncate">${esc(cat)}</span></span>
+          <span class="text-xs font-black text-gray-400 shrink-0">${n}</span>
+        </button>`;
+      }).join('');
+      document.getElementById('catSheet').classList.remove('hidden');
+    }
+    function closeCatSheet() { document.getElementById('catSheet').classList.add('hidden'); }
+    function pickCatFromSheet(idx) { closeCatSheet(); scrollToCat(idx); }
 
     // highlight the category whose section is currently under the sticky bar
     let spyTimer = null;
@@ -956,12 +987,16 @@
 
     function cartSubtotal() { return cart.reduce((s, i) => s + (i.price * i.qty), 0); }
     function gstOf(sub) { return Math.round((sub * 5) / 100); }
+    // "No GST" items par tax nahi lagta; delivery charge par bhi nahi
+    function taxableOf() {
+      return cart.reduce((s, i) => { const m = menu.find(x => x.id === i.id); return m && Number(m.is_exempt) ? s : s + (i.price * i.qty); }, 0);
+    }
 
     function updateCartUI() {
       const count = cart.reduce((s, i) => s + i.qty, 0);
       const charge = chargeNow();
       const total = cartSubtotal() + charge;
-      const gst = gstOf(total);
+      const gst = gstOf(taxableOf());
       document.getElementById('cartCount').innerText = `${count} ${count === 1 ? 'item' : 'items'}`;
       document.getElementById('cartTotal').innerText = `₹${total + gst}`;
       document.getElementById('cSub').innerText = `₹${cartSubtotal()}`;
@@ -982,6 +1017,7 @@
         aq.innerText = bad ? (deliveryQuote.message || 'Delivery charge location ke baad dikhega') : (Number(deliveryQuote.charge) > 0 ? `🛵 Delivery charge: ₹${deliveryQuote.charge}` : '🛵 Delivery: FREE');
       } else aq.className = 'hidden';
       document.getElementById('cartBar').classList.toggle('hidden', count === 0);
+      document.getElementById('menuFab').classList.toggle('above-cart', count > 0);
       const nb = document.getElementById('navCartBadge');
       nb.innerText = count > 99 ? '99+' : count; nb.classList.toggle('hidden', count === 0);
       saveCart();
@@ -1192,7 +1228,7 @@
       btnState(btn, true);
 
       const sub = cartSubtotal() + chargeNow();
-      const gst = gstOf(sub);
+      const gst = gstOf(taxableOf());
       // delivery address/location are stored on the order itself (shown on POS + bill, not on the kitchen screen)
       const note = isDelivery ? '' : (loc ? `Note: ${loc}` : '');
       const items = cart.map((c, i) => ({ ...c, notes: i === 0 ? note : '' }));

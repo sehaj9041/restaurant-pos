@@ -63,6 +63,7 @@ app.get('/' + REPORT_SECRET, (req, res) => res.sendFile(path.join(__dirname, 'pr
 app.get('/manifest.json', async (req, res, next) => {
   try {
     const m = JSON.parse(require('fs').readFileSync(path.join(__dirname, 'public', 'manifest.json'), 'utf8'));
+    m.id = '/index.html'; // POS ki apni identity; Kitchen app ka alag id/scope hai
     const logo = ((await getSettingsConfig()).receipt || {}).logo;
     if (logo) {
       const type = /\.webp$/i.test(logo) ? 'image/webp' : /\.jpe?g$/i.test(logo) ? 'image/jpeg' : 'image/png';
@@ -99,7 +100,7 @@ app.get('/kitchen-manifest.json', async (req, res) => {
   res.setHeader('Cache-Control', 'no-cache');
   res.json({
     name: 'Kitchen Display (KOT)', short_name: 'Kitchen',
-    id: '/kitchen.html', start_url: '/kitchen.html', scope: '/', display: 'standalone', prefer_related_applications: false,
+    id: '/kitchen.html', start_url: '/kitchen.html', scope: '/kitchen.html', display: 'standalone', prefer_related_applications: false,
     background_color: '#f1f5f9', theme_color: '#f97316',
     icons: ['192x192', '512x512'].map(sizes => ({ src, sizes, type, purpose: 'any' }))
   });
@@ -610,7 +611,7 @@ app.get('/api/orders/today-stats', (req, res) => {
 // ================= NEEDS APPROVAL (PENDING ORDERS) APIS =================
 app.get('/api/orders/needs-approval', (req, res) => {
   const query = `
-    SELECT id, token_no, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount, created_at, delivery_address, delivery_lat, delivery_lng
+    SELECT id, token_no, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, discount_reason, is_complimentary, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount, created_at, delivery_address, delivery_lat, delivery_lng
     FROM orders 
     WHERE UPPER(status) = 'NEEDS_APPROVAL'
     ORDER BY id DESC
@@ -627,7 +628,7 @@ app.get('/api/orders/needs-approval', (req, res) => {
       const fullOrders = await Promise.all(
         orders.map(order => {
           return new Promise((resolve) => {
-            db.all('SELECT id, name, qty, price, notes, user_note, pack_flip FROM order_items WHERE order_id = ?', [order.id], (err2, items) => {
+            db.all('SELECT id, name, qty, price, notes, user_note, pack_flip, is_exempt FROM order_items WHERE order_id = ?', [order.id], (err2, items) => {
               resolve({ ...order, items: items || [] });
             });
           });
@@ -713,12 +714,12 @@ app.post('/api/orders/:id/assign-table', async (req, res) => {
     for (const it of sItems) {
       const twin = tItems.find(t => sameLine(t, it));
       if (twin) { await run('UPDATE order_items SET qty = qty + ? WHERE id = ?', [it.qty, twin.id]); twin.qty = Number(twin.qty) + Number(it.qty); }
-      else await run('INSERT INTO order_items (order_id, name, qty, price, notes, user_note, pack_flip) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [target.id, it.name, it.qty, it.price, it.notes || '', it.user_note || '', Number(it.pack_flip) ? 1 : 0]);
+      else await run('INSERT INTO order_items (order_id, name, qty, price, notes, user_note, pack_flip, is_exempt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [target.id, it.name, it.qty, it.price, it.notes || '', it.user_note || '', Number(it.pack_flip) ? 1 : 0, Number(it.is_exempt) ? 1 : 0]);
     }
-    const rows = await dbAllAsync('SELECT price, qty FROM order_items WHERE order_id = ?', [target.id]);
+    const rows = await dbAllAsync('SELECT name, price, qty, is_exempt FROM order_items WHERE order_id = ?', [target.id]);
     const subtotal = rows.reduce((sum, i) => sum + Number(i.price) * Number(i.qty), 0);
-    const gst = Math.round(subtotal * 5 / 100);
+    const gst = Math.round(taxableSubtotal(rows) * 5 / 100);
     const paid = (Number(target.paid_amount) || 0) + (Number(src.paid_amount) || 0);
     // new items need cooking, so the merged bill goes back to the kitchen (RUNNING_TABLE)
     await run(`UPDATE orders SET subtotal = ?, gst = ?, total = ?, paid_amount = ?, status = 'RUNNING_TABLE',
@@ -889,13 +890,13 @@ app.post('/api/orders/:id/move-item', async (req, res) => {
     const tItems = await dbAllAsync('SELECT * FROM order_items WHERE order_id = ?', [targetId]);
     const twin = tItems.find(sameLine);
     if (twin) await run('UPDATE order_items SET qty = qty + ? WHERE id = ?', [moveQty, twin.id]);
-    else await run('INSERT INTO order_items (order_id, name, qty, price, notes, user_note, pack_flip) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [targetId, line.name, moveQty, line.price, line.notes || '', line.user_note || '', Number(line.pack_flip) ? 1 : 0]);
+    else await run('INSERT INTO order_items (order_id, name, qty, price, notes, user_note, pack_flip, is_exempt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [targetId, line.name, moveQty, line.price, line.notes || '', line.user_note || '', Number(line.pack_flip) ? 1 : 0, Number(line.is_exempt) ? 1 : 0]);
 
     for (const oid of [srcId, targetId]) {
-      const rows = await dbAllAsync('SELECT price, qty FROM order_items WHERE order_id = ?', [oid]);
+      const rows = await dbAllAsync('SELECT name, price, qty, is_exempt FROM order_items WHERE order_id = ?', [oid]);
       const subtotal = rows.reduce((s, i) => s + Number(i.price) * Number(i.qty), 0);
-      const gst = Math.round(subtotal * 5 / 100);
+      const gst = Math.round(taxableSubtotal(rows) * 5 / 100);
       await run('UPDATE orders SET subtotal = ?, gst = ?, total = ? WHERE id = ?', [subtotal, gst, Math.round(subtotal + gst), oid]);
     }
     console.log(`[ITEM MOVED] ${moveQty} x ${name}: order #${srcId} -> table ${toTable} (order #${targetId})`);
@@ -908,7 +909,7 @@ app.post('/api/orders/:id/move-item', async (req, res) => {
 // 7. ACTIVE ORDERS
 app.get('/api/orders/active', (req, res) => {
   const query = `
-    SELECT id, token_no, order_type, table_no, customer_name, customer_phone, rider_name, delivered_at, total, subtotal, discount, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount,
+    SELECT id, token_no, order_type, table_no, customer_name, customer_phone, rider_name, delivered_at, total, subtotal, discount, discount_reason, is_complimentary, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount,
            GREATEST(0, total - COALESCE(paid_amount, 0)) as remaining_balance,
            -- Order timers: kitchen time = accepted (or placed) -> KDS done; still running while the kitchen works on it
            GREATEST(0, EXTRACT(EPOCH FROM ((CASE WHEN ready_at IS NOT NULL AND UPPER(status) = 'KOT_DONE' THEN ready_at ELSE NOW() END) - COALESCE(accepted_at, created_at)))) AS kitchen_sec,
@@ -935,7 +936,7 @@ app.get('/api/orders/active', (req, res) => {
       const fullOrders = await Promise.all(
         orders.map(order => {
           return new Promise((resolve) => {
-            db.all('SELECT id, name, qty, price, notes, user_note, pack_flip FROM order_items WHERE order_id = ?', [order.id], (err2, items) => {
+            db.all('SELECT id, name, qty, price, notes, user_note, pack_flip, is_exempt FROM order_items WHERE order_id = ?', [order.id], (err2, items) => {
               let paid = Number(order.paid_amount) || 0;
               let tot = Number(order.total) || 0;
               let mode = (order.payment_mode || '').toUpperCase();
@@ -1140,10 +1141,17 @@ app.put('/api/orders/:id', (req, res) => {
   const orderId = req.params.id;
   const { order_type, table_no, customer_name, customer_phone, items, subtotal, discount, gst, total, payment_mode, paid_amount } = req.body;
 
-  db.get("SELECT total, paid_amount, payment_mode, status FROM orders WHERE id = ?", [orderId], (errGet, currentOrder) => {
+  db.get("SELECT total, paid_amount, payment_mode, status, discount, is_complimentary FROM orders WHERE id = ?", [orderId], (errGet, currentOrder) => {
    db.all("SELECT name, qty FROM order_items WHERE order_id = ?", [orderId], (errItems, existingItems) => {
+    // Discount badhane ya complimentary lagane ke liye password chahiye (hatane ke liye nahi)
+    const putComp = !!req.body.is_complimentary;
+    const putDiscount = Math.max(0, Number(discount) || 0);
+    const needsAuth = (putComp && !(currentOrder && Number(currentOrder.is_complimentary))) || (!putComp && putDiscount > (currentOrder ? Number(currentOrder.discount) || 0 : 0));
+    if (needsAuth && !discountPasswordOk(req.body.auth_password)) return res.status(403).json({ error: 'Discount / Complimentary ke liye sahi password chahiye' });
+    const putReason = String(req.body.discount_reason || '').trim().slice(0, 200);
+    if (putComp && !putReason) return res.status(400).json({ error: 'Complimentary order ka reason likhna zaroori hai' });
     let incomingPaid = Number(paid_amount) || 0;
-    let finalTotal = Number(total) || (currentOrder ? Number(currentOrder.total) : 0);
+    let finalTotal = putComp ? 0 : (Number(total) || (currentOrder ? Number(currentOrder.total) : 0));
     
     const requestedMode = String(payment_mode || '').trim().toUpperCase();
     const hasPaymentSelected = requestedMode !== '' && requestedMode !== 'PAY_COUNTER' && !UNPAID_PAYMENT_MODES.includes(requestedMode);
@@ -1171,7 +1179,7 @@ app.put('/api/orders/:id', (req, res) => {
     if (kitchenDone) {
       if (requestedMode === 'DUE') {
         status = 'DUE_PENDING';
-      } else if (finalPaid >= finalTotal && finalTotal > 0) {
+      } else if (finalPaid >= finalTotal && (finalTotal > 0 || putComp)) {
         status = 'DISPATCHED';
       } else {
         status = 'KOT_DONE'; // Kitchen done par payment baaki: active list me rahega, KDS par nahi
@@ -1179,8 +1187,8 @@ app.put('/api/orders/:id', (req, res) => {
     }
 
     db.run(
-      `UPDATE orders SET order_type = ?, table_no = ?, customer_name = ?, customer_phone = ?, subtotal = ?, discount = ?, gst = ?, total = ?, payment_mode = ?, status = ?, paid_amount = ? WHERE id = ?`,
-      [order_type, table_no || '', customer_name || '', customer_phone || '', subtotal, discount || 0, gst || 0, finalTotal, finalMode, status, finalPaid, orderId],
+      `UPDATE orders SET order_type = ?, table_no = ?, customer_name = ?, customer_phone = ?, subtotal = ?, discount = ?, gst = ?, total = ?, payment_mode = ?, status = ?, paid_amount = ?, discount_reason = ?, is_complimentary = ? WHERE id = ?`,
+      [order_type, table_no || '', customer_name || '', customer_phone || '', subtotal, putComp ? subtotal : putDiscount, putComp ? 0 : (gst || 0), finalTotal, finalMode, status, finalPaid, (putComp || putDiscount > 0) ? putReason : '', putComp ? 1 : 0, orderId],
       async (err) => {
         if (err) return res.status(500).json({ error: err.message });
 
@@ -1189,8 +1197,8 @@ app.put('/api/orders/:id', (req, res) => {
             for (const item of items) {
               await new Promise((resolve) => {
                 db.run(
-                  "INSERT INTO order_items (order_id, name, qty, price, notes, user_note, pack_flip) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                  [orderId, item.name, item.qty, item.price, item.notes || '', String(item.user_note || '').slice(0, 300), item.pack_flip ? 1 : 0],
+                  "INSERT INTO order_items (order_id, name, qty, price, notes, user_note, pack_flip, is_exempt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                  [orderId, item.name, item.qty, item.price, item.notes || '', String(item.user_note || '').slice(0, 300), item.pack_flip ? 1 : 0, Number(item.is_exempt) ? 1 : 0],
                   () => resolve()
                 );
               });
@@ -1261,7 +1269,7 @@ async function validateOnlineItems(items) {
     if (addons.length) name += ` (${addons.map(a => a.name).join(', ')})`;
 
     subtotal += price * qty;
-    out.push({ id: m.id, name, price, qty, addons, notes: String(line.notes || '').slice(0, 300) });
+    out.push({ id: m.id, name, price, qty, addons, is_exempt: Number(m.is_exempt) ? 1 : 0, notes: String(line.notes || '').slice(0, 300) });
   }
   return { items: out, subtotal };
 }
@@ -1404,6 +1412,9 @@ app.post('/api/delivery-charge', async (req, res) => {
   res.json(out);
 });
 
+// GST sirf un items par lagta hai jinpe "No GST" (is_exempt) set nahi hai
+const taxableSubtotal = (rows) => (rows || []).reduce((s, i) => Number(i.is_exempt) || i.name === 'Delivery Charge' ? s : s + Number(i.price) * Number(i.qty), 0);
+
 const createOrderHandler = async (req, res) => {
   console.log('[DEBUG ORDER PAYLOAD]:', req.body);
   let { order_type, table_no, customer_name, customer_phone, items, payment_mode, subtotal, discount, is_hold, paid_amount, is_kiosk } = req.body;
@@ -1453,7 +1464,7 @@ const createOrderHandler = async (req, res) => {
       if (dc.needLocation) return res.status(400).json({ error: 'Delivery charge ke liye apni location allow karna zaroori hai' });
       if (dc.outside) return res.status(400).json({ error: `Aap hamare delivery area (${dc.maxKm} km) se bahar hain` });
       if (dc.charge > 0) {
-        items = items.concat([{ name: 'Delivery Charge', price: dc.charge, qty: 1, addons: [], notes: '' }]);
+        items = items.concat([{ name: 'Delivery Charge', price: dc.charge, qty: 1, addons: [], is_exempt: 1, notes: '' }]);
         subtotal += dc.charge;
       }
     }
@@ -1482,8 +1493,19 @@ const createOrderHandler = async (req, res) => {
     calculatedSubtotal = items.reduce((sum, i) => sum + (Number(i.price) * Number(i.qty)), 0);
   }
 
-  let calculatedGst = Math.round((calculatedSubtotal * 5) / 100);
-  let calculatedTotal = Math.round(calculatedSubtotal + calculatedGst - (Number(discount) || 0));
+  const taxableBase = Array.isArray(items) && items.length ? taxableSubtotal(items) : calculatedSubtotal;
+  // Discount / Complimentary (staff only, password protected). Discount is applied before GST.
+  const isComp = !isOnlineOrder && !!req.body.is_complimentary;
+  let finalDiscount = isOnlineOrder ? 0 : Math.min(Math.max(0, Number(discount) || 0), calculatedSubtotal);
+  const discountReason = String(req.body.discount_reason || '').trim().slice(0, 200);
+  if (isComp || finalDiscount > 0) {
+    if (!discountPasswordOk(req.body.auth_password)) return res.status(403).json({ error: 'Discount / Complimentary ke liye sahi password chahiye' });
+    if (isComp && !discountReason) return res.status(400).json({ error: 'Complimentary order ka reason likhna zaroori hai' });
+  }
+  if (isComp) finalDiscount = calculatedSubtotal;
+  const taxAfterDiscount = calculatedSubtotal > 0 ? Math.max(0, taxableBase - finalDiscount * taxableBase / calculatedSubtotal) : 0;
+  let calculatedGst = isComp ? 0 : Math.round((taxAfterDiscount * 5) / 100);
+  let calculatedTotal = Math.round(calculatedSubtotal + calculatedGst - finalDiscount);
 
   // SAFE & FOOLPROOF PAYMENT LOGIC:
   let finalPaymentMode = 'UNPAID';
@@ -1517,8 +1539,8 @@ const createOrderHandler = async (req, res) => {
   }
 
   const insertOrderQuery = `
-    INSERT INTO orders (order_type, table_no, customer_name, customer_phone, status, payment_mode, subtotal, discount, gst, total, paid_amount, delivery_address, delivery_lat, delivery_lng, token_no)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT MAX(token_no) FROM orders WHERE created_at::date = CURRENT_DATE), 0) + 1)
+    INSERT INTO orders (order_type, table_no, customer_name, customer_phone, status, payment_mode, subtotal, discount, gst, total, paid_amount, delivery_address, delivery_lat, delivery_lng, discount_reason, is_complimentary, token_no)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT MAX(token_no) FROM orders WHERE created_at::date = CURRENT_DATE), 0) + 1)
     RETURNING id, token_no
   `;
 
@@ -1530,13 +1552,15 @@ const createOrderHandler = async (req, res) => {
     status,
     finalPaymentMode,
     calculatedSubtotal,
-    discount || 0,
+    finalDiscount,
     calculatedGst,
     calculatedTotal,
     initialPaid,
     deliveryAddress,
     deliveryLat,
-    deliveryLng
+    deliveryLng,
+    isComp || finalDiscount > 0 ? discountReason : '',
+    isComp ? 1 : 0
   ];
 
   db.all(insertOrderQuery, orderValues, async (err, result) => {
@@ -1556,8 +1580,8 @@ const createOrderHandler = async (req, res) => {
         for (const item of items) {
           await new Promise((resolve) => {
             db.run(
-              'INSERT INTO order_items (order_id, name, qty, price, notes, user_note, pack_flip) VALUES (?, ?, ?, ?, ?, ?, ?)',
-              [orderId, item.name, item.qty, item.price, item.notes || '', String(item.user_note || '').slice(0, 300), item.pack_flip ? 1 : 0],
+              'INSERT INTO order_items (order_id, name, qty, price, notes, user_note, pack_flip, is_exempt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+              [orderId, item.name, item.qty, item.price, item.notes || '', String(item.user_note || '').slice(0, 300), item.pack_flip ? 1 : 0, Number(item.is_exempt) ? 1 : 0],
               () => resolve()
             );
           });
@@ -1808,6 +1832,23 @@ app.get('/api/reports/analytics', (req, res) => {
       });
     });
   });
+});
+
+// Discount / Complimentary approval password (override with the DISCOUNT_PASSWORD env var)
+const DISCOUNT_PASSWORD = process.env.DISCOUNT_PASSWORD || 'Sehaj@9041';
+const discountPasswordOk = (pw) => {
+  const a = Buffer.from(String(pw || '')), b = Buffer.from(DISCOUNT_PASSWORD);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+};
+const discountFails = new Map(); // ip -> { n, until }
+app.post('/api/verify-discount-password', (req, res) => {
+  const ip = req.ip || 'x';
+  const f = discountFails.get(ip);
+  if (f && f.until > Date.now()) return res.status(429).json({ valid: false, error: 'Bahut galat password. Thodi der baad try karein.' });
+  const ok = discountPasswordOk(req.body && req.body.password);
+  if (ok) discountFails.delete(ip);
+  else { const n = (f && !(f.until && f.until <= Date.now()) ? f.n : 0) + 1; discountFails.set(ip, { n, until: n >= 8 ? Date.now() + 60000 : 0 }); }
+  res.json({ valid: ok });
 });
 
 app.post('/api/verify-pin', (req, res) => {

@@ -185,7 +185,7 @@
       </button>
 
 
-      <button onclick="showOrderHistoryView()" class="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 flex items-center gap-1 text-gray-700 transition">
+      <button onclick="showActiveOrdersView()" class="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 flex items-center gap-1 text-gray-700 transition">
         <span>📋</span> All Orders
       </button>
 
@@ -866,8 +866,18 @@
           <span id="lblAlreadyPaidAmount" class="text-sm font-black text-emerald-700">₹0.00</span>
         </div>
 
-        <div class="text-[11px] text-gray-500 flex justify-between border-t pt-1.5">
+        <div class="grid grid-cols-2 gap-1.5 border-t pt-1.5">
+          <button onclick="openPosDiscountModal('discount')" id="btnPosDiscount" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold">🏷 Discount</button>
+          <button onclick="openPosDiscountModal('comp')" id="btnPosComp" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold">🎁 Complimentary</button>
+        </div>
+        <div id="posDiscountInfo" class="hidden bg-rose-50 border border-rose-200 rounded-lg px-2 py-1.5 text-[11px] font-bold text-rose-800 flex justify-between items-center gap-2">
+          <span id="posDiscountInfoText" class="min-w-0 break-words"></span>
+          <button onclick="clearPosDiscount()" class="shrink-0 text-rose-600 font-black px-1" aria-label="Remove">✕</button>
+        </div>
+
+        <div class="text-[11px] text-gray-500 flex justify-between pt-1.5">
           <span>Subtotal: <b id="posCalcSubtotal">₹0</b></span>
+          <span id="posCalcDiscountWrap" class="hidden text-rose-600">Discount: <b id="posCalcDiscount">₹0</b></span>
           <span>GST (5%): <b id="posCalcGst">₹0.00</b></span>
           <span>Round Off: <b id="posCalcRound">₹0.00</b></span>
         </div>
@@ -1124,7 +1134,7 @@
   </div>
 
   <!-- ================= VIRTUAL KEYBOARDS ================= -->
-  <div id="vKeypadNum" class="fixed bottom-4 w-72 bg-[#f1f3f5] border border-gray-300 rounded-2xl shadow-2xl p-3 z-50 hidden select-none transition-all">
+  <div id="vKeypadNum" class="fixed bottom-4 w-72 bg-[#f1f3f5] border border-gray-300 rounded-2xl shadow-2xl p-3 z-[130] hidden select-none transition-all">
     <div class="flex justify-between items-center mb-2 pb-1 border-b border-gray-200 text-gray-500 text-xs">
       <span class="font-bold">⌨</span>
       <span id="numPadDisplayLabel" class="font-mono font-bold text-gray-700 truncate max-w-[150px]">Enter digits...</span>
@@ -1152,7 +1162,7 @@
     </button>
   </div>
 
-  <div id="vKeypadText" class="fixed left-1/2 -translate-x-1/2 bottom-3 w-[520px] bg-[#eef0f3] border border-gray-300 rounded-3xl shadow-2xl p-3 z-50 hidden select-none">
+  <div id="vKeypadText" class="fixed left-1/2 -translate-x-1/2 bottom-3 w-[520px] bg-[#eef0f3] border border-gray-300 rounded-3xl shadow-2xl p-3 z-[130] hidden select-none">
     <div class="flex justify-between items-center mb-2 px-2 text-xs text-gray-500">
       <span class="font-bold text-[11px]">⌨</span>
       <span id="textPadDisplayLabel" class="font-bold text-gray-700 truncate max-w-[300px]">Type here...</span>
@@ -1169,6 +1179,18 @@
       <button onclick="keypadPress('8')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">8</button>
       <button onclick="keypadPress('9')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">9</button>
       <button onclick="keypadPress('0')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">0</button>
+    </div>
+    <div class="grid grid-cols-10 gap-1 mb-1">
+      <button onclick="keypadPress('@')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">@</button>
+      <button onclick="keypadPress('#')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">#</button>
+      <button onclick="keypadPress('_')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">_</button>
+      <button onclick="keypadPress('-')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">-</button>
+      <button onclick="keypadPress('.')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">.</button>
+      <button onclick="keypadPress(',')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">,</button>
+      <button onclick="keypadPress('!')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">!</button>
+      <button onclick="keypadPress('?')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">?</button>
+      <button onclick="keypadPress('/')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">/</button>
+      <button onclick="keypadPress(':')" class="bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">:</button>
     </div>
     <div class="grid grid-cols-10 gap-1 mb-1">
       <button onclick="keypadPressLetter('q')" class="vKeyLetter bg-white active:bg-gray-200 text-gray-800 font-bold text-sm py-2.5 rounded-lg shadow-2xs">q</button>
@@ -1507,10 +1529,11 @@
           document.getElementById('posCustName').value = targetOrder.customer_name || '';
 
           posCart = (targetOrder.items || []).map(function(i) {
-            return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1, user_note: i.user_note || '', pack_flip: Number(i.pack_flip) ? 1 : 0 };
+            return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1, user_note: i.user_note || '', pack_flip: Number(i.pack_flip) ? 1 : 0, is_exempt: Number(i.is_exempt) ? 1 : 0 };
           });
 
           loadRecordedPayment(targetOrder);
+          loadDiscountState(targetOrder);
 
           renderPOSCart();
           switchRightTab('SUMMARY');
@@ -2507,7 +2530,7 @@
 
       if (Array.isArray(ord.items) && ord.items.length > 0) {
         posCart = ord.items.map(function(item) {
-          return { id: item.id || null, name: item.name, price: Number(item.price) || 0, qty: Number(item.qty) || 1, user_note: item.user_note || '', pack_flip: Number(item.pack_flip) ? 1 : 0 };
+          return { id: item.id || null, name: item.name, price: Number(item.price) || 0, qty: Number(item.qty) || 1, user_note: item.user_note || '', pack_flip: Number(item.pack_flip) ? 1 : 0, is_exempt: Number(item.is_exempt) ? 1 : 0 };
         });
       } else {
         posCart = [{ id: null, name: 'Order #' + ord.id, price: Number(ord.total) || 0, qty: 1 }];
@@ -2532,7 +2555,7 @@
     function actionPrintReceiptFromHistory(orderId) {
       var ord = settledHistoryOrders.find(function(o){ return o.id === orderId; });
       if (!ord) return;
-      var calc = { subtotal: Number(ord.subtotal) || Number(ord.total), gst: Number(ord.gst) || 0, grandTotal: Number(ord.total) || ((Number(ord.subtotal) || 0) + (Number(ord.gst) || 0)), payableNow: 0 };
+      var calc = { subtotal: Number(ord.subtotal) || Number(ord.total), gst: Number(ord.gst) || 0, grandTotal: (ord.total != null && ord.total !== '') ? Number(ord.total) : ((Number(ord.subtotal) || 0) - (Number(ord.discount) || 0) + (Number(ord.gst) || 0)), discount: Number(ord.discount) || 0, payableNow: 0 };
       dispatchDirectPrintReceipt(ord.id, ord, calc);
     }
 
@@ -2993,7 +3016,7 @@
     function actionPrintReceipt(orderId) {
       var ord = allActiveOrders.find(function(o) { return o.id === orderId; });
       if (!ord) return;
-      var calc = { subtotal: Number(ord.subtotal) || Number(ord.total), gst: Number(ord.gst) || 0, grandTotal: Number(ord.total) || ((Number(ord.subtotal) || 0) + (Number(ord.gst) || 0)), payableNow: 0 };
+      var calc = { subtotal: Number(ord.subtotal) || Number(ord.total), gst: Number(ord.gst) || 0, grandTotal: (ord.total != null && ord.total !== '') ? Number(ord.total) : ((Number(ord.subtotal) || 0) - (Number(ord.discount) || 0) + (Number(ord.gst) || 0)), discount: Number(ord.discount) || 0, payableNow: 0 };
       dispatchDirectPrintReceipt(ord.id, ord, calc);
     }
 
@@ -3007,9 +3030,10 @@
       editingActiveOrderId = ord.id;
       
       loadRecordedPayment(ord);
+      loadDiscountState(ord);
 
       posCart = (ord.items || []).map(function(i) {
-        return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1, user_note: i.user_note || '', pack_flip: Number(i.pack_flip) ? 1 : 0 };
+        return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1, user_note: i.user_note || '', pack_flip: Number(i.pack_flip) ? 1 : 0, is_exempt: Number(i.is_exempt) ? 1 : 0 };
       });
       renderPOSCart();
     }
@@ -3212,14 +3236,102 @@
       }
     }
 
+    // ================= DISCOUNT / COMPLIMENTARY (password protected) =================
+    var posDiscount = { value: 0, type: 'amount', reason: '' };
+    var posComp = { on: false, reason: '' };
+    var posAuthPw = '';
+    var posDiscountMode = 'discount';
+
+    function resetDiscountState() {
+      posDiscount = { value: 0, type: 'amount', reason: '' };
+      posComp = { on: false, reason: '' };
+      posAuthPw = '';
+      renderPosDiscountInfo();
+    }
+    // Saved order edit karte waqt uska discount / complimentary wapas load karo
+    function loadDiscountState(ord) {
+      posDiscount = { value: 0, type: 'amount', reason: '' };
+      posComp = { on: false, reason: '' };
+      posAuthPw = '';
+      if (ord && Number(ord.is_complimentary)) posComp = { on: true, reason: ord.discount_reason || '' };
+      else if (ord && Number(ord.discount) > 0) posDiscount = { value: Number(ord.discount), type: 'amount', reason: ord.discount_reason || '' };
+      renderPosDiscountInfo();
+    }
+    function renderPosDiscountInfo() {
+      var box = document.getElementById('posDiscountInfo');
+      if (!box) return;
+      var txt = '';
+      if (posComp.on) txt = '🎁 Complimentary — ' + posComp.reason;
+      else if (posDiscount.value > 0) txt = '🏷 Discount ' + (posDiscount.type === 'percent' ? posDiscount.value + '%' : '₹' + posDiscount.value) + (posDiscount.reason ? ' — ' + posDiscount.reason : '');
+      box.classList.toggle('hidden', !txt);
+      document.getElementById('posDiscountInfoText').innerText = txt;
+    }
+    function clearPosDiscount() {
+      posDiscount = { value: 0, type: 'amount', reason: '' };
+      posComp = { on: false, reason: '' };
+      renderPosDiscountInfo();
+      calculatePOSBillTotals();
+    }
+    function openPosDiscountModal(mode) {
+      if (!posCart.length) return alert('Pehle cart me item add karein');
+      posDiscountMode = mode;
+      var isComp = mode === 'comp';
+      document.getElementById('posDiscTitle').innerText = isComp ? '🎁 Complimentary Order' : '🏷 Discount';
+      document.getElementById('posDiscValueRow').classList.toggle('hidden', isComp);
+      document.getElementById('posDiscReason').placeholder = isComp ? 'Reason (zaroori) — jaise Owner guest, Staff meal' : 'Reason (optional)';
+      document.getElementById('posDiscValue').value = !isComp && posDiscount.value > 0 ? posDiscount.value : '';
+      document.getElementById('posDiscType').value = posDiscount.type;
+      document.getElementById('posDiscReason').value = isComp ? posComp.reason : posDiscount.reason;
+      document.getElementById('posDiscPw').value = '';
+      document.getElementById('posDiscErr').innerText = '';
+      document.getElementById('posDiscountModal').classList.remove('hidden');
+    }
+    function closePosDiscountModal() { closeVirtualKeyboards(); document.getElementById('posDiscountModal').classList.add('hidden'); }
+    function applyPosDiscount() {
+      closeVirtualKeyboards();
+      var isComp = posDiscountMode === 'comp';
+      var err = document.getElementById('posDiscErr');
+      var reason = document.getElementById('posDiscReason').value.trim();
+      var pw = document.getElementById('posDiscPw').value;
+      var type = document.getElementById('posDiscType').value;
+      var val = Number(document.getElementById('posDiscValue').value) || 0;
+      if (!isComp) {
+        if (val <= 0) { err.innerText = 'Discount ki value daalein'; return; }
+        if (type === 'percent' && val > 100) { err.innerText = 'Percent 100 se zyada nahi ho sakta'; return; }
+      }
+      if (isComp && !reason) { err.innerText = 'Complimentary ka reason likhna zaroori hai'; return; }
+      if (!pw) { err.innerText = 'Password daalein'; return; }
+      fetch('/api/verify-discount-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw }) })
+        .then(function(r) { if (r.status === 404) throw 404; return r.json(); })
+        .then(function(d) {
+          if (!d || !d.valid) { err.innerText = (d && d.error) || 'Galat password'; return; }
+          posAuthPw = pw;
+          if (isComp) { posComp = { on: true, reason: reason }; posDiscount = { value: 0, type: 'amount', reason: '' }; }
+          else { posDiscount = { value: val, type: type, reason: reason }; posComp = { on: false, reason: '' }; }
+          closePosDiscountModal();
+          renderPosDiscountInfo();
+          calculatePOSBillTotals();
+        })
+        .catch(function(e) { err.innerText = e === 404 ? 'Server purana hai — server restart karein' : 'Server se connect nahi hua'; });
+    }
+
     function calculatePOSBillTotals() {
       var subtotal = posCart.reduce(function(s, i) { return s + (i.price * i.qty); }, 0);
-      var gst = Math.round((subtotal * 5) / 100);
-      var grandTotal = Math.round(subtotal + gst);
+      var taxable = posCart.reduce(function(s, i) { return Number(i.is_exempt) ? s : s + (i.price * i.qty); }, 0);
+      // Discount / Complimentary (discount GST se pehle lagta hai)
+      var disc = 0;
+      if (posComp.on) disc = subtotal;
+      else if (posDiscount.value > 0) disc = Math.min(subtotal, posDiscount.type === 'percent' ? Math.round(subtotal * posDiscount.value) / 100 : posDiscount.value);
+      disc = Math.round(disc * 100) / 100;
+      var taxAfterDisc = subtotal > 0 ? Math.max(0, taxable - disc * taxable / subtotal) : 0;
+      var gst = posComp.on ? 0 : Math.round((taxAfterDisc * 5) / 100);
+      var grandTotal = Math.round(subtotal - disc + gst);
       var payableNow = Math.max(0, grandTotal - alreadyPaidAmount);
 
       document.getElementById('posCalcSubtotal').innerText = '₹' + subtotal;
       document.getElementById('posCalcGst').innerText = '₹' + gst.toFixed(2);
+      document.getElementById('posCalcDiscount').innerText = '-₹' + disc.toFixed(2);
+      document.getElementById('posCalcDiscountWrap').classList.toggle('hidden', disc <= 0);
       document.getElementById('posCalcGrandTotal').innerText = '₹' + grandTotal;
       document.getElementById('posCalcPayableNow').innerText = '₹' + payableNow;
 
@@ -3228,7 +3340,7 @@
 
       syncCustomerDisplay(subtotal, gst, grandTotal);
 
-      return { subtotal: subtotal, gst: gst, grandTotal: grandTotal, payableNow: payableNow };
+      return { subtotal: subtotal, discount: disc, gst: gst, grandTotal: grandTotal, payableNow: payableNow };
     }
 
     // Customer display ko secondary screen par kholta hai (Window Management API).
@@ -3391,6 +3503,8 @@
         var a2 = parseFloat(document.getElementById('splitAmount2').value) || 0;
         initialPaid = alreadyPaidAmount + a1 + a2;
         finalPaymentMode = 'SPLIT';
+        // Split me jab cash hissa collect ho raha ho tabhi drawer khule
+        if ((splitMethod1 === 'Cash' && a1 > 0) || (splitMethod2 === 'Cash' && a2 > 0)) openCashDrawer();
       } else if (selectedPaymentMode === 'DUE') {
         finalPaymentMode = 'DUE';
         initialPaid = 0;
@@ -3404,7 +3518,8 @@
       }
 
       // Bill sirf tab print hoga jab abhi payment collect karke order settle ho rha ho
-      var paymentCollectedNow = !!selectedPaymentMode && selectedPaymentMode !== 'DUE' && (initialPaid - recordedPaidAmount) > 0;
+      if (posComp.on) { finalPaymentMode = 'COMPLIMENTARY'; initialPaid = 0; }
+      var paymentCollectedNow = !posComp.on && !!selectedPaymentMode && selectedPaymentMode !== 'DUE' && (initialPaid - recordedPaidAmount) > 0;
       var remainingDue = Math.max(0, calc.grandTotal - initialPaid);
       var isHoldOrder = !selectedPaymentMode && remainingDue > 0 && initialPaid === 0;
 
@@ -3424,6 +3539,10 @@
         items: [...posCart],
         payment_mode: finalPaymentMode, // Yeh ab seedha CASH, UPI, CARD ya DUE jayega
         subtotal: calc.subtotal,
+        discount: calc.discount || 0,
+        discount_reason: posComp.on ? posComp.reason : posDiscount.reason,
+        is_complimentary: posComp.on ? 1 : 0,
+        auth_password: posAuthPw,
         gst: calc.gst,
         total: calc.grandTotal,
         paid_amount: initialPaid,       // Yeh ab poora grandTotal bhejega taaki backend turant payment catch kar le!
@@ -3567,6 +3686,7 @@
           ${itemsRows}
           <div class="divider"></div>
           <div class="row"><span>Subtotal:</span><span>₹${calc.subtotal.toFixed(2)}</span></div>
+          ${Number(payload.is_complimentary) ? `<div class="row"><span>COMPLIMENTARY${payload.discount_reason ? ' (' + billEsc(payload.discount_reason) + ')' : ''}:</span><span>-₹${Number(calc.discount || calc.subtotal).toFixed(2)}</span></div>` : (Number(calc.discount) > 0 ? `<div class="row"><span>Discount${payload.discount_reason ? ' (' + billEsc(payload.discount_reason) + ')' : ''}:</span><span>-₹${Number(calc.discount).toFixed(2)}</span></div>` : '')}
           ${bOn('show_tax_split')
             ? `<div class="row"><span>CGST (2.50%):</span><span>₹${(Number(calc.gst) / 2).toFixed(2)}</span></div>
           <div class="row"><span>SGST (2.50%):</span><span>₹${(Number(calc.gst) / 2).toFixed(2)}</span></div>`
@@ -3765,6 +3885,7 @@
       editingActiveOrderId = null;
       loadRecordedPayment(null);
       posCart = [];
+      resetDiscountState();
       selectedPaymentMode = null;
       currentCashReceived = 0;
       currentCashChange = 0;
@@ -3797,11 +3918,12 @@
         document.getElementById('posCustPhone').value = running.customer_phone || '';
         document.getElementById('posCustName').value = running.customer_name || '';
         posCart = (running.items || []).map(function(i) {
-          return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1, user_note: i.user_note || '', pack_flip: Number(i.pack_flip) ? 1 : 0 };
+          return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1, user_note: i.user_note || '', pack_flip: Number(i.pack_flip) ? 1 : 0, is_exempt: Number(i.is_exempt) ? 1 : 0 };
         });
 
         // Sirf actual received amount hi "Already Received" me dikhega; unpaid order par 0
         loadRecordedPayment(running);
+        loadDiscountState(running);
       } else {
         document.getElementById('posCustPhone').value = '';
         document.getElementById('posCustName').value = '';
@@ -4062,13 +4184,13 @@
 
       var addedLine;
       if (editingActiveOrderId) {
-        addedLine = { id: itemObj ? itemObj.id : null, name: displayName, price: Number(displayPrice), qty: 1, addons: [] };
+        addedLine = { id: itemObj ? itemObj.id : null, name: displayName, price: Number(displayPrice), qty: 1, addons: [], is_exempt: itemObj && Number(itemObj.is_exempt) ? 1 : 0 };
         posCart.push(addedLine);
       } else {
         var exist = posCart.find(function(i) { return i.name === displayName && (!i.addons || i.addons.length === 0); });
         if (exist) { exist.qty += 1; addedLine = exist; }
         else {
-          addedLine = { id: itemObj ? itemObj.id : null, name: displayName, price: Number(displayPrice), qty: 1, addons: [] };
+          addedLine = { id: itemObj ? itemObj.id : null, name: displayName, price: Number(displayPrice), qty: 1, addons: [], is_exempt: itemObj && Number(itemObj.is_exempt) ? 1 : 0 };
           posCart.push(addedLine);
         }
       }
@@ -4235,7 +4357,8 @@
         name: displayName,
         price: finalPrice,
         qty: 1,
-        addons: selectedAddons
+        addons: selectedAddons,
+        is_exempt: Number(currentModalSelectedItem.is_exempt) ? 1 : 0
       };
       posCart.push(newLine);
 
@@ -4415,5 +4538,25 @@
 
     initializePOS();
   </script>
+  <!-- Discount / Complimentary modal -->
+  <div id="posDiscountModal" class="hidden fixed inset-0 bg-black/60 z-[120] flex items-start justify-center p-4 pt-6 overflow-y-auto">
+    <div class="bg-white rounded-2xl w-full max-w-sm p-5 space-y-3 shadow-2xl">
+      <div class="flex justify-between items-center">
+        <h3 id="posDiscTitle" class="font-black text-base text-gray-900">Discount</h3>
+        <button onclick="closePosDiscountModal()" class="text-gray-400 hover:text-gray-700 font-black text-lg" aria-label="Close">✕</button>
+      </div>
+      <div id="posDiscValueRow" class="flex gap-2">
+        <select id="posDiscType" class="border border-gray-300 rounded-lg px-2 py-2 text-sm font-bold bg-white"><option value="amount">₹</option><option value="percent">%</option></select>
+        <input id="posDiscValue" type="text" readonly onclick="openVirtualKeyboard(this, 'number', 'center')" placeholder="Discount value" class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-orange-500">
+      </div>
+      <input id="posDiscReason" type="text" readonly onclick="openVirtualKeyboard(this, 'text')" maxlength="200" placeholder="Reason" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-orange-500">
+      <input id="posDiscPw" type="password" readonly onclick="openVirtualKeyboard(this, 'text')" autocomplete="off" placeholder="Password" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-orange-500">
+      <p id="posDiscErr" class="text-xs font-bold text-rose-600 min-h-[1rem]"></p>
+      <div class="flex gap-2">
+        <button onclick="closePosDiscountModal()" class="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-xl text-xs font-black">Cancel</button>
+        <button onclick="applyPosDiscount()" class="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2.5 rounded-xl text-xs font-black">Apply</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

@@ -892,6 +892,7 @@
           price: Number(finalPrice),
           notes: noteText,
           image: itemImgOf(selectedMenuItem),
+          is_exempt: Number(selectedMenuItem.is_exempt) ? 1 : 0,
           qty: custQty
         };
         kioskTray.push(line);
@@ -977,7 +978,7 @@
     // ---------- Tray ----------
     const trayCount = () => kioskTray.reduce((s, i) => s + i.qty, 0);
     const traySubtotal = () => kioskTray.reduce((s, i) => s + (Number(i.price) * i.qty), 0);
-    const trayGst = () => Math.round((traySubtotal() * 5) / 100);
+    const trayGst = () => Math.round((kioskTray.reduce((s, i) => Number(i.is_exempt) ? s : s + (Number(i.price) * i.qty), 0) * 5) / 100);
     const trayTotal = () => traySubtotal() + trayGst();
 
     function updateTrayUI() {

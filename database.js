@@ -145,6 +145,9 @@ pool.query(`
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS token_no INTEGER;`).catch(() => {});
   await pool.query(`ALTER TABLE order_items ADD COLUMN IF NOT EXISTS user_note TEXT DEFAULT '';`).catch(() => {});
   await pool.query(`ALTER TABLE order_items ADD COLUMN IF NOT EXISTS pack_flip INTEGER DEFAULT 0;`).catch(() => {});
+  await pool.query(`ALTER TABLE order_items ADD COLUMN IF NOT EXISTS is_exempt INTEGER DEFAULT 0;`).catch(() => {});
+  await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_reason TEXT DEFAULT '';`).catch(() => {});
+  await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS is_complimentary INTEGER DEFAULT 0;`).catch(() => {});
   
   await pool.query(`ALTER TABLE menu ADD COLUMN IF NOT EXISTS is_visible INTEGER DEFAULT 1;`).catch(() => {});
   await pool.query(`ALTER TABLE menu ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0;`).catch(() => {});

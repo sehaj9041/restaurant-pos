@@ -45,6 +45,12 @@ class UsbPrinter {
         return "OK " + d.getProductName() + " (" + Integer.toHexString(d.getVendorId()) + ":" + Integer.toHexString(d.getProductId()) + ")";
     }
 
+    /** App open hote hi printer ki USB permission maang leta hai (blocking; main thread par na chalayein). */
+    void ensurePermission() {
+        UsbDevice d = findPrinter();
+        if (d != null && !usb.hasPermission(d)) askPermission(d);
+    }
+
     /** Blocking; call off the main thread. Returns "OK" or an error text. */
     volatile String lastInfo = "";
 
