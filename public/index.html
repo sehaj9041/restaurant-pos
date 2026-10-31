@@ -200,50 +200,46 @@
   </header>
 
   <!-- ================= VIEW 1: FLOOR & QUEUES DASHBOARD ================= -->
-  <div id="viewFloorDashboard" class="flex-1 overflow-y-auto p-4 space-y-3 pb-16">
-    <div class="grid grid-cols-4 gap-3">
-      <div class="bg-white border border-gray-200 rounded-xl p-3 flex justify-between items-center shadow-2xs">
+  <div id="viewFloorDashboard" class="flex-1 overflow-y-auto p-2 space-y-2 pb-14">
+    <div class="grid grid-cols-4 gap-2">
+      <div class="bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 flex justify-between items-center shadow-2xs">
         <div class="flex items-center gap-2.5">
           <span class="w-3.5 h-3.5 rounded-full bg-emerald-500"></span>
           <div>
             <div class="text-[11px] font-black uppercase text-gray-500 tracking-wider">Active</div>
-            <div class="text-[10px] text-gray-400 font-medium">Right now</div>
           </div>
         </div>
-        <div id="metricActiveCount" class="text-xl font-black text-gray-800">0</div>
+        <div id="metricActiveCount" class="text-lg font-black text-gray-800">0</div>
       </div>
 
-      <div class="bg-white border border-gray-200 rounded-xl p-3 flex justify-between items-center shadow-2xs">
+      <div class="bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 flex justify-between items-center shadow-2xs">
         <div class="flex items-center gap-2.5">
           <span class="w-4 h-4 rounded bg-emerald-600 text-white flex items-center justify-center text-[10px] font-black">✓</span>
           <div>
             <div class="text-[11px] font-black uppercase text-gray-500 tracking-wider">Completed Today</div>
-            <div class="text-[10px] text-gray-400 font-medium">Billed & closed</div>
           </div>
         </div>
-        <div id="metricCompletedCount" class="text-xl font-black text-gray-800">0</div>
+        <div id="metricCompletedCount" class="text-lg font-black text-gray-800">0</div>
       </div>
 
-      <div class="bg-white border border-gray-200 rounded-xl p-3 flex justify-between items-center shadow-2xs">
+      <div class="bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 flex justify-between items-center shadow-2xs">
         <div class="flex items-center gap-2.5">
           <span class="text-base">🛵</span>
           <div>
             <div class="text-[11px] font-black uppercase text-gray-500 tracking-wider">Delivery</div>
-            <div class="text-[10px] text-gray-400 font-medium">In progress</div>
           </div>
         </div>
-        <div id="metricDeliveryCount" class="text-xl font-black text-gray-800">0</div>
+        <div id="metricDeliveryCount" class="text-lg font-black text-gray-800">0</div>
       </div>
 
-      <div class="bg-white border border-gray-200 rounded-xl p-3 flex justify-between items-center shadow-2xs">
+      <div class="bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 flex justify-between items-center shadow-2xs">
         <div class="flex items-center gap-2.5">
           <span class="text-red-500 font-black text-base">✕</span>
           <div>
             <div class="text-[11px] font-black uppercase text-gray-500 tracking-wider">Voided Today</div>
-            <div class="text-[10px] text-gray-400 font-medium">No voids</div>
           </div>
         </div>
-        <div class="text-xl font-black text-gray-800">0</div>
+        <div class="text-lg font-black text-gray-800">0</div>
       </div>
     </div>
 
@@ -262,7 +258,7 @@
     </div>
 
     <!-- FILTER & ACTION BAR -->
-    <div class="flex justify-between items-center bg-white p-2 rounded-xl border border-gray-200 shadow-2xs">
+    <div class="flex justify-between items-center bg-white p-1.5 rounded-xl border border-gray-200 shadow-2xs">
       <div class="flex items-center gap-2">
         <button id="btnNavActiveOrders" onclick="showActiveOrdersView()" class="bg-orange-500 text-white text-xs font-black px-3 py-1.5 rounded-lg shadow-2xs transition">
           Active Orders (<span id="filterActiveBadge">0</span>)
@@ -360,8 +356,17 @@
         <div id="onlineOrdersList" class="space-y-2"></div>
       </div>
 
-      <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-2xs">
-        <div class="p-2.5 border-b border-gray-100 flex justify-between items-center text-xs">
+      <div id="kioskUnassignedBox" class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs space-y-2 hidden">
+        <div class="flex justify-between items-center text-xs font-bold text-gray-700 border-b pb-2">
+          <span class="flex items-center gap-1.5"><span>🪑</span> Dine-in - needs a table</span>
+          <span id="kioskUnassignedCount" class="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
+        </div>
+        <div id="kioskUnassignedList" class="space-y-2"></div>
+      </div>
+
+      <div class="flex gap-2 items-start">
+      <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-2xs w-[28rem] shrink-0">
+        <div class="px-2.5 py-1.5 border-b border-gray-100 flex flex-wrap gap-y-1 justify-between items-center text-xs">
           <div class="flex items-center gap-3">
             <span class="font-bold text-gray-700">Dining Room</span>
             <div class="flex bg-gray-100 p-0.5 rounded-lg">
@@ -387,21 +392,13 @@
         </div>
       </div>
 
-      <div id="kioskUnassignedBox" class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs space-y-2 hidden">
-        <div class="flex justify-between items-center text-xs font-bold text-gray-700 border-b pb-2">
-          <span class="flex items-center gap-1.5"><span>🪑</span> Dine-in - needs a table</span>
-          <span id="kioskUnassignedCount" class="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
-        </div>
-        <div id="kioskUnassignedList" class="space-y-2"></div>
-      </div>
-
-      <div class="grid grid-cols-2 gap-3">
+      <div class="grid grid-cols-2 gap-2 flex-1 min-w-0 items-start">
         <div class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs flex flex-col">
           <div class="flex justify-between items-center text-xs font-black text-gray-800 border-b pb-2 mb-2">
             <span class="flex items-center gap-1.5">🛍 Takeaway Queue</span>
             <span id="takeawayQueueBadge" class="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
           </div>
-          <div id="takeawayQueueList" class="space-y-2 flex-1 overflow-y-auto max-h-[420px] pr-1">
+          <div id="takeawayQueueList" class="space-y-2 flex-1 overflow-y-auto max-h-[calc(100vh-13rem)] pr-1">
             <p class="text-xs text-gray-400 italic text-center py-6">No takeaway orders in queue</p>
           </div>
         </div>
@@ -411,10 +408,11 @@
             <span class="flex items-center gap-1.5">🛵 Delivery</span>
             <span id="deliveryQueueBadge" class="bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
           </div>
-          <div id="deliveryQueueList" class="space-y-2 flex-1 overflow-y-auto max-h-[420px] pr-1">
+          <div id="deliveryQueueList" class="space-y-2 flex-1 overflow-y-auto max-h-[calc(100vh-13rem)] pr-1">
             <p class="text-xs text-gray-400 italic text-center py-6">No delivery orders in queue</p>
           </div>
         </div>
+      </div>
       </div>
     </div>
   </div>
