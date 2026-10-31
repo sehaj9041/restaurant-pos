@@ -791,7 +791,7 @@
     </div>
 
     <!-- COLUMN 3: ORDER SUMMARY & PAYMENT -->
-    <div class="w-64 lg:w-72 xl:w-80 flex flex-col bg-white shrink-0 h-full border-l border-gray-200">
+    <div class="w-80 lg:w-96 xl:w-[28rem] flex flex-col bg-white shrink-0 h-full border-l border-gray-200">
       <div class="hidden grid-cols-2 p-1.5 bg-gray-100 border-b text-xs font-bold shrink-0">
         <button id="tabBtnCustomer" onclick="switchRightTab('CUSTOMER')" class="py-1.5 rounded-lg transition bg-white text-orange-600 shadow-2xs font-black">Order Type & Customer</button>
         <button id="tabBtnSummary" onclick="switchRightTab('SUMMARY')" class="py-1.5 rounded-lg transition text-gray-500 hover:text-gray-900 flex items-center justify-center gap-1">
@@ -801,7 +801,7 @@
       </div>
 
       <div class="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <div id="tabContentCustomer" class="p-2.5 space-y-2 shrink-0 border-b border-gray-200 max-h-[45%] overflow-y-auto">
+        <div id="tabContentCustomer" class="p-2 space-y-1.5 shrink-0 border-b border-gray-200 max-h-[35%] overflow-y-auto">
           <div class="bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 flex justify-between items-center text-xs">
             <div>
               <span class="text-[10px] font-bold text-gray-400 block uppercase leading-none">Selected Table</span>
@@ -837,15 +837,15 @@
           </div>
         </div>
 
-        <div id="tabContentSummary" class="p-3 flex-1 flex flex-col min-h-0 overflow-hidden">
-          <div id="posCartItemList" class="flex-1 overflow-y-auto pr-1 text-xs divide-y divide-gray-100 space-y-1">
+        <div id="tabContentSummary" class="p-2 flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div id="posCartItemList" class="flex-1 overflow-y-auto pr-1 text-xs divide-y divide-gray-100">
             <p class="text-gray-400 text-center py-10 italic text-xs">Cart is empty</p>
           </div>
         </div>
       </div>
 
       <!-- BILLING & CONTROLS -->
-      <div class="border-t border-gray-200 p-3 bg-white space-y-2 shrink-0 overflow-y-auto max-h-[50%]">
+      <div class="border-t border-gray-200 px-2 py-1.5 bg-white space-y-1 shrink-0 overflow-y-auto max-h-[38%]">
         <div class="flex justify-between items-center text-xs font-bold text-gray-500">
           <span class="flex items-center gap-1 text-orange-600 cursor-pointer">🏷 Offers</span>
           <div class="flex items-center gap-1.5">
@@ -1529,7 +1529,7 @@
           document.getElementById('posCustName').value = targetOrder.customer_name || '';
 
           posCart = (targetOrder.items || []).map(function(i) {
-            return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1, user_note: i.user_note || '', pack_flip: Number(i.pack_flip) ? 1 : 0, is_exempt: Number(i.is_exempt) ? 1 : 0 };
+            return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1, user_note: i.user_note || '', pack_flip: Number(i.pack_flip) ? 1 : 0, is_exempt: Number(i.is_exempt) ? 1 : 0, locked: 1, order_status: targetOrder.status || '' };
           });
 
           loadRecordedPayment(targetOrder);
@@ -2530,7 +2530,7 @@
 
       if (Array.isArray(ord.items) && ord.items.length > 0) {
         posCart = ord.items.map(function(item) {
-          return { id: item.id || null, name: item.name, price: Number(item.price) || 0, qty: Number(item.qty) || 1, user_note: item.user_note || '', pack_flip: Number(item.pack_flip) ? 1 : 0, is_exempt: Number(item.is_exempt) ? 1 : 0 };
+          return { id: item.id || null, name: item.name, price: Number(item.price) || 0, qty: Number(item.qty) || 1, user_note: item.user_note || '', pack_flip: Number(item.pack_flip) ? 1 : 0, is_exempt: Number(item.is_exempt) ? 1 : 0, locked: 1, order_status: ord.status || '' };
         });
       } else {
         posCart = [{ id: null, name: 'Order #' + ord.id, price: Number(ord.total) || 0, qty: 1 }];
@@ -3033,7 +3033,7 @@
       loadDiscountState(ord);
 
       posCart = (ord.items || []).map(function(i) {
-        return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1, user_note: i.user_note || '', pack_flip: Number(i.pack_flip) ? 1 : 0, is_exempt: Number(i.is_exempt) ? 1 : 0 };
+        return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1, user_note: i.user_note || '', pack_flip: Number(i.pack_flip) ? 1 : 0, is_exempt: Number(i.is_exempt) ? 1 : 0, locked: 1, order_status: ord.status || '' };
       });
       renderPOSCart();
     }
@@ -3418,9 +3418,9 @@
       var isDine = t.indexOf('dine') !== -1;
       if (!isTake && !isDine) return '';
       var on = !!item.pack_flip;
-      var label = isDine ? (on ? '🛍 Packed ✓' : '🛍 Pack') : (on ? '🍽 Dine-In ✓' : '🍽 Dine-In');
+      var label = isDine ? (on ? '🛍✓' : '🛍') : (on ? '🍽✓' : '🍽');
       var cls = on ? 'bg-emerald-100 border-emerald-500 text-emerald-800' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-100';
-      return '<button onclick="toggleCartItemPack(' + idx + ')" class="px-2 py-0.5 rounded border text-[11px] font-bold ' + cls + '">' + label + '</button>';
+      return '<button onclick="toggleCartItemPack(' + idx + ')" title="' + (isDine ? 'Pack' : 'Dine-In') + '" class="px-1 rounded border text-[11px] font-bold leading-5 ' + cls + '">' + label + '</button>';
     }
 
     function toggleCartItemPack(idx) {
@@ -3452,33 +3452,48 @@
         placeBtn.className = "flex-1 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5";
       }
 
-      box.innerHTML = posCart.map(function(item, idx) {
+      var rowHTML = function(item, idx) {
+        var badge = item.locked ? (/READY|COMPLETED/i.test(item.order_status || '') ? '<span class="shrink-0 px-1 rounded text-[9px] font-black bg-emerald-100 text-emerald-700">Ready</span>' : '<span class="shrink-0 px-1 rounded text-[9px] font-black bg-amber-100 text-amber-700">Preparing</span>') : '';
+        var iconBtn = function(cls, fn, label, title) { return '<button onclick="' + fn + '" title="' + title + '" class="px-1 rounded border text-[11px] font-bold leading-5 ' + cls + '">' + label + '</button>'; };
+        var noteBtn = iconBtn(item.user_note ? 'bg-yellow-100 border-yellow-400 text-yellow-800' : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-100', 'editCartItemNote(' + idx + ')', '📝', 'Note');
+        var moveBtn = (editingActiveOrderId && selectedPOSTableId && /dine/i.test(currentPOSOrderType || '')) ? iconBtn('bg-white border-orange-300 text-orange-700 hover:bg-orange-50', 'promptMoveItem(' + idx + ')', '⇄', 'Move') : '';
         return `
-          <div class="py-2 text-xs">
-            <div class="flex items-start justify-between gap-2">
-              <div class="flex items-start gap-2 min-w-0">
-                <div class="flex items-center border rounded bg-gray-50 shrink-0">
-                  <button onclick="changeItemQty(${idx}, -1)" class="px-2 py-0.5 font-bold hover:bg-gray-200">-</button>
-                  <span class="px-1.5 font-black text-gray-800">${item.qty}</span>
-                  <button onclick="changeItemQty(${idx}, 1)" class="px-2 py-0.5 font-bold hover:bg-gray-200">+</button>
-                </div>
-                <span class="font-bold text-gray-800 break-words min-w-0">${escCartText(item.name)}</span>
+          <div class="py-1 text-xs">
+            <div class="flex items-start justify-between gap-1.5">
+              <div class="flex items-center border rounded bg-gray-50 shrink-0">
+                <button onclick="changeItemQty(${idx}, -1)" class="px-1.5 font-bold hover:bg-gray-200">-</button>
+                <span class="px-1 font-black text-gray-800">${item.qty}</span>
+                <button onclick="changeItemQty(${idx}, 1)" class="px-1.5 font-bold hover:bg-gray-200">+</button>
               </div>
-
-              <div class="flex items-center gap-2 shrink-0">
-                <button onclick="removeItemCompletely(${idx})" class="text-gray-400 hover:text-red-600 text-xs">🗑</button>
-                <span class="font-black text-gray-900 w-12 text-right">₹${item.price * item.qty}</span>
-              </div>
-            </div>
-            <div class="flex items-center gap-1.5 mt-1.5 ml-1 flex-wrap">
-              <button onclick="editCartItemNote(${idx})" class="px-2 py-0.5 rounded border text-[11px] font-bold ${item.user_note ? 'bg-yellow-100 border-yellow-400 text-yellow-800' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-100'}">📝 ${item.user_note ? 'Edit Note' : 'Note'}</button>
+              <span class="flex-1 min-w-0 font-bold text-gray-800 break-words leading-tight" title="${escCartText(item.name)}">${escCartText(item.name)}</span>
+              ${badge}
+              ${noteBtn}
               ${packToggleBtnHTML(item, idx)}
-              ${(editingActiveOrderId && selectedPOSTableId && /dine/i.test(currentPOSOrderType || '')) ? `<button onclick="promptMoveItem(${idx})" class="px-2 py-0.5 rounded border text-[11px] font-bold bg-white border-orange-300 text-orange-700 hover:bg-orange-50">⇄ Move</button>` : ''}
+              ${moveBtn}
+              <button onclick="removeItemCompletely(${idx})" class="text-gray-400 hover:text-red-600 text-xs shrink-0">🗑</button>
+              <span class="font-black text-gray-900 w-12 text-right shrink-0">₹${item.price * item.qty}</span>
             </div>
-            ${item.user_note ? `<div class="mt-1 ml-1 text-[11px] font-semibold text-yellow-800 bg-yellow-50 border border-yellow-200 rounded px-1.5 py-0.5 break-words">📝 ${escCartText(item.user_note)}</div>` : ''}
+            ${item.user_note ? `<div class="ml-1 text-[11px] font-semibold text-yellow-800 bg-yellow-50 border border-yellow-200 rounded px-1.5 py-0.5 break-words">📝 ${escCartText(item.user_note)}</div>` : ''}
           </div>
         `;
-      }).join('');
+      };
+
+      var lockedRows = [], newRows = [];
+      posCart.forEach(function(item, idx) {
+        if (item.locked) {
+          lockedRows.push(rowHTML(item, idx));
+        } else {
+          newRows.push(rowHTML(item, idx));
+        }
+      });
+
+      var html = '';
+      if (lockedRows.length) {
+        html += '<div class="mb-2"><div class="text-[10px] font-black uppercase text-gray-500 py-1">Already Ordered · ' + lockedRows.length + '</div><div class="bg-gray-50 rounded-lg px-2 divide-y divide-gray-100">' + lockedRows.join('') + '</div></div>';
+        html += '<div class="text-[10px] font-black uppercase text-gray-500 py-1">New Items to Add</div>';
+        if (!newRows.length) html += '<p class="text-gray-400 text-center py-6 italic text-xs">Pick items from the menu to add to this order.</p>';
+      }
+      box.innerHTML = html + newRows.join('');
 
       calculatePOSBillTotals();
     }
@@ -3918,7 +3933,7 @@
         document.getElementById('posCustPhone').value = running.customer_phone || '';
         document.getElementById('posCustName').value = running.customer_name || '';
         posCart = (running.items || []).map(function(i) {
-          return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1, user_note: i.user_note || '', pack_flip: Number(i.pack_flip) ? 1 : 0, is_exempt: Number(i.is_exempt) ? 1 : 0 };
+          return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1, user_note: i.user_note || '', pack_flip: Number(i.pack_flip) ? 1 : 0, is_exempt: Number(i.is_exempt) ? 1 : 0, locked: 1, order_status: running.status || '' };
         });
 
         // Sirf actual received amount hi "Already Received" me dikhega; unpaid order par 0
