@@ -375,7 +375,7 @@
       document.getElementById('payBtnOnline2').className = 'border-2 rounded-xl py-2.5 px-2 transition ' + (m === 'ONLINE' ? on : off);
     }
     fetch('/api/razorpay/config').then(r => r.json()).then(c => {
-      if (c && c.enabled) { rpEnabled = true; document.getElementById('payChoice2').classList.remove('hidden'); document.getElementById('payCodOnly').classList.add('hidden'); setPayMode('COD'); }
+      if (c && c.enabled) { rpEnabled = true; document.getElementById('payChoice2').classList.remove('hidden'); document.getElementById('payCodOnly').classList.add('hidden'); setPayMode('ONLINE'); }
     }).catch(() => {});
     function loadRazorpay() {
       if (window.Razorpay) return Promise.resolve();

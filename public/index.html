@@ -356,17 +356,8 @@
         <div id="onlineOrdersList" class="space-y-2"></div>
       </div>
 
-      <div id="kioskUnassignedBox" class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs space-y-2 hidden">
-        <div class="flex justify-between items-center text-xs font-bold text-gray-700 border-b pb-2">
-          <span class="flex items-center gap-1.5"><span>🪑</span> Dine-in - needs a table</span>
-          <span id="kioskUnassignedCount" class="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
-        </div>
-        <div id="kioskUnassignedList" class="space-y-2"></div>
-      </div>
-
-      <div class="flex gap-2 items-start">
-      <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-2xs w-[28rem] shrink-0">
-        <div class="px-2.5 py-1.5 border-b border-gray-100 flex flex-wrap gap-y-1 justify-between items-center text-xs">
+      <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-2xs">
+        <div class="px-2.5 py-1.5 border-b border-gray-100 flex justify-between items-center text-xs">
           <div class="flex items-center gap-3">
             <span class="font-bold text-gray-700">Dining Room</span>
             <div class="flex bg-gray-100 p-0.5 rounded-lg">
@@ -392,13 +383,21 @@
         </div>
       </div>
 
-      <div class="grid grid-cols-2 gap-2 flex-1 min-w-0 items-start">
+      <div id="kioskUnassignedBox" class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs space-y-2 hidden">
+        <div class="flex justify-between items-center text-xs font-bold text-gray-700 border-b pb-2">
+          <span class="flex items-center gap-1.5"><span>🪑</span> Dine-in - needs a table</span>
+          <span id="kioskUnassignedCount" class="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
+        </div>
+        <div id="kioskUnassignedList" class="space-y-2"></div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
         <div class="bg-white rounded-xl border border-gray-200 p-3 shadow-2xs flex flex-col">
           <div class="flex justify-between items-center text-xs font-black text-gray-800 border-b pb-2 mb-2">
             <span class="flex items-center gap-1.5">🛍 Takeaway Queue</span>
             <span id="takeawayQueueBadge" class="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
           </div>
-          <div id="takeawayQueueList" class="space-y-2 flex-1 overflow-y-auto max-h-[calc(100vh-13rem)] pr-1">
+          <div id="takeawayQueueList" class="space-y-2 flex-1 overflow-y-auto max-h-[420px] pr-1">
             <p class="text-xs text-gray-400 italic text-center py-6">No takeaway orders in queue</p>
           </div>
         </div>
@@ -408,11 +407,10 @@
             <span class="flex items-center gap-1.5">🛵 Delivery</span>
             <span id="deliveryQueueBadge" class="bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
           </div>
-          <div id="deliveryQueueList" class="space-y-2 flex-1 overflow-y-auto max-h-[calc(100vh-13rem)] pr-1">
+          <div id="deliveryQueueList" class="space-y-2 flex-1 overflow-y-auto max-h-[420px] pr-1">
             <p class="text-xs text-gray-400 italic text-center py-6">No delivery orders in queue</p>
           </div>
         </div>
-      </div>
       </div>
     </div>
   </div>
