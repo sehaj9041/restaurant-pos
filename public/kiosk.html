@@ -79,7 +79,7 @@
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
           <div class="relative" id="cartIconBox">
-            <span class="text-3xl">🛍️</span>
+            <svg width="34" height="38" viewBox="0 0 34 38" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M11 12c0-8 12-8 12 0" stroke="#92400e" stroke-width="2.5" stroke-linecap="round" fill="none"/><path d="M5 12h24l2.5 21a2 2 0 0 1-2 2.2h-25a2 2 0 0 1-2-2.2z" fill="#d6a15c"/><path d="M5 12h24l.7 6H4.3z" fill="#e4b676"/></svg>
             <span id="trayCountBadge" class="absolute -top-1 -right-2 bg-[var(--red)] text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">0</span>
           </div>
           <span id="trayTotalDisplay" class="text-2xl font-black">₹0.00</span>
@@ -122,12 +122,33 @@
       <div class="grid grid-cols-2 gap-5 w-full mt-14">
         <button onclick="startKioskOrderWithMode('Dine-In')" class="tile pt-6 pb-0 flex flex-col items-center">
           <span class="text-2xl">Eat In</span>
-          <span class="text-[84px] leading-none my-8">🥤🍔</span>
+          <svg class="my-6" width="190" height="170" viewBox="0 0 190 170" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <ellipse cx="95" cy="150" rx="70" ry="9" fill="#000" opacity=".08"/>
+            <path d="M22 40v34a6 6 0 0 0 12 0V40M28 40v100" stroke="#6b7280" stroke-width="5" stroke-linecap="round" fill="none"/>
+            <path d="M160 40c-10 6-14 22-14 44h14zM160 84v56" stroke="#6b7280" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="#9ca3af"/>
+            <circle cx="92" cy="86" r="52" fill="#f3f4f6" stroke="#d1d5db" stroke-width="3"/>
+            <circle cx="92" cy="86" r="38" fill="#fff" stroke="#e5e7eb" stroke-width="2"/>
+            <path d="M62 92a30 14 0 0 1 60 0z" fill="#d97706"/>
+            <rect x="60" y="91" width="64" height="7" rx="3.5" fill="#7c2d12"/>
+            <path d="M58 98h68l-6 4h-56z" fill="#84cc16"/>
+            <path d="M63 99a29 12 0 0 0 58 0z" fill="#f59e0b"/>
+            <circle cx="80" cy="84" r="2" fill="#fef3c7"/><circle cx="92" cy="80" r="2" fill="#fef3c7"/><circle cx="104" cy="84" r="2" fill="#fef3c7"/>
+            <path d="M78 52c-5-6 5-9 0-16M96 50c-5-6 5-9 0-16M114 52c-5-6 5-9 0-16" stroke="#cbd5e1" stroke-width="3" stroke-linecap="round" fill="none"/>
+          </svg>
           <span class="w-full h-12 bg-neutral-200"></span>
         </button>
         <button onclick="startKioskOrderWithMode('Takeaway')" class="tile pt-6 pb-0 flex flex-col items-center">
-          <span class="text-2xl">Take Away</span>
-          <span class="text-[84px] leading-none my-8">🛍️</span>
+          <span class="text-2xl">Pack</span>
+          <svg class="my-6" width="190" height="170" viewBox="0 0 190 170" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <ellipse cx="95" cy="152" rx="66" ry="9" fill="#000" opacity=".08"/>
+            <path d="M68 52c0-26 54-26 54 0" stroke="#92400e" stroke-width="6" stroke-linecap="round" fill="none"/>
+            <path d="M42 52h106l10 94a6 6 0 0 1-6 7H38a6 6 0 0 1-6-7z" fill="#d6a15c"/>
+            <path d="M42 52h106l3 28H39z" fill="#e4b676"/>
+            <path d="M148 52l10 94a6 6 0 0 1-6 7h-22l8-101z" fill="#b9853f" opacity=".55"/>
+            <rect x="58" y="84" width="74" height="52" rx="8" fill="#fff" opacity=".95"/>
+            <image class="pack-logo" display="none" x="62" y="88" width="66" height="44" preserveAspectRatio="xMidYMid meet" href=""/>
+            <text class="pack-text" x="95" y="115" text-anchor="middle" font-family="Arial,sans-serif" font-weight="900" font-size="18" fill="#b45309">PACK</text>
+          </svg>
           <span class="w-full h-12 bg-neutral-200"></span>
         </button>
       </div>
@@ -261,7 +282,16 @@
 
     <!-- ============ ITEM ADDED ============ -->
     <div id="addedModal" class="hidden screen z-[60] kiosk-bg flex flex-col items-center justify-center text-center">
-      <div class="text-[110px] leading-none pop">🛍️</div>
+      <div class="pop"><svg width="230" height="206" viewBox="0 0 190 170" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <ellipse cx="95" cy="152" rx="66" ry="9" fill="#000" opacity=".08"/>
+            <path d="M68 52c0-26 54-26 54 0" stroke="#92400e" stroke-width="6" stroke-linecap="round" fill="none"/>
+            <path d="M42 52h106l10 94a6 6 0 0 1-6 7H38a6 6 0 0 1-6-7z" fill="#d6a15c"/>
+            <path d="M42 52h106l3 28H39z" fill="#e4b676"/>
+            <path d="M148 52l10 94a6 6 0 0 1-6 7h-22l8-101z" fill="#b9853f" opacity=".55"/>
+            <rect x="58" y="84" width="74" height="52" rx="8" fill="#fff" opacity=".95"/>
+            <image class="pack-logo" display="none" x="62" y="88" width="66" height="44" preserveAspectRatio="xMidYMid meet" href=""/>
+            <text class="pack-text" x="95" y="115" text-anchor="middle" font-family="Arial,sans-serif" font-weight="900" font-size="18" fill="#b45309">PACK</text>
+          </svg></div>
       <h3 class="text-4xl font-black mt-8">Item added to Bag!</h3>
       <p class="text-sm text-neutral-600 mt-3">Your total has been updated</p>
       <p id="addedTotal" class="text-2xl font-black mt-6">₹0.00</p>
@@ -363,6 +393,11 @@
     let brandLetter = 'V';
     function paintBrand() {
       const url = kioskReceiptCfg.logo;
+      document.querySelectorAll('.pack-logo').forEach(im => {
+        im.onerror = () => { im.setAttribute('display', 'none'); im.parentNode.querySelector('.pack-text').removeAttribute('display'); };
+        im.onload = () => { im.removeAttribute('display'); im.parentNode.querySelector('.pack-text').setAttribute('display', 'none'); };
+        if (url) im.setAttribute('href', url);
+      });
       document.querySelectorAll('.brand-badge').forEach(el => {
         el.classList.toggle('has-logo', !!url);
         el.innerHTML = url ? `<img src="${esc(url)}" alt="" onerror="this.parentElement.classList.remove('has-logo');this.parentElement.textContent='${brandLetter}'">` : esc(brandLetter);

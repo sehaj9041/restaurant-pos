@@ -163,7 +163,7 @@
 
       <!-- Customer Details Input -->
       <div class="space-y-2 pt-1">
-        <input type="text" id="cName" placeholder="Your Name" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-500 font-medium">
+        <input type="text" id="cName" placeholder="Your Name *" maxlength="40" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-500 font-medium">
         <input type="tel" id="cPhone" inputmode="numeric" placeholder="10-digit Phone Number" maxlength="10" oninput="this.value=this.value.replace(/\D/g,'');document.getElementById('cPhone2').classList.remove('hidden')" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs font-mono outline-none focus:border-indigo-500 font-medium">
         <input type="tel" id="cPhone2" inputmode="numeric" placeholder="Phone Number dobara likhein (confirm)" maxlength="10" autocomplete="off" oninput="this.value=this.value.replace(/\D/g,'')" onpaste="return false" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs font-mono outline-none focus:border-indigo-500 font-medium">
       </div>
@@ -1089,6 +1089,7 @@
     }
 
     function orderBasics() {
+      if (document.getElementById('cName').value.trim().length < 2) { toast('Apna naam daalein', true); return null; }
       const phone = document.getElementById('cPhone').value.trim();
       if (!/^[6-9]\d{9}$/.test(phone) || /^(\d)\1{9}$/.test(phone) || /^(?:0123456789|1234567890|9876543210|0987654321)$/.test(phone) || /^(\d{2})\1{4}$/.test(phone) || /^(\d{5})\1$/.test(phone)) { toast('Sahi 10-digit mobile number daalein', true); return null; }
       // Pehle server se verified number (profile token) dobara confirm nahi karwate; naye number ko 2 baar likhwate hain
