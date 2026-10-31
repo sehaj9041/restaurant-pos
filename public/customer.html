@@ -126,6 +126,11 @@
     }
 
     setInterval(pollCart, 1000);
+
+    // POS window band hone par ye display window bhi apne aap band ho jaye (reload par nahi: reload me opener.closed false rehta hai)
+    setInterval(function() {
+      try { if (window.opener && window.opener.closed) window.close(); } catch (e) {}
+    }, 1000);
   </script>
 </body>
 </html>
