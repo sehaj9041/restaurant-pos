@@ -28,6 +28,7 @@ app.use((req, res, next) => {
   next();
 });
 
+app.get('/', (req, res, next) => { if (/^(www\.)?vishalfoodiez\.in$/i.test(req.hostname) || req.query.site === '1') return res.sendFile(path.join(__dirname, 'public', 'site', 'index.html')); next(); });
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'order.html'));
 });
@@ -48,6 +49,32 @@ function checkOwnerPin(pin, cb) {
     cb(!err && typeof pin === 'string' && pin !== '' && pin === real);
   });
 }
+
+// ---- OWNER GUARD ----
+// Owner-only API routes need the owner PIN in the x-owner-pin header. W = writes only (POST/PUT/PATCH/DELETE), ALL = every method.
+// Customer ordering, POS/kitchen/kiosk day-to-day routes stay open on purpose.
+const OWNER_RULES = [
+  { m: 'W', re: /^\/(menu|categories|addon-groups|variation-masters|upsells|floor-tables|riders)(\/|$)/ },
+  { m: 'W', re: /^\/(reorder|upload|settings|settings\/config)$/ },
+  { m: 'W', re: /^\/inventory(\/|$)/ },
+  { m: 'ALL', re: /^\/(staff|staff-advances|staff-adjustments|payroll|whatsapp|expenses|system|reports)(\/|$)/ },
+  { m: 'ALL', re: /^\/customers$/ },
+  { m: 'ALL', re: /^\/attendance(?:$|\/(?!punch$))/ },
+  { m: 'ALL', re: /^\/paytm\/callback-log$/ }
+];
+const pinFails = new Map(); // ip -> { n, t }
+const PIN_MAX_FAILS = 10, PIN_WINDOW_MS = 15 * 60 * 1000;
+function clientIp(req) { const x = (req.get('x-forwarded-for') || '').split(',').map(s => s.trim()).filter(Boolean); return x.length ? x[x.length - 1] : req.socket.remoteAddress; }
+function pinBlocked(req) { const f = pinFails.get(clientIp(req)); return !!f && f.n >= PIN_MAX_FAILS && Date.now() - f.t < PIN_WINDOW_MS; }
+function pinFailed(req) { const ip = clientIp(req), f = pinFails.get(ip); pinFails.set(ip, (!f || Date.now() - f.t >= PIN_WINDOW_MS) ? { n: 1, t: Date.now() } : { n: f.n + 1, t: f.t }); }
+function pinOk(req) { pinFails.delete(clientIp(req)); }
+setInterval(() => { const now = Date.now(); pinFails.forEach((f, ip) => { if (now - f.t >= PIN_WINDOW_MS) pinFails.delete(ip); }); }, PIN_WINDOW_MS).unref();
+app.use('/api', (req, res, next) => {
+  const isWrite = !['GET', 'HEAD', 'OPTIONS'].includes(req.method);
+  if (req.method === 'OPTIONS' || !OWNER_RULES.some(r => r.re.test(req.path) && (r.m === 'ALL' || isWrite))) return next();
+  if (pinBlocked(req)) return res.status(429).json({ error: 'Too many wrong PIN attempts. 15 minute baad try karein.' });
+  checkOwnerPin(req.get('x-owner-pin'), (ok) => { if (ok) { pinOk(req); return next(); } if (req.get('x-owner-pin')) pinFailed(req); res.status(401).json({ error: 'Owner PIN required' }); });
+});
 
 app.use('/api/reports', (req, res, next) => {
   checkOwnerPin(req.get('x-owner-pin'), (ok) => ok ? next() : res.status(401).json({ error: 'Owner PIN required' }));
@@ -1870,8 +1897,11 @@ app.post('/api/verify-discount-password', (req, res) => {
 });
 
 app.post('/api/verify-pin', (req, res) => {
+  if (pinBlocked(req)) return res.status(429).json({ valid: false, error: 'Too many wrong PIN attempts. 15 minute baad try karein.' });
   db.get("SELECT admin_pin FROM settings WHERE id = 1", [], (err, row) => {
-    res.json({ valid: req.body.pin === ((row && row.admin_pin) ? row.admin_pin : '1234') });
+    const valid = req.body.pin === ((row && row.admin_pin) ? row.admin_pin : '1234');
+    if (valid) pinOk(req); else pinFailed(req);
+    res.json({ valid });
   });
 });
 

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Settings & System Tools</title>
   <script src="/ui-dialogs.js"></script>
+  <script src="/owner-auth.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -201,7 +202,7 @@
           <h2 class="font-black text-base mb-1">Database &amp; Data Tools</h2>
           <p class="text-xs text-gray-500 mb-4">Daily backup download karein ya fresh session ke liye data reset karein.</p>
           <div class="grid sm:grid-cols-2 gap-3">
-            <a href="/api/system/backup" class="flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 font-bold py-3 rounded-xl transition text-sm">📥 Download DB Backup</a>
+            <a href="#" onclick="downloadBackup(); return false;" class="flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 font-bold py-3 rounded-xl transition text-sm">📥 Download DB Backup</a>
             <button onclick="resetSalesData()" class="flex items-center justify-center gap-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold py-3 rounded-xl transition text-sm">⚠️ Reset Sales / Orders</button>
           </div>
         </div>
@@ -1285,7 +1286,17 @@
     // ---------- data tools ----------
     async function resetSalesData() {
       const ans = await uiPrompt("WARNING: Isse sales reports aur expenses clear ho jayenge. Type 'RESET':", "", {title:"Reset sales data", okText:"Reset", placeholder:"RESET"});
-      if (ans === 'RESET') fetch('/api/system/reset-orders', { method: 'POST' }).then(r => r.json()).then(() => toast('Data clear ho gaya'));
+      if (ans !== 'RESET') return;
+      const pin = await askOwnerPin(); if (!pin) return;
+      fetch('/api/system/reset-orders', { method: 'POST', headers: { 'x-owner-pin': pin } }).then(r => r.ok ? r.json().then(() => toast('Data clear ho gaya')) : toast('Galat PIN', true));
+    }
+    function askOwnerPin() { return uiPrompt('Owner PIN daalein:', '', { title: 'Owner PIN', okText: 'Confirm', placeholder: 'PIN' }); }
+    async function downloadBackup() {
+      const pin = await askOwnerPin(); if (!pin) return;
+      const r = await fetch('/api/system/backup', { headers: { 'x-owner-pin': pin } });
+      if (!r.ok) return toast('Galat PIN', true);
+      const a = document.createElement('a'); a.href = URL.createObjectURL(await r.blob());
+      a.download = 'POS_Backup_' + new Date().toISOString().slice(0, 10) + '.db'; a.click();
     }
 
     // ---------- load ----------

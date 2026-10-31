@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Menu & Master Manager - Admin</title>
   <script src="/ui-dialogs.js"></script>
+  <script src="/owner-auth.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>.sort-over { box-shadow: inset 0 3px 0 #6366f1; background: #eef2ff; }</style>
 </head>
@@ -645,7 +646,7 @@
       try {
         const data = await api('/api/verify-pin', 'POST', { pin });
         if (data.valid) {
-          sessionStorage.setItem('adminUnlocked', '1');
+          sessionStorage.setItem('adminUnlocked', '1'); sessionStorage.setItem('ownerPin', pin);
           unlock();
         } else {
           document.getElementById('pinError').classList.remove('hidden');

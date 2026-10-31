@@ -21,6 +21,7 @@
     })();
   </script>
   <script src="/ui-dialogs.js"></script>
+  <script src="/owner-auth.js"></script>
   <script src="/html2canvas.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -3895,7 +3896,7 @@
       })
       .then(function(res) { return res.json(); })
       .then(function(data) {
-        if (data.valid) window.location.href = targetUrl;
+        if (data.valid) { sessionStorage.setItem('ownerPin', pin); window.location.href = targetUrl; }
         else alert('Galat PIN!');
       }).catch(function(){});
     }
