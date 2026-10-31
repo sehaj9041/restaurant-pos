@@ -64,6 +64,7 @@ app.get('/manifest.json', async (req, res, next) => {
   try {
     const m = JSON.parse(require('fs').readFileSync(path.join(__dirname, 'public', 'manifest.json'), 'utf8'));
     m.id = '/index.html'; // POS ki apni identity; Kitchen app ka alag id/scope hai
+    m.scope = '/index.html'; // '/' scope kitchen/rider/punch ke URLs bhi POS app me khol deta tha
     const logo = ((await getSettingsConfig()).receipt || {}).logo;
     if (logo) {
       const type = /\.webp$/i.test(logo) ? 'image/webp' : /\.jpe?g$/i.test(logo) ? 'image/jpeg' : 'image/png';
@@ -74,6 +75,8 @@ app.get('/manifest.json', async (req, res, next) => {
     res.send(JSON.stringify(m));
   } catch (e) { next(); }
 });
+// Customer display POS app ke scope (/index.html) ke andar serve hota hai, taaki installed POS me bahar ka browser-bar na aaye
+app.get('/index.html/customer', (req, res) => res.sendFile(path.join(__dirname, 'public', 'customer.html')));
 // Rider PWA manifest: start_url keeps the rider's own token so the installed app opens straight to their orders
 app.get('/rider-manifest.json', async (req, res) => {
   const t = String(req.query.t || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 64);
@@ -85,7 +88,7 @@ app.get('/rider-manifest.json', async (req, res) => {
   res.setHeader('Cache-Control', 'no-cache');
   res.json({
     name: 'Delivery Rider' + (rider ? ' - ' + rider.name : ''), short_name: 'Rider',
-    id: '/rider.html?t=' + t, start_url: '/rider.html?t=' + t, scope: '/', display: 'standalone', prefer_related_applications: false,
+    id: '/rider.html?t=' + t, start_url: '/rider.html?t=' + t, scope: '/rider.html', display: 'standalone', prefer_related_applications: false,
     background_color: '#f3f4f6', theme_color: '#f97316',
     icons: ['192x192', '512x512'].map(sizes => ({ src, sizes, type, purpose: 'any' }))
   });
@@ -809,7 +812,7 @@ app.get('/api/rider/:token/orders', async (req, res) => {
         AND ${history ? "delivered_at IS NOT NULL AND delivered_at >= NOW() - INTERVAL '7 days'" : 'delivered_at IS NULL'}
       ORDER BY ${history ? 'delivered_at DESC' : 'id DESC'} LIMIT 100`, [rider.id]);
     for (const o of orders) {
-      o.items = await dbAllAsync('SELECT name, qty, user_note FROM order_items WHERE order_id = ?', [o.id]);
+      o.items = await dbAllAsync("SELECT name, qty, user_note FROM order_items WHERE order_id = ? AND name <> 'Delivery Charge'", [o.id]);
       o.to_collect = Math.max(0, Number(o.total) - Number(o.paid_amount));
     }
     res.json({ rider: { name: rider.name }, orders });

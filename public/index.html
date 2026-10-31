@@ -171,7 +171,7 @@
         <span>Sehaj</span>
       </div>
 
-      <a href="/customer.html" target="_blank" onclick="return openCustomerDisplay(event)" class="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-700 flex items-center gap-1 transition">
+      <a href="/index.html/customer" target="_blank" onclick="return openCustomerDisplay(event)" class="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-700 flex items-center gap-1 transition">
         <span>🖥</span> Customer Display
       </a>
 
@@ -2442,7 +2442,7 @@
 
       tbody.innerHTML = orders.map(function(o){
         var itemsText = (o.items && o.items.length > 0)
-          ? o.items.map(function(i){ return i.name + ' ×' + i.qty; }).join(', ')
+          ? o.items.filter(function(i){ return !isDeliveryChargeLine(i); }).map(function(i){ return i.name + ' ×' + i.qty; }).join(', ')
           : 'Items logged';
 
         var typeBadge = o.order_type === 'Dine-In'
@@ -2835,7 +2835,7 @@
         kioskBox.classList.remove('hidden');
         document.getElementById('kioskUnassignedCount').innerText = unassignedKiosk.length;
         kioskList.innerHTML = unassignedKiosk.map(function(o) {
-          var itemsText = (o.items || []).map(function(i){ return i.name + ' x' + i.qty; }).join(', ');
+          var itemsText = (o.items || []).filter(function(i){ return !isDeliveryChargeLine(i); }).map(function(i){ return i.name + ' x' + i.qty; }).join(', ');
           var totalAmount = Number(o.actual_total) || Number(o.total) || 0;
           var paidAmount = getOrderReceivedAmount(o);
 
@@ -2901,7 +2901,7 @@
       }
 
       function buildOrderActionCard(o) {
-        var itemsText = (o.items || []).map(function(i){ return i.name + ' x' + i.qty; }).join(', ');
+        var itemsText = (o.items || []).filter(function(i){ return !isDeliveryChargeLine(i); }).map(function(i){ return i.name + ' x' + i.qty; }).join(', ');
         var totalAmount = Number(o.actual_total) || Number(o.total) || 0;
         var paidAmount = getOrderReceivedAmount(o);
 
@@ -3330,8 +3330,8 @@
       document.getElementById('posCalcGrandTotal').innerText = '₹' + grandTotal;
       document.getElementById('posCalcPayableNow').innerText = '₹' + payableNow;
 
-      document.getElementById('tabSummaryBadge').innerText = posCart.reduce(function(s, i){ return s + i.qty; }, 0);
-      document.getElementById('topOrderActiveBadge').innerText = 'Order • ' + posCart.reduce(function(s, i){ return s + i.qty; }, 0);
+      document.getElementById('tabSummaryBadge').innerText = cartItemCount();
+      document.getElementById('topOrderActiveBadge').innerText = 'Order • ' + cartItemCount();
 
       syncCustomerDisplay(subtotal, gst, grandTotal);
 
@@ -3353,7 +3353,7 @@
           if (scr) { left = scr.availLeft; top = scr.availTop; w = scr.availWidth; h = scr.availHeight; }
         }
       } catch (e) {}
-      customerDisplayWin = window.open('/customer.html', 'customerDisplay',
+      customerDisplayWin = window.open('/index.html/customer', 'customerDisplay',
         'left=' + left + ',top=' + top + ',width=' + w + ',height=' + h + ',popup=yes');
       if (customerDisplayWin && scr) {
         try { customerDisplayWin.document.documentElement.requestFullscreen({ screen: scr }); } catch (e) {}
@@ -3450,6 +3450,10 @@
       document.getElementById('custExtraSummary').innerText = [currentPOSOrderType || 'Order type', ph, nm].filter(Boolean).join(' · ');
     }
 
+    var DELIVERY_CHARGE_NAME = 'Delivery Charge';
+    function isDeliveryChargeLine(i) { return i && i.name === DELIVERY_CHARGE_NAME; }
+    function cartItemCount() { return posCart.reduce(function(s, i) { return isDeliveryChargeLine(i) ? s : s + i.qty; }, 0); }
+
     function renderPOSCart() {
       syncCustExtra();
       var box = document.getElementById('posCartItemList');
@@ -3496,7 +3500,9 @@
       };
 
       var lockedRows = [], newRows = [];
+      var deliveryChargeTotal = 0;
       posCart.forEach(function(item, idx) {
+        if (isDeliveryChargeLine(item)) { deliveryChargeTotal += item.price * item.qty; return; }
         if (item.locked) {
           lockedRows.push(rowHTML(item, idx));
         } else {
@@ -3510,6 +3516,7 @@
         html += '<div class="text-[10px] font-black uppercase text-gray-500 py-1">New Items to Add</div>';
         if (!newRows.length) html += '<p class="text-gray-400 text-center py-6 italic text-xs">Pick items from the menu to add to this order.</p>';
       }
+      if (deliveryChargeTotal > 0) html += '<div class="flex justify-between items-center py-1.5 mt-1 border-t text-xs font-bold text-gray-600"><span>🛵 Delivery charge</span><span class="font-black text-gray-900">₹' + deliveryChargeTotal + '</span></div>';
       box.innerHTML = html + newRows.join('');
 
       calculatePOSBillTotals();
@@ -3635,13 +3642,14 @@
       renderAndPrintReceipt(orderId, payload, calc);
     }
     function renderAndPrintReceipt(orderId, payload, calc) {
+      var rcptDeliveryCharge = (payload.items || []).filter(isDeliveryChargeLine).reduce(function(s, i) { return s + Number(i.price) * Number(i.qty); }, 0);
       var itemsRows = `
         <table class="items">
           <thead>
             <tr><th class="nm">Item</th><th class="q">Qty</th><th class="r">Rate</th><th class="a">Amount</th></tr>
           </thead>
           <tbody>
-            ${(payload.items || []).map(function(item) {
+            ${(payload.items || []).filter(function(i) { return !isDeliveryChargeLine(i); }).map(function(item) {
               return `<tr>
                 <td class="nm">${item.name}</td>
                 <td class="q">${item.qty}</td>
@@ -3717,7 +3725,8 @@
           <div class="divider"></div>
           ${itemsRows}
           <div class="divider"></div>
-          <div class="row"><span>Subtotal:</span><span>₹${calc.subtotal.toFixed(2)}</span></div>
+          <div class="row"><span>Subtotal:</span><span>₹${(calc.subtotal - rcptDeliveryCharge).toFixed(2)}</span></div>
+          ${rcptDeliveryCharge > 0 ? `<div class="row"><span>Delivery Charge:</span><span>₹${rcptDeliveryCharge.toFixed(2)}</span></div>` : ''}
           ${Number(payload.is_complimentary) ? `<div class="row"><span>COMPLIMENTARY${payload.discount_reason ? ' (' + billEsc(payload.discount_reason) + ')' : ''}:</span><span>-₹${Number(calc.discount || calc.subtotal).toFixed(2)}</span></div>` : (Number(calc.discount) > 0 ? `<div class="row"><span>Discount${payload.discount_reason ? ' (' + billEsc(payload.discount_reason) + ')' : ''}:</span><span>-₹${Number(calc.discount).toFixed(2)}</span></div>` : '')}
           ${bOn('show_tax_split')
             ? `<div class="row"><span>CGST (2.50%):</span><span>₹${(Number(calc.gst) / 2).toFixed(2)}</span></div>
@@ -3751,7 +3760,7 @@
     function triggerManualKOTDirect() {
       if (!posCart.length) return alert('Cart khali hai!');
       if (!currentPOSOrderType) return alert('Kripya pehle Order Type select karein!');
-      var itemsRows = posCart.map(function(i) {
+      var itemsRows = posCart.filter(function(i) { return !isDeliveryChargeLine(i); }).map(function(i) {
         return `
           <tr>
             <td style="font-size:14px; font-weight:bold; padding:2px 0;">${i.name}</td>
