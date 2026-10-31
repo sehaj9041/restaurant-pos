@@ -760,7 +760,7 @@
 
   <!-- ================= VIEW 2: FULL 3-COLUMN POS BILLING SCREEN ================= -->
   <div id="viewPOSOrderScreen" class="flex-1 flex overflow-hidden hidden bg-white">
-    <div class="w-32 lg:w-40 xl:w-48 border-r border-gray-200 bg-white flex flex-col overflow-y-auto shrink-0">
+    <div class="w-24 lg:w-28 xl:w-48 border-r border-gray-200 bg-white flex flex-col overflow-y-auto shrink-0">
       <div class="p-3 text-[10px] font-black uppercase text-gray-400 tracking-wider border-b">Categories</div>
       <div id="categoriesList" class="divide-y divide-gray-50 flex-1"></div>
     </div>
@@ -791,7 +791,7 @@
     </div>
 
     <!-- COLUMN 3: ORDER SUMMARY & PAYMENT -->
-    <div class="w-80 lg:w-96 xl:w-[28rem] flex flex-col bg-white shrink-0 h-full border-l border-gray-200">
+    <div class="w-[22rem] lg:w-[26rem] xl:w-[30rem] flex flex-col bg-white shrink-0 h-full border-l border-gray-200">
       <div class="hidden grid-cols-2 p-1.5 bg-gray-100 border-b text-xs font-bold shrink-0">
         <button id="tabBtnCustomer" onclick="switchRightTab('CUSTOMER')" class="py-1.5 rounded-lg transition bg-white text-orange-600 shadow-2xs font-black">Order Type & Customer</button>
         <button id="tabBtnSummary" onclick="switchRightTab('SUMMARY')" class="py-1.5 rounded-lg transition text-gray-500 hover:text-gray-900 flex items-center justify-center gap-1">
@@ -810,6 +810,8 @@
             <button onclick="changePOSTable()" class="text-orange-600 font-bold text-xs underline">Change</button>
           </div>
 
+          <button id="btnCustExtraToggle" onclick="toggleCustExtra()" class="w-full flex justify-between items-center text-[11px] font-bold text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1"><span id="custExtraSummary" class="truncate"></span><span id="custExtraArrow">▾</span></button>
+          <div id="custExtraBox" class="space-y-1.5">
           <div class="grid grid-cols-3 gap-1.5">
             <button id="posBtnDineIn" onclick="setPOSOrderType('Dine-In')" class="border border-gray-200 hover:bg-gray-50 rounded-lg py-1.5 flex flex-col items-center justify-center text-gray-600 font-bold">
               <span class="text-base mb-0.5">🍽</span>
@@ -835,6 +837,7 @@
               <input type="text" id="posCustName" readonly onclick="openVirtualKeyboard(this, 'text', 'center')" placeholder="Auto-filled from phone" class="w-full border border-gray-200 rounded-lg p-2 text-xs outline-none focus:border-orange-500 bg-white cursor-pointer">
             </div>
           </div>
+          </div>
         </div>
 
         <div id="tabContentSummary" class="p-2 flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -846,18 +849,6 @@
 
       <!-- BILLING & CONTROLS -->
       <div class="border-t border-gray-200 px-2 py-1.5 bg-white space-y-1 shrink-0 overflow-y-auto max-h-[38%]">
-        <div class="flex justify-between items-center text-xs font-bold text-gray-500">
-          <span class="flex items-center gap-1 text-orange-600 cursor-pointer">🏷 Offers</span>
-          <div class="flex items-center gap-1.5">
-            <span class="text-[11px] text-gray-400">Guests</span>
-            <div class="flex items-center border rounded bg-gray-50 px-1.5 py-0.5">
-              <button onclick="changeGuestCount(-1)" class="font-bold px-1 hover:text-black">-</button>
-              <span id="guestCountLabel" class="px-1.5 font-black text-gray-800">1</span>
-              <button onclick="changeGuestCount(1)" class="font-bold px-1 hover:text-black">+</button>
-            </div>
-          </div>
-        </div>
-
         <div id="boxAlreadyPaidBanner" class="hidden bg-emerald-50 border border-emerald-200 rounded-xl p-2 text-xs flex justify-between items-center">
           <div>
             <span class="text-[10px] font-black uppercase text-emerald-600 block">Already Received</span>
@@ -866,36 +857,44 @@
           <span id="lblAlreadyPaidAmount" class="text-sm font-black text-emerald-700">₹0.00</span>
         </div>
 
-        <div class="grid grid-cols-2 gap-1.5 border-t pt-1.5">
-          <button onclick="openPosDiscountModal('discount')" id="btnPosDiscount" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold">🏷 Discount</button>
-          <button onclick="openPosDiscountModal('comp')" id="btnPosComp" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold">🎁 Complimentary</button>
+        <div class="flex items-center gap-1.5 border-t pt-1">
+          <button onclick="openPosDiscountModal('discount')" id="btnPosDiscount" class="flex-1 border border-gray-200 hover:bg-gray-50 text-gray-700 py-1 rounded-lg text-xs font-bold">🏷 Discount</button>
+          <button onclick="openPosDiscountModal('comp')" id="btnPosComp" class="flex-1 border border-gray-200 hover:bg-gray-50 text-gray-700 py-1 rounded-lg text-xs font-bold">🎁 Comp</button>
+          <div class="flex items-center gap-1 shrink-0">
+            <span class="text-[10px] text-gray-400">Guests</span>
+            <div class="flex items-center border rounded bg-gray-50 px-1 py-0.5">
+              <button onclick="changeGuestCount(-1)" class="font-bold px-1 hover:text-black">-</button>
+              <span id="guestCountLabel" class="px-1 font-black text-gray-800">1</span>
+              <button onclick="changeGuestCount(1)" class="font-bold px-1 hover:text-black">+</button>
+            </div>
+          </div>
         </div>
         <div id="posDiscountInfo" class="hidden bg-rose-50 border border-rose-200 rounded-lg px-2 py-1.5 text-[11px] font-bold text-rose-800 flex justify-between items-center gap-2">
           <span id="posDiscountInfoText" class="min-w-0 break-words"></span>
           <button onclick="clearPosDiscount()" class="shrink-0 text-rose-600 font-black px-1" aria-label="Remove">✕</button>
         </div>
 
-        <div class="text-[11px] text-gray-500 flex justify-between pt-1.5">
+        <div class="text-[11px] text-gray-500 flex justify-between">
           <span>Subtotal: <b id="posCalcSubtotal">₹0</b></span>
           <span id="posCalcDiscountWrap" class="hidden text-rose-600">Discount: <b id="posCalcDiscount">₹0</b></span>
           <span>GST (5%): <b id="posCalcGst">₹0.00</b></span>
           <span>Round Off: <b id="posCalcRound">₹0.00</b></span>
         </div>
 
-        <div class="flex justify-between items-center pt-1 border-t">
+        <div class="flex justify-between items-center border-t">
           <div>
             <span class="text-xs font-bold text-gray-500 block">Grand Total: <b id="posCalcGrandTotal" class="text-gray-900 font-black">₹0</b></span>
             <span id="lblPayableDiffTitle" class="text-sm font-black text-orange-700">Payable Now</span>
           </div>
-          <span id="posCalcPayableNow" class="text-2xl font-black text-gray-900">₹0</span>
+          <span id="posCalcPayableNow" class="text-xl font-black text-gray-900">₹0</span>
         </div>
 
-        <div class="grid grid-cols-5 gap-1 pt-1">
-          <button onclick="handlePaymentModeClick('Cash')" id="payBtnCash" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5">💵 Cash</button>
-          <button onclick="handlePaymentModeClick('UPI')" id="payBtnUPI" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5">📲 UPI</button>
-          <button onclick="handlePaymentModeClick('Card')" id="payBtnCard" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5">💳 Card</button>
-          <button onclick="handlePaymentModeClick('Split')" id="payBtnSplit" class="border border-blue-200 hover:bg-blue-50 text-blue-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5">🔀 Split</button>
-          <button onclick="handlePaymentModeClick('DUE')" id="payBtnDUE" class="border border-rose-200 hover:bg-rose-50 text-rose-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5">📒 Due</button>
+        <div class="grid grid-cols-5 gap-1">
+          <button onclick="handlePaymentModeClick('Cash')" id="payBtnCash" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5">💵 Cash</button>
+          <button onclick="handlePaymentModeClick('UPI')" id="payBtnUPI" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5">📲 UPI</button>
+          <button onclick="handlePaymentModeClick('Card')" id="payBtnCard" class="border border-gray-200 hover:bg-gray-50 text-gray-700 py-1 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5">💳 Card</button>
+          <button onclick="handlePaymentModeClick('Split')" id="payBtnSplit" class="border border-blue-200 hover:bg-blue-50 text-blue-700 py-1 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5">🔀 Split</button>
+          <button onclick="handlePaymentModeClick('DUE')" id="payBtnDUE" class="border border-rose-200 hover:bg-rose-50 text-rose-700 py-1 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5">📒 Due</button>
         </div>
 
         <div id="splitPaymentPanel" class="hidden border border-blue-100 bg-blue-50/20 rounded-xl p-2.5 space-y-2.5 text-xs mt-2">
@@ -3202,8 +3201,8 @@
       ['Cash', 'UPI', 'Card', 'Split', 'DUE'].forEach(function(m) {
         var btn = document.getElementById('payBtn' + m);
         if (btn) btn.className = (m === 'DUE') 
-          ? "border border-rose-200 hover:bg-rose-50 text-rose-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5" 
-          : "border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5";
+          ? "border border-rose-200 hover:bg-rose-50 text-rose-700 py-1 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5" 
+          : "border border-gray-200 hover:bg-gray-50 text-gray-700 py-1 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5";
       });
 
       if (selectedPaymentMode) {
@@ -3437,7 +3436,26 @@
       renderPOSCart();
     }
 
+    var custExtraOpen = null; // null = auto (collapsed once type/table are chosen)
+    function toggleCustExtra() {
+      var box = document.getElementById('custExtraBox');
+      custExtraOpen = box.classList.contains('hidden');
+      syncCustExtra();
+    }
+    function syncCustExtra() {
+      var box = document.getElementById('custExtraBox');
+      if (!box) return;
+      var open = custExtraOpen;
+      if (open === null) open = !(currentPOSOrderType && (selectedPOSTableId || editingActiveOrderId));
+      box.classList.toggle('hidden', !open);
+      document.getElementById('custExtraArrow').innerText = open ? '▴' : '▾';
+      var ph = (document.getElementById('posCustPhone') || {}).value || '';
+      var nm = (document.getElementById('posCustName') || {}).value || '';
+      document.getElementById('custExtraSummary').innerText = [currentPOSOrderType || 'Order type', ph, nm].filter(Boolean).join(' · ');
+    }
+
     function renderPOSCart() {
+      syncCustExtra();
       var box = document.getElementById('posCartItemList');
       var placeBtn = document.getElementById('btnPOSPlaceOrder');
 
@@ -3459,19 +3477,22 @@
         var moveBtn = (editingActiveOrderId && selectedPOSTableId && /dine/i.test(currentPOSOrderType || '')) ? iconBtn('bg-white border-orange-300 text-orange-700 hover:bg-orange-50', 'promptMoveItem(' + idx + ')', '⇄', 'Move') : '';
         return `
           <div class="py-1 text-xs">
-            <div class="flex items-start justify-between gap-1.5">
+            <div class="flex items-start justify-between gap-2">
+              <span class="flex-1 min-w-0 font-bold text-gray-800 break-words leading-tight">${escCartText(item.name)}</span>
+              <span class="font-black text-gray-900 shrink-0">₹${item.price * item.qty}</span>
+            </div>
+            <div class="flex items-center gap-1 mt-0.5">
               <div class="flex items-center border rounded bg-gray-50 shrink-0">
-                <button onclick="changeItemQty(${idx}, -1)" class="px-1.5 font-bold hover:bg-gray-200">-</button>
+                <button onclick="changeItemQty(${idx}, -1)" class="px-2 font-bold hover:bg-gray-200">-</button>
                 <span class="px-1 font-black text-gray-800">${item.qty}</span>
-                <button onclick="changeItemQty(${idx}, 1)" class="px-1.5 font-bold hover:bg-gray-200">+</button>
+                <button onclick="changeItemQty(${idx}, 1)" class="px-2 font-bold hover:bg-gray-200">+</button>
               </div>
-              <span class="flex-1 min-w-0 font-bold text-gray-800 break-words leading-tight" title="${escCartText(item.name)}">${escCartText(item.name)}</span>
               ${badge}
+              <span class="flex-1"></span>
               ${noteBtn}
               ${packToggleBtnHTML(item, idx)}
               ${moveBtn}
-              <button onclick="removeItemCompletely(${idx})" class="text-gray-400 hover:text-red-600 text-xs shrink-0">🗑</button>
-              <span class="font-black text-gray-900 w-12 text-right shrink-0">₹${item.price * item.qty}</span>
+              <button onclick="removeItemCompletely(${idx})" class="text-gray-400 hover:text-red-600 text-xs shrink-0 px-1">🗑</button>
             </div>
             ${item.user_note ? `<div class="ml-1 text-[11px] font-semibold text-yellow-800 bg-yellow-50 border border-yellow-200 rounded px-1.5 py-0.5 break-words">📝 ${escCartText(item.user_note)}</div>` : ''}
           </div>
@@ -3916,8 +3937,8 @@
       ['Cash', 'UPI', 'Card', 'Split', 'DUE'].forEach(function(m) {
         var btn = document.getElementById('payBtn' + m);
         if (btn) btn.className = (m === 'DUE')
-          ? "border border-rose-200 hover:bg-rose-50 text-rose-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5"
-          : "border border-gray-200 hover:bg-gray-50 text-gray-700 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5";
+          ? "border border-rose-200 hover:bg-rose-50 text-rose-700 py-1 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5"
+          : "border border-gray-200 hover:bg-gray-50 text-gray-700 py-1 rounded-lg text-xs font-bold flex items-center justify-center gap-0.5";
       });
 
       var running = null;
