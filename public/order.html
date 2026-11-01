@@ -306,6 +306,15 @@
     </div>
   </div>
 
+  <!-- ================= CAN WE SUGGEST? MODAL ================= -->
+  <div id="onlineSuggestModal" class="hidden fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-5 max-w-sm w-full shadow-2xl space-y-3 max-h-[85vh] flex flex-col">
+      <h3 class="font-black text-gray-900 text-center text-base shrink-0">Can we suggest?</h3>
+      <div id="onlineSuggestContent" class="grid grid-cols-2 gap-2 overflow-y-auto min-h-0 text-xs"></div>
+      <button onclick="closeOnlineSuggest()" class="shrink-0 w-full border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold py-2.5 rounded-xl text-sm">Not Today</button>
+    </div>
+  </div>
+
   <!-- ================= ONLINE VARIATION SELECTION MODAL ================= -->
   <div id="onlineVariationModal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl p-5 max-w-sm w-full shadow-2xl space-y-4">
@@ -527,6 +536,8 @@
     setMode('Delivery');
     refreshProfileUI();
 
+    let onlineSuggestNames = [], onlineSuggestShown = new Set();
+    fetch('/api/kiosk-suggestions').then(r => r.json()).then(r => { onlineSuggestNames = (r || []).map(x => x.item_name); }).catch(() => {});
     let onlineUpsells = [];
     fetch('/api/upsells').then(r => r.json()).then(u => { onlineUpsells = (u || []).filter(x => Number(x.is_active) !== 0); }).catch(() => {});
 
@@ -1068,7 +1079,40 @@
       renderCartList();
     }
 
+    // Items from Admin > Suggested Items that are not in the cart yet (each is offered only once)
+    function onlineSuggestions() {
+      const inCart = new Set(cart.map(c => c.id));
+      return onlineSuggestNames.map(n => menu.find(i => i.name === n))
+        .filter(t => t && isShown(t) && !isSoldOut(t) && !inCart.has(t.id) && !onlineSuggestShown.has(t.id));
+    }
+
     function openCheckout() {
+      if (!cart.length) return;
+      const list = onlineSuggestions();
+      if (!list.length) return openCheckoutPage();
+      document.getElementById('onlineSuggestContent').innerHTML = list.map(t => {
+        let vars = [];
+        try { vars = JSON.parse(t.variations || '[]'); } catch (e) {}
+        const price = vars.length ? 'From ₹' + vars[0].price : '₹' + t.price;
+        const im = imgSrc(t.image || t.image_url);
+        return `<button onclick="pickOnlineSuggest(${t.id})" class="text-left p-2.5 rounded-xl border border-gray-200 hover:border-indigo-500 hover:bg-indigo-50/50">
+          <div class="h-20 flex items-center justify-center">${im ? `<img src="${esc(im)}" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">` : '<span class="text-3xl">🍽️</span>'}</div>
+          <div class="font-bold text-gray-800 leading-tight mt-1 line-clamp-2">${esc(t.name)}</div>
+          <div class="font-black text-emerald-600 mt-0.5">${price}</div></button>`;
+      }).join('');
+      list.forEach(t => onlineSuggestShown.add(t.id));
+      document.getElementById('onlineSuggestModal').classList.remove('hidden');
+    }
+    function closeOnlineSuggest() {
+      document.getElementById('onlineSuggestModal').classList.add('hidden');
+      openCheckoutPage();
+    }
+    function pickOnlineSuggest(id) {
+      document.getElementById('onlineSuggestModal').classList.add('hidden');
+      addItemCheckAddons(id, true);
+    }
+
+    function openCheckoutPage() {
       if (!cart.length) return;
       const minV = minOrderValue();
       if (minV > 0 && cartSubtotal() < minV) toast(`Minimum order ₹${minV} hai — ₹${minV - cartSubtotal()} aur add karein`, true);
@@ -1126,7 +1170,7 @@
     }
     function closeAddressPage() {
       document.getElementById('addressPage').classList.add('hidden');
-      openCheckout();
+      openCheckoutPage();
     }
 
     // Shows a location on the checkout map (fresh GPS fix or one stored with a saved address)
