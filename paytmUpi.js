@@ -14,6 +14,7 @@ const STATUS_THROTTLE_MS = 2000;
 
 const paytmEnv = () => String(process.env.PAYTM_ENV || 'stage').toLowerCase();
 const isMock = () => paytmEnv() === 'mock';
+if (paytmEnv() !== 'prod') console.warn('[PAYTM] PAYTM_ENV=' + paytmEnv() + ' (prod nahi hai). Live payments ke liye PAYTM_ENV=prod set karo.');
 const host = () => (paytmEnv() === 'prod' ? 'https://securegw.paytm.in' : 'https://securegw-stage.paytm.in');
 const configured = () => isMock() || (process.env.PAYTM_MID && process.env.PAYTM_KEY);
 

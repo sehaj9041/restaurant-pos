@@ -45,7 +45,7 @@ if (!process.env.REPORT_PATH) console.warn('[REPORT] REPORT_PATH env set nahi ha
 
 function checkOwnerPin(pin, cb) {
   db.get("SELECT admin_pin FROM settings WHERE id = 1", [], (err, row) => {
-    const real = (row && row.admin_pin) ? row.admin_pin : '1234';
+    const real = (row && row.admin_pin) ? row.admin_pin : '8361';
     cb(!err && typeof pin === 'string' && pin !== '' && pin === real);
   });
 }
@@ -1880,10 +1880,11 @@ app.get('/api/reports/analytics', (req, res) => {
 });
 
 // Discount / Complimentary approval password (override with the DISCOUNT_PASSWORD env var)
-const DISCOUNT_PASSWORD = process.env.DISCOUNT_PASSWORD || 'Sehaj@9041';
+const DISCOUNT_PASSWORD = process.env.DISCOUNT_PASSWORD || '';
+if (!DISCOUNT_PASSWORD) console.warn('[DISCOUNT] DISCOUNT_PASSWORD env set nahi hai. Discount/complimentary approval tab tak band rahega.');
 const discountPasswordOk = (pw) => {
   const a = Buffer.from(String(pw || '')), b = Buffer.from(DISCOUNT_PASSWORD);
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
+  return b.length > 0 && a.length === b.length && crypto.timingSafeEqual(a, b);
 };
 const discountFails = new Map(); // ip -> { n, until }
 app.post('/api/verify-discount-password', (req, res) => {
@@ -1899,7 +1900,7 @@ app.post('/api/verify-discount-password', (req, res) => {
 app.post('/api/verify-pin', (req, res) => {
   if (pinBlocked(req)) return res.status(429).json({ valid: false, error: 'Too many wrong PIN attempts. 15 minute baad try karein.' });
   db.get("SELECT admin_pin FROM settings WHERE id = 1", [], (err, row) => {
-    const valid = req.body.pin === ((row && row.admin_pin) ? row.admin_pin : '1234');
+    const valid = req.body.pin === ((row && row.admin_pin) ? row.admin_pin : '8361');
     if (valid) pinOk(req); else pinFailed(req);
     res.json({ valid });
   });
