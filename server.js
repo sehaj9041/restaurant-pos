@@ -608,6 +608,30 @@ app.delete('/api/upsells/:id', (req, res) => {
   });
 });
 
+// ================= KIOSK "CAN WE SUGGEST?" ITEMS =================
+app.get('/api/kiosk-suggestions', (req, res) => {
+  db.all("SELECT * FROM kiosk_suggestions ORDER BY sort_order, id", [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows || []);
+  });
+});
+
+app.post('/api/kiosk-suggestions', (req, res) => {
+  const name = String((req.body || {}).item_name || '').trim();
+  if (!name) return res.status(400).json({ error: 'Item name zaroori hai' });
+  db.run("INSERT INTO kiosk_suggestions (item_name) VALUES (?) ON CONFLICT (item_name) DO NOTHING", [name], function (err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ success: true });
+  });
+});
+
+app.delete('/api/kiosk-suggestions/:id', (req, res) => {
+  db.run("DELETE FROM kiosk_suggestions WHERE id = ?", [req.params.id], function (err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ success: true });
+  });
+});
+
 // ================= INVENTORY & RECIPES (read-only, filled by Excel import) =================
 const listTable = (path, sql) => app.get(path, (req, res) => {
   db.all(sql, [], (err, rows) => {
@@ -810,6 +834,14 @@ app.post('/api/riders', (req, res) => {
 app.delete('/api/riders/:id', (req, res) => {
   db.run("UPDATE riders SET active = FALSE WHERE id = ?", [req.params.id], (err) => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
 });
+// Mark a delivery order as delivered from the POS (no rider link needed)
+app.post('/api/orders/:id/mark-delivered', (req, res) => {
+  db.run("UPDATE orders SET delivered_at = COALESCE(delivered_at, NOW()) WHERE id = ? AND LOWER(order_type) = 'delivery'", [req.params.id], function (err) {
+    if (err) return res.status(500).json({ error: err.message });
+    console.log(`[DELIVERY] Order #${req.params.id} marked delivered from POS`);
+    res.json({ success: true });
+  });
+});
 // Assign (or change / clear with an empty name) the rider of an order
 app.post('/api/orders/:id/assign-rider', async (req, res) => {
   try {
@@ -960,9 +992,10 @@ app.get('/api/orders/active', (req, res) => {
            GREATEST(0, EXTRACT(EPOCH FROM ((CASE WHEN ready_at IS NOT NULL AND UPPER(status) = 'KOT_DONE' THEN ready_at ELSE NOW() END) - COALESCE(accepted_at, created_at)))) AS kitchen_sec,
            (ready_at IS NOT NULL AND UPPER(status) = 'KOT_DONE') AS kitchen_done
     FROM orders 
-    WHERE (UPPER(status) = 'RUNNING_TABLE' OR UPPER(status) = 'KOT_DONE')
+    WHERE (UPPER(status) = 'RUNNING_TABLE' OR UPPER(status) = 'KOT_DONE'
+           -- Delivery stays active (even if paid / kitchen done) until it is marked delivered
+           OR (UPPER(status) = 'DISPATCHED' AND LOWER(order_type) = 'delivery' AND delivered_at IS NULL))
       AND status != 'COMPLETED'
-      AND status != 'DISPATCHED'
       AND status != 'VOID'
     ORDER BY id DESC
   `;

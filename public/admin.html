@@ -44,6 +44,7 @@
       <button onclick="switchTab('categories')" id="tabBtnCategories" class="py-2.5 px-4 font-bold text-sm text-gray-500 hover:text-gray-800 border-b-2 border-transparent transition whitespace-nowrap">🗂️ Categories</button>
       <button onclick="switchTab('addons')" id="tabBtnAddons" class="py-2.5 px-4 font-bold text-sm text-gray-500 hover:text-gray-800 border-b-2 border-transparent transition whitespace-nowrap">🧩 Global Add-on Groups Master</button>
       <button onclick="switchTab('upsells')" id="tabBtnUpsells" class="py-2.5 px-4 font-bold text-sm text-gray-500 hover:text-gray-800 border-b-2 border-transparent transition whitespace-nowrap">💡 Upsells</button>
+      <button onclick="switchTab('suggested')" id="tabBtnSuggested" class="py-2.5 px-4 font-bold text-sm text-gray-500 hover:text-gray-800 border-b-2 border-transparent transition whitespace-nowrap">⭐ Suggested Items</button>
       <button onclick="switchTab('inventory')" id="tabBtnInventory" class="py-2.5 px-4 font-bold text-sm text-gray-500 hover:text-gray-800 border-b-2 border-transparent transition whitespace-nowrap">📦 Inventory & Recipes</button>
       <button onclick="switchTab('variations')" id="tabBtnVariations" class="py-2.5 px-4 font-bold text-sm text-gray-500 hover:text-gray-800 border-b-2 border-transparent transition whitespace-nowrap">📐 Variation Sets Master</button>
     </div>
@@ -353,6 +354,25 @@
       </div>
     </div>
 
+    <!-- TAB: SUGGESTED ITEMS (kiosk "Can we suggest?") -->
+    <div id="tabSuggested" class="hidden space-y-6">
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+        <h2 class="text-base font-bold text-gray-800 mb-1">Suggested Items</h2>
+        <p class="text-xs text-gray-500 mb-3">Kiosk par cart kholne se pehle "Can we suggest?" mein sirf yahi items dikhenge (jo cart mein pehle se hain wo nahi).</p>
+        <form onsubmit="saveSuggested(event)" class="flex gap-3 items-center">
+          <input id="sug_item" type="text" list="sugItemList" placeholder="Item ka naam" required class="flex-1 border p-2.5 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500">
+          <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-5 py-2.5 rounded-xl text-xs">+ Add</button>
+        </form>
+        <datalist id="sugItemList"></datalist>
+      </div>
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        <table class="w-full text-left text-xs border-collapse">
+          <thead><tr class="bg-gray-50 text-gray-500 border-b"><th class="p-3 font-bold">ITEM</th><th class="p-3 font-bold text-right">ACTION</th></tr></thead>
+          <tbody id="suggestedBody" class="divide-y divide-gray-100"></tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- TAB: INVENTORY & RECIPES (filled via Excel import) -->
     <div id="tabInventory" class="hidden space-y-6">
       <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 text-xs text-gray-600">
@@ -656,7 +676,7 @@
     }
 
     // ---------- tabs ----------
-    const TABS = ['items', 'categories', 'addons', 'variations', 'upsells', 'inventory'];
+    const TABS = ['items', 'categories', 'addons', 'variations', 'upsells', 'suggested', 'inventory'];
     function switchTab(tab) {
       if (tab === 'inventory') loadInventory();
       TABS.forEach(t => {
@@ -797,6 +817,7 @@
       renderGlobalGroups();
       renderGlobalVariations();
       loadUpsells();
+      loadSuggested();
     }
 
     function allCategoryNames() {
@@ -1945,6 +1966,36 @@
       sets.forEach(v => { selVars.delete(Number(v.id)); if (document.getElementById('var_edit_id').value === String(v.id)) resetVariationForm(); });
       reportBulk('Variation delete', r);
       loadData();
+    }
+
+    // ---------- kiosk suggested items ----------
+    let suggestedRows = [];
+    async function loadSuggested() {
+      try { suggestedRows = await api('/api/kiosk-suggestions'); } catch (e) { return; }
+      document.getElementById('sugItemList').innerHTML = menuItems.map(i => `<option value="${esc(i.name)}"></option>`).join('');
+      document.getElementById('suggestedBody').innerHTML = suggestedRows.length ? suggestedRows.map(r => `
+        <tr class="hover:bg-gray-50">
+          <td class="p-3 font-bold text-gray-800">${esc(r.item_name)}</td>
+          <td class="p-3 text-right"><button onclick="deleteSuggested(${Number(r.id)})" class="text-red-500 hover:text-red-700 font-bold">Remove</button></td>
+        </tr>`).join('') : '<tr><td colspan="2" class="p-6 text-center text-gray-400">Koi suggested item nahi</td></tr>';
+    }
+
+    async function saveSuggested(e) {
+      e.preventDefault();
+      const el = document.getElementById('sug_item');
+      const name = el.value.trim();
+      if (!menuItems.some(i => i.name === name)) return toast('Item menu me nahi mila', true);
+      try {
+        await api('/api/kiosk-suggestions', 'POST', { item_name: name });
+        el.value = '';
+        toast('Suggested item add ho gaya');
+        loadSuggested();
+      } catch (err) { toast(err.message, true); }
+    }
+
+    async function deleteSuggested(id) {
+      if (!await uiConfirm('Is item ko suggestions se hatayein?')) return;
+      try { await api('/api/kiosk-suggestions/' + id, 'DELETE'); loadSuggested(); } catch (err) { toast(err.message, true); }
     }
 
     // ---------- upsells ----------

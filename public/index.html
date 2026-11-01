@@ -1089,6 +1089,11 @@
       <div id="posAddonModalContent" class="space-y-4 overflow-y-auto flex-1 pr-1 text-xs"></div>
 
       <div class="pt-3 border-t shrink-0 space-y-2">
+        <div id="posAddonQtyRow" class="hidden flex items-stretch border border-gray-300 rounded-xl overflow-hidden h-10">
+          <button onclick="wizQty(-1)" class="w-14 text-xl text-gray-500 hover:bg-gray-50 font-black">−</button>
+          <div id="posAddonQty" class="flex-1 flex items-center justify-center text-sm font-black border-x border-gray-300">1</div>
+          <button onclick="wizQty(1)" class="w-14 text-xl text-gray-800 hover:bg-gray-50 font-black">+</button>
+        </div>
         <div class="text-xs font-bold text-gray-700">Total Item Price: <span id="posAddonModalTotalPrice" class="text-sm font-black text-orange-600">₹0</span></div>
         <div class="flex gap-2">
           <button id="posAddonBack" onclick="wizBack()" class="flex-1 border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold py-2 rounded-xl text-xs">Cancel</button>
@@ -1112,22 +1117,6 @@
     </div>
   </div>
 
-  <!-- ================= POS UPSELL MODAL ================= -->
-  <div id="posUpsellModal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl p-5 max-w-md w-full shadow-2xl space-y-3 max-h-[85vh] flex flex-col">
-      <div class="flex justify-between items-center border-b pb-2 shrink-0">
-        <div>
-          <h3 class="font-black text-gray-900 text-sm">Item cart me add ho gaya ✓</h3>
-          <p class="text-[10px] text-gray-500">Customer ko ye suggest karein</p>
-        </div>
-        <button onclick="closePOSUpsell()" class="text-gray-400 hover:text-black font-bold">✕</button>
-      </div>
-      <div id="posUpsellContent" class="space-y-3 overflow-y-auto flex-1 pr-1 text-xs"></div>
-      <div class="pt-2 border-t text-right shrink-0">
-        <button onclick="closePOSUpsell()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-4 py-2 rounded-xl text-xs">No, thanks</button>
-      </div>
-    </div>
-  </div>
 
   <!-- ================= VIRTUAL KEYBOARDS ================= -->
   <div id="vKeypadNum" class="fixed bottom-4 w-72 bg-[#f1f3f5] border border-gray-300 rounded-2xl shadow-2xl p-3 z-[130] hidden select-none transition-all">
@@ -1309,8 +1298,6 @@
 
     var currentModalSelectedItem = null;
     var posUpsells = [];
-    var posPendingUpgrade = null;
-    var posUpsellSourceLine = null;
     var posVarItem = null;
     var posVarList = [];
     var currentModalItemGroups = [];
@@ -2037,6 +2024,7 @@
               <button onclick="actionEditAddItems(${o.id})" class="border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-2xs">
                 Return to Active
               </button>
+              ${/delivery/i.test(o.order_type || '') && !o.delivered_at ? `<button onclick="actionMarkDelivered(${o.id})" class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded border border-emerald-700 font-black shadow-2xs">✓ Mark Delivered</button>` : ''}
               <button onclick="actionSettlePopup(${o.id})" class="bg-orange-500 hover:bg-orange-600 text-white font-black px-4 py-1.5 rounded-lg text-xs transition shadow-2xs">
                 Settle
               </button>
@@ -2139,6 +2127,15 @@
     function closeRiderModal() {
       riderAssignOrderId = null;
       document.getElementById('modalAssignRider').classList.add('hidden');
+    }
+
+    function actionMarkDelivered(orderId) {
+      var ord = allActiveOrders.find(function(o) { return o.id === orderId; }) || {};
+      if (!confirm('Order #' + (ord.token_no || orderId) + ' delivered mark karna hai?')) return;
+      fetch('/api/orders/' + orderId + '/mark-delivered', { method: 'POST' })
+        .then(function(res) { return res.json().then(function(d) { if (!res.ok) throw new Error(d.error || 'Failed'); }); })
+        .then(function() { fetchActiveOrders(); })
+        .catch(function(err) { alert('Delivered mark nahi hua: ' + err.message); });
     }
 
     function assignRider(name) {
@@ -2891,7 +2888,8 @@
                 <button onclick="actionPrintReceipt(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🖨</span> Print Receipt</button>
                 <button onclick="actionEditAddItems(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>+</span> Add Item</button>
               ${/delivery/i.test(o.order_type || '') ? `<button onclick="promptAssignRider(${o.id})" class="px-2 py-1 ${o.rider_name ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-sky-50 hover:bg-sky-100 text-sky-800 border-sky-300'} rounded border font-black flex items-center gap-1 shadow-2xs"><span>🛵</span> ${o.rider_name ? escCartText(o.rider_name) + (o.delivered_at ? ' ✓ Delivered' : '') + ' • Change' : 'Assign Rider'}</button>` : ''}
-                <button onclick="actionSettlePopup(${o.id})" class="px-2.5 py-1 bg-orange-100 hover:bg-orange-200 text-orange-800 rounded border border-orange-300 font-black shadow-2xs">Settle</button>
+                ${/delivery/i.test(o.order_type || '') && !o.delivered_at ? `<button onclick="actionMarkDelivered(${o.id})" class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded border border-emerald-700 font-black shadow-2xs">✓ Mark Delivered</button>` : ''}
+              <button onclick="actionSettlePopup(${o.id})" class="px-2.5 py-1 bg-orange-100 hover:bg-orange-200 text-orange-800 rounded border border-orange-300 font-black shadow-2xs">Settle</button>
                 <button onclick="actionMarkDue(${o.id})" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded border border-rose-300 font-black shadow-2xs">Mark Due</button>
               </div>
             </div>
@@ -2956,6 +2954,7 @@
               <button onclick="actionPrintReceipt(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🖨</span> Print Receipt</button>
               <button onclick="actionEditAddItems(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>+</span> Add Item</button>
               ${/delivery/i.test(o.order_type || '') ? `<button onclick="promptAssignRider(${o.id})" class="px-2 py-1 ${o.rider_name ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-sky-50 hover:bg-sky-100 text-sky-800 border-sky-300'} rounded border font-black flex items-center gap-1 shadow-2xs"><span>🛵</span> ${o.rider_name ? escCartText(o.rider_name) + (o.delivered_at ? ' ✓ Delivered' : '') + ' • Change' : 'Assign Rider'}</button>` : ''}
+              ${/delivery/i.test(o.order_type || '') && !o.delivered_at ? `<button onclick="actionMarkDelivered(${o.id})" class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded border border-emerald-700 font-black shadow-2xs">✓ Mark Delivered</button>` : ''}
               <button onclick="actionSettlePopup(${o.id})" class="px-2.5 py-1 bg-orange-100 hover:bg-orange-200 text-orange-800 rounded border border-orange-300 font-black shadow-2xs">Settle</button>
               <button onclick="actionMarkDue(${o.id})" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded border border-rose-300 font-black shadow-2xs">Mark Due</button>
             </div>
@@ -4181,7 +4180,6 @@
     }
 
     function cancelPOSVariationModal() {
-      posPendingUpgrade = null;
       closePOSVariationModal();
     }
 
@@ -4239,7 +4237,6 @@
       switchRightTab('SUMMARY');
       renderPOSCart();
       renderPOSItems();
-      afterPOSAdd(itemObj, addedLine);
     }
 
     // ---------- Step-by-step add-on selection (one group per step, then an editable review) ----------
@@ -4258,11 +4255,16 @@
       Object.keys(addonWiz.sel).forEach(function(k) { addonWiz.sel[k].forEach(function(a) { t += Number(a.price) || 0; }); });
       return t;
     }
+    function wizQty(d) {
+      addonWiz.qty = Math.max(1, (addonWiz.qty || 1) + d);
+      document.getElementById('posAddonQty').innerText = addonWiz.qty;
+      document.getElementById('posAddonModalTotalPrice').innerText = '₹' + (wizTotal() * addonWiz.qty);
+    }
 
     function openPOSAddonSelectionModal(item, groups) {
       currentModalSelectedItem = item;
       currentModalItemGroups = groups;
-      addonWiz = { step: 0, sel: {}, editing: false };
+      addonWiz = { step: 0, sel: {}, editing: false, qty: 1 };
       groups.forEach(function(g, i) { addonWiz.sel[i] = []; });
       renderAddonWiz();
       document.getElementById('posAddonModal').classList.remove('hidden');
@@ -4291,24 +4293,55 @@
         var base = function(it) { return allMenuItems.find(function(i) { return i.id === it.id; }); }(currentModalSelectedItem);
         var hasVars = false;
         try { hasVars = !!(base && JSON.parse(base.variations || '[]').length); } catch (e) {}
-        body = '<p class="font-black text-gray-800 text-sm mb-2">Your selection</p><div class="space-y-2">' +
-          '<div class="flex items-center justify-between gap-2 p-2.5 rounded-xl border bg-gray-50"><div class="min-w-0"><div class="text-[10px] font-bold uppercase text-gray-500">Item</div>' +
-          '<div class="font-bold text-gray-800">' + wizEsc(currentModalSelectedItem.name) + ' · ₹' + currentModalSelectedItem.price + '</div></div>' +
-          (hasVars ? '<button onclick="wizChangeSize()" class="shrink-0 border px-3 py-1 rounded-lg font-bold text-[11px] hover:bg-white">Change size</button>' : '') + '</div>' +
-          groups.map(function(g, i) {
+        var mealBase = posMealBaseItem(currentModalSelectedItem);
+        var isMeal = !!mealBase;
+        var tileHtml = function(label, img, name, note, editJs) {
+          return '<div class="rounded-xl border bg-white p-2 flex flex-col items-center text-center min-w-0">' +
+            '<span class="text-[9px] font-bold uppercase tracking-widest text-gray-500 truncate w-full">' + wizEsc(label) + '</span>' +
+            '<div class="h-20 w-20 flex items-center justify-center">' + (img ? '<img src="' + wizEsc(img) + '" class="max-h-full max-w-full object-contain">' : '<span class="text-3xl">🍽️</span>') + '</div>' +
+            '<span class="text-[11px] font-bold leading-tight mt-1 line-clamp-2 min-h-[2.2em]">' + wizEsc(name) + '</span>' +
+            (note ? '<span class="text-[10px] text-gray-500 leading-tight line-clamp-2">+ ' + wizEsc(note) + '</span>' : '') +
+            '<button onclick="' + editJs + '" class="border px-3 py-1 rounded-lg font-bold text-[11px] hover:bg-gray-50 mt-1.5 w-full">Edit</button></div>';
+        };
+        var rowHtml = function(label, imgs, txt, btn) {
+          return '<div class="flex items-center justify-between gap-2 p-2.5 rounded-xl border bg-gray-50">' +
+            (imgs ? '<span class="flex -space-x-2 shrink-0">' + imgs + '</span>' : '') +
+            '<div class="min-w-0 flex-1"><div class="text-[10px] font-bold uppercase text-gray-500">' + wizEsc(label) + '</div>' +
+            '<div class="font-bold text-gray-800">' + txt + '</div></div>' + btn + '</div>';
+        };
+        var sizeBtn = hasVars ? '<button onclick="wizChangeSize()" class="shrink-0 border px-3 py-1 rounded-lg font-bold text-[11px] hover:bg-white">Change size</button>' : '';
+        var chosenTxt = function(chosen, price) { return chosen.length ? chosen.map(function(a) { return wizEsc(a.name) + (price && Number(a.price) ? ' (+₹' + a.price + ')' : ''); }).join(', ') : 'None'; };
+        var tiles = [], rows = [];
+        if (isMeal) {
+          // Meal: burger + chosen drink/fries as photo tiles (burger photo is always the plain burger's), each with Edit
+          var burgerIdx = groups.findIndex(function(g) { return /burger/i.test(g.name); });
+          var bNote = burgerIdx >= 0 ? w.sel[burgerIdx].map(function(a) { return a.name; }).join(', ') : '';
+          tiles.push(tileHtml('Burger', mealBase.image ? wizImg(mealBase.image) : (base && base.image ? wizImg(base.image) : ''), mealBase.name, bNote, burgerIdx >= 0 ? 'wizEdit(' + burgerIdx + ')' : 'wizChangeSize()'));
+          groups.forEach(function(g, i) {
+            if (i === burgerIdx) return;
+            var chosen = w.sel[i], withImg = chosen.filter(function(a) { return a.image; });
+            if (withImg.length && !/customi[sz]e/i.test(g.name)) { tiles.push(tileHtml(g.name, wizImg(withImg[0].image), chosen.map(function(a) { return a.name; }).join(', '), '', 'wizEdit(' + i + ')')); return; }
+            rows.push(rowHtml(g.name, '', chosenTxt(chosen, true), '<button onclick="wizEdit(' + i + ')" class="shrink-0 border px-3 py-1 rounded-lg font-bold text-[11px] hover:bg-white">Edit</button>'));
+          });
+        } else {
+          rows.push(rowHtml('Item', '', wizEsc(currentModalSelectedItem.name) + ' · ₹' + currentModalSelectedItem.price, sizeBtn));
+          groups.forEach(function(g, i) {
             var chosen = w.sel[i];
             var imgs = chosen.filter(function(a) { return a.image; }).slice(0, 3).map(function(a) { return '<img src="' + wizEsc(wizImg(a.image)) + '" class="w-10 h-10 rounded-lg object-cover border-2 border-white">'; }).join('');
-            return '<div class="flex items-center justify-between gap-2 p-2.5 rounded-xl border bg-gray-50">' +
-              (imgs ? '<span class="flex -space-x-2 shrink-0">' + imgs + '</span>' : '') +
-              '<div class="min-w-0 flex-1"><div class="text-[10px] font-bold uppercase text-gray-500">' + wizEsc(g.name) + '</div>' +
-              '<div class="font-bold text-gray-800">' + (chosen.length ? chosen.map(function(a) { return wizEsc(a.name) + (Number(a.price) ? ' (+₹' + a.price + ')' : ''); }).join(', ') : 'None') + '</div></div>' +
-              '<button onclick="wizEdit(' + i + ')" class="shrink-0 border px-3 py-1 rounded-lg font-bold text-[11px] hover:bg-white">Edit</button></div>';
-          }).join('') + '</div>';
+            rows.push(rowHtml(g.name, imgs, chosenTxt(chosen, true), '<button onclick="wizEdit(' + i + ')" class="shrink-0 border px-3 py-1 rounded-lg font-bold text-[11px] hover:bg-white">Edit</button>'));
+          });
+        }
+        body = '<p class="font-black text-gray-800 text-sm mb-2">Your selection</p>' +
+          (tiles.length ? '<div class="grid grid-cols-3 gap-2 mb-2">' + tiles.join('') + '</div>' : '') +
+          (isMeal && hasVars ? '<div class="mb-2">' + rowHtml('Size', '', wizEsc(currentModalSelectedItem.name), sizeBtn) + '</div>' : '') +
+          '<div class="space-y-2">' + rows.join('') + '</div>';
       }
       document.getElementById('posAddonModalItemName').innerText = currentModalSelectedItem.name;
       document.getElementById('posAddonStep').innerText = review ? 'Review your selection' : 'Step ' + (w.step + 1) + ' of ' + groups.length;
       document.getElementById('posAddonModalContent').innerHTML = body;
-      document.getElementById('posAddonModalTotalPrice').innerText = '₹' + wizTotal();
+      document.getElementById('posAddonModalTotalPrice').innerText = '₹' + (wizTotal() * (review ? (w.qty || 1) : 1));
+      document.getElementById('posAddonQtyRow').classList.toggle('hidden', !review);
+      document.getElementById('posAddonQty').innerText = w.qty || 1;
       document.getElementById('posAddonNext').innerText = review ? 'Add to Cart ✓' : (w.editing ? 'Done' : 'Next');
       document.getElementById('posAddonBack').innerText = (w.step === 0 && !w.editing) ? 'Cancel' : 'Back';
       document.getElementById('posAddonModalContent').scrollTop = 0;
@@ -4398,7 +4431,7 @@
         id: currentModalSelectedItem.id,
         name: displayName,
         price: finalPrice,
-        qty: 1,
+        qty: addonWiz.qty || 1,
         addons: selectedAddons,
         is_exempt: Number(currentModalSelectedItem.is_exempt) ? 1 : 0
       };
@@ -4408,7 +4441,6 @@
       switchRightTab('SUMMARY');
       renderPOSCart();
       renderPOSItems();
-      afterPOSAdd(baseItem, newLine);
     }
 
     // ---------- Upsells ("Make it a meal" / "Add a drink") ----------
@@ -4441,6 +4473,24 @@
         .filter(function(o) { return o.t && Number(o.t.stock) > 0; });
     }
 
+    // The plain burger behind a meal item (upsell "upgrade" mapping, else name without "Meal"); null if the item is not a meal
+    function posMealBaseItem(item) {
+      var full = item.name || '';
+      // item name can carry a size suffix, e.g. "Burger(Meal) (Large)"
+      var names = [full, full.replace(/\s*\([^()]*\)\s*$/, '')];
+      for (var k = 0; k < names.length; k++) {
+        var nm = names[k];
+        var u = posUpsells.find(function(x) { return x.upsell_type === 'upgrade' && x.suggested_item === nm; });
+        var base = u && allMenuItems.find(function(i) { return i.name === u.item_name; });
+        if (!base) {
+          var n = nm.replace(/\s*\(?\s*meal\s*\)?\s*$/i, '').trim();
+          base = n && n !== nm ? allMenuItems.find(function(i) { return i.name === n; }) : null;
+        }
+        if (base) return base;
+      }
+      return null;
+    }
+
     function showPOSMealChoice(item, meals) {
       var esc = function(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
       var tile = function(t, badge) {
@@ -4466,74 +4516,6 @@
       var t = allMenuItems.find(function(i) { return i.id === itemId; });
       closePOSMealChoice();
       if (t) addOrIncrementItem(t.name, t.price, true);
-    }
-
-    // Runs after every real add-to-cart: finishes a pending "meal upgrade", then offers suggestions.
-    function afterPOSAdd(item, line) {
-      var base = item && allMenuItems.find(function(i) { return i.id === item.id; });
-      if (!base) return;
-      if (posPendingUpgrade && posPendingUpgrade.target === base.name) {
-        var src = posPendingUpgrade.line;
-        posPendingUpgrade = null;
-        if (src && src !== line && posCart.indexOf(src) !== -1) {
-          src.qty -= 1;
-          if (src.qty <= 0) posCart.splice(posCart.indexOf(src), 1);
-          renderPOSCart();
-          renderPOSItems();
-        }
-      }
-      if (posUpsellOn()) showPOSUpsells(base, line);
-    }
-
-    function showPOSUpsells(base, line) {
-      posPendingUpgrade = null;
-      var mine = posUpsells.filter(function(u) { return u.item_name === base.name && u.upsell_type !== 'upgrade'; })
-        .sort(function(a, b) { return (a.upsell_type === 'upgrade' ? 0 : 1) - (b.upsell_type === 'upgrade' ? 0 : 1); });
-      var seen = {};
-      seen[base.id] = true;
-      var sections = [];
-      mine.forEach(function(u) {
-        var list = [];
-        if (u.suggested_item) {
-          var t = allMenuItems.find(function(i) { return i.name === u.suggested_item; });
-          if (t && Number(t.stock) > 0) list = [t];
-        } else if (u.suggested_category) {
-          list = allMenuItems.filter(function(i) { return i.category === u.suggested_category && Number(i.stock) > 0; }).slice(0, 8);
-        }
-        list = list.filter(function(i) { return !seen[i.id]; });
-        list.forEach(function(i) { seen[i.id] = true; });
-        if (list.length) sections.push({ u: u, list: list });
-      });
-      if (!sections.length) return;
-
-      posUpsellSourceLine = line;
-      var esc = function(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
-      document.getElementById('posUpsellContent').innerHTML = sections.map(function(sec) {
-        var upgrade = sec.u.upsell_type === 'upgrade';
-        var title = sec.u.label || (upgrade ? 'Make it a meal?' : 'Add something else?');
-        return '<div><p class="font-black text-gray-800 mb-1.5">' + esc(title) + '</p><div class="grid grid-cols-2 gap-2">' +
-          sec.list.map(function(t) {
-            var vars = [];
-            try { vars = JSON.parse(t.variations || '[]'); } catch (e) {}
-            var price = vars.length ? 'From ₹' + vars[0].price : '₹' + t.price;
-            return '<button onclick="pickPOSUpsell(' + t.id + ', ' + upgrade + ')" class="text-left p-2.5 rounded-xl border border-gray-200 hover:border-orange-500 hover:bg-orange-50/50">' +
-              '<div class="font-bold text-gray-800 text-xs leading-tight">' + esc(t.name) + '</div>' +
-              '<div class="font-black text-emerald-600 text-xs mt-1">' + price + '</div></button>';
-          }).join('') + '</div></div>';
-      }).join('');
-      document.getElementById('posUpsellModal').classList.remove('hidden');
-    }
-
-    function closePOSUpsell() {
-      document.getElementById('posUpsellModal').classList.add('hidden');
-    }
-
-    function pickPOSUpsell(itemId, upgrade) {
-      var t = allMenuItems.find(function(i) { return i.id === itemId; });
-      closePOSUpsell();
-      if (!t) return;
-      posPendingUpgrade = upgrade ? { line: posUpsellSourceLine, target: t.name } : null;
-      addOrIncrementItem(t.name, t.price);
     }
 
     function changeItemQty(idx, delta) {

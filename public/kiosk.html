@@ -270,12 +270,12 @@
     </div>
 
     <!-- ============ CAN WE SUGGEST? (cart kholne par) ============ -->
-    <div id="upsellModal" class="hidden screen z-[65] kiosk-bg flex flex-col">
-      <div class="shrink-0 px-6 pt-10 pb-4 text-center">
+    <div id="upsellModal" class="hidden screen z-[65] kiosk-bg flex flex-col justify-center">
+      <div class="shrink-0 px-6 pb-4 text-center">
         <h3 class="text-3xl font-black">Can we suggest?</h3>
       </div>
-      <div id="upsellList" class="flex-1 overflow-y-auto px-6 pb-4 min-h-0"></div>
-      <div class="shrink-0 px-6 pb-6 pt-2">
+      <div id="upsellList" class="shrink min-h-0 overflow-y-auto px-6 pb-4"></div>
+      <div class="shrink-0 px-6 pt-2">
         <button onclick="closeUpsell()" class="btn-outline w-full py-4 text-lg">Not Today</button>
       </div>
     </div>
@@ -301,7 +301,7 @@
     <div id="thinkingModal" class="hidden screen z-[70] kiosk-bg flex flex-col items-center justify-center px-8 text-center">
       <div class="w-24 h-24 rounded-full bg-[#d9531e] text-white text-6xl font-black flex items-center justify-center">!</div>
       <h3 class="text-4xl font-black mt-6">Still thinking?</h3>
-      <p class="text-sm text-neutral-600 mt-3">Tap below to continue.<br>Otherwise, we'll start over again in <span id="thinkingCountdown">10</span>s.</p>
+      <p class="text-sm text-neutral-600 mt-3">Tap below to continue.<br>Otherwise, we'll start over again in <span id="thinkingCountdown">20</span>s.</p>
       <button onclick="dismissThinking()" class="btn-yellow w-full max-w-[420px] py-5 text-xl mt-10">Continue</button>
     </div>
 
@@ -417,6 +417,9 @@
     }).catch(() => {});
 
     fetch('/api/addon-groups').then(res => res.json()).then(g => { allMasterGroups = g; });
+
+    let suggestedNames = [];
+    fetch('/api/kiosk-suggestions').then(res => res.json()).then(r => { suggestedNames = (r || []).map(x => x.item_name); }).catch(() => {});
 
     fetch('/api/upsells').then(res => res.json()).then(u => {
       upsells = (u || []).filter(x => Number(x.is_active) !== 0);
@@ -823,7 +826,7 @@
               const on = chosen.some(a => a.name === addon.name);
               return `
               <label class="tile ${on ? 'selected' : ''} p-2.5 flex flex-col items-center text-center relative cursor-pointer">
-                <input type="checkbox" ${on ? 'checked' : ''} onchange="toggleKioskAddon(${g.id}, ${aIdx}, this)" class="absolute top-2 right-2 w-5 h-5 accent-[#FFBC0D]">
+                <input type="checkbox" ${on ? 'checked' : ''} onchange="toggleKioskAddon(${g.id}, ${aIdx}, this)" class="${Number(g.max_selection) === 1 ? 'hidden' : 'absolute top-2 right-2 w-5 h-5 accent-[#FFBC0D]'}">
                 <div class="h-28 w-28 mx-auto flex items-center justify-center">
                   ${addon.image ? `<img src="${esc(resolveImgPath(addon.image))}" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">` : '<span class="text-4xl">🍽️</span>'}
                 </div>
@@ -950,25 +953,11 @@
     // ---------- Suggestions ("Can we suggest?") - cart kholne par ek baar poori tray ke liye ----------
     let suggestDismissed = new Set();
     function trayCrossSells() {
+      // Only the items added under Admin > Suggested Items
       const inTray = new Set(kioskTray.map(l => l.menu_id));
-      const names = new Set(kioskTray.map(l => (allKioskItems.find(i => i.id === l.menu_id) || {}).name).filter(Boolean));
-      const out = [];
-      const seen = new Set();
-      upsells.filter(u => names.has(u.item_name) && u.upsell_type !== 'upgrade')
-        .sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0) || Number(a.id) - Number(b.id))
-        .forEach(u => {
-          let list = [];
-          if (u.suggested_item) {
-            const t = allKioskItems.find(i => i.name === u.suggested_item);
-            if (t) list = [t];
-          } else if (u.suggested_category) {
-            list = allKioskItems.filter(i => i.category === u.suggested_category).slice(0, 6);
-          }
-          list.forEach(t => {
-            if (Number(t.stock) > 0 && !inTray.has(t.id) && !seen.has(t.id) && !suggestDismissed.has(t.id)) { seen.add(t.id); out.push(t); }
-          });
-        });
-      return out;
+      return suggestedNames
+        .map(n => allKioskItems.find(i => i.name === n))
+        .filter(t => t && Number(t.is_visible) !== 0 && Number(t.stock) > 0 && !inTray.has(t.id) && !suggestDismissed.has(t.id));
     }
 
     // Returns true if the suggestion popup was shown (cart review then opens from "Not Today").
@@ -1634,7 +1623,7 @@
 
     function showThinking() {
       if (!$('upiQrModal').classList.contains('hidden')) { armIdleTimer(); return; } // customer is scanning the QR
-      let left = 10;
+      let left = 20;
       $('thinkingCountdown').innerText = left;
       $('thinkingModal').classList.remove('hidden');
       clearInterval(countdownTimer);

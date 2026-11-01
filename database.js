@@ -197,6 +197,11 @@ pool.query(`
       sort_order INTEGER DEFAULT 0,
       is_active INTEGER DEFAULT 1
     );
+    CREATE TABLE IF NOT EXISTS kiosk_suggestions (
+      id SERIAL PRIMARY KEY,
+      item_name TEXT UNIQUE NOT NULL,
+      sort_order INTEGER DEFAULT 0
+    );
     CREATE TABLE IF NOT EXISTS units (
       id SERIAL PRIMARY KEY,
       name TEXT UNIQUE NOT NULL,
