@@ -59,6 +59,7 @@ const OWNER_RULES = [
   { m: 'W', re: /^\/inventory(\/|$)/ },
   { m: 'ALL', re: /^\/(staff|staff-advances|staff-adjustments|payroll|whatsapp|expenses|system|reports)(\/|$)/ },
   { m: 'ALL', re: /^\/customers$/ },
+  { m: 'ALL', re: /^\/(coupon-admin|loyalty-admin|feedback-admin)(\/|$)/ },
   { m: 'ALL', re: /^\/attendance(?:$|\/(?!punch$))/ },
   { m: 'ALL', re: /^\/paytm\/callback-log$/ }
 ];
@@ -1215,7 +1216,7 @@ app.get('/api/orders/history', (req, res) => {
   });
 });
 
-app.put('/api/orders/:id', (req, res) => {
+app.put('/api/orders/:id', (req, res, next) => engagement.applyPromoToOrderEdit(req, res, next), (req, res) => {
   const orderId = req.params.id;
   const { order_type, table_no, customer_name, customer_phone, items, subtotal, discount, gst, total, payment_mode, paid_amount } = req.body;
 
@@ -1225,7 +1226,7 @@ app.put('/api/orders/:id', (req, res) => {
     const putComp = !!req.body.is_complimentary;
     const putDiscount = Math.max(0, Number(discount) || 0);
     const needsAuth = (putComp && !(currentOrder && Number(currentOrder.is_complimentary))) || (!putComp && putDiscount > (currentOrder ? Number(currentOrder.discount) || 0 : 0));
-    if (needsAuth && !discountPasswordOk(req.body.auth_password)) return res.status(403).json({ error: 'Discount / Complimentary ke liye sahi password chahiye' });
+    if (needsAuth && !req.promoApproved && !discountPasswordOk(req.body.auth_password)) return res.status(403).json({ error: 'Discount / Complimentary ke liye sahi password chahiye' });
     const putReason = String(req.body.discount_reason || '').trim().slice(0, 200);
     if (putComp && !putReason) return res.status(400).json({ error: 'Complimentary order ka reason likhna zaroori hai' });
     let incomingPaid = Number(paid_amount) || 0;
@@ -1493,6 +1494,7 @@ app.post('/api/delivery-charge', async (req, res) => {
 // GST sirf un items par lagta hai jinpe "No GST" (is_exempt) set nahi hai
 const taxableSubtotal = (rows) => (rows || []).reduce((s, i) => Number(i.is_exempt) || i.name === 'Delivery Charge' ? s : s + Number(i.price) * Number(i.qty), 0);
 
+let engagement = null; // set by require('./engagement').register(...) below
 const createOrderHandler = async (req, res) => {
   console.log('[DEBUG ORDER PAYLOAD]:', req.body);
   let { order_type, table_no, customer_name, customer_phone, items, payment_mode, subtotal, discount, is_hold, paid_amount, is_kiosk } = req.body;
@@ -1575,8 +1577,18 @@ const createOrderHandler = async (req, res) => {
   // Discount / Complimentary (staff only, password protected). Discount is applied before GST.
   const isComp = !isOnlineOrder && !!req.body.is_complimentary;
   let finalDiscount = isOnlineOrder ? 0 : Math.min(Math.max(0, Number(discount) || 0), calculatedSubtotal);
-  const discountReason = String(req.body.discount_reason || '').trim().slice(0, 200);
-  if (isComp || finalDiscount > 0) {
+  let discountReason = String(req.body.discount_reason || '').trim().slice(0, 200);
+  // Coupon / loyalty points: the rupee discount is recomputed here from the DB, never taken from the client, so no discount password is needed.
+  let couponCode = null, pointsRedeemed = 0, promoApplied = false;
+  if (!isOnlineOrder && !req.body.is_complimentary && (req.body.coupon_code || Number(req.body.points_redeem) > 0)) {
+    try {
+      const promo = await engagement.computeDiscount({ subtotal: calculatedSubtotal, phone: customer_phone, coupon_code: req.body.coupon_code, points_redeem: req.body.points_redeem });
+      if (promo.error) return res.status(400).json({ error: promo.error });
+      finalDiscount = promo.discount; couponCode = promo.couponCode || null; pointsRedeemed = promo.pointsRedeemed || 0;
+      discountReason = promo.reason; promoApplied = true;
+    } catch (e) { console.error('Promo error:', e.message); return res.status(500).json({ error: 'Coupon / points check nahi ho paaya' }); }
+  }
+  if (isComp || (finalDiscount > 0 && !promoApplied)) {
     if (!discountPasswordOk(req.body.auth_password)) return res.status(403).json({ error: 'Discount / Complimentary ke liye sahi password chahiye' });
     if (isComp && !discountReason) return res.status(400).json({ error: 'Complimentary order ka reason likhna zaroori hai' });
   }
@@ -1617,8 +1629,8 @@ const createOrderHandler = async (req, res) => {
   }
 
   const insertOrderQuery = `
-    INSERT INTO orders (order_type, table_no, customer_name, customer_phone, status, payment_mode, subtotal, discount, gst, total, paid_amount, delivery_address, delivery_lat, delivery_lng, discount_reason, is_complimentary, token_no)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT MAX(token_no) FROM orders WHERE created_at::date = CURRENT_DATE), 0) + 1)
+    INSERT INTO orders (order_type, table_no, customer_name, customer_phone, status, payment_mode, subtotal, discount, gst, total, paid_amount, delivery_address, delivery_lat, delivery_lng, discount_reason, is_complimentary, coupon_code, points_redeemed, token_no)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT MAX(token_no) FROM orders WHERE created_at::date = CURRENT_DATE), 0) + 1)
     RETURNING id, token_no
   `;
 
@@ -1638,7 +1650,9 @@ const createOrderHandler = async (req, res) => {
     deliveryLat,
     deliveryLng,
     isComp || finalDiscount > 0 ? discountReason : '',
-    isComp ? 1 : 0
+    isComp ? 1 : 0,
+    couponCode,
+    pointsRedeemed
   ];
 
   db.all(insertOrderQuery, orderValues, async (err, result) => {
@@ -2056,6 +2070,11 @@ app.post('/api/whatsapp/disconnect', (req, res) => {
 });
 
 require('./staffPayroll').register(app, { dbAllAsync, checkOwnerPin });
+async function saveSettingsConfig(patch) {
+  const cfg = Object.assign(await getSettingsConfig(), patch);
+  await dbAllAsync(`INSERT INTO settings (id, config) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET config = excluded.config RETURNING id`, [JSON.stringify(cfg)]);
+}
+engagement = require('./engagement').register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig });
 require('./paytmUpi').register(app, { dbAllAsync, createOrderHandler }); require('./razorpayPay').register(app, { dbAllAsync, createOrderHandler });
 const PORT = process.env.PORT || 3000;
 

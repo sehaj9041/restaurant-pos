@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Coupons, Loyalty & Feedback</title>
+  <script src="/ui-dialogs.js"></script>
+  <script src="/owner-auth.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-4 md:p-6 font-sans">
+  <div class="max-w-5xl mx-auto space-y-5">
+    <div class="flex justify-between items-center">
+      <div>
+        <h1 class="text-2xl md:text-3xl font-black text-gray-800">Coupons, Loyalty & Feedback</h1>
+        <p class="text-sm text-gray-500">Offers banao, loyalty points set karo aur customer feedback dekho</p>
+      </div>
+      <a href="/" class="bg-gray-900 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-black transition">← Back to POS</a>
+    </div>
+
+    <div class="flex gap-2 border-b border-gray-200">
+      <button data-tab="coupons" class="tab px-4 py-2 font-black text-sm">🏷 Coupons</button>
+      <button data-tab="loyalty" class="tab px-4 py-2 font-black text-sm">⭐ Loyalty</button>
+      <button data-tab="feedback" class="tab px-4 py-2 font-black text-sm">💬 Feedback</button>
+    </div>
+
+    <!-- COUPONS -->
+    <section id="tab-coupons" class="space-y-4">
+      <div class="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
+        <h2 id="cFormTitle" class="font-black text-gray-800 mb-3">New coupon</h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+          <label class="col-span-2 md:col-span-1">Code<input id="cCode" maxlength="30" placeholder="WELCOME10" class="mt-1 w-full border rounded-lg px-2 py-2 uppercase font-mono"></label>
+          <label>Type<select id="cType" class="mt-1 w-full border rounded-lg px-2 py-2 bg-white"><option value="percent">Percent %</option><option value="flat">Flat ₹</option></select></label>
+          <label>Value<input id="cValue" type="number" min="0" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
+          <label>Min order ₹<input id="cMin" type="number" min="0" placeholder="0" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
+          <label>Max discount ₹ (% ke liye)<input id="cMax" type="number" min="0" placeholder="0 = no cap" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
+          <label>Valid from<input id="cFrom" type="date" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
+          <label>Valid till<input id="cTill" type="date" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
+          <label>Total uses limit<input id="cLimit" type="number" min="0" placeholder="0 = unlimited" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
+          <label class="col-span-2">Description<input id="cDesc" maxlength="120" placeholder="Optional note" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
+          <label class="flex items-end gap-2 pb-2"><input id="cOnce" type="checkbox"> Ek customer sirf ek baar</label>
+          <label class="flex items-end gap-2 pb-2"><input id="cActive" type="checkbox" checked> Active</label>
+        </div>
+        <div class="flex gap-2 mt-4">
+          <button onclick="saveCoupon()" class="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2 rounded-xl font-black text-sm">Save coupon</button>
+          <button id="cCancel" onclick="resetCouponForm()" class="hidden border px-4 py-2 rounded-xl font-bold text-sm">Cancel edit</button>
+        </div>
+      </div>
+      <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 text-xs uppercase text-gray-500"><tr>
+            <th class="text-left p-3">Code</th><th class="text-left p-3">Offer</th><th class="text-left p-3">Rules</th><th class="text-center p-3">Used</th><th class="text-center p-3">Status</th><th class="p-3"></th>
+          </tr></thead>
+          <tbody id="couponRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- LOYALTY -->
+    <section id="tab-loyalty" class="hidden space-y-4">
+      <div class="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm space-y-3 text-sm">
+        <label class="flex items-center gap-2 font-black"><input id="lEnabled" type="checkbox"> Loyalty points chalu karein</label>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <label>Earn: points per ₹100<input id="lEarn" type="number" min="0" step="0.5" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
+          <label>1 point = ₹<input id="lValue" type="number" min="0" step="0.1" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
+          <label>Min points to redeem<input id="lMin" type="number" min="0" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
+          <label>Max % of bill via points<input id="lPct" type="number" min="1" max="100" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
+        </div>
+        <p id="lHint" class="text-xs text-gray-500"></p>
+        <button onclick="saveLoyalty()" class="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2 rounded-xl font-black">Save loyalty settings</button>
+        <p class="text-[11px] text-gray-400">Points sirf poori paid bills par milte hain (due / complimentary par nahi). Earn rate badalne par purane orders ke points bhi naye rate se count honge.</p>
+      </div>
+      <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-x-auto">
+        <div class="p-3 font-black text-gray-800 border-b">Top customers</div>
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 text-xs uppercase text-gray-500"><tr><th class="text-left p-3">Customer</th><th class="text-left p-3">Phone</th><th class="text-right p-3">Orders</th><th class="text-right p-3">Spent</th><th class="text-right p-3">Points</th></tr></thead>
+          <tbody id="topRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- FEEDBACK -->
+    <section id="tab-feedback" class="hidden space-y-4">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
+          <p class="text-xs font-bold text-gray-500 uppercase">Average rating</p>
+          <h3 id="fAvg" class="text-3xl font-black text-amber-500 mt-1">-</h3>
+          <p id="fCount" class="text-xs text-gray-500"></p>
+        </div>
+        <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm md:col-span-2 space-y-1" id="fDist"></div>
+      </div>
+      <div class="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm text-sm">
+        <label class="font-black">Google review link (4-5 star wale customers ko dikhega)</label>
+        <div class="flex gap-2 mt-2">
+          <input id="gUrl" placeholder="https://g.page/r/..." class="flex-1 border rounded-lg px-2 py-2">
+          <button onclick="saveGoogle()" class="bg-gray-900 text-white px-4 py-2 rounded-xl font-bold">Save</button>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 text-sm">
+        <span class="font-bold">Period:</span>
+        <select id="fDays" onchange="loadFeedback()" class="border rounded-lg px-2 py-1 bg-white"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option><option value="365">1 year</option></select>
+        <label class="ml-3"><input id="fLow" type="checkbox" onchange="renderFeedback()"> Sirf kharab (1-2 ★)</label>
+      </div>
+      <div id="fList" class="space-y-2"></div>
+    </section>
+  </div>
+
+  <script>
+    var $ = function(id) { return document.getElementById(id); };
+    var esc = function(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+    var coupons = [], editingId = null, feedback = null;
+
+    function api(url, method, body) {
+      return fetch(url, { method: method || 'GET', headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined })
+        .then(function(r) { return r.json().then(function(d) { if (!r.ok) throw new Error(d.error || 'Failed'); return d; }); });
+    }
+    function fail(e) { (window.uiAlert || window.alert)(e.message || String(e)); }
+
+    function showTab(name) {
+      ['coupons', 'loyalty', 'feedback'].forEach(function(t) { $('tab-' + t).classList.toggle('hidden', t !== name); });
+      document.querySelectorAll('.tab').forEach(function(b) {
+        var on = b.dataset.tab === name;
+        b.className = 'tab px-4 py-2 font-black text-sm ' + (on ? 'border-b-2 border-orange-500 text-orange-600' : 'text-gray-500');
+      });
+      if (name === 'coupons') loadCoupons();
+      if (name === 'loyalty') loadLoyalty();
+      if (name === 'feedback') loadFeedback();
+      location.hash = name;
+    }
+    document.querySelectorAll('.tab').forEach(function(b) { b.onclick = function() { showTab(b.dataset.tab); }; });
+
+    // ---- coupons ----
+    function loadCoupons() {
+      api('/api/coupon-admin').then(function(rows) { coupons = rows; renderCoupons(); }).catch(fail);
+    }
+    function dateStr(v) { return v ? String(v).slice(0, 10) : ''; }
+    function renderCoupons() {
+      $('couponRows').innerHTML = coupons.length ? coupons.map(function(c) {
+        var offer = c.type === 'flat' ? '₹' + Number(c.value) + ' off' : Number(c.value) + '% off' + (Number(c.max_discount) > 0 ? ' (max ₹' + Number(c.max_discount) + ')' : '');
+        var rules = [];
+        if (Number(c.min_order) > 0) rules.push('Min ₹' + Number(c.min_order));
+        if (c.valid_from || c.valid_till) rules.push((dateStr(c.valid_from) || '...') + ' → ' + (dateStr(c.valid_till) || '...'));
+        if (Number(c.usage_limit) > 0) rules.push('Limit ' + c.usage_limit);
+        if (Number(c.once_per_customer)) rules.push('1 per customer');
+        var expired = c.valid_till && dateStr(c.valid_till) < new Date().toISOString().slice(0, 10);
+        var status = !Number(c.active) ? '<span class="text-gray-400">Off</span>' : expired ? '<span class="text-rose-500">Expired</span>' : '<span class="text-emerald-600">Active</span>';
+        return '<tr class="border-t"><td class="p-3 font-mono font-black">' + esc(c.code) + (c.description ? '<div class="text-[11px] font-sans font-normal text-gray-400">' + esc(c.description) + '</div>' : '') + '</td>' +
+          '<td class="p-3 font-bold">' + offer + '</td><td class="p-3 text-xs text-gray-500">' + (rules.join(' · ') || '-') + '</td>' +
+          '<td class="p-3 text-center font-bold">' + Number(c.used) + '</td><td class="p-3 text-center font-black text-xs">' + status + '</td>' +
+          '<td class="p-3 text-right whitespace-nowrap"><button onclick="editCoupon(' + c.id + ')" class="text-blue-600 font-bold text-xs mr-3">Edit</button><button onclick="deleteCoupon(' + c.id + ')" class="text-rose-600 font-bold text-xs">Delete</button></td></tr>';
+      }).join('') : '<tr><td colspan="6" class="p-6 text-center text-gray-400">Abhi koi coupon nahi hai</td></tr>';
+    }
+    function resetCouponForm() {
+      editingId = null;
+      ['cCode', 'cValue', 'cMin', 'cMax', 'cFrom', 'cTill', 'cLimit', 'cDesc'].forEach(function(i) { $(i).value = ''; });
+      $('cType').value = 'percent'; $('cOnce').checked = false; $('cActive').checked = true;
+      $('cCode').disabled = false; $('cFormTitle').textContent = 'New coupon'; $('cCancel').classList.add('hidden');
+    }
+    function editCoupon(id) {
+      var c = coupons.filter(function(x) { return x.id === id; })[0]; if (!c) return;
+      editingId = id;
+      $('cCode').value = c.code; $('cCode').disabled = true; $('cType').value = c.type; $('cValue').value = Number(c.value);
+      $('cMin').value = Number(c.min_order) || ''; $('cMax').value = Number(c.max_discount) || '';
+      $('cFrom').value = dateStr(c.valid_from); $('cTill').value = dateStr(c.valid_till); $('cLimit').value = Number(c.usage_limit) || '';
+      $('cDesc').value = c.description || ''; $('cOnce').checked = !!Number(c.once_per_customer); $('cActive').checked = !!Number(c.active);
+      $('cFormTitle').textContent = 'Edit coupon ' + c.code; $('cCancel').classList.remove('hidden');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    function saveCoupon() {
+      var body = { code: $('cCode').value, type: $('cType').value, value: $('cValue').value, min_order: $('cMin').value, max_discount: $('cMax').value,
+        valid_from: $('cFrom').value || null, valid_till: $('cTill').value || null, usage_limit: $('cLimit').value, description: $('cDesc').value,
+        once_per_customer: $('cOnce').checked, active: $('cActive').checked };
+      (editingId ? api('/api/coupon-admin/' + editingId, 'PUT', body) : api('/api/coupon-admin', 'POST', body))
+        .then(function() { resetCouponForm(); loadCoupons(); }).catch(fail);
+    }
+    function deleteCoupon(id) {
+      var c = coupons.filter(function(x) { return x.id === id; })[0];
+      Promise.resolve((window.uiConfirm || window.confirm)('Coupon ' + (c ? c.code : '') + ' delete karna hai?')).then(function(ok) {
+        if (ok) api('/api/coupon-admin/' + id, 'DELETE').then(loadCoupons).catch(fail);
+      });
+    }
+
+    // ---- loyalty ----
+    function loyaltyHint() {
+      var e = Number($('lEarn').value) || 0, v = Number($('lValue').value) || 0;
+      $('lHint').textContent = 'Example: ₹1000 ke bill par ' + (e * 10) + ' points milenge = ₹' + (e * 10 * v).toFixed(2) + ' ka value (' + (e * v).toFixed(2) + '% wapas).';
+    }
+    ['lEarn', 'lValue'].forEach(function(i) { $(i).oninput = loyaltyHint; });
+    function loadLoyalty() {
+      api('/api/loyalty-admin/config').then(function(c) {
+        $('lEnabled').checked = c.enabled; $('lEarn').value = c.earn_per_100; $('lValue').value = c.point_value; $('lMin').value = c.min_redeem; $('lPct').value = c.max_redeem_pct; loyaltyHint();
+      }).catch(fail);
+      api('/api/loyalty-admin/top').then(function(rows) {
+        $('topRows').innerHTML = rows.length ? rows.map(function(r) {
+          return '<tr class="border-t"><td class="p-3 font-bold">' + esc(r.name || 'Guest') + '</td><td class="p-3 font-mono">' + esc(r.phone) + '</td><td class="p-3 text-right">' + r.orders + '</td><td class="p-3 text-right">₹' + Math.round(r.spent) + '</td><td class="p-3 text-right font-black text-amber-600">' + r.points + '</td></tr>';
+        }).join('') : '<tr><td colspan="5" class="p-6 text-center text-gray-400">Abhi phone wale orders nahi hain</td></tr>';
+      }).catch(fail);
+    }
+    function saveLoyalty() {
+      api('/api/loyalty-admin/config', 'PUT', { enabled: $('lEnabled').checked, earn_per_100: $('lEarn').value, point_value: $('lValue').value, min_redeem: $('lMin').value, max_redeem_pct: $('lPct').value })
+        .then(function() { (window.uiAlert || window.alert)('Saved'); loadLoyalty(); }).catch(fail);
+    }
+
+    // ---- feedback ----
+    function loadFeedback() {
+      api('/api/feedback-admin?days=' + $('fDays').value).then(function(d) { feedback = d; renderFeedback(); }).catch(fail);
+      api('/api/feedback-admin/google-url').then(function(d) { $('gUrl').value = d.url || ''; }).catch(function() {});
+    }
+    function stars(n) { return '<span class="text-amber-500">' + '★'.repeat(n) + '</span><span class="text-gray-300">' + '★'.repeat(5 - n) + '</span>'; }
+    function renderFeedback() {
+      if (!feedback) return;
+      $('fAvg').textContent = feedback.count ? feedback.average.toFixed(1) + ' ★' : '-';
+      $('fCount').textContent = feedback.count + ' reviews';
+      $('fDist').innerHTML = [5, 4, 3, 2, 1].map(function(n) {
+        var c = feedback.distribution[n - 1], pct = feedback.count ? Math.round(c * 100 / feedback.count) : 0;
+        return '<div class="flex items-center gap-2 text-xs"><span class="w-6 font-bold">' + n + '★</span><div class="flex-1 bg-gray-100 rounded h-2"><div class="bg-amber-400 h-2 rounded" style="width:' + pct + '%"></div></div><span class="w-8 text-right text-gray-500">' + c + '</span></div>';
+      }).join('');
+      var items = feedback.items.filter(function(f) { return !$('fLow').checked || f.rating <= 2; });
+      $('fList').innerHTML = items.length ? items.map(function(f) {
+        var when = new Date(f.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+        return '<div class="bg-white rounded-xl border ' + (f.rating <= 2 ? 'border-rose-300 bg-rose-50/40' : 'border-gray-200') + ' p-3 shadow-sm">' +
+          '<div class="flex justify-between items-center text-sm"><div>' + stars(f.rating) + ' <span class="font-bold ml-2">Token #' + esc(f.token_no) + '</span>' +
+          (f.customer_name ? ' · ' + esc(f.customer_name) : '') + (f.customer_phone ? ' · <span class="font-mono text-xs">' + esc(f.customer_phone) + '</span>' : '') + '</div>' +
+          '<span class="text-[11px] text-gray-400">' + when + '</span></div>' +
+          (f.comment ? '<p class="text-sm text-gray-700 mt-1.5">' + esc(f.comment) + '</p>' : '') + '</div>';
+      }).join('') : '<div class="bg-white rounded-xl p-6 text-center text-gray-400 border">Koi feedback nahi</div>';
+    }
+    function saveGoogle() {
+      api('/api/feedback-admin/google-url', 'PUT', { url: $('gUrl').value }).then(function() { (window.uiAlert || window.alert)('Saved'); }).catch(fail);
+    }
+
+    showTab(['coupons', 'loyalty', 'feedback'].indexOf(location.hash.slice(1)) >= 0 ? location.hash.slice(1) : 'coupons');
+  </script>
+</body>
+</html>

@@ -39,6 +39,14 @@
       background-image: radial-gradient(circle, #e2e8f0 1.2px, transparent 1.2px);
     }
   </style>
+  <style>
+    #splitPaymentPanel:not(.hidden) {
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: min(24rem, calc(100vw - 2rem)); max-height: 90vh; overflow-y: auto;
+      margin: 0; z-index: 60; background: #fff;
+      box-shadow: 0 0 0 100vmax rgba(0,0,0,.4), 0 20px 40px rgba(0,0,0,.3);
+    }
+  </style>
 </head>
 <body class="bg-[#f8fafc] text-gray-800 font-sans flex flex-col overflow-hidden select-none relative">
 
@@ -107,6 +115,9 @@
           <div class="px-2.5 py-1 text-[9px] font-black uppercase text-gray-400 tracking-wider">People</div>
           <button onclick="protectedNav('/customers.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
             <span class="text-sm">👥</span> Customers (CRM)
+          </button>
+          <button onclick="protectedNav('/engagement.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+            <span class="text-sm">🎁</span> Coupons, Loyalty & Feedback
           </button>
           <button onclick="protectedNav('/staff.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
             <span class="text-sm">🧑‍🍳</span> Staff & Payroll
@@ -857,6 +868,7 @@
         <div class="flex items-center gap-1.5 border-t pt-1">
           <button onclick="openPosDiscountModal('discount')" id="btnPosDiscount" class="flex-1 border border-gray-200 hover:bg-gray-50 text-gray-700 py-1 rounded-lg text-xs font-bold">🏷 Discount</button>
           <button onclick="openPosDiscountModal('comp')" id="btnPosComp" class="flex-1 border border-gray-200 hover:bg-gray-50 text-gray-700 py-1 rounded-lg text-xs font-bold">🎁 Comp</button>
+          <button onclick="openPosOfferModal()" id="btnPosOffer" class="flex-1 border border-gray-200 hover:bg-gray-50 text-gray-700 py-1 rounded-lg text-xs font-bold">🎟 Offers</button>
           <div class="flex items-center gap-1 shrink-0">
             <span class="text-[10px] text-gray-400">Guests</span>
             <div class="flex items-center border rounded bg-gray-50 px-1 py-0.5">
@@ -896,51 +908,22 @@
 
         <div id="splitPaymentPanel" class="hidden border border-blue-100 bg-blue-50/20 rounded-xl p-2.5 space-y-2.5 text-xs mt-2">
           <div class="flex justify-between items-center border-b border-blue-100 pb-1.5">
-            <span class="font-bold text-gray-600 text-[11px]">Total to split</span>
-            <span id="splitTotalDisplay" class="font-black text-gray-900 text-sm">₹0.00</span>
+            <span class="font-bold text-gray-600 text-[11px]">🔀 Split payment &middot; Total</span>
+            <span class="flex items-center gap-2"><span id="splitTotalDisplay" class="font-black text-gray-900 text-sm">₹0.00</span>
+            <button onclick="cancelSplitPanel()" class="text-gray-400 hover:text-gray-600 font-black text-sm">✕</button></span>
           </div>
 
-          <div class="bg-white border border-gray-200 rounded-lg p-2 space-y-1.5 shadow-2xs">
-            <div class="flex justify-between items-center text-[10px] font-bold text-gray-400 uppercase">
-              <span>Method 1</span>
-            </div>
-            <div class="grid grid-cols-4 gap-1">
-              <button onclick="setSplitMethodType(1, 'Cash')" id="splitM1_Cash" class="border border-orange-400 bg-orange-50 text-orange-700 font-bold py-1 rounded text-[10px]">Cash</button>
-              <button onclick="setSplitMethodType(1, 'UPI')" id="splitM1_UPI" class="border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold py-1 rounded text-[10px]">UPI</button>
-              <button onclick="setSplitMethodType(1, 'Card')" id="splitM1_Card" class="border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold py-1 rounded text-[10px]">Card</button>
-              <button onclick="setSplitMethodType(1, 'DUE')" id="splitM1_DUE" class="border border-gray-200 hover:bg-gray-50 text-rose-600 font-bold py-1 rounded text-[10px]">Due</button>
-            </div>
-            <div class="flex items-center gap-1.5 pt-1">
-              <div class="relative flex-1">
-                <span class="absolute left-2 top-1.5 text-gray-400 font-bold text-xs">₹</span>
-                <input type="text" id="splitAmount1" readonly onclick="openVirtualKeyboard(this, 'number', 'left')" oninput="calculateSplitDifference()" placeholder="0.00" value="" class="w-full pl-5 pr-2 py-1 border border-gray-200 rounded text-xs font-mono font-black outline-none bg-gray-50 focus:bg-white cursor-pointer">
-              </div>
-              <button onclick="fillSplitRest(1)" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-[10px] font-bold px-2.5 py-1 rounded border">Fill rest</button>
-            </div>
-          </div>
-
-          <div class="bg-white border border-gray-200 rounded-lg p-2 space-y-1.5 shadow-2xs">
-            <div class="flex justify-between items-center text-[10px] font-bold text-gray-400 uppercase">
-              <span>Method 2</span>
-            </div>
-            <div class="grid grid-cols-4 gap-1">
-              <button onclick="setSplitMethodType(2, 'Cash')" id="splitM2_Cash" class="border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold py-1 rounded text-[10px]">Cash</button>
-              <button onclick="setSplitMethodType(2, 'UPI')" id="splitM2_UPI" class="border border-blue-500 bg-blue-50 text-blue-700 font-bold py-1 rounded text-[10px]">UPI</button>
-              <button onclick="setSplitMethodType(2, 'Card')" id="splitM2_Card" class="border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold py-1 rounded text-[10px]">Card</button>
-              <button onclick="setSplitMethodType(2, 'DUE')" id="splitM2_DUE" class="border border-gray-200 hover:bg-gray-50 text-rose-600 font-bold py-1 rounded text-[10px]">Due</button>
-            </div>
-            <div class="flex items-center gap-1.5 pt-1">
-              <div class="relative flex-1">
-                <span class="absolute left-2 top-1.5 text-gray-400 font-bold text-xs">₹</span>
-                <input type="text" id="splitAmount2" readonly onclick="openVirtualKeyboard(this, 'number', 'left')" oninput="calculateSplitDifference()" placeholder="0.00" value="" class="w-full pl-5 pr-2 py-1 border border-gray-200 rounded text-xs font-mono font-black outline-none bg-gray-50 focus:bg-white cursor-pointer">
-              </div>
-              <button onclick="fillSplitRest(2)" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-[10px] font-bold px-2.5 py-1 rounded border">Fill rest</button>
-            </div>
-          </div>
+          <div id="splitRowsContainer" class="space-y-2"></div>
+          <button id="btnSplitAddMethod" onclick="addSplitMethod()" class="w-full border border-dashed border-blue-300 hover:bg-blue-50 text-blue-700 py-1.5 rounded-lg text-[11px] font-black transition">+ Add method</button>
 
           <div id="splitStatusAlertBox" class="border border-rose-200 bg-rose-50 text-rose-700 rounded-lg p-2 text-[10px] font-bold flex justify-between items-center">
             <span id="splitStatusMessage">Split must equal the total</span>
             <span id="splitPendingDiff" class="font-black text-xs">₹0.00</span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <button onclick="cancelSplitPanel()" class="border border-gray-300 hover:bg-gray-100 text-gray-700 py-2 rounded-xl text-xs font-black transition">Cancel</button>
+            <button id="btnSplitConfirm" onclick="executePlaceOrder()" disabled class="bg-gray-300 text-gray-500 py-2 rounded-xl text-xs font-black cursor-not-allowed transition">✓ Confirm</button>
           </div>
         </div>
 
@@ -1282,8 +1265,8 @@
 
     var currentCashReceived = 0;
     var currentCashChange = 0;
-    var splitMethod1 = 'Cash';
-    var splitMethod2 = 'UPI';
+    var splitRows = [{ mode: 'Cash', amount: '' }, { mode: 'UPI', amount: '' }];
+    var SPLIT_MAX_ROWS = 4;
 
     var targetSingleSettleOrderId = null;
     var targetSingleSettleMode = 'CASH';
@@ -2131,11 +2114,35 @@
 
     function actionMarkDelivered(orderId) {
       var ord = allActiveOrders.find(function(o) { return o.id === orderId; }) || {};
-      if (!confirm('Order #' + (ord.token_no || orderId) + ' delivered mark karna hai?')) return;
-      fetch('/api/orders/' + orderId + '/mark-delivered', { method: 'POST' })
-        .then(function(res) { return res.json().then(function(d) { if (!res.ok) throw new Error(d.error || 'Failed'); }); })
-        .then(function() { fetchActiveOrders(); })
-        .catch(function(err) { alert('Delivered mark nahi hua: ' + err.message); });
+      var old = document.getElementById('deliveredConfirmModal');
+      if (old) old.remove();
+      var wrap = document.createElement('div');
+      wrap.id = 'deliveredConfirmModal';
+      wrap.className = 'fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4';
+      wrap.innerHTML =
+        '<div class="bg-white rounded-2xl p-5 max-w-sm w-full shadow-2xl space-y-4 text-center">' +
+          '<div class="text-4xl">&#9989;</div>' +
+          '<h3 class="font-black text-gray-900 text-base">Mark as Delivered?</h3>' +
+          '<p class="text-xs text-gray-500">Order <b>#' + (ord.token_no || orderId) + '</b> will be marked as delivered.</p>' +
+          '<div class="flex gap-2 pt-1">' +
+            '<button id="dcCancel" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2.5 rounded-xl text-xs font-bold transition">Cancel</button>' +
+            '<button id="dcOk" class="flex-1 bg-green-700 hover:bg-green-800 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition">Yes, Delivered</button>' +
+          '</div>' +
+        '</div>';
+      document.body.appendChild(wrap);
+      var close = function() { wrap.remove(); };
+      wrap.addEventListener('click', function(e) { if (e.target === wrap) close(); });
+      document.getElementById('dcCancel').onclick = close;
+      var okBtn = document.getElementById('dcOk');
+      okBtn.onclick = function() {
+        okBtn.disabled = true;
+        okBtn.textContent = 'Please wait...';
+        fetch('/api/orders/' + orderId + '/mark-delivered', { method: 'POST' })
+          .then(function(res) { return res.json().then(function(d) { if (!res.ok) throw new Error(d.error || 'Failed'); }); })
+          .then(function() { close(); fetchActiveOrders(); })
+          .catch(function(err) { close(); alert('Delivered mark nahi hua: ' + err.message); });
+      };
+      okBtn.focus();
     }
 
     function assignRider(name) {
@@ -2591,7 +2598,7 @@
       if (activeVirtualInput && activeVirtualInput.id === 'posCustPhone') lookupCustomerPhone();
       if (activeVirtualInput && activeVirtualInput.id === 'menuItemSearch') filterMenuItems();
       if (activeVirtualInput && activeVirtualInput.id === 'inputCashReceivedAmount') calculateChangeReturn();
-      if (activeVirtualInput && (activeVirtualInput.id === 'splitAmount1' || activeVirtualInput.id === 'splitAmount2')) calculateSplitDifference();
+      if (activeVirtualInput && String(activeVirtualInput.id).indexOf('splitAmount') === 0) calculateSplitDifference();
     }
 
     function keypadPress(val) {
@@ -3080,8 +3087,8 @@
         selectPaymentMode('Split');
         document.getElementById('splitTotalDisplay').innerText = '₹' + payableAmount.toFixed(2);
         
-        document.getElementById('splitAmount1').value = '';
-        document.getElementById('splitAmount2').value = '';
+        splitRows = [{ mode: 'Cash', amount: '' }, { mode: 'UPI', amount: '' }];
+        renderSplitRows();
         calculateSplitDifference();
         
         document.getElementById('splitPaymentPanel').classList.remove('hidden');
@@ -3122,51 +3129,97 @@
     }
 
     // ================= SPLIT PAYMENT LOGIC =================
-    function setSplitMethodType(methodNum, type) {
-      if (methodNum === 1) splitMethod1 = type;
-      if (methodNum === 2) splitMethod2 = type;
+    var SPLIT_MODES = ['Cash', 'UPI', 'Card', 'DUE'];
 
-      ['Cash', 'UPI', 'Card', 'DUE'].forEach(function(m) {
-        var btn1 = document.getElementById('splitM1_' + m);
-        var btn2 = document.getElementById('splitM2_' + m);
-        if (btn1) {
-          if (splitMethod1 === m) {
-            btn1.className = (m === 'DUE') ? "border border-rose-400 bg-rose-50 text-rose-700 font-bold py-1 rounded text-[10px]" : "border border-orange-400 bg-orange-50 text-orange-700 font-bold py-1 rounded text-[10px]";
-          } else {
-            btn1.className = "border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold py-1 rounded text-[10px]";
-          }
-        }
-        if (btn2) {
-          if (splitMethod2 === m) {
-            btn2.className = (m === 'DUE') ? "border border-rose-400 bg-rose-50 text-rose-700 font-bold py-1 rounded text-[10px]" : "border border-blue-500 bg-blue-50 text-blue-700 font-bold py-1 rounded text-[10px]";
-          } else {
-            btn2.className = "border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold py-1 rounded text-[10px]";
-          }
-        }
+    function readSplitAmounts() {
+      splitRows.forEach(function(r, i) {
+        var el = document.getElementById('splitAmount' + i);
+        if (el) r.amount = el.value;
       });
     }
 
-    function fillSplitRest(targetMethod) {
-      var calc = calculatePOSBillTotals();
-      var total = calc.payableNow;
-      if (targetMethod === 1) {
-        var m2 = parseFloat(document.getElementById('splitAmount2').value) || 0;
-        document.getElementById('splitAmount1').value = Math.max(0, total - m2).toFixed(2);
-      } else {
-        var m1 = parseFloat(document.getElementById('splitAmount1').value) || 0;
-        document.getElementById('splitAmount2').value = Math.max(0, total - m1).toFixed(2);
-      }
+    function renderSplitRows() {
+      var box = document.getElementById('splitRowsContainer');
+      if (!box) return;
+      box.innerHTML = splitRows.map(function(r, i) {
+        var modes = SPLIT_MODES.map(function(m) {
+          var on = r.mode === m;
+          var cls = on
+            ? (m === 'DUE' ? 'border border-rose-400 bg-rose-50 text-rose-700' : 'border border-orange-400 bg-orange-50 text-orange-700')
+            : 'border border-gray-200 hover:bg-gray-50 ' + (m === 'DUE' ? 'text-rose-600' : 'text-gray-600');
+          return '<button onclick="setSplitMethodType(' + i + ', \'' + m + '\')" class="' + cls + ' font-bold py-1 rounded text-[10px]">' + (m === 'DUE' ? 'Due' : m) + '</button>';
+        }).join('');
+        return '<div class="bg-white border border-gray-200 rounded-lg p-2 space-y-1.5 shadow-2xs">' +
+          '<div class="flex justify-between items-center text-[10px] font-bold text-gray-400 uppercase"><span>Method ' + (i + 1) + '</span>' +
+            (splitRows.length > 2 ? '<button onclick="removeSplitMethod(' + i + ')" class="text-rose-500 hover:text-rose-700 font-black">✕ Remove</button>' : '') + '</div>' +
+          '<div class="grid grid-cols-4 gap-1">' + modes + '</div>' +
+          '<div class="flex items-center gap-1.5 pt-1"><div class="relative flex-1">' +
+            '<span class="absolute left-2 top-1.5 text-gray-400 font-bold text-xs">₹</span>' +
+            '<input type="text" id="splitAmount' + i + '" readonly onclick="openVirtualKeyboard(this, \'number\', \'right\')" oninput="calculateSplitDifference()" placeholder="0.00" value="' + (r.amount || '') + '" class="w-full pl-5 pr-2 py-1 border border-gray-200 rounded text-xs font-mono font-black outline-none bg-gray-50 focus:bg-white cursor-pointer">' +
+          '</div><button onclick="fillSplitRest(' + i + ')" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-[10px] font-bold px-2.5 py-1 rounded border">Fill rest</button></div>' +
+        '</div>';
+      }).join('');
+      var addBtn = document.getElementById('btnSplitAddMethod');
+      if (addBtn) addBtn.classList.toggle('hidden', splitRows.length >= SPLIT_MAX_ROWS);
+    }
+
+    function setSplitMethodType(idx, type) {
+      readSplitAmounts();
+      if (splitRows[idx]) splitRows[idx].mode = type;
+      renderSplitRows();
+    }
+
+    function addSplitMethod() {
+      if (splitRows.length >= SPLIT_MAX_ROWS) return;
+      readSplitAmounts();
+      closeVirtualKeyboards();
+      var used = splitRows.map(function(r) { return r.mode; });
+      var next = SPLIT_MODES.filter(function(m) { return used.indexOf(m) < 0; })[0] || 'Cash';
+      splitRows.push({ mode: next, amount: '' });
+      renderSplitRows();
+      calculateSplitDifference();
+    }
+
+    function removeSplitMethod(idx) {
+      if (splitRows.length <= 2) return;
+      readSplitAmounts();
+      closeVirtualKeyboards();
+      splitRows.splice(idx, 1);
+      renderSplitRows();
+      calculateSplitDifference();
+    }
+
+    function syncSplitConfirmBtn(ok) {
+      var b = document.getElementById('btnSplitConfirm');
+      if (!b) return;
+      b.disabled = !ok;
+      b.className = ok
+        ? 'bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-xl text-xs font-black transition shadow-sm'
+        : 'bg-gray-300 text-gray-500 py-2 rounded-xl text-xs font-black cursor-not-allowed transition';
+    }
+
+    function cancelSplitPanel() {
+      closeVirtualKeyboards();
+      document.getElementById('splitPaymentPanel').classList.add('hidden');
+      if (selectedPaymentMode === 'Split') selectPaymentMode('Split');
+    }
+
+    function fillSplitRest(idx) {
+      readSplitAmounts();
+      var total = calculatePOSBillTotals().payableNow;
+      var others = 0;
+      splitRows.forEach(function(r, i) { if (i !== idx) others += parseFloat(r.amount) || 0; });
+      splitRows[idx].amount = Math.max(0, total - others).toFixed(2);
+      renderSplitRows();
       calculateSplitDifference();
     }
 
     function calculateSplitDifference() {
       var calc = calculatePOSBillTotals();
       var total = calc.payableNow;
-      var raw1 = document.getElementById('splitAmount1').value.trim();
-      var raw2 = document.getElementById('splitAmount2').value.trim();
-      var a1 = parseFloat(raw1) || 0;
-      var a2 = parseFloat(raw2) || 0;
-      var sum = a1 + a2;
+      readSplitAmounts();
+      var anyEntered = splitRows.some(function(r) { return String(r.amount).trim() !== ''; });
+      var sum = splitRows.reduce(function(t, r) { return t + (parseFloat(r.amount) || 0); }, 0);
       var diff = total - sum;
 
       var alertBox = document.getElementById('splitStatusAlertBox');
@@ -3175,16 +3228,18 @@
       var placeBtn = document.getElementById('btnPOSPlaceOrder');
 
       if (selectedPaymentMode === 'Split') {
-        if ((raw1 !== '' || raw2 !== '') && Math.abs(diff) < 0.01) {
+        if (anyEntered && Math.abs(diff) < 0.01) {
           alertBox.className = "border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-lg p-2 text-[10px] font-bold flex justify-between items-center";
           msg.innerText = "✓ Exact total matched!";
           pending.innerText = "₹0.00";
+          syncSplitConfirmBtn(true);
           placeBtn.disabled = false;
           placeBtn.className = "flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5";
         } else {
           alertBox.className = "border border-rose-200 bg-rose-50 text-rose-700 rounded-lg p-2 text-[10px] font-bold flex justify-between items-center";
           msg.innerText = "Split must equal the total";
           pending.innerText = (diff > 0 ? "Remaining: ₹" : "Exceeded: ₹") + Math.abs(diff).toFixed(2);
+          syncSplitConfirmBtn(false);
           placeBtn.disabled = true;
           placeBtn.className = "flex-1 bg-gray-300 text-gray-500 py-2.5 rounded-xl font-black text-xs cursor-not-allowed flex items-center justify-center gap-1.5";
         }
@@ -3236,8 +3291,10 @@
     var posComp = { on: false, reason: '' };
     var posAuthPw = '';
     var posDiscountMode = 'discount';
+    var posPromo = null; // { coupon_code, points_redeem, subtotal } validated by /api/coupons/validate
 
     function resetDiscountState() {
+      posPromo = null;
       posDiscount = { value: 0, type: 'amount', reason: '' };
       posComp = { on: false, reason: '' };
       posAuthPw = '';
@@ -3245,6 +3302,7 @@
     }
     // Saved order edit karte waqt uska discount / complimentary wapas load karo
     function loadDiscountState(ord) {
+      posPromo = null;
       posDiscount = { value: 0, type: 'amount', reason: '' };
       posComp = { on: false, reason: '' };
       posAuthPw = '';
@@ -3262,11 +3320,56 @@
       document.getElementById('posDiscountInfoText').innerText = txt;
     }
     function clearPosDiscount() {
+      posPromo = null;
       posDiscount = { value: 0, type: 'amount', reason: '' };
       posComp = { on: false, reason: '' };
       renderPosDiscountInfo();
       calculatePOSBillTotals();
     }
+    // ---- Coupons & loyalty points ----
+    function openPosOfferModal() {
+      if (!posCart.length) return alert('Pehle cart me item add karein');
+      if (posComp.on) return alert('Complimentary order par coupon / points nahi lagte');
+      document.getElementById('posOfferCode').value = posPromo ? posPromo.coupon_code : '';
+      document.getElementById('posOfferPoints').value = posPromo && posPromo.points_redeem ? posPromo.points_redeem : '';
+      document.getElementById('posOfferErr').innerText = '';
+      document.getElementById('posOfferLoyalty').innerText = '';
+      document.getElementById('posOfferPointsRow').classList.add('hidden');
+      var phone = (document.getElementById('posCustPhone').value || '').replace(/\D/g, '').slice(-10);
+      if (phone.length === 10) {
+        fetch('/api/loyalty/' + phone).then(function(r) { return r.json(); }).then(function(d) {
+          if (!d || !d.enabled) return;
+          document.getElementById('posOfferPointsRow').classList.remove('hidden');
+          document.getElementById('posOfferLoyalty').innerText = '⭐ ' + d.balance + ' points (1 pt = ₹' + d.point_value + ', min ' + d.min_redeem + ', max ' + d.max_redeem_pct + '% of bill)';
+        }).catch(function() {});
+      } else {
+        document.getElementById('posOfferLoyalty').innerText = 'Points ke liye pehle customer ka phone number daalein';
+      }
+      document.getElementById('posOfferModal').classList.remove('hidden');
+    }
+    function closePosOfferModal() { closeVirtualKeyboards(); document.getElementById('posOfferModal').classList.add('hidden'); }
+    function applyPosOffer() {
+      var err = document.getElementById('posOfferErr');
+      var code = document.getElementById('posOfferCode').value.trim();
+      var pts = Math.floor(Number(document.getElementById('posOfferPoints').value) || 0);
+      if (!code && pts <= 0) { err.innerText = 'Coupon code ya points daalein'; return; }
+      var subtotal = posCart.reduce(function(s, i) { return s + (i.price * i.qty); }, 0);
+      err.innerText = 'Checking...';
+      fetch('/api/coupons/validate', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subtotal: subtotal, phone: document.getElementById('posCustPhone').value, coupon_code: code, points_redeem: pts, exclude_order_id: editingActiveOrderId || 0 })
+      }).then(function(r) { return r.json().then(function(d) { if (!r.ok) throw new Error(d.error || 'Failed'); return d; }); })
+        .then(function(d) {
+          posPromo = { coupon_code: d.couponCode || '', points_redeem: d.pointsRedeemed || 0, subtotal: subtotal };
+          posDiscount = { value: d.discount, type: 'amount', reason: d.reason };
+          posComp = { on: false, reason: '' };
+          closePosOfferModal();
+          renderPosDiscountInfo();
+          calculatePOSBillTotals();
+        })
+        .catch(function(e) { err.innerText = e.message; });
+    }
+
     function openPosDiscountModal(mode) {
       if (!posCart.length) return alert('Pehle cart me item add karein');
       posDiscountMode = mode;
@@ -3313,6 +3416,13 @@
     function calculatePOSBillTotals() {
       var subtotal = posCart.reduce(function(s, i) { return s + (i.price * i.qty); }, 0);
       var taxable = posCart.reduce(function(s, i) { return Number(i.is_exempt) ? s : s + (i.price * i.qty); }, 0);
+      // A coupon / points discount was computed for one specific cart total; if the cart changed, drop it (staff re-applies).
+      if (posPromo && posPromo.subtotal !== subtotal) {
+        posPromo = null;
+        posDiscount = { value: 0, type: 'amount', reason: '' };
+        renderPosDiscountInfo();
+        setTimeout(function() { alert('Cart badal gaya, isliye coupon / points hata diye gaye. Offers se dobara lagayein.'); }, 0);
+      }
       // Discount / Complimentary (discount GST se pehle lagta hai)
       var disc = 0;
       if (posComp.on) disc = subtotal;
@@ -3538,12 +3648,12 @@
       var initialPaid = alreadyPaidAmount;
 
       if (selectedPaymentMode && selectedPaymentMode === 'Split') {
-        var a1 = parseFloat(document.getElementById('splitAmount1').value) || 0;
-        var a2 = parseFloat(document.getElementById('splitAmount2').value) || 0;
-        initialPaid = alreadyPaidAmount + a1 + a2;
+        readSplitAmounts();
+        var splitSum = splitRows.reduce(function(t, r) { return t + (parseFloat(r.amount) || 0); }, 0);
+        initialPaid = alreadyPaidAmount + splitSum;
         finalPaymentMode = 'SPLIT';
         // Split me jab cash hissa collect ho raha ho tabhi drawer khule
-        if ((splitMethod1 === 'Cash' && a1 > 0) || (splitMethod2 === 'Cash' && a2 > 0)) openCashDrawer();
+        if (splitRows.some(function(r) { return r.mode === 'Cash' && (parseFloat(r.amount) || 0) > 0; })) openCashDrawer();
       } else if (selectedPaymentMode === 'DUE') {
         finalPaymentMode = 'DUE';
         initialPaid = 0;
@@ -3564,10 +3674,7 @@
 
       var splitDetails = null;
       if (selectedPaymentMode === 'Split') {
-        splitDetails = [
-          { mode: splitMethod1, amount: parseFloat(document.getElementById('splitAmount1').value) || 0 },
-          { mode: splitMethod2, amount: parseFloat(document.getElementById('splitAmount2').value) || 0 }
-        ];
+        splitDetails = splitRows.map(function(r) { return { mode: r.mode, amount: parseFloat(r.amount) || 0 }; });
       }
 
       var payload = {
@@ -3582,6 +3689,8 @@
         discount_reason: posComp.on ? posComp.reason : posDiscount.reason,
         is_complimentary: posComp.on ? 1 : 0,
         auth_password: posAuthPw,
+        coupon_code: posPromo ? posPromo.coupon_code : '',
+        points_redeem: posPromo ? posPromo.points_redeem : 0,
         gst: calc.gst,
         total: calc.grandTotal,
         paid_amount: initialPaid,       // Yeh ab poora grandTotal bhejega taaki backend turant payment catch kar le!
@@ -3740,6 +3849,7 @@
           <div class="center" style="font-size:11px;">Payment Mode: <b>${payload.payment_mode}</b></div>
           <div class="center" style="font-size:11px; margin-top:4px;">${billEsc(billCfg.c.thank_you || 'Thanks For Visiting Us!')}</div>
           ${billCfg.c.footer ? `<div class="center" style="font-size:10px; margin-top:2px;">${billEsc(billCfg.c.footer)}</div>` : ''}
+          ${bOn('show_feedback_qr') && orderId ? `<div class="center" style="margin-top:6px;"><img src="/api/feedback/qr/${encodeURIComponent(orderId)}" style="width:26mm;height:26mm;"><div style="font-size:10px;">Scan to rate us</div></div>` : ''}
         </body>
         </html>
       `;
@@ -3805,7 +3915,13 @@
       var doc = frame.contentWindow.document;
       doc.open(); doc.write(html); doc.close();
       frame.contentWindow.focus();
-      setTimeout(function() { try { frame.contentWindow.print(); } catch(e) {} }, 250);
+      // wait for images (e.g. feedback QR) to load before printing, max ~3s
+      var doPrint = function(tries) {
+        var pending = Array.prototype.some.call(doc.images, function(i) { return !i.complete; });
+        if (pending && tries < 30) return setTimeout(function() { doPrint(tries + 1); }, 100);
+        try { frame.contentWindow.print(); } catch(e) {}
+      };
+      setTimeout(function() { doPrint(0); }, 250);
     }
     function printHtmlSilent(htmlOne, copies, fallbackHtml) {
       var fallback = function() { printDialogFallback(fallbackHtml); };
@@ -4562,6 +4678,26 @@
 
     initializePOS();
   </script>
+  <!-- Coupon / loyalty points modal -->
+  <div id="posOfferModal" class="hidden fixed inset-0 bg-black/60 z-[120] flex items-start justify-center p-4 pt-6 overflow-y-auto">
+    <div class="bg-white rounded-2xl w-full max-w-sm p-5 space-y-3 shadow-2xl">
+      <div class="flex justify-between items-center">
+        <h3 class="font-black text-base text-gray-900">🎟 Coupon / Loyalty points</h3>
+        <button onclick="closePosOfferModal()" class="text-gray-400 hover:text-gray-700 font-black text-lg" aria-label="Close">✕</button>
+      </div>
+      <input id="posOfferCode" type="text" readonly onclick="openVirtualKeyboard(this, 'text')" maxlength="30" placeholder="Coupon code" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm uppercase font-mono outline-none focus:border-orange-500">
+      <div id="posOfferPointsRow" class="hidden">
+        <input id="posOfferPoints" type="text" readonly onclick="openVirtualKeyboard(this, 'number', 'center')" placeholder="Points to redeem" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-orange-500">
+      </div>
+      <p id="posOfferLoyalty" class="text-[11px] font-bold text-amber-700"></p>
+      <p id="posOfferErr" class="text-xs font-bold text-rose-600 min-h-[1rem]"></p>
+      <div class="flex gap-2">
+        <button onclick="closePosOfferModal()" class="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-xl text-xs font-black">Cancel</button>
+        <button onclick="applyPosOffer()" class="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2.5 rounded-xl text-xs font-black">Apply</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Discount / Complimentary modal -->
   <div id="posDiscountModal" class="hidden fixed inset-0 bg-black/60 z-[120] flex items-start justify-center p-4 pt-6 overflow-y-auto">
     <div class="bg-white rounded-2xl w-full max-w-sm p-5 space-y-3 shadow-2xl">

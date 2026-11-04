@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Your Feedback</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; background: #fff7ed; font-family: -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; color: #1f2937; }
+    .card { background: #fff; width: 100%; max-width: 380px; border-radius: 20px; padding: 24px 20px; box-shadow: 0 10px 30px rgba(0,0,0,.1); text-align: center; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    p { margin: 4px 0 14px; color: #6b7280; font-size: 14px; }
+    .stars { display: flex; justify-content: center; gap: 6px; margin: 10px 0 6px; }
+    .stars button { background: none; border: 0; font-size: 42px; line-height: 1; cursor: pointer; color: #d1d5db; padding: 0 2px; transition: transform .1s; }
+    .stars button.on { color: #f59e0b; }
+    .stars button:active { transform: scale(1.2); }
+    .label { min-height: 20px; font-weight: 700; font-size: 14px; color: #ea580c; }
+    textarea { width: 100%; height: 90px; margin-top: 12px; border: 1.5px solid #e5e7eb; border-radius: 12px; padding: 10px; font: inherit; font-size: 14px; resize: none; outline: none; }
+    textarea:focus { border-color: #f97316; }
+    .btn { display: block; width: 100%; margin-top: 14px; padding: 13px; border: 0; border-radius: 12px; background: #ea580c; color: #fff; font-size: 15px; font-weight: 800; cursor: pointer; text-decoration: none; }
+    .btn:disabled { background: #d1d5db; cursor: not-allowed; }
+    .btn.alt { background: #fff; color: #ea580c; border: 2px solid #ea580c; }
+    .err { color: #dc2626; font-size: 13px; font-weight: 700; min-height: 18px; margin-top: 8px; }
+    .big { font-size: 56px; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div id="loading">Loading...</div>
+
+    <div id="form" class="hidden">
+      <h1 id="title">How was your meal?</h1>
+      <p id="sub">Your feedback helps us serve you better.</p>
+      <div class="stars" id="stars"></div>
+      <div class="label" id="label"></div>
+      <textarea id="comment" maxlength="500" placeholder="Anything you'd like to tell us? (optional)"></textarea>
+      <div class="err" id="err"></div>
+      <button class="btn" id="submit" disabled>Submit feedback</button>
+    </div>
+
+    <div id="thanks" class="hidden">
+      <div class="big" id="thanksIcon">🙏</div>
+      <h1 id="thanksTitle">Thank you!</h1>
+      <p id="thanksMsg">Your feedback has been received.</p>
+      <a class="btn alt hidden" id="googleBtn" target="_blank" rel="noopener">⭐ Rate us on Google</a>
+    </div>
+
+    <div id="bad" class="hidden">
+      <div class="big">⚠️</div>
+      <h1>Link not valid</h1>
+      <p id="badMsg">This feedback link is not valid.</p>
+    </div>
+  </div>
+
+  <script>
+    var q = new URLSearchParams(location.search);
+    var orderId = q.get('o'), token = q.get('t');
+    var rating = 0, googleUrl = '';
+    var labels = ['', 'Very bad', 'Bad', 'Okay', 'Good', 'Excellent!'];
+    var $ = function(id) { return document.getElementById(id); };
+    function show(id) { ['loading', 'form', 'thanks', 'bad'].forEach(function(x) { $(x).classList.toggle('hidden', x !== id); }); }
+
+    function showThanks(already) {
+      if (already) { $('thanksIcon').textContent = '✅'; $('thanksTitle').textContent = 'Already received'; $('thanksMsg').textContent = 'We already have your feedback for this order. Thank you!'; }
+      else if (rating <= 2) { $('thanksMsg').textContent = "We're sorry we missed the mark. We will work on it."; }
+      if (googleUrl && (rating >= 4 || already)) { $('googleBtn').href = googleUrl; $('googleBtn').classList.remove('hidden'); }
+      show('thanks');
+    }
+
+    for (var i = 1; i <= 5; i++) {
+      (function(n) {
+        var b = document.createElement('button');
+        b.type = 'button'; b.textContent = '★'; b.setAttribute('aria-label', n + ' star');
+        b.onclick = function() {
+          rating = n;
+          Array.prototype.forEach.call($('stars').children, function(el, idx) { el.classList.toggle('on', idx < n); });
+          $('label').textContent = labels[n];
+          $('submit').disabled = false;
+        };
+        $('stars').appendChild(b);
+      })(i);
+    }
+
+    fetch('/api/feedback/order/' + encodeURIComponent(orderId) + '?t=' + encodeURIComponent(token))
+      .then(function(r) { return r.json().then(function(d) { if (!r.ok) throw new Error(d.error || 'Invalid link'); return d; }); })
+      .then(function(d) {
+        googleUrl = d.google_review_url || '';
+        if (d.restaurant) document.title = d.restaurant + ' - Feedback';
+        if (d.name) $('title').textContent = 'Hi ' + d.name + ', how was your meal?';
+        if (d.done) return showThanks(true);
+        show('form');
+      })
+      .catch(function(e) { $('badMsg').textContent = e.message; show('bad'); });
+
+    $('submit').onclick = function() {
+      $('submit').disabled = true; $('err').textContent = '';
+      fetch('/api/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_id: Number(orderId), t: token, rating: rating, comment: $('comment').value }) })
+        .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, status: r.status, d: d }; }); })
+        .then(function(x) {
+          if (x.ok) return showThanks(false);
+          if (x.status === 409) return showThanks(true);
+          throw new Error(x.d.error || 'Could not save');
+        })
+        .catch(function(e) { $('err').textContent = e.message; $('submit').disabled = false; });
+    };
+  </script>
+</body>
+</html>
