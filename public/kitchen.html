@@ -776,6 +776,17 @@
             return st !== 'BILLED' && st !== 'COMPLETED' && st !== 'VOID' && st !== 'DISPATCHED';
           });
           
+          // Items that were already dispatched earlier (done_qty) are shown struck-through as ready; only the units added since then stay pending
+          pendingOrders.forEach(function(o) {
+            var pend = [], done = [];
+            (o.items || []).forEach(function(i) {
+              var q = Number(i.qty) || 0, d = Math.min(Math.max(Number(i.done_qty) || 0, 0), q);
+              if (d > 0) done.push(Object.assign({}, i, { qty: d }));
+              if (q - d > 0) pend.push(Object.assign({}, i, { qty: q - d }));
+            });
+            o.items = pend; o.doneItems = done;
+          });
+
           liveOrdersData = pendingOrders;
           document.getElementById('pendingCount').innerText = liveOrdersData.length + ' Pending';
           
@@ -899,6 +910,21 @@
         })
         .catch(function(){});
     }
+    // An item the kitchen already sent out: ticked, faded and struck-through, not clickable
+    function doneRowHtml(item) {
+      var addonsList = extractAddonsList(item);
+      var base = (addonsList.length > 0 && !(item.addons && item.addons.length) ? splitNameAddons(item.name).base : (item.name || '')).trim() || (item.name || '').trim();
+      return `
+        <div class="border-b border-slate-100 pb-1.5 mb-1 opacity-50 select-none">
+          <div class="flex items-center gap-2.5">
+            <div class="kot-check-box rounded-md flex items-center justify-center border shrink-0 bg-emerald-600 border-emerald-600 text-white">✓</div>
+            <span class="kot-qty-badge font-black text-slate-500 bg-slate-100 border border-slate-200 px-2 py-1 rounded-md shrink-0 line-through">x${item.qty}</span>
+            <span class="kot-item-title font-bold text-slate-400 flex-1 line-through">${base}</span>
+          </div>
+          ${addonsList.length > 0 ? `<div class="mt-1 ml-8 space-y-0.5 pl-2 border-l-2 border-slate-200">${addonsList.map(function(a) { return `<div class="kot-addon-text font-semibold text-slate-400 line-through">+ ${a.name}</div>`; }).join('')}</div>` : ''}
+        </div>`;
+    }
+
     function renderKOTCards() {
       var grid = document.getElementById('kotGrid');
       if (!liveOrdersData || liveOrdersData.length === 0) {
@@ -1069,6 +1095,11 @@
                   </div>
                 `;
               }).join('')}
+               ${(order.doneItems || []).length ? `
+                <div class="pt-1 mt-1 border-t border-dashed border-slate-300">
+                  <div class="kot-notes font-black uppercase tracking-wider text-emerald-700 mb-1">✓ Already ready</div>
+                  ${order.doneItems.map(doneRowHtml).join('')}
+                </div>` : ''}
                ${((getStoredSnapshots()[strId] || {}).cancelled || []).map(function(c) {
                 var cBase = (c.name || '').replace(/\s*\(.*?\)\s*$/, '').trim();
                 return `

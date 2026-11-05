@@ -1253,7 +1253,7 @@ app.put('/api/orders/:id', (req, res, next) => engagement.applyPromoToOrderEdit(
   const { order_type, table_no, customer_name, customer_phone, items, subtotal, discount, gst, total, payment_mode, paid_amount } = req.body;
 
   db.get("SELECT total, paid_amount, payment_mode, status, discount, is_complimentary, customer_phone FROM orders WHERE id = ?", [orderId], (errGet, currentOrder) => {
-   db.all("SELECT name, qty FROM order_items WHERE order_id = ?", [orderId], (errItems, existingItems) => {
+   db.all("SELECT name, qty, price, user_note, pack_flip, COALESCE(done_qty, 0) AS done_qty FROM order_items WHERE order_id = ?", [orderId], (errItems, existingItems) => {
     // Discount badhane ya complimentary lagane ke liye password chahiye (hatane ke liye nahi)
     const putComp = !!req.body.is_complimentary;
     const putDiscount = Math.max(0, Number(discount) || 0);
@@ -1304,13 +1304,21 @@ app.put('/api/orders/:id', (req, res, next) => engagement.applyPromoToOrderEdit(
       async (err) => {
         if (err) return res.status(500).json({ error: err.message });
 
+        // Items are rewritten on every edit: carry over how many units of each line the kitchen already finished
+        const lineKey = (n, pr, un, pf) => [n, Number(pr) || 0, String(un || ''), pf ? 1 : 0].join('|');
+        const doneLeft = {};
+        (existingItems || []).forEach(e => { const k = lineKey(e.name, e.price, e.user_note, Number(e.pack_flip)); doneLeft[k] = (doneLeft[k] || 0) + (Number(e.done_qty) || 0); });
         db.run("DELETE FROM order_items WHERE order_id = ?", [orderId], async () => {
           if (Array.isArray(items) && items.length > 0) {
             for (const item of items) {
+              const userNote = String(item.user_note || '').slice(0, 300);
+              const k = lineKey(item.name, item.price, userNote, item.pack_flip);
+              const doneQty = Math.min(Number(item.qty) || 0, doneLeft[k] || 0);
+              doneLeft[k] = (doneLeft[k] || 0) - doneQty;
               await new Promise((resolve) => {
                 db.run(
-                  "INSERT INTO order_items (order_id, name, qty, price, notes, user_note, pack_flip, is_exempt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                  [orderId, item.name, item.qty, item.price, item.notes || '', String(item.user_note || '').slice(0, 300), item.pack_flip ? 1 : 0, Number(item.is_exempt) ? 1 : 0],
+                  "INSERT INTO order_items (order_id, name, qty, price, notes, user_note, pack_flip, is_exempt, done_qty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                  [orderId, item.name, item.qty, item.price, item.notes || '', userNote, item.pack_flip ? 1 : 0, Number(item.is_exempt) ? 1 : 0, doneQty],
                   () => resolve()
                 );
               });
@@ -1831,13 +1839,24 @@ app.get('/api/kot', (req, res) => {
       const fullOrders = await Promise.all(
         orders.map(order => {
           return new Promise((resolve) => {
-            db.all("SELECT id, name, qty, notes, user_note, pack_flip FROM order_items WHERE order_id = ? AND name <> 'Delivery Charge' ORDER BY id ASC", [order.id], (err2, items) => {
+            db.all("SELECT id, name, qty, notes, user_note, pack_flip, COALESCE(done_qty, 0) AS done_qty FROM order_items WHERE order_id = ? AND name <> 'Delivery Charge' ORDER BY id ASC", [order.id], (err2, items) => {
               resolve({ ...order, items: items || [] });
             });
           });
         })
       );
-      res.json(fullOrders);
+      // An order whose new items were removed again has nothing left to cook: close it on the KDS like a dispatch would
+      const keep = [];
+      for (const o of fullOrders) {
+        const left = o.items.some(i => (Number(i.qty) || 0) - (Number(i.done_qty) || 0) > 0);
+        if (!left && o.items.some(i => Number(i.done_qty) > 0)) {
+          await dbAllAsync(`UPDATE orders SET status = CASE
+              WHEN UPPER(COALESCE(payment_mode, '')) = 'DUE' THEN 'DUE_PENDING'
+              WHEN UPPER(COALESCE(payment_mode, '')) IN ('', 'UNPAID', 'PAY_COUNTER', 'ONLINE_PENDING') OR COALESCE(paid_amount, 0) < total THEN 'KOT_DONE'
+              ELSE 'DISPATCHED' END, ready_at = COALESCE(ready_at, CURRENT_TIMESTAMP) WHERE id = ? RETURNING id`, [o.id]).catch(() => {});
+        } else keep.push(o);
+      }
+      res.json(keep);
     } catch (e) {
       res.json(orders.map(o => ({ ...o, items: [] })));
     }
@@ -1853,7 +1872,7 @@ app.post('/api/kot/:id/complete', (req, res) => {
       return res.status(500).json({ error: err2.message });
     }
     console.log(`[KDS COMPLETE] Order #${orderId} marked KOT_DONE.`);
-    res.json({ success: true });
+    db.run('UPDATE order_items SET done_qty = qty WHERE order_id = ?', [orderId], () => res.json({ success: true }));
   });
 });
 
@@ -1878,7 +1897,8 @@ app.post('/api/kot/:id/dispatch', (req, res) => {
       return res.status(500).json({ error: err.message });
     }
     console.log(`[KDS DISPATCH] Order #${orderId} manually dispatched.`);
-    res.json({ success: true });
+    // everything on the order is now ready: if items are added later, the KDS only shows the new ones as pending
+    db.run('UPDATE order_items SET done_qty = qty WHERE order_id = ?', [orderId], () => res.json({ success: true }));
   });
 });
 
@@ -1906,6 +1926,7 @@ app.post('/api/kot/:id/recall', async (req, res) => {
     const rows = await dbAllAsync(`UPDATE orders SET status = 'RUNNING_TABLE', ready_at = NULL
       WHERE id = ? AND ${KDS_RECALLABLE} AND delivered_at IS NULL RETURNING id`, [req.params.id]);
     if (!rows.length) return res.status(409).json({ error: 'Ye order ab recall nahi ho sakta (settle ho chuka ya delivered hai)' });
+    await dbAllAsync('UPDATE order_items SET done_qty = 0 WHERE order_id = ? RETURNING id', [req.params.id]);
     console.log(`[KDS RECALL] Order #${req.params.id} sent back to KDS.`);
     res.json({ success: true });
   } catch (e) {

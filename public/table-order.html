@@ -376,12 +376,12 @@
   }
 
   // ---------- token + live status ----------
-  var STEPS = ['Order placed', 'Preparing', 'Ready', 'Collected'];
+  var STEPS = ['Order placed', 'Preparing', 'Ready'];
   var STATE_TEXT = {
     waiting: ['⏳ Staff aapka order accept karenge...', 'text-amber-600'],
     preparing: ['👨‍🍳 Aapka order kitchen me ban raha hai', 'text-indigo-700'],
     ready: ['🍽️ Order ready hai! Counter se apna order collect karein', 'text-emerald-600'],
-    served: ['😋 Order collect ho gaya. Enjoy your meal!', 'text-emerald-600'],
+    served: ['😋 Enjoy your meal!', 'text-emerald-600'],
     rejected: ['❌ Order accept nahi ho paaya. Kripya staff se baat karein.', 'text-rose-600']
   };
   var openOrder = null; // order record whose full-screen page is open
