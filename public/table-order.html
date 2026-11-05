@@ -30,11 +30,11 @@
           <span id="tableBadge" class="bg-indigo-600 text-white font-black text-sm px-3 py-1.5 rounded-xl"></span>
         </div>
       </div>
+      <div class="px-4 pb-2"><button onclick="trackSheet()" class="w-full flex items-center justify-between bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-xl px-3 py-2.5 font-black text-sm"><span>📦 Track your order</span><span id="trackPill" class="hidden text-[11px] bg-indigo-600 text-white rounded-full px-2.5 py-0.5"></span></button></div>
       <div class="px-4 pb-2"><input id="search" oninput="onSearch(this.value)" placeholder="Search menu..." class="w-full border rounded-xl px-3 py-2 text-sm bg-gray-50 outline-none focus:border-indigo-500"></div>
       <div id="chips" class="chips flex gap-2 overflow-x-auto px-4 pb-2.5"></div>
     </header>
 
-    <!-- live status of orders already placed from this phone -->
     <div id="statusBox" class="px-4 pt-3 space-y-2"></div>
 
     <main id="menuList" class="px-4 py-3 space-y-5"></main>
@@ -65,6 +65,7 @@
       <p id="opShared" class="hidden mt-3 text-xs font-bold text-indigo-700 bg-indigo-50 rounded-xl px-3 py-2"></p>
       <div id="opState" class="mt-5 text-base font-black"></div>
       <div id="opSteps" class="flex gap-1.5 mt-3"></div>
+      <p class="mt-3 text-xs font-bold text-gray-500">Self-service: jab status "Ready" ho jaye, apna token number batakar counter se order le jayein.</p>
       <div id="opItems" class="mt-5 text-left bg-gray-50 border border-gray-200 rounded-2xl p-3 text-sm space-y-1"></div>
       <button onclick="closeOrderPage(); billSheet()" class="mt-6 w-full border-2 border-emerald-500 text-emerald-700 rounded-2xl py-3 font-black text-sm">🧾 View bill & pay</button>
       <button onclick="closeOrderPage()" class="mt-3 w-full bg-indigo-600 text-white rounded-2xl py-3.5 font-black text-sm">Order more items</button>
@@ -174,8 +175,9 @@
     var ids = (variant && Array.isArray(variant.addon_groups) && variant.addon_groups.length) ? variant.addon_groups : parse(item.assigned_addon_groups, []);
     return (ids || []).map(Number).map(function (id) { return groups.filter(function (g) { return Number(g.id) === id; })[0]; }).filter(function (g) { return g && groupOptions(g).length; });
   }
-  function openSheet(html) { $('sheetBody').innerHTML = html; $('sheetBack').classList.remove('hidden'); $('sheetBack').firstElementChild.scrollTop = 0; }
-  function closeSheet() { $('sheetBack').classList.add('hidden'); pick = null; fromSuggest = false; }
+  var sheetMode = null;
+  function openSheet(html) { sheetMode = null; $('sheetBody').innerHTML = html; $('sheetBack').classList.remove('hidden'); $('sheetBack').firstElementChild.scrollTop = 0; }
+  function closeSheet() { $('sheetBack').classList.add('hidden'); pick = null; fromSuggest = false; sheetMode = null; }
   var sheetHead = function (title, sub) {
     return '<div class="flex justify-between items-start mb-3"><div><div class="font-black text-base leading-tight">' + title + '</div>' + (sub ? '<div class="text-[11px] font-bold text-gray-500 mt-0.5">' + sub + '</div>' : '') + '</div><button onclick="closeSheet()" class="text-gray-400 text-xl font-black px-2">✕</button></div>';
   };
@@ -374,12 +376,12 @@
   }
 
   // ---------- token + live status ----------
-  var STEPS = ['Sent to staff', 'Preparing', 'Ready', 'Served'];
+  var STEPS = ['Order placed', 'Preparing', 'Ready', 'Collected'];
   var STATE_TEXT = {
     waiting: ['⏳ Staff aapka order accept karenge...', 'text-amber-600'],
     preparing: ['👨‍🍳 Aapka order kitchen me ban raha hai', 'text-indigo-700'],
-    ready: ['🍽️ Order ready hai! Jald aapke table par aayega', 'text-emerald-600'],
-    served: ['😋 Enjoy your meal!', 'text-emerald-600'],
+    ready: ['🍽️ Order ready hai! Counter se apna order collect karein', 'text-emerald-600'],
+    served: ['😋 Order collect ho gaya. Enjoy your meal!', 'text-emerald-600'],
     rejected: ['❌ Order accept nahi ho paaya. Kripya staff se baat karein.', 'text-rose-600']
   };
   var openOrder = null; // order record whose full-screen page is open
@@ -405,25 +407,52 @@
   function closeOrderPage() { openOrder = null; $('orderPage').classList.add('hidden'); window.scrollTo({ top: 0 }); }
   function reopenOrder(id) { var o = (JSON.parse(localStorage.getItem(ORD_KEY) || '[]')).filter(function (x) { return x.id === id; })[0]; if (o) { showOrderPage(o, lastStatus[id]); } }
 
-  var pollTimer = null, lastStatus = {};
+  var pollTimer = null, lastStatus = {}, trackOrders = [];
+  // one card per token: orders merged into the table's first bill share its token and progress
+  function trackCards() {
+    var seen = {}, out = [];
+    trackOrders.forEach(function (o) {
+      var s = lastStatus[o.id]; if (!s) return;
+      if (s.state === 'served' && Date.now() - o.at > 30 * 60 * 1000) return; // hide old collected orders
+      var key = s.token_no || s.id; if (seen[key]) return; seen[key] = true;
+      out.push({ o: o, s: s });
+    });
+    return out;
+  }
+  function trackSheet() {
+    var cards = trackCards();
+    var html = sheetHead('📦 Track your order', 'Table ' + esc(T));
+    if (!cards.length) html += '<p class="text-center py-8 text-gray-400 font-bold">Abhi koi order nahi hai.</p>';
+    else html += '<div class="space-y-2.5">' + cards.map(function (c) {
+      var s = c.s, t = STATE_TEXT[s.state] || STATE_TEXT.waiting;
+      return '<button onclick="closeSheet(); reopenOrder(' + c.o.id + ')" class="w-full text-left bg-white border border-gray-200 rounded-xl p-3"><div class="flex justify-between items-center gap-3"><span class="font-black text-base">Token #' + esc(s.token_no || s.id) + '</span><span class="text-[11px] font-black text-right ' + t[1] + '">' + t[0] + '</span></div>' +
+        (s.state === 'rejected' ? '' : '<div class="flex gap-1 mt-2">' + stepBars(s.step) + '</div>') + '</button>';
+    }).join('') + '</div>';
+    openSheet(html); sheetMode = 'track';
+  }
+  function updateTrackPill() {
+    var cards = trackCards(), active = cards.filter(function (c) { return c.s.state !== 'served' && c.s.state !== 'rejected'; }), pill = $('trackPill');
+    pill.classList.toggle('hidden', !cards.length);
+    pill.textContent = active.length ? active.length + ' active' : 'Done';
+    pill.className = 'text-[11px] text-white rounded-full px-2.5 py-0.5 ' + (cards.length ? (active.length ? 'bg-indigo-600' : 'bg-emerald-600') : 'hidden');
+  }
   async function pollOrders() {
     clearTimeout(pollTimer);
     var orders = []; try { orders = JSON.parse(localStorage.getItem(ORD_KEY) || '[]'); } catch (e) {}
     orders = orders.filter(function (o) { return Date.now() - o.at < 6 * 3600 * 1000; }); // last 6 hours only
-    if (!orders.length) { $('statusBox').innerHTML = closedBanner; return; }
+    trackOrders = orders;
+    $('statusBox').innerHTML = closedBanner;
+    if (!orders.length) { updateTrackPill(); return; }
     var res = await Promise.all(orders.map(function (o) { return fetch('/api/table-qr/status?o=' + o.id + '&s=' + encodeURIComponent(o.s)).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); }));
-    var html = closedBanner, anyActive = false;
+    var anyActive = false;
     res.forEach(function (s, i) {
       if (!s) return;
       var o = orders[i]; lastStatus[o.id] = s;
       if (openOrder && openOrder.id === o.id) paintStatus(s);
       if (s.state !== 'served' && s.state !== 'rejected') anyActive = true;
-      if (s.state === 'served' && Date.now() - o.at > 30 * 60 * 1000) return; // hide old served orders
-      var t = STATE_TEXT[s.state] || STATE_TEXT.waiting;
-      html += '<button onclick="reopenOrder(' + o.id + ')" class="w-full text-left bg-white border border-gray-200 rounded-xl p-3"><div class="flex justify-between items-center"><span class="font-black text-sm">Token #' + esc(s.token_no || s.id) + '</span><span class="text-[11px] font-black ' + t[1] + '">' + t[0].replace(/^[^\s]+\s/, '') + '</span></div>' +
-        (s.state === 'rejected' ? '' : '<div class="flex gap-1 mt-2">' + stepBars(s.step) + '</div>') + '</button>';
     });
-    $('statusBox').innerHTML = html;
+    updateTrackPill();
+    if (sheetMode === 'track') { var keep = $('sheetBack').firstElementChild.scrollTop; trackSheet(); $('sheetBack').firstElementChild.scrollTop = keep; }
     pollTimer = setTimeout(pollOrders, anyActive ? 4000 : 30000);
   }
 
