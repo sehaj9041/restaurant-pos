@@ -119,6 +119,9 @@
           <button onclick="protectedNav('/engagement.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
             <span class="text-sm">🎁</span> Coupons, Loyalty & Feedback
           </button>
+          <button onclick="protectedNav('/table-qrs.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
+            <span class="text-sm">📱</span> Table QR Codes
+          </button>
           <button onclick="protectedNav('/staff.html')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-100 transition">
             <span class="text-sm">🧑‍🍳</span> Staff & Payroll
           </button>
@@ -1445,7 +1448,9 @@
                 <div class="flex justify-between items-start flex-wrap gap-2">
                   <div>
                     <div class="flex items-center gap-2">
-                      <span class="bg-slate-100 border border-slate-200 text-slate-800 font-black px-2 py-0.5 rounded text-xs">${order.order_type || 'Kiosk'}</span>
+                      ${order.source === 'TABLE_QR'
+                        ? '<span class="bg-indigo-100 border border-indigo-200 text-indigo-800 font-black px-2 py-0.5 rounded text-xs">📱 Table QR • ' + escCartText(order.table_no) + '</span>'
+                        : `<span class="bg-slate-100 border border-slate-200 text-slate-800 font-black px-2 py-0.5 rounded text-xs">${order.order_type || 'Kiosk'}</span>`}
                       <span class="font-bold text-slate-500 text-[11px]">#ORD-${order.id}</span>
                       <span class="bg-orange-100 text-orange-800 font-black px-2 py-0.5 rounded text-base">Token ${tokenLabel(order)}</span>
                       <span class="text-xs font-bold text-slate-600">${order.customer_name || 'Guest'} (${order.customer_phone || 'N/A'})</span>
@@ -1467,9 +1472,14 @@
                   <button onclick="rejectNeedsApprovalOrder(${order.id})" class="bg-white hover:bg-rose-50 text-rose-600 border border-rose-300 font-bold px-4 py-2 rounded-xl text-xs transition shadow-2xs">
                     Reject
                   </button>
+                  ${order.source === 'TABLE_QR' ? `
+                  <button onclick="approveNeedsApprovalOrder(${order.id})" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 font-bold px-4 py-2 rounded-xl text-xs transition shadow-2xs">Edit in POS</button>
+                  <button onclick="approveTableQrOrder(${order.id})" class="bg-indigo-600 hover:bg-indigo-700 text-white font-black px-5 py-2 rounded-xl text-xs transition shadow-xs flex items-center gap-1.5">
+                    <span>✓ Accept & send to kitchen</span>
+                  </button>` : `
                   <button onclick="approveNeedsApprovalOrder(${order.id})" class="bg-orange-600 hover:bg-orange-700 text-white font-black px-5 py-2 rounded-xl text-xs transition shadow-xs flex items-center gap-1.5">
                     <span>${Number(order.paid_amount) >= Number(order.total) && Number(order.total) > 0 ? '✓ Paid online • Accept & send to kitchen' : 'Collect ₹' + order.total + ' & send to kitchen'}</span>
-                  </button>
+                  </button>`}
                 </div>
               </div>
             `;
@@ -1504,6 +1514,18 @@
           renderPOSCart();
           switchRightTab('SUMMARY');
         });
+    }
+
+    // Table QR order: no payment now (paid at the end with the table's bill). Joins the table's running bill if there is one.
+    function approveTableQrOrder(orderId) {
+      fetch('/api/orders/' + orderId + '/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (!data || !data.success) throw new Error((data && data.error) || 'Accept nahi hua');
+          fetchNeedsApprovalOrders();
+          if (typeof fetchActiveOrders === 'function') fetchActiveOrders();
+        })
+        .catch(function(e) { alert('Order accept nahi hua: ' + e.message); });
     }
 
     async function rejectNeedsApprovalOrder(orderId) {

@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>Table Order - Vishal Foodiez</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { -webkit-tap-highlight-color: transparent; }
+    .chips::-webkit-scrollbar { display: none; }
+    .sheet { max-height: 88vh; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen font-sans text-gray-900 pb-28">
+
+  <!-- Error / closed screen -->
+  <div id="fatal" class="hidden min-h-screen flex items-center justify-center p-8 text-center">
+    <div><div class="text-5xl mb-3">😕</div><p id="fatalMsg" class="font-bold text-gray-700"></p></div>
+  </div>
+
+  <div id="app" class="hidden">
+    <header class="bg-white border-b sticky top-0 z-30">
+      <div class="px-4 pt-3 pb-2 flex items-center justify-between">
+        <div>
+          <div id="restName" class="font-black text-base leading-tight">Vishal Foodiez</div>
+          <div class="text-[11px] font-bold text-gray-500">Order from your table</div>
+        </div>
+        <span id="tableBadge" class="bg-indigo-600 text-white font-black text-sm px-3 py-1.5 rounded-xl"></span>
+      </div>
+      <div class="px-4 pb-2"><input id="search" oninput="onSearch(this.value)" placeholder="Search menu..." class="w-full border rounded-xl px-3 py-2 text-sm bg-gray-50 outline-none focus:border-indigo-500"></div>
+      <div id="chips" class="chips flex gap-2 overflow-x-auto px-4 pb-2.5"></div>
+    </header>
+
+    <!-- live status of orders already placed from this phone -->
+    <div id="statusBox" class="px-4 pt-3 space-y-2"></div>
+
+    <main id="menuList" class="px-4 py-3 space-y-5"></main>
+  </div>
+
+  <!-- Cart bar -->
+  <div id="cartBar" class="hidden fixed bottom-0 inset-x-0 z-40 p-3 bg-gradient-to-t from-gray-50 via-gray-50 to-transparent">
+    <button onclick="openCart()" class="w-full bg-indigo-600 text-white rounded-2xl px-5 py-3.5 flex items-center justify-between font-black shadow-lg">
+      <span id="cartCount">0 items</span><span>View cart • <span id="cartTotal">₹0</span></span>
+    </button>
+  </div>
+
+  <!-- Bottom sheet (item options / cart) -->
+  <div id="sheetBack" class="hidden fixed inset-0 z-50 bg-black/50 flex items-end justify-center" onclick="if (event.target === this) closeSheet()">
+    <div class="sheet bg-white w-full max-w-lg rounded-t-3xl p-5 overflow-y-auto"><div id="sheetBody"></div></div>
+  </div>
+
+  <div id="toast" class="hidden fixed top-4 inset-x-4 z-[60] mx-auto max-w-sm text-center text-sm font-bold px-4 py-3 rounded-xl shadow-xl text-white"></div>
+
+<script>
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var rs = function (n) { return '₹' + (Math.round((Number(n) || 0) * 100) / 100).toLocaleString('en-IN'); };
+  var imgSrc = function (im) { return im ? (/^(https?:)?\//.test(im) ? im : '/uploads/' + im) : ''; };
+  var parse = function (s, d) { try { var v = JSON.parse(s || 'null'); return v == null ? d : v; } catch (e) { return d; } };
+
+  var qs = new URLSearchParams(location.search);
+  var T = qs.get('t') || '', K = qs.get('k') || '';
+  var menu = [], groups = [], hiddenCats = {}, outCats = {}, catImages = {};
+  var cart = [], search = '', activeCat = '', storeOpen = true, storeMsg = '';
+  var CART_KEY = 'vf_tq_cart_' + T, ORD_KEY = 'vf_tq_orders_' + T;
+
+  function toast(msg, bad) {
+    var t = $('toast'); t.textContent = msg; t.className = 'fixed top-4 inset-x-4 z-[60] mx-auto max-w-sm text-center text-sm font-bold px-4 py-3 rounded-xl shadow-xl text-white ' + (bad ? 'bg-rose-600' : 'bg-gray-900');
+    clearTimeout(toast.t); toast.t = setTimeout(function () { t.classList.add('hidden'); }, 2600);
+  }
+  function fatal(msg) { $('app').classList.add('hidden'); $('fatal').classList.remove('hidden'); $('fatalMsg').textContent = msg; }
+  function saveCart() { try { sessionStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch (e) {} }
+
+  // ---------- load ----------
+  async function init() {
+    if (!T || !K) return fatal('Ye QR sahi nahi hai. Table ka QR dobara scan karein.');
+    try {
+      var r = await fetch('/api/table-qr/info?t=' + encodeURIComponent(T) + '&k=' + encodeURIComponent(K));
+      var info = await r.json();
+      if (!r.ok) return fatal(info.error || 'QR sahi nahi hai');
+      T = info.table; storeOpen = info.open; storeMsg = info.message;
+      CART_KEY = 'vf_tq_cart_' + T; ORD_KEY = 'vf_tq_orders_' + T;
+      if (info.restaurant) $('restName').textContent = info.restaurant;
+      $('tableBadge').textContent = 'Table ' + T;
+      document.title = 'Table ' + T + ' - ' + (info.restaurant || 'Order');
+      var res = await Promise.all([fetch('/api/menu').then(function (x) { return x.json(); }), fetch('/api/categories').then(function (x) { return x.json(); }).catch(function () { return []; }), fetch('/api/addon-groups').then(function (x) { return x.json(); }).catch(function () { return []; })]);
+      menu = res[0] || []; groups = res[2] || [];
+      (res[1] || []).forEach(function (c) { var n = String(c.name).trim(); if (c.image) catImages[n] = c.image; if (Number(c.out_of_stock)) outCats[n] = true; if (Number(c.is_visible) === 0) hiddenCats[n] = true; });
+      try { cart = JSON.parse(sessionStorage.getItem(CART_KEY) || '[]'); } catch (e) { cart = []; }
+      cart = cart.filter(function (c) { return menu.some(function (m) { return m.id === c.id; }); });
+      $('app').classList.remove('hidden');
+      closedBanner = storeOpen ? '' : '<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-3 text-sm font-bold">' + esc(storeMsg || 'Abhi restaurant band hai') + '</div>';
+      $('statusBox').innerHTML = closedBanner;
+      renderChips(); renderMenu(); updateCartBar(); pollOrders();
+    } catch (e) { fatal('Menu load nahi hua. Internet check karke dobara try karein.'); }
+  }
+
+  var isShown = function (i) { return Number(i.is_visible) !== 0 && !hiddenCats[String(i.category || '').trim()]; };
+  var isSoldOut = function (i) { return outCats[String(i.category || '').trim()] || (Number(i.stock) || 0) <= 0 || i.status === 'Out of Stock' || i.status === 'unavailable'; };
+  function vegIcon(t) {
+    var c = { veg: '#16a34a', nonveg: '#dc2626', egg: '#eab308' }[t]; if (!c) return '';
+    return '<span class="inline-flex items-center justify-center w-4 h-4 border-2 rounded-sm shrink-0 align-middle mr-1" style="border-color:' + c + '"><span class="w-2 h-2 rounded-full" style="background:' + c + '"></span></span>';
+  }
+  function variationsOf(item) { return parse(item.variations, []).filter(function (v) { return v && v.active !== false; }); }
+  function visibleItems() {
+    return menu.filter(function (i) { return isShown(i) && (!search || String(i.name).toLowerCase().indexOf(search) >= 0); })
+      .sort(function (a, b) { return (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0) || Number(a.id) - Number(b.id); });
+  }
+  function cats() { var seen = []; visibleItems().forEach(function (i) { var c = i.category || 'General'; if (seen.indexOf(c) < 0) seen.push(c); }); return seen; }
+
+  function renderChips() {
+    var list = cats();
+    if (list.indexOf(activeCat) < 0) activeCat = list[0] || '';
+    $('chips').innerHTML = list.map(function (c, idx) {
+      return '<button onclick="goCat(' + idx + ')" class="shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold ' + (c === activeCat ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700') + '">' + esc(c) + '</button>';
+    }).join('');
+  }
+  function goCat(idx) { var el = $('cat-' + idx); if (el) { activeCat = cats()[idx]; renderChips(); window.scrollTo({ top: el.offsetTop - 150, behavior: 'smooth' }); } }
+  function onSearch(v) { search = v.trim().toLowerCase(); renderChips(); renderMenu(); }
+
+  function qtyInCart(id) { return cart.filter(function (c) { return c.id === id; }).reduce(function (s, c) { return s + c.qty; }, 0); }
+  function renderMenu() {
+    var list = visibleItems(), cs = cats();
+    if (!list.length) { $('menuList').innerHTML = '<p class="text-center py-12 text-gray-400 font-bold">Kuch nahi mila</p>'; return; }
+    $('menuList').innerHTML = cs.map(function (c, idx) {
+      var rows = list.filter(function (i) { return (i.category || 'General') === c; });
+      return '<section id="cat-' + idx + '"><h2 class="font-black text-sm uppercase tracking-wide text-gray-500 mb-2">' + esc(c) + '</h2><div class="space-y-2.5">' + rows.map(card).join('') + '</div></section>';
+    }).join('');
+  }
+  function card(i) {
+    var vars = variationsOf(i), sold = isSoldOut(i), im = imgSrc(i.image || i.image_url), n = qtyInCart(i.id);
+    var price = vars.length ? 'From ' + rs(Math.min.apply(null, vars.map(function (v) { return Number(v.price) || 0; }))) : rs(i.price);
+    return '<div class="bg-white rounded-2xl border border-gray-200 p-3 flex gap-3 ' + (sold ? 'opacity-50' : '') + '">' +
+      '<div class="w-20 h-20 shrink-0 rounded-xl bg-gray-100 overflow-hidden flex items-center justify-center">' + (im ? '<img src="' + esc(im) + '" loading="lazy" class="w-full h-full object-cover" onerror="this.style.display=\'none\'">' : '<span class="text-2xl">🍽️</span>') + '</div>' +
+      '<div class="flex-1 min-w-0 flex flex-col justify-between"><div><div class="font-bold text-sm leading-tight">' + vegIcon(i.food_type) + esc(i.name) + '</div>' +
+      (i.description ? '<div class="text-[11px] text-gray-500 mt-0.5 line-clamp-2">' + esc(i.description) + '</div>' : '') + '</div>' +
+      '<div class="flex items-center justify-between mt-1"><span class="font-black text-sm text-emerald-700">' + price + '</span>' +
+      (sold ? '<span class="text-[11px] font-black text-rose-600">Sold out</span>' : '<button onclick="addItem(' + i.id + ')" class="bg-indigo-50 border border-indigo-200 text-indigo-700 font-black text-xs px-4 py-1.5 rounded-lg">' + (n ? 'Add +' + n : 'ADD') + '</button>') + '</div></div></div>';
+  }
+
+  // ---------- options sheet (variation + add-ons) ----------
+  var pick = null; // { item, variant, sel: { groupId: [addonName] } }
+  function groupOptions(g) { return parse(g.items, []).filter(function (a) { return a && a.available !== false; }); }
+  function groupsFor(item, variant) {
+    var ids = (variant && Array.isArray(variant.addon_groups) && variant.addon_groups.length) ? variant.addon_groups : parse(item.assigned_addon_groups, []);
+    return (ids || []).map(Number).map(function (id) { return groups.filter(function (g) { return Number(g.id) === id; })[0]; }).filter(function (g) { return g && groupOptions(g).length; });
+  }
+  function addItem(id) {
+    var item = menu.filter(function (m) { return m.id === id; })[0]; if (!item) return;
+    if (!storeOpen) return toast(storeMsg || 'Abhi restaurant band hai', true);
+    if (isSoldOut(item)) return toast(item.name + ' abhi available nahi hai', true);
+    var vars = variationsOf(item);
+    if (!vars.length && !groupsFor(item, null).length) return pushLine(item, null, []);
+    pick = { item: item, variant: vars.length === 1 ? vars[0] : null, sel: {} };
+    renderPick();
+  }
+  function renderPick() {
+    var item = pick.item, vars = variationsOf(item), v = pick.variant, gs = vars.length && !v ? [] : groupsFor(item, v);
+    var html = '<div class="flex justify-between items-start mb-3"><div class="font-black text-base">' + vegIcon(item.food_type) + esc(item.name) + '</div><button onclick="closeSheet()" class="text-gray-400 text-xl font-black px-2">✕</button></div>';
+    if (vars.length) {
+      html += '<div class="text-xs font-black uppercase text-gray-500 mb-1.5">Choose size</div><div class="space-y-1.5 mb-4">' + vars.map(function (x, idx) {
+        return '<button onclick="setVariant(' + idx + ')" class="w-full flex justify-between items-center px-3 py-2.5 rounded-xl border-2 text-sm font-bold ' + (v && v.name === x.name ? 'border-indigo-600 bg-indigo-50' : 'border-gray-200') + '"><span>' + esc(x.name) + '</span><span>' + rs(x.price) + '</span></button>';
+      }).join('') + '</div>';
+    }
+    gs.forEach(function (g) {
+      var min = Math.max(Number(g.min_selection) || 0, Number(g.is_mandatory) ? 1 : 0), max = Number(g.max_selection) || 99, chosen = pick.sel[g.id] || [];
+      html += '<div class="mb-4"><div class="flex justify-between items-baseline mb-1.5"><span class="text-xs font-black uppercase text-gray-500">' + esc(g.name) + '</span><span class="text-[10px] font-bold text-gray-400">' + (min ? 'Required • ' : 'Optional • ') + 'max ' + max + '</span></div><div class="space-y-1.5">' +
+        groupOptions(g).map(function (a, ai) {
+          var on = chosen.indexOf(a.name) >= 0;
+          return '<button onclick="toggleAddon(' + g.id + ',' + ai + ')" class="w-full flex justify-between items-center px-3 py-2 rounded-xl border-2 text-sm font-semibold ' + (on ? 'border-indigo-600 bg-indigo-50' : 'border-gray-200') + '"><span>' + (on ? '✓ ' : '') + esc(a.name) + '</span><span class="text-gray-500">' + (Number(a.price) ? '+' + rs(a.price) : 'Free') + '</span></button>';
+        }).join('') + '</div></div>';
+    });
+    var total = pickPrice();
+    html += '<button onclick="confirmPick()" class="w-full bg-indigo-600 text-white rounded-2xl py-3.5 font-black text-sm ' + (vars.length && !v ? 'opacity-40' : '') + '">Add to cart • ' + rs(total) + '</button>';
+    $('sheetBody').innerHTML = html; $('sheetBack').classList.remove('hidden');
+  }
+  function pickPrice() {
+    var p = pick.variant ? Number(pick.variant.price) || 0 : Number(pick.item.price) || 0;
+    groupsFor(pick.item, pick.variant).forEach(function (g) { (pick.sel[g.id] || []).forEach(function (n) { var a = groupOptions(g).filter(function (x) { return x.name === n; })[0]; if (a) p += Number(a.price) || 0; }); });
+    return p;
+  }
+  function setVariant(idx) { pick.variant = variationsOf(pick.item)[idx]; pick.sel = {}; renderPick(); }
+  function toggleAddon(gid, ai) {
+    var g = groups.filter(function (x) { return Number(x.id) === Number(gid); })[0], a = groupOptions(g)[ai], max = Number(g.max_selection) || 99;
+    var cur = pick.sel[gid] || [], i = cur.indexOf(a.name);
+    if (i >= 0) cur.splice(i, 1);
+    else if (max === 1) cur = [a.name];
+    else if (cur.length >= max) return toast('Maximum ' + max + ' choose kar sakte hain', true);
+    else cur.push(a.name);
+    pick.sel[gid] = cur; renderPick();
+  }
+  function confirmPick() {
+    var vars = variationsOf(pick.item);
+    if (vars.length && !pick.variant) return toast('Pehle size choose karein', true);
+    var gs = groupsFor(pick.item, pick.variant), addons = [];
+    for (var k = 0; k < gs.length; k++) {
+      var g = gs[k], min = Math.max(Number(g.min_selection) || 0, Number(g.is_mandatory) ? 1 : 0), chosen = pick.sel[g.id] || [];
+      if (chosen.length < min) return toast('"' + g.name + '" me kam se kam ' + min + ' choose karein', true);
+      chosen.forEach(function (n) { addons.push({ name: n }); });
+    }
+    pushLine(pick.item, pick.variant, addons); closeSheet();
+  }
+  function pushLine(item, variant, addons) {
+    var price = variant ? Number(variant.price) || 0 : Number(item.price) || 0;
+    var chosen = addons.map(function (a) { var found = null; groups.forEach(function (g) { groupOptions(g).forEach(function (x) { if (!found && x.name === a.name) found = x; }); }); price += found ? Number(found.price) || 0 : 0; return a; });
+    var name = item.name + (variant ? ' (' + variant.name + ')' : '') + (chosen.length ? ' (' + chosen.map(function (a) { return a.name; }).join(', ') + ')' : '');
+    var key = item.id + '|' + (variant ? variant.name : '') + '|' + chosen.map(function (a) { return a.name; }).sort().join(',');
+    var same = cart.filter(function (c) { return c.key === key; })[0];
+    if (same) same.qty += 1; else cart.push({ key: key, id: item.id, name: name, price: price, qty: 1, variant: variant ? variant.name : '', addons: chosen });
+    saveCart(); updateCartBar(); renderMenu(); toast(item.name + ' added');
+  }
+
+  // ---------- cart ----------
+  function cartSub() { return cart.reduce(function (s, c) { return s + c.price * c.qty; }, 0); }
+  function updateCartBar() {
+    var n = cart.reduce(function (s, c) { return s + c.qty; }, 0);
+    $('cartBar').classList.toggle('hidden', !n);
+    $('cartCount').textContent = n + (n === 1 ? ' item' : ' items'); $('cartTotal').textContent = rs(cartSub());
+  }
+  function closeSheet() { $('sheetBack').classList.add('hidden'); }
+  function openCart() {
+    if (!cart.length) return closeSheet();
+    var html = '<div class="flex justify-between items-center mb-3"><div class="font-black text-base">Your order • Table ' + esc(T) + '</div><button onclick="closeSheet()" class="text-gray-400 text-xl font-black px-2">✕</button></div><div class="space-y-2 mb-4">' +
+      cart.map(function (c, i) {
+        return '<div class="flex items-center gap-2 border-b pb-2"><div class="flex-1 min-w-0"><div class="text-sm font-bold leading-tight">' + esc(c.name) + '</div><div class="text-xs text-gray-500">' + rs(c.price) + ' each</div></div>' +
+          '<div class="flex items-center gap-2"><button onclick="chg(' + i + ',-1)" class="w-8 h-8 rounded-lg border font-black">−</button><span class="w-5 text-center font-black text-sm">' + c.qty + '</span><button onclick="chg(' + i + ',1)" class="w-8 h-8 rounded-lg border font-black">+</button></div>' +
+          '<div class="w-16 text-right font-black text-sm">' + rs(c.price * c.qty) + '</div></div>';
+      }).join('') + '</div>' +
+      '<div class="space-y-2 mb-3"><input id="gName" placeholder="Your name (optional)" maxlength="40" class="w-full border rounded-xl px-3 py-2.5 text-sm"><input id="gPhone" type="tel" inputmode="numeric" maxlength="10" placeholder="Mobile number (optional)" class="w-full border rounded-xl px-3 py-2.5 text-sm"><input id="gNote" placeholder="Any note for the kitchen? (optional)" maxlength="150" class="w-full border rounded-xl px-3 py-2.5 text-sm"></div>' +
+      '<div class="flex justify-between font-black text-base mb-1"><span>Subtotal</span><span>' + rs(cartSub()) + '</span></div><p class="text-[11px] text-gray-500 mb-3">GST (5%) final bill me judega. Payment khana khane ke baad counter par karein.</p>' +
+      '<button id="placeBtn" onclick="placeOrder()" class="w-full bg-indigo-600 text-white rounded-2xl py-3.5 font-black text-sm">🚀 Place Order</button>';
+    var keep = ['gName', 'gPhone', 'gNote'].map(function (id) { return $(id) ? $(id).value : ''; });
+    $('sheetBody').innerHTML = html; $('sheetBack').classList.remove('hidden');
+    ['gName', 'gPhone', 'gNote'].forEach(function (id, i) { $(id).value = keep[i] || ''; });
+  }
+  function chg(i, d) {
+    cart[i].qty += d; if (cart[i].qty < 1) cart.splice(i, 1);
+    saveCart(); updateCartBar(); renderMenu();
+    if (cart.length) openCart(); else closeSheet();
+  }
+
+  var placing = false;
+  async function placeOrder() {
+    if (placing || !cart.length) return;
+    if (!storeOpen) return toast(storeMsg || 'Abhi restaurant band hai', true);
+    var phone = $('gPhone').value.replace(/\D/g, '');
+    if (phone && !/^[6-9]\d{9}$/.test(phone)) return toast('Sahi 10-digit mobile number daalein (ya khali chhodein)', true);
+    placing = true; var btn = $('placeBtn'); btn.disabled = true; btn.textContent = 'Sending...';
+    try {
+      var r = await fetch('/api/table-qr/order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        t: T, k: K, customer_name: $('gName').value, customer_phone: phone, note: $('gNote').value,
+        items: cart.map(function (c) { return { id: c.id, qty: c.qty, variant: c.variant || undefined, addons: c.addons }; }) }) });
+      var d = await r.json().catch(function () { return {}; });
+      if (!r.ok || !d.success) throw new Error(d.error || 'Order nahi ho paaya. Dobara try karein.');
+      var total = cartSub(), orders = []; try { orders = JSON.parse(localStorage.getItem(ORD_KEY) || '[]'); } catch (e) {}
+      orders.unshift({ id: d.orderId, s: d.track, token: d.token_no, total: total, at: Date.now() });
+      try { localStorage.setItem(ORD_KEY, JSON.stringify(orders.slice(0, 5))); } catch (e) {}
+      cart = []; saveCart(); updateCartBar(); renderMenu(); closeSheet(); placing = false;
+      toast('Order bhej diya! Staff abhi accept karenge.'); pollOrders();
+    } catch (e) { placing = false; btn.disabled = false; btn.textContent = '🚀 Place Order'; toast(e.message, true); }
+  }
+
+  // ---------- status of placed orders ----------
+  var closedBanner = '';
+  var STEPS = ['Sent to staff', 'Preparing', 'Ready', 'Served'];
+  var pollTimer = null;
+  async function pollOrders() {
+    clearTimeout(pollTimer);
+    var orders = []; try { orders = JSON.parse(localStorage.getItem(ORD_KEY) || '[]'); } catch (e) {}
+    orders = orders.filter(function (o) { return Date.now() - o.at < 6 * 3600 * 1000; }); // last 6 hours only
+    if (!orders.length) return;
+    var res = await Promise.all(orders.map(function (o) { return fetch('/api/table-qr/status?o=' + o.id + '&s=' + encodeURIComponent(o.s)).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); }));
+    var box = $('statusBox'), html = closedBanner;
+    var anyActive = false;
+    res.forEach(function (s, i) {
+      if (!s) return;
+      var o = orders[i];
+      if (s.state === 'served' && Date.now() - o.at > 30 * 60 * 1000) return; // hide old served orders
+      if (s.state !== 'served' && s.state !== 'rejected') anyActive = true;
+      var line = s.state === 'rejected'
+        ? '<div class="text-rose-600 font-black text-sm">❌ Order accept nahi hua. Staff se baat karein.</div>'
+        : '<div class="flex gap-1 mt-2">' + STEPS.map(function (n, k) { return '<div class="flex-1"><div class="h-1.5 rounded-full ' + (k <= s.step ? 'bg-emerald-500' : 'bg-gray-200') + '"></div><div class="text-[9px] font-bold mt-1 ' + (k <= s.step ? 'text-emerald-700' : 'text-gray-400') + '">' + n + '</div></div>'; }).join('') + '</div>';
+      html += '<div class="bg-white border border-gray-200 rounded-xl p-3"><div class="flex justify-between items-center text-sm"><span class="font-black">Order #' + esc(s.token_no || s.id) + '</span><span class="font-bold text-gray-500 text-xs">' + s.items.map(function (x) { return esc(x.name) + ' ×' + x.qty; }).join(', ').slice(0, 70) + '</span></div>' + line + '</div>';
+    });
+    box.innerHTML = html;
+    pollTimer = setTimeout(pollOrders, anyActive ? 6000 : 30000);
+  }
+
+  init();
+</script>
+</body>
+</html>

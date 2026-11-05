@@ -63,7 +63,7 @@ const OWNER_RULES = [
   { m: 'W', re: /^\/inventory(\/|$)/ },
   { m: 'ALL', re: /^\/(staff|staff-advances|staff-adjustments|payroll|whatsapp|expenses|system|reports)(\/|$)/ },
   { m: 'ALL', re: /^\/customers$/ },
-  { m: 'ALL', re: /^\/(coupon-admin|loyalty-admin|feedback-admin)(\/|$)/ },
+  { m: 'ALL', re: /^\/(coupon-admin|loyalty-admin|feedback-admin|table-qr-admin)(\/|$)/ },
   { m: 'ALL', re: /^\/attendance(?:$|\/(?!punch$))/ },
   { m: 'ALL', re: /^\/paytm\/callback-log$/ }
 ];
@@ -686,7 +686,7 @@ app.get('/api/orders/today-stats', (req, res) => {
 // ================= NEEDS APPROVAL (PENDING ORDERS) APIS =================
 app.get('/api/orders/needs-approval', (req, res) => {
   const query = `
-    SELECT id, token_no, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, discount_reason, is_complimentary, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount, created_at, delivery_address, delivery_lat, delivery_lng
+    SELECT id, token_no, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, discount_reason, is_complimentary, gst, payment_mode, status, source, COALESCE(paid_amount, 0) as paid_amount, created_at, delivery_address, delivery_lat, delivery_lng
     FROM orders 
     WHERE UPPER(status) = 'NEEDS_APPROVAL'
     ORDER BY id DESC
@@ -747,6 +747,11 @@ app.post('/api/orders/:id/approve', (req, res) => {
       (err2) => {
         if (err2) return res.status(500).json({ error: err2.message });
         console.log(`[ORDER APPROVED] Order #${orderId} accepted with table/queue '${newTableNo}'.`);
+        // Table QR orders: if the table already has a running bill, add these items to it instead of a second order
+        if (newTableNo && !/delivery|takeaway|pickup/i.test(type)) {
+          const fake = { statusCode: 200, status(c) { this.statusCode = c; return this; }, json: (d) => res.status(fake.statusCode).json(d) };
+          return assignTableHandler({ params: { id: orderId }, body: { table_no: newTableNo } }, fake);
+        }
         res.json({ success: true });
       }
     );
@@ -764,7 +769,7 @@ app.post('/api/orders/:id/reject', (req, res) => {
 // Table Assign API Route
 // If the chosen table already has a running dine-in order, this order's items (and any amount already paid)
 // are merged into that bill instead of creating a second order on the same table.
-app.post('/api/orders/:id/assign-table', async (req, res) => {
+const assignTableHandler = async (req, res) => {
   const run = (sql, params) => new Promise((resolve, reject) => db.run(sql, params, function (e) { e ? reject(e) : resolve(this); }));
   try {
     const orderId = Number(req.params.id);
@@ -810,7 +815,8 @@ app.post('/api/orders/:id/assign-table', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
-});
+};
+app.post('/api/orders/:id/assign-table', assignTableHandler);
 
 // ---------- Delivery riders ----------
 app.get('/api/riders', async (req, res) => {
@@ -1577,6 +1583,24 @@ const createOrderHandler = async (req, res) => {
     }
   }
 
+  // Table QR order (see tableQr.js): table comes from the signed QR, prices are rebuilt from the DB, staff must approve
+  if (req.tableQr) {
+    const open = storeStatus(await getSettingsConfig());
+    if (!open.open) return res.status(400).json({ error: open.message });
+    try {
+      const v = await validateOnlineItems(items);
+      if (v.error) return res.status(400).json({ error: v.error });
+      items = v.items;
+      subtotal = v.subtotal;
+    } catch (e) {
+      console.error('Table QR validation error:', e.message);
+      return res.status(500).json({ error: 'Order validate nahi ho paaya' });
+    }
+    order_type = 'Dine-In';
+    table_no = req.tableQr.table;
+    discount = 0; paid_amount = 0; payment_mode = 'PAY_COUNTER'; is_hold = false;
+  }
+
   let rawType = (order_type || 'Kiosk').trim();
   let upperType = rawType.toUpperCase();
   let normalizedOrderType = rawType;
@@ -1648,7 +1672,9 @@ const createOrderHandler = async (req, res) => {
   let status = 'RUNNING_TABLE';
   const isKioskOrOnline = is_kiosk || upperType.includes('KIOSK') || upperType.includes('ONLINE') || upperType.includes('SWIGGY') || upperType.includes('ZOMATO');
   
-  if (isOnlineOrder && req.body.pay_online) {
+  if (req.tableQr) {
+    status = 'NEEDS_APPROVAL';
+  } else if (isOnlineOrder && req.body.pay_online) {
     status = 'HOLD'; // hidden until Razorpay payment is verified (see razorpayPay.js)
   } else if (isKioskOrOnline && !is_hold) {
     status = 'NEEDS_APPROVAL';
@@ -1657,8 +1683,8 @@ const createOrderHandler = async (req, res) => {
   }
 
   const insertOrderQuery = `
-    INSERT INTO orders (order_type, table_no, customer_name, customer_phone, status, payment_mode, subtotal, discount, gst, total, paid_amount, delivery_address, delivery_lat, delivery_lng, discount_reason, is_complimentary, coupon_code, points_redeemed, token_no)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT MAX(token_no) FROM orders WHERE created_at::date = CURRENT_DATE), 0) + 1)
+    INSERT INTO orders (order_type, table_no, customer_name, customer_phone, status, payment_mode, subtotal, discount, gst, total, paid_amount, delivery_address, delivery_lat, delivery_lng, discount_reason, is_complimentary, coupon_code, points_redeemed, source, token_no)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT MAX(token_no) FROM orders WHERE created_at::date = CURRENT_DATE), 0) + 1)
     RETURNING id, token_no
   `;
 
@@ -1680,7 +1706,8 @@ const createOrderHandler = async (req, res) => {
     isComp || finalDiscount > 0 ? discountReason : '',
     isComp ? 1 : 0,
     couponCode,
-    pointsRedeemed
+    pointsRedeemed,
+    req.tableQr ? 'TABLE_QR' : null
   ];
 
   db.all(insertOrderQuery, orderValues, async (err, result) => {
@@ -1730,7 +1757,7 @@ const createOrderHandler = async (req, res) => {
           }
         } catch (pe) { console.error('Profile create error:', pe.message); profileToken = null; }
       }
-      res.json({ success: true, orderId: orderId, token_no: tokenNo, paid_amount: initialPaid, profile_token: profileToken });
+      res.json({ success: true, orderId: orderId, token_no: tokenNo, paid_amount: initialPaid, profile_token: profileToken, total: calculatedTotal });
     } catch (itemErr) {
       console.error('Order items insert error:', itemErr.message);
       res.json({ success: true, orderId: orderId, token_no: tokenNo });
@@ -2138,6 +2165,7 @@ app.post('/api/whatsapp/disconnect', (req, res) => {
 
 require('./staffPayroll').register(app, { dbAllAsync, checkOwnerPin });
 require('./reports').register(app, { dbAllAsync });
+require('./tableQr').register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, storeStatus, createOrderHandler });
 async function saveSettingsConfig(patch) {
   const cfg = Object.assign(await getSettingsConfig(), patch);
   await dbAllAsync(`INSERT INTO settings (id, config) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET config = excluded.config RETURNING id`, [JSON.stringify(cfg)]);

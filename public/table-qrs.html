@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Table QR Codes</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/owner-auth.js"></script>
+  <style>
+    @media print {
+      .no-print { display: none !important; }
+      body { background: #fff !important; padding: 0 !important; }
+      .qr-card { break-inside: avoid; border: 2px solid #000 !important; box-shadow: none !important; }
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-4 md:p-6 font-sans">
+  <div class="max-w-6xl mx-auto space-y-4">
+    <div class="no-print flex flex-wrap items-center justify-between gap-2 bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
+      <div>
+        <h1 class="text-xl font-black text-gray-900">Table QR Codes</h1>
+        <p class="text-xs text-gray-500 font-medium">Har table ka alag QR. Customer scan karke apne phone se order karta hai. Order pehle "Needs approval" me aata hai.</p>
+        <p id="baseInfo" class="text-[11px] text-gray-400 mt-1"></p>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="window.print()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 rounded-xl text-xs transition">🖨 Print all</button>
+        <button onclick="resetQr()" class="bg-white border border-rose-300 text-rose-600 hover:bg-rose-50 font-bold px-4 py-2 rounded-xl text-xs transition">Reset QR codes</button>
+        <a href="/" class="bg-gray-900 hover:bg-black text-white px-4 py-2 rounded-xl font-bold text-xs transition">← Back to POS</a>
+      </div>
+    </div>
+    <div id="localWarn" class="no-print hidden bg-amber-50 border border-amber-300 text-amber-900 rounded-xl p-3 text-xs font-bold"></div>
+    <div id="grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"></div>
+  </div>
+
+<script src="/ui-dialogs.js"></script>
+<script>
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+
+  async function load() {
+    $('grid').innerHTML = '<p class="col-span-full text-center py-12 text-gray-400 font-bold">Loading...</p>';
+    try {
+      var r = await fetch('/api/table-qr-admin/list');
+      var d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Load nahi hua');
+      $('baseInfo').textContent = 'QR link: ' + d.base + '/table-order.html';
+      // a QR printed from localhost / a LAN address cannot be opened by customers on their own phones
+      var local = /^(https?:\/\/)?(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(d.base.replace(/^https?:\/\//, '')) || /localhost|127\.0\.0\.1|192\.168\.|\/\/10\./.test(d.base);
+      $('localWarn').classList.toggle('hidden', !local);
+      if (local) $('localWarn').textContent = '⚠ Aap ' + d.base + ' se ye page khol rahe hain. Is address wale QR customer ke phone par nahi khulenge. Print karne se pehle POS ko apne asli domain (jaise menu.vishalfoodiez.in) se kholein.';
+      $('grid').innerHTML = d.tables.length ? d.tables.map(function (t) {
+        return '<div class="qr-card bg-white rounded-2xl border border-gray-200 shadow-sm p-4 text-center">' +
+          '<div class="font-black text-sm leading-tight">' + esc(d.restaurant || 'Vishal Foodiez') + '</div>' +
+          '<div class="text-[11px] font-bold text-gray-500 mb-1">Scan to order from your table</div>' +
+          '<img src="' + t.qr + '" alt="QR for table ' + esc(t.table) + '" class="w-full max-w-[200px] mx-auto">' +
+          '<div class="font-black text-2xl mt-1">Table ' + esc(t.table) + '</div></div>';
+      }).join('') : '<p class="col-span-full text-center py-12 text-gray-400 font-bold">Koi table nahi mila. Pehle POS me tables banayein.</p>';
+    } catch (e) { $('grid').innerHTML = '<p class="col-span-full text-center py-12 text-rose-500 font-bold">' + esc(e.message) + '</p>'; }
+  }
+
+  async function resetQr() {
+    var ok = window.uiConfirm
+      ? await uiConfirm('Saare purane QR codes kaam karna band kar denge. Naye QR dobara print karne padenge. Sure?', { title: 'Reset QR codes?', okText: 'Reset', danger: true })
+      : confirm('Saare purane QR codes kaam karna band kar denge. Sure?');
+    if (!ok) return;
+    var r = await fetch('/api/table-qr-admin/reset', { method: 'POST' });
+    if (r.ok) load();
+  }
+  load();
+</script>
+</body>
+</html>

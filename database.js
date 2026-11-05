@@ -149,6 +149,7 @@ pool.query(`
   await pool.query(`ALTER TABLE addon_groups ADD COLUMN IF NOT EXISTS max_selection INTEGER DEFAULT 5;`).catch(() => {});
   await pool.query(`ALTER TABLE addon_groups ADD COLUMN IF NOT EXISTS items TEXT;`).catch(() => {});
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS token_no INTEGER;`).catch(() => {});
+  await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS source TEXT;`).catch(() => {});
   await pool.query(`ALTER TABLE order_items ADD COLUMN IF NOT EXISTS user_note TEXT DEFAULT '';`).catch(() => {});
   await pool.query(`ALTER TABLE order_items ADD COLUMN IF NOT EXISTS pack_flip INTEGER DEFAULT 0;`).catch(() => {});
   await pool.query(`ALTER TABLE order_items ADD COLUMN IF NOT EXISTS is_exempt INTEGER DEFAULT 0;`).catch(() => {});
