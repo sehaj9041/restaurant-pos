@@ -809,7 +809,7 @@ const assignTableHandler = async (req, res) => {
       [subtotal, gst, Math.round(subtotal + gst), paid, src.customer_name || '', src.customer_phone || '', Number(src.paid_amount) || 0, src.payment_mode || 'UNPAID', target.id]);
     // keep the original row for the record, but out of every list and total
     await run("DELETE FROM order_items WHERE order_id = ?", [orderId]);
-    await run("UPDATE orders SET status = 'MERGED', payment_mode = 'MERGED', subtotal = 0, gst = 0, total = 0, paid_amount = 0, table_no = ? WHERE id = ?", [tableNo, orderId]);
+    await run("UPDATE orders SET status = 'MERGED', payment_mode = 'MERGED', subtotal = 0, gst = 0, total = 0, paid_amount = 0, table_no = ?, merged_into = ? WHERE id = ?", [tableNo, target.id, orderId]);
     console.log(`[TABLE MERGED] Order #${orderId} merged into order #${target.id} on Table ${tableNo}.`);
     res.json({ success: true, merged_into: target.id });
   } catch (e) {
@@ -2165,13 +2165,13 @@ app.post('/api/whatsapp/disconnect', (req, res) => {
 
 require('./staffPayroll').register(app, { dbAllAsync, checkOwnerPin });
 require('./reports').register(app, { dbAllAsync });
-require('./tableQr').register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, storeStatus, createOrderHandler });
+const tableQrApi = require('./tableQr').register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, storeStatus, createOrderHandler });
 async function saveSettingsConfig(patch) {
   const cfg = Object.assign(await getSettingsConfig(), patch);
   await dbAllAsync(`INSERT INTO settings (id, config) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET config = excluded.config RETURNING id`, [JSON.stringify(cfg)]);
 }
 engagement = require('./engagement').register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig });
-require('./paytmUpi').register(app, { dbAllAsync, createOrderHandler }); require('./razorpayPay').register(app, { dbAllAsync, createOrderHandler });
+require('./paytmUpi').register(app, { dbAllAsync, createOrderHandler }); require('./razorpayPay').register(app, { dbAllAsync, createOrderHandler, extraMarkPaid: tableQrApi.markBillPaid });
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, '0.0.0.0', () => {

@@ -25,7 +25,10 @@
           <div id="restName" class="font-black text-base leading-tight">Vishal Foodiez</div>
           <div class="text-[11px] font-bold text-gray-500">Order from your table</div>
         </div>
-        <span id="tableBadge" class="bg-indigo-600 text-white font-black text-sm px-3 py-1.5 rounded-xl"></span>
+        <div class="flex items-center gap-2">
+          <button onclick="billSheet()" class="bg-emerald-50 border border-emerald-300 text-emerald-700 font-black text-xs px-3 py-2 rounded-xl">🧾 My Bill</button>
+          <span id="tableBadge" class="bg-indigo-600 text-white font-black text-sm px-3 py-1.5 rounded-xl"></span>
+        </div>
       </div>
       <div class="px-4 pb-2"><input id="search" oninput="onSearch(this.value)" placeholder="Search menu..." class="w-full border rounded-xl px-3 py-2 text-sm bg-gray-50 outline-none focus:border-indigo-500"></div>
       <div id="chips" class="chips flex gap-2 overflow-x-auto px-4 pb-2.5"></div>
@@ -59,10 +62,12 @@
         <div class="text-[11px] font-black uppercase tracking-widest text-indigo-500">Your token number</div>
         <div id="opToken" class="text-6xl font-black text-indigo-700 leading-none mt-1">#0</div>
       </div>
+      <p id="opShared" class="hidden mt-3 text-xs font-bold text-indigo-700 bg-indigo-50 rounded-xl px-3 py-2"></p>
       <div id="opState" class="mt-5 text-base font-black"></div>
       <div id="opSteps" class="flex gap-1.5 mt-3"></div>
       <div id="opItems" class="mt-5 text-left bg-gray-50 border border-gray-200 rounded-2xl p-3 text-sm space-y-1"></div>
-      <button onclick="closeOrderPage()" class="mt-6 w-full bg-indigo-600 text-white rounded-2xl py-3.5 font-black text-sm">Order more items</button>
+      <button onclick="closeOrderPage(); billSheet()" class="mt-6 w-full border-2 border-emerald-500 text-emerald-700 rounded-2xl py-3 font-black text-sm">🧾 View bill & pay</button>
+      <button onclick="closeOrderPage()" class="mt-3 w-full bg-indigo-600 text-white rounded-2xl py-3.5 font-black text-sm">Order more items</button>
       <p class="text-[11px] text-gray-400 mt-3">Is page ko khula rakhein, status apne aap update hota rahega.</p>
     </div>
   </div>
@@ -360,7 +365,7 @@
       if (!r.ok || !d.success) throw new Error(d.error || 'Order nahi ho paaya. Dobara try karein.');
       try { localStorage.setItem(GUEST_KEY, JSON.stringify({ name: name, phone: phone })); } catch (e) {}
       var orders = []; try { orders = JSON.parse(localStorage.getItem(ORD_KEY) || '[]'); } catch (e) {}
-      var rec = { id: d.orderId, s: d.track, token: d.token_no, total: sub, at: Date.now(), items: lines.map(function (c) { return { name: c.name, qty: c.qty }; }) };
+      var rec = { id: d.orderId, s: d.track, token: d.token_no, shared: !!d.shared, total: sub, at: Date.now(), items: lines.map(function (c) { return { name: c.name, qty: c.qty }; }) };
       orders.unshift(rec);
       try { localStorage.setItem(ORD_KEY, JSON.stringify(orders.slice(0, 5))); } catch (e) {}
       cart = []; saveCart(); updateCartBar(); renderMenu(); closeSheet(); placing = false;
@@ -386,10 +391,13 @@
     $('orderPage').classList.remove('hidden');
     $('opTable').textContent = 'Table ' + T + ' • ' + rs(rec.total) + ' + GST';
     $('opToken').textContent = '#' + (rec.token || rec.id);
+    $('opShared').classList.toggle('hidden', !rec.shared);
+    $('opShared').textContent = 'Aapke items table ke pehle order me jod diye gaye hain, isliye token wahi hai.';
     $('opItems').innerHTML = (rec.items || []).map(function (i) { return '<div class="flex justify-between gap-3"><span>' + esc(i.name) + '</span><b>×' + i.qty + '</b></div>'; }).join('');
     paintStatus(s || { state: 'waiting', step: 0 });
   }
   function paintStatus(s) {
+    if (s.token_no) { $('opToken').textContent = '#' + s.token_no; $('opShared').classList.toggle('hidden', !s.shared); $('opShared').textContent = 'Aapke items table ke pehle order me jod diye gaye hain, isliye token wahi hai.'; }
     var t = STATE_TEXT[s.state] || STATE_TEXT.waiting;
     $('opState').innerHTML = '<span class="' + t[1] + '">' + t[0] + '</span>';
     $('opSteps').innerHTML = s.state === 'rejected' ? '' : stepBars(s.step || 0);
@@ -417,6 +425,76 @@
     });
     $('statusBox').innerHTML = html;
     pollTimer = setTimeout(pollOrders, anyActive ? 4000 : 30000);
+  }
+
+  // ---------- bill + online payment ----------
+  function loadRazorpay() {
+    if (window.Razorpay) return Promise.resolve();
+    return new Promise(function (ok, bad) {
+      var s = document.createElement('script'); s.src = 'https://checkout.razorpay.com/v1/checkout.js'; s.onload = ok;
+      s.onerror = function () { bad(new Error('Payment page load nahi ho paaya. Internet check karein.')); };
+      document.head.appendChild(s);
+    });
+  }
+  var jsonOrThrow = function (r) { return r.json().catch(function () { return {}; }).then(function (d) { if (!r.ok) throw new Error((d && d.error) || ('HTTP ' + r.status)); return d; }); };
+
+  async function billSheet() {
+    openSheet(sheetHead('🧾 Bill • Table ' + esc(T)) + '<p class="text-center py-10 text-gray-400 font-bold">Loading...</p>');
+    var d;
+    try { d = await fetch('/api/table-qr/bill?t=' + encodeURIComponent(T) + '&k=' + encodeURIComponent(K)).then(jsonOrThrow); }
+    catch (e) { return openSheet(sheetHead('🧾 Bill') + '<p class="text-center py-8 text-rose-500 font-bold">' + esc(e.message) + '</p>'); }
+    var html = sheetHead('🧾 Bill • Table ' + esc(T), d.token ? 'Token #' + d.token : '');
+    if (!d.lines.length && !d.pendingCount) {
+      return openSheet(html + '<p class="text-center py-8 text-gray-400 font-bold">Abhi koi order nahi hai.</p>');
+    }
+    if (d.lines.length) {
+      html += '<div class="space-y-1.5 mb-3">' + d.lines.map(function (l) {
+        return '<div class="flex justify-between gap-3 text-sm"><span class="min-w-0"><b>' + l.qty + '×</b> ' + esc(l.name) + '</span><span class="font-bold shrink-0">' + rs(l.price * l.qty) + '</span></div>';
+      }).join('') + '</div>' +
+      '<div class="border-t pt-2 space-y-1 text-sm"><div class="flex justify-between"><span>Subtotal</span><span>' + rs(d.subtotal) + '</span></div>' +
+      (d.discount > 0 ? '<div class="flex justify-between text-emerald-700"><span>Discount</span><span>−' + rs(d.discount) + '</span></div>' : '') +
+      '<div class="flex justify-between"><span>GST</span><span>' + rs(d.gst) + '</span></div>' +
+      '<div class="flex justify-between font-black text-base"><span>Total</span><span>' + rs(d.total) + '</span></div>' +
+      (d.paid > 0 ? '<div class="flex justify-between text-emerald-700"><span>Paid</span><span>−' + rs(d.paid) + '</span></div>' : '') +
+      '<div class="flex justify-between font-black text-lg"><span>' + (d.due > 0 ? 'Balance to pay' : 'Balance') + '</span><span>' + rs(d.due) + '</span></div></div>';
+    }
+    if (d.pendingCount) {
+      html += '<div class="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs"><div class="font-black text-amber-800 mb-1">⏳ Staff accept kar rahe hain (bill me abhi nahi judey)</div>' +
+        d.pendingItems.map(function (l) { return '<div class="flex justify-between"><span>' + l.qty + '× ' + esc(l.name) + '</span><span>' + rs(l.price * l.qty) + '</span></div>'; }).join('') + '</div>';
+    }
+    if (d.lines.length && d.due > 0) {
+      if (d.pendingCount) html += '<p class="mt-3 text-[11px] text-gray-500 text-center">Naya order accept hone ke baad bill update hoga, tab payment karein.</p>';
+      else if (d.online) html += '<button id="payBtn" onclick="payBill()" class="mt-4 w-full bg-emerald-600 text-white rounded-2xl py-3.5 font-black text-sm">💳 Pay ' + rs(d.due) + ' online</button><p class="mt-2 text-[11px] text-gray-500 text-center">Ya counter par bhi payment kar sakte hain.</p>';
+      else html += '<p class="mt-4 text-sm font-bold text-center text-gray-600">Payment counter par karein.</p>';
+    } else if (d.lines.length) {
+      html += '<div class="mt-4 bg-emerald-50 border border-emerald-200 rounded-2xl py-3 text-center font-black text-emerald-700">✅ Payment received. Thank you!</div>';
+    }
+    openSheet(html);
+  }
+
+  var paying = false;
+  async function payBill() {
+    if (paying) return;
+    paying = true; var btn = $('payBtn'); if (btn) { btn.disabled = true; btn.textContent = 'Please wait...'; }
+    var g = guest(), rpOrderId = null;
+    try {
+      var d = await fetch('/api/table-qr/pay/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ t: T, k: K }) }).then(jsonOrThrow);
+      rpOrderId = d.rpOrderId;
+      await loadRazorpay();
+      var resp = await new Promise(function (resolve, reject) {
+        new Razorpay({
+          key: d.keyId, amount: d.amount, currency: 'INR', order_id: d.rpOrderId, name: $('restName').textContent || 'Vishal Foodiez',
+          description: 'Table ' + T + (d.token ? ' • Token #' + d.token : ''), prefill: { name: g.name || '', contact: g.phone || '' }, theme: { color: '#059669' },
+          handler: resolve, modal: { ondismiss: function () { reject(Object.assign(new Error('Payment cancel ho gayi.'), { cancelled: true })); } }
+        }).open();
+      });
+      await fetch('/api/table-qr/pay/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ t: T, k: K, razorpay_order_id: resp.razorpay_order_id, razorpay_payment_id: resp.razorpay_payment_id, razorpay_signature: resp.razorpay_signature }) }).then(jsonOrThrow);
+      paying = false; toast('Payment received. Thank you! 🎉'); pollOrders(); billSheet();
+    } catch (e) {
+      paying = false;
+      if (e.cancelled && rpOrderId) fetch('/api/table-qr/pay/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rpOrderId: rpOrderId }) }).catch(function () {});
+      toast(e.message, true); billSheet();
+    }
   }
 
   init();

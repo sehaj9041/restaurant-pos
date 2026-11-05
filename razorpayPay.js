@@ -13,7 +13,7 @@ const safeEqual = (a, b) => {
   return x.length === y.length && crypto.timingSafeEqual(x, y);
 };
 
-function register(app, { dbAllAsync, createOrderHandler }) {
+function register(app, { dbAllAsync, createOrderHandler, extraMarkPaid }) {
   dbAllAsync(`CREATE TABLE IF NOT EXISTS razorpay_payments (
     id SERIAL PRIMARY KEY,
     rp_order_id TEXT UNIQUE,
@@ -114,7 +114,10 @@ function register(app, { dbAllAsync, createOrderHandler }) {
     try {
       const ev = req.body || {};
       const pay = ev.payload && ev.payload.payment && ev.payload.payment.entity;
-      if ((ev.event === 'payment.captured' || ev.event === 'order.paid') && pay && pay.order_id) await markPaid(pay.order_id, pay.id);
+      if ((ev.event === 'payment.captured' || ev.event === 'order.paid') && pay && pay.order_id) {
+        await markPaid(pay.order_id, pay.id);
+        if (extraMarkPaid) await extraMarkPaid(pay.order_id, pay.id); // table QR bill payments (tableQr.js)
+      }
     } catch (e) {
       console.error('[RAZORPAY] webhook error:', e.message);
       return res.status(500).end();
