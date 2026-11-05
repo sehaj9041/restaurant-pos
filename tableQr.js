@@ -23,12 +23,21 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, stor
   const restaurantName = async () => { try { return ((await q('SELECT restaurant_name FROM settings WHERE id = 1'))[0] || {}).restaurant_name || ''; } catch (e) { return ''; } };
   const baseUrl = (req) => (req.get('x-forwarded-proto') || req.protocol) + '://' + req.get('host');
 
-  // Valid QR => the real table_no from floor_tables (exact spelling), else null
+  // The POS floor plan keeps its table ids in the page itself (T01..T08), so the QR tables are a list in settings.
+  // Default matches the POS; owners can change it on the Table QR page.
+  const DEFAULT_TABLES = ['T01', 'T02', 'T03', 'T04', 'T05', 'T06', 'T07', 'T08'];
+  async function tableList() {
+    const cfg = await getSettingsConfig();
+    const list = Array.isArray(cfg.table_qr_tables) ? cfg.table_qr_tables.map(t => cleanText(t, 20)).filter(Boolean) : [];
+    return list.length ? list : DEFAULT_TABLES;
+  }
+
+  // Valid QR => the table id exactly as configured, else null
   async function verifyTable(t, k) {
     const table = cleanText(t, 20);
     if (!table || !k || !safeEq(k, await tableSig(table))) return null;
-    const rows = await q('SELECT table_no FROM floor_tables WHERE UPPER(table_no) = UPPER(?) LIMIT 1', [table]);
-    return rows.length ? rows[0].table_no : null;
+    const found = (await tableList()).find(x => x.toUpperCase() === table.toUpperCase());
+    return found || null;
   }
 
   // simple in-memory rate limit: at most `max` hits per `ms` for a key
@@ -101,14 +110,32 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, stor
   // ---- staff side (owner PIN via /api/table-qr-admin guard in server.js) ----
   app.get('/api/table-qr-admin/list', async (req, res) => {
     try {
-      const tables = await q('SELECT table_no, seats FROM floor_tables ORDER BY id');
+      const tables = await tableList();
       const base = baseUrl(req);
       const out = [];
       for (const t of tables) {
-        const url = `${base}/table-order.html?t=${encodeURIComponent(t.table_no)}&k=${await tableSig(t.table_no)}`;
-        out.push({ table: t.table_no, seats: t.seats, url, qr: await QRCode.toDataURL(url, { width: 360, margin: 1 }) });
+        const url = `${base}/table-order.html?t=${encodeURIComponent(t)}&k=${await tableSig(t)}`;
+        out.push({ table: t, url, qr: await QRCode.toDataURL(url, { width: 360, margin: 1 }) });
       }
       res.json({ restaurant: await restaurantName(), base, tables: out });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  // Table ids that get a QR (must match the table ids used in the POS, e.g. T01)
+  app.post('/api/table-qr-admin/tables', async (req, res) => {
+    try {
+      const raw = Array.isArray((req.body || {}).tables) ? req.body.tables : [];
+      const seen = new Set(), tables = [];
+      for (const r of raw) {
+        const t = cleanText(r, 20).toUpperCase();
+        if (!t) continue;
+        if (!/^[A-Z0-9][A-Z0-9 _-]*$/.test(t)) return res.status(400).json({ error: `Table naam sahi nahi hai: ${t} (sirf letters, numbers, - aur _)` });
+        if (!seen.has(t)) { seen.add(t); tables.push(t); }
+      }
+      if (!tables.length) return res.status(400).json({ error: 'Kam se kam ek table chahiye' });
+      if (tables.length > 100) return res.status(400).json({ error: 'Zyada se zyada 100 tables' });
+      await saveSettingsConfig({ table_qr_tables: tables });
+      res.json({ success: true, tables });
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 

@@ -28,6 +28,12 @@
         <a href="/" class="bg-gray-900 hover:bg-black text-white px-4 py-2 rounded-xl font-bold text-xs transition">← Back to POS</a>
       </div>
     </div>
+    <div class="no-print bg-white p-3 rounded-2xl border border-gray-200 shadow-sm flex flex-wrap items-center gap-2">
+      <span class="text-xs font-black text-gray-700">Tables:</span>
+      <input id="tablesInput" class="flex-1 min-w-[220px] border rounded-xl px-3 py-1.5 text-xs font-bold bg-gray-50 outline-none" placeholder="T01, T02, T03, ...">
+      <button onclick="saveTables()" class="bg-gray-900 hover:bg-black text-white font-bold px-4 py-1.5 rounded-xl text-xs transition">Save tables</button>
+      <span class="text-[11px] text-gray-400 w-full">POS me jo table ids hain (T01, T02...) wahi likhein, comma se alag karke. Naam POS se match hona chahiye, tabhi order sahi table par dikhega.</span>
+    </div>
     <div id="localWarn" class="no-print hidden bg-amber-50 border border-amber-300 text-amber-900 rounded-xl p-3 text-xs font-bold"></div>
     <div id="grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"></div>
   </div>
@@ -44,6 +50,7 @@
       var d = await r.json();
       if (!r.ok) throw new Error(d.error || 'Load nahi hua');
       $('baseInfo').textContent = 'QR link: ' + d.base + '/table-order.html';
+      if (document.activeElement !== $('tablesInput')) $('tablesInput').value = d.tables.map(function (t) { return t.table; }).join(', ');
       // a QR printed from localhost / a LAN address cannot be opened by customers on their own phones
       var local = /^(https?:\/\/)?(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(d.base.replace(/^https?:\/\//, '')) || /localhost|127\.0\.0\.1|192\.168\.|\/\/10\./.test(d.base);
       $('localWarn').classList.toggle('hidden', !local);
@@ -56,6 +63,13 @@
           '<div class="font-black text-2xl mt-1">Table ' + esc(t.table) + '</div></div>';
       }).join('') : '<p class="col-span-full text-center py-12 text-gray-400 font-bold">Koi table nahi mila. Pehle POS me tables banayein.</p>';
     } catch (e) { $('grid').innerHTML = '<p class="col-span-full text-center py-12 text-rose-500 font-bold">' + esc(e.message) + '</p>'; }
+  }
+
+  async function saveTables() {
+    var r = await fetch('/api/table-qr-admin/tables', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tables: $('tablesInput').value.split(',') }) });
+    var d = await r.json().catch(function () { return {}; });
+    if (!r.ok) return alert(d.error || 'Save nahi hua');
+    load();
   }
 
   async function resetQr() {
