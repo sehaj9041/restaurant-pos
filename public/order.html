@@ -1466,30 +1466,72 @@
       return out;
     }
 
+    const PW_INP = 'w-full border border-gray-200 p-2.5 rounded-xl text-sm outline-none focus:border-indigo-500 font-medium';
+    function loyPost(url, body, cb) {
+      fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        .then(r => r.json().then(d => ({ ok: r.ok, d }))).then(x => x.ok ? cb(x.d) : toast(x.d.error || 'Nahi hua', true)).catch(() => toast('Network error', true));
+    }
+    function loyBox(d, hasToken) {
+      return `<div class="flex items-center justify-between"><div><div class="text-[11px] font-black text-gray-500 uppercase tracking-wide">⭐ My Points</div>
+        <div class="text-3xl font-black text-amber-600">${d.balance}</div><div class="text-[11px] font-semibold text-gray-500">1 point = ₹${d.point_value} • min ${d.min_redeem} points</div></div>
+        <button onclick="${hasToken ? 'showRedeemCode()' : 'showPwForm()'}" class="bg-amber-500 text-white font-black px-4 py-2.5 rounded-xl text-xs">Show redeem code</button></div>
+        ${loyaltyProgress(d)}
+        ${offerLines(d).map(l => `<div class="text-[11px] font-bold text-gray-600">${l}</div>`).join('')}<div id="loyCode"></div>
+        <button onclick="showPwForm()" class="text-[11px] font-black text-indigo-600">🔒 Password set / badlein</button>`;
+    }
     function loadLoyalty() {
       const p = getProfile(), box = document.getElementById('loyaltyBox');
-      if (!p || !p.token || !box) return;
-      fetch('/api/loyalty/my', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: p.phone, token: p.token }) })
+      if (!p || !box) return;
+      if (p.token) {
+        fetch('/api/loyalty/my', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: p.phone, token: p.token }) })
+          .then(r => r.ok ? r.json() : (r.status === 401 ? 'stale' : null)).then(d => {
+            if (d === 'stale') { saveProfile({ name: p.name, phone: p.phone, token: '' }); return loadLoyalty(); }
+            if (!d || !d.enabled) return;
+            box.classList.remove('hidden'); box.innerHTML = loyBox(d, true);
+          }).catch(() => {});
+        return;
+      }
+      fetch('/api/loyalty/view', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: p.phone }) })
         .then(r => r.ok ? r.json() : null).then(d => {
           if (!d || !d.enabled) return;
           box.classList.remove('hidden');
-          box.innerHTML = `<div class="flex items-center justify-between"><div><div class="text-[11px] font-black text-gray-500 uppercase tracking-wide">⭐ My Points</div>
-            <div class="text-3xl font-black text-amber-600">${d.balance}</div><div class="text-[11px] font-semibold text-gray-500">1 point = ₹${d.point_value} • min ${d.min_redeem} points</div></div>
-            <button onclick="showRedeemCode()" class="bg-amber-500 text-white font-black px-4 py-2.5 rounded-xl text-xs">Show redeem code</button></div>
-            ${loyaltyProgress(d)}
-            ${offerLines(d).map(l => `<div class="text-[11px] font-bold text-gray-600">${l}</div>`).join('')}<div id="loyCode"></div>`;
+          if (!d.locked) { box.innerHTML = loyBox(d, false); return; }
+          box.innerHTML = `<div class="text-[11px] font-black text-gray-500 uppercase tracking-wide">🔒 My Points</div>
+            <div class="text-xs font-semibold text-gray-600">Points dekhne ke liye apna password daalein.</div>
+            <div class="flex gap-2"><input id="pwLogin" type="password" placeholder="Password" class="flex-1 ${PW_INP}"><button onclick="loginPw()" class="bg-amber-500 text-white font-black px-4 rounded-xl text-xs">Unlock</button></div>
+            <button onclick="showPwForm()" class="text-[11px] font-black text-indigo-600">Password bhool gaye?</button><div id="loyCode"></div>`;
         }).catch(() => {});
     }
+    function loginPw() {
+      const p = getProfile(), pw = (document.getElementById('pwLogin') || {}).value;
+      if (!pw) { toast('Password likhein', true); return; }
+      loyPost('/api/loyalty/login', { phone: p.phone, password: pw }, d => { saveProfile({ name: p.name || d.name || '', phone: p.phone, token: d.token }); renderProfile(); });
+    }
+    function showPwForm() {
+      const p = getProfile(), out = document.getElementById('loyCode'); if (!p || !out) return;
+      out.innerHTML = `<div class="mt-3 space-y-2 border-t pt-3"><div class="text-xs font-black text-gray-700">Password set karein (redeem code ke liye zaroori)</div>
+        ${p.token ? `<input id="pwOld" type="password" placeholder="Purana password (agar pehle lagaya ho)" class="${PW_INP}">`
+          : `<input id="pwCode" type="text" inputmode="numeric" maxlength="6" placeholder="Staff se mila 6-digit setup code" class="${PW_INP}"><div class="text-[11px] font-semibold text-gray-500">Counter par staff se setup code maang lein.</div>`}
+        <input id="pwNew" type="password" placeholder="Naya password (min 6 akshar)" class="${PW_INP}">
+        <button onclick="submitPw()" class="w-full bg-indigo-600 text-white font-black py-2.5 rounded-xl text-xs">Save password</button></div>`;
+    }
+    function submitPw() {
+      const p = getProfile(), g = id => (document.getElementById(id) || {}).value || '';
+      const body = { phone: p.phone, password: g('pwNew') };
+      if (p.token) { body.token = p.token; body.old_password = g('pwOld'); } else body.setup_code = g('pwCode').trim();
+      loyPost('/api/loyalty/set-password', body, d => { saveProfile({ name: p.name || d.name || '', phone: p.phone, token: d.token }); toast('Password set ho gaya'); renderProfile(); });
+    }
+
     function showRedeemCode() {
       const p = getProfile(), out = document.getElementById('loyCode');
       fetch('/api/loyalty/code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: p.phone, token: p.token }) })
-        .then(r => r.json().then(d => { if (!r.ok) throw new Error(d.error || 'Code nahi mila'); return d; }))
+        .then(r => r.json().then(d => { if (!r.ok) { const er = new Error(d.error || 'Code nahi mila'); er.needPw = d.need_password; throw er; } return d; }))
         .then(d => {
           let left = d.expires_in; clearInterval(loyCodeTimer);
           const paint = () => { out.innerHTML = `<div class="mt-3 bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 text-center"><div class="text-[11px] font-black text-amber-700 uppercase">Staff ko ye code batayein</div>
             <div class="text-4xl font-black tracking-[0.3em] text-gray-900 mt-1">${d.code}</div><div class="text-[11px] font-bold text-gray-500 mt-1">${left > 0 ? Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0') + ' minute valid' : 'Expire ho gaya — naya code lein'}</div></div>`; };
           paint(); loyCodeTimer = setInterval(() => { left--; if (left <= 0) clearInterval(loyCodeTimer); paint(); }, 1000);
-        }).catch(e => { out.innerHTML = `<p class="mt-2 text-xs font-bold text-rose-600">${esc(e.message)}</p>`; });
+        }).catch(e => { if (e.needPw) return showPwForm(); out.innerHTML = `<p class="mt-2 text-xs font-bold text-rose-600">${esc(e.message)}</p>`; });
     }
     function saveProfileName() {
       const p = getProfile(); if (!p) return;
