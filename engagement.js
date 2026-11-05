@@ -237,6 +237,29 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
     } catch (e) { res.status(500).json({ error: 'Load nahi hua' }); }
   });
 
+  // Customer lost / never got the profile token: phone + one of their own order numbers proves they placed an order.
+  const recoverFails = new Map();
+  app.post('/api/loyalty/recover', async (req, res) => {
+    try {
+      const phone = cleanPhone(req.body && req.body.phone), orderId = parseInt(req.body && req.body.order_id, 10);
+      if (phone.length !== 10 || !Number.isInteger(orderId) || orderId <= 0) return res.status(400).json({ error: 'Phone aur order number sahi likhein' });
+      const now = Date.now(), keys = [phone, 'ip:' + req.ip];
+      for (const k of keys) { const f = recoverFails.get(k); if (f && f.until > now) return res.status(429).json({ error: 'Bahut galat koshish. 15 minute baad try karein' }); }
+      const o = await dbAllAsync("SELECT id FROM orders WHERE id = ? AND RIGHT(REGEXP_REPLACE(COALESCE(customer_phone, ''), '[^0-9]', '', 'g'), 10) = ? AND COALESCE(status, '') <> 'HOLD'", [orderId, phone]);
+      if (!o.length) {
+        keys.forEach((k, i) => { const f = recoverFails.get(k) || { n: 0, until: 0 }; f.n += 1; if (f.n >= (i ? 20 : 5)) { f.until = now + 15 * 60 * 1000; f.n = 0; } recoverFails.set(k, f); });
+        return res.status(404).json({ error: 'Is number par ye order nahi mila' });
+      }
+      let r = await dbAllAsync('SELECT token, name FROM customer_profiles WHERE phone = ?', [phone]);
+      if (!r.length) {
+        const t = crypto.randomBytes(16).toString('hex');
+        await dbAllAsync('INSERT INTO customer_profiles (phone, name, token) VALUES (?, ?, ?) ON CONFLICT (phone) DO NOTHING', [phone, '', t]);
+        r = await dbAllAsync('SELECT token, name FROM customer_profiles WHERE phone = ?', [phone]);
+      }
+      res.json({ success: true, phone, token: r[0].token, name: r[0].name || '' });
+    } catch (e) { res.status(500).json({ error: 'Verify nahi hua' }); }
+  });
+
   const codeAsks = new Map();
   app.post('/api/loyalty/code', async (req, res) => {
     try {
