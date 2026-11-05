@@ -26,6 +26,7 @@
           <div class="text-[11px] font-bold text-gray-500">Order from your table</div>
         </div>
         <div class="flex items-center gap-2">
+          <button onclick="pointsSheet()" class="bg-amber-50 border border-amber-300 text-amber-700 font-black text-xs px-3 py-2 rounded-xl">⭐ Points</button>
           <button onclick="billSheet()" class="bg-emerald-50 border border-emerald-300 text-emerald-700 font-black text-xs px-3 py-2 rounded-xl">🧾 My Bill</button>
           <span id="tableBadge" class="bg-indigo-600 text-white font-black text-sm px-3 py-1.5 rounded-xl"></span>
         </div>
@@ -35,6 +36,7 @@
       <div id="chips" class="chips flex gap-2 overflow-x-auto px-4 pb-2.5"></div>
     </header>
 
+    <div id="offerBanner" class="hidden mx-4 mt-3 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs font-bold text-amber-900 space-y-0.5"></div>
     <div id="statusBox" class="px-4 pt-3 space-y-2"></div>
 
     <main id="menuList" class="px-4 py-3 space-y-5"></main>
@@ -119,7 +121,7 @@
       $('app').classList.remove('hidden');
       closedBanner = storeOpen ? '' : '<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-3 text-sm font-bold">' + esc(storeMsg || 'Abhi restaurant band hai') + '</div>';
       $('statusBox').innerHTML = closedBanner;
-      renderChips(); renderMenu(); updateCartBar(); pollOrders();
+      renderChips(); renderMenu(); updateCartBar(); pollOrders(); loadOfferBanner();
     } catch (e) { fatal('Menu load nahi hua. Internet check karke dobara try karein.'); }
   }
 
@@ -366,6 +368,8 @@
       var d = await r.json().catch(function () { return {}; });
       if (!r.ok || !d.success) throw new Error(d.error || 'Order nahi ho paaya. Dobara try karein.');
       try { localStorage.setItem(GUEST_KEY, JSON.stringify({ name: name, phone: phone })); } catch (e) {}
+      // first order with this number creates the customer profile; its secret token (shared with the online ordering page) is what lets this phone show a redeem code
+      if (d.profile_token) { try { localStorage.setItem('vf_profile', JSON.stringify({ name: name, phone: phone, token: d.profile_token })); } catch (e) {} }
       var orders = []; try { orders = JSON.parse(localStorage.getItem(ORD_KEY) || '[]'); } catch (e) {}
       var rec = { id: d.orderId, s: d.track, token: d.token_no, shared: !!d.shared, total: sub, at: Date.now(), items: lines.map(function (c) { return { name: c.name, qty: c.qty }; }) };
       orders.unshift(rec);
@@ -454,6 +458,84 @@
     updateTrackPill();
     if (sheetMode === 'track') { var keep = $('sheetBack').firstElementChild.scrollTop; trackSheet(); $('sheetBack').firstElementChild.scrollTop = keep; }
     pollTimer = setTimeout(pollOrders, anyActive ? 4000 : 30000);
+  }
+
+  // ---------- loyalty points + redeem code ----------
+  // Progress towards the next reward: points still needed, what they unlock and roughly how much spending that is
+  function loyaltyProgress(d) {
+    var min = Number(d.min_redeem) || 0, bal = Number(d.balance) || 0, val = Number(d.point_value) || 0, earn = Number(d.earn_per_100) || 0;
+    if (!(min > 0) || !(val > 0)) return '';
+    var rs = function (n) { return '₹' + (Math.round(n * 100) / 100).toLocaleString('en-IN'); };
+    if (bal >= min) {
+      return '<div class="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 text-left"><div class="text-xs font-black text-emerald-800">✅ Aapke ' + bal + ' points = ' + rs(bal * val) + ' ka discount</div>' +
+        '<div class="mt-1.5 h-2 rounded-full bg-emerald-200"><div class="h-2 rounded-full bg-emerald-500" style="width:100%"></div></div>' +
+        '<div class="text-[11px] font-bold text-emerald-700 mt-1">Agle order par "Redeem code" dikha kar use karein' + (d.max_redeem_pct ? ' (ek bill par bill ka max ' + d.max_redeem_pct + '% tak)' : '') + '.</div></div>';
+    }
+    var need = min - bal, spend = earn > 0 ? Math.ceil(need / earn * 100 / 10) * 10 : 0, pct = Math.max(4, Math.round(bal * 100 / min));
+    return '<div class="rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-left"><div class="text-xs font-black text-amber-900">🎯 Bas ' + need + (need === 1 ? ' point' : ' points') + ' aur → ' + rs(min * val) + ' off!</div>' +
+      '<div class="mt-1.5 h-2 rounded-full bg-amber-200"><div class="h-2 rounded-full bg-amber-500" style="width:' + pct + '%"></div></div>' +
+      '<div class="flex justify-between text-[11px] font-bold text-amber-800 mt-1"><span>' + bal + ' / ' + min + ' points</span>' + (spend ? '<span>≈ ' + rs(spend) + ' ka order aur</span>' : '') + '</div></div>';
+  }
+
+  // ---- loyalty offers text (expiry warning, double-points hours) ----
+  var DAYN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  function t12(hhmm) { var p = String(hhmm).split(':'), h = +p[0], m = p[1] || '00'; return (h % 12 || 12) + ':' + m + ' ' + (h < 12 ? 'AM' : 'PM'); }
+  function fmtD(iso) { var d = new Date(iso + 'T00:00:00'); return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); }
+  function offerLines(d) {
+    var out = [];
+    if (d.expiring) out.push('<span class="text-rose-600">⚠ ' + d.expiring.points + ' points ' + fmtD(d.expiring.on) + ' ko expire honge. Jaldi use karein!</span>');
+    if (d.bonus) out.push('⚡ ' + d.bonus.multiplier + '× points ' + t12(d.bonus.start) + ' – ' + t12(d.bonus.end) + (d.bonus.days && d.bonus.days.length ? ' (' + d.bonus.days.map(function (x) { return DAYN[x]; }).join(', ') + ')' : ' (roz)'));
+    if (d.expiry_days > 0) out.push('Points kamane ke ' + d.expiry_days + ' din baad expire hote hain.');
+    return out;
+  }
+
+  // Offer banner: double-points hours (highlighted while active) and the first-order bonus for new customers
+  async function loadOfferBanner() {
+    try {
+      var d = await fetch('/api/loyalty-info').then(function (r) { return r.json(); });
+      if (!d || !d.enabled) return;
+      var lines = [];
+      if (d.bonus) {
+        var now = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour12: false }).split(':'), dow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })).getDay();
+        var t = +now[0] * 60 + +now[1], s = d.bonus.start.split(':'), e = d.bonus.end.split(':'), sm = +s[0] * 60 + +s[1], em = +e[0] * 60 + +e[1];
+        var dayOk = !d.bonus.days.length || d.bonus.days.indexOf(dow) >= 0, inWin = dayOk && (sm < em ? (t >= sm && t < em) : (t >= sm || t < em));
+        lines.push('⚡ ' + d.bonus.multiplier + '× loyalty points ' + t12(d.bonus.start) + ' – ' + t12(d.bonus.end) + (inWin ? ' — <span class="text-emerald-700">ABHI ACTIVE!</span>' : ''));
+      }
+      var p = profile();
+      if (d.first_order_bonus > 0 && !(p && p.token)) lines.push('🎁 Pehle order par +' + d.first_order_bonus + ' bonus points');
+      if (!lines.length) return;
+      $('offerBanner').innerHTML = lines.map(function (l) { return '<div>' + l + '</div>'; }).join(''); $('offerBanner').classList.remove('hidden');
+    } catch (e) {}
+  }
+  function profile() { try { return JSON.parse(localStorage.getItem('vf_profile') || 'null'); } catch (e) { return null; } }
+  var codeTimer = null;
+  async function pointsSheet() {
+    clearInterval(codeTimer);
+    var p = profile();
+    if (!p || !p.token) return openSheet(sheetHead('⭐ My Points') + '<p class="text-center py-6 text-sm font-bold text-gray-500">Pehla order place karte hi aapka points account is phone par ban jayega.</p>');
+    openSheet(sheetHead('⭐ My Points') + '<p class="text-center py-8 text-gray-400 font-bold">Loading...</p>');
+    var d;
+    try { d = await fetch('/api/loyalty/my', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: p.phone, token: p.token }) }).then(jsonOrThrow); }
+    catch (e) { return openSheet(sheetHead('⭐ My Points') + '<p class="text-center py-6 text-sm font-bold text-rose-600">' + esc(e.message) + '</p>'); }
+    if (!d.enabled) return openSheet(sheetHead('⭐ My Points') + '<p class="text-center py-6 text-sm font-bold text-gray-500">Loyalty points abhi chalu nahi hain.</p>');
+    openSheet(sheetHead('⭐ My Points', '+91 ' + esc(p.phone)) +
+      '<div class="text-center"><div class="text-5xl font-black text-amber-600">' + d.balance + '</div><div class="text-xs font-bold text-gray-500 mt-1">1 point = ' + rs(d.point_value) + ' • min ' + d.min_redeem + ' points • max ' + d.max_redeem_pct + '% of bill</div>' +
+      '</div><div class="mt-3">' + loyaltyProgress(d) + '</div><div class="text-center">' +
+      offerLines(d).map(function (l) { return '<div class="text-[11px] font-bold text-gray-600 mt-1.5">' + l + '</div>'; }).join('') + '</div>' +
+      '<button onclick="showRedeemCode()" class="mt-4 w-full bg-amber-500 text-white rounded-2xl py-3.5 font-black text-sm">Show redeem code</button><div id="codeBox"></div>');
+  }
+  async function showRedeemCode() {
+    var p = profile(), box = $('codeBox');
+    try {
+      var d = await fetch('/api/loyalty/code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: p.phone, token: p.token }) }).then(jsonOrThrow);
+      var left = d.expires_in; clearInterval(codeTimer);
+      var paint = function () {
+        if (!$('codeBox')) return clearInterval(codeTimer);
+        $('codeBox').innerHTML = '<div class="mt-4 bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 text-center"><div class="text-[11px] font-black text-amber-700 uppercase">Counter par staff ko ye code batayein</div><div class="text-4xl font-black tracking-[0.3em] mt-1">' + d.code + '</div><div class="text-[11px] font-bold text-gray-500 mt-1">' +
+          (left > 0 ? Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0') + ' minute valid' : 'Expire ho gaya — naya code lein') + '</div></div>';
+      };
+      paint(); codeTimer = setInterval(function () { left--; if (left <= 0) clearInterval(codeTimer); paint(); }, 1000);
+    } catch (e) { box.innerHTML = '<p class="mt-3 text-xs font-bold text-rose-600 text-center">' + esc(e.message) + '</p>'; }
   }
 
   // ---------- bill + online payment ----------

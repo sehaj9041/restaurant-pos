@@ -3372,6 +3372,8 @@
       document.getElementById('posOfferCode').value = posPromo ? posPromo.coupon_code : '';
       document.getElementById('posOfferPoints').value = posPromo && posPromo.points_redeem ? posPromo.points_redeem : '';
       document.getElementById('posOfferErr').innerText = '';
+      document.getElementById('posOfferPtsCode').value = '';
+      document.getElementById('posOfferPw').value = '';
       document.getElementById('posOfferLoyalty').innerText = '';
       document.getElementById('posOfferPointsRow').classList.add('hidden');
       var phone = (document.getElementById('posCustPhone').value || '').replace(/\D/g, '').slice(-10);
@@ -3392,14 +3394,16 @@
       var code = document.getElementById('posOfferCode').value.trim();
       var pts = Math.floor(Number(document.getElementById('posOfferPoints').value) || 0);
       if (!code && pts <= 0) { err.innerText = 'Coupon code ya points daalein'; return; }
+      var ptsCode = document.getElementById('posOfferPtsCode').value.trim(), offerPw = document.getElementById('posOfferPw').value;
       var subtotal = posCart.reduce(function(s, i) { return s + (i.price * i.qty); }, 0);
       err.innerText = 'Checking...';
       fetch('/api/coupons/validate', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subtotal: subtotal, phone: document.getElementById('posCustPhone').value, coupon_code: code, points_redeem: pts, exclude_order_id: editingActiveOrderId || 0 })
+        body: JSON.stringify({ subtotal: subtotal, phone: document.getElementById('posCustPhone').value, coupon_code: code, points_redeem: pts, points_code: ptsCode, auth_password: offerPw, exclude_order_id: editingActiveOrderId || 0 })
       }).then(function(r) { return r.json().then(function(d) { if (!r.ok) throw new Error(d.error || 'Failed'); return d; }); })
         .then(function(d) {
-          posPromo = { coupon_code: d.couponCode || '', points_redeem: d.pointsRedeemed || 0, subtotal: subtotal };
+          posPromo = { coupon_code: d.couponCode || '', points_redeem: d.pointsRedeemed || 0, points_code: d.pointsRedeemed ? ptsCode : '', subtotal: subtotal };
+          if (d.pointsRedeemed && offerPw) posAuthPw = offerPw; // staff override: the same password is sent with the order so the server accepts it
           posDiscount = { value: d.discount, type: 'amount', reason: d.reason };
           posComp = { on: false, reason: '' };
           closePosOfferModal();
@@ -3735,6 +3739,7 @@
         auth_password: posAuthPw,
         coupon_code: posPromo ? posPromo.coupon_code : '',
         points_redeem: posPromo ? posPromo.points_redeem : 0,
+        points_code: posPromo ? (posPromo.points_code || '') : '',
         gst: calc.gst,
         total: calc.grandTotal,
         paid_amount: initialPaid,       // Yeh ab poora grandTotal bhejega taaki backend turant payment catch kar le!
@@ -4730,8 +4735,11 @@
         <button onclick="closePosOfferModal()" class="text-gray-400 hover:text-gray-700 font-black text-lg" aria-label="Close">✕</button>
       </div>
       <input id="posOfferCode" type="text" readonly onclick="openVirtualKeyboard(this, 'text')" maxlength="30" placeholder="Coupon code" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm uppercase font-mono outline-none focus:border-orange-500">
-      <div id="posOfferPointsRow" class="hidden">
+      <div id="posOfferPointsRow" class="hidden space-y-2">
         <input id="posOfferPoints" type="text" readonly onclick="openVirtualKeyboard(this, 'number', 'center')" placeholder="Points to redeem" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-orange-500">
+        <input id="posOfferPtsCode" type="text" readonly onclick="openVirtualKeyboard(this, 'number', 'center')" maxlength="6" placeholder="Customer ka redeem code (6 digit)" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono outline-none focus:border-orange-500">
+        <p class="text-[10px] font-bold text-gray-500">Customer apne phone par <b>My Points</b> khol kar code dikhayega. Code nahi hai to neeche staff password daalein.</p>
+        <input id="posOfferPw" type="password" readonly onclick="openVirtualKeyboard(this, 'text')" autocomplete="off" placeholder="Staff password (sirf code na ho tab)" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-orange-500">
       </div>
       <p id="posOfferLoyalty" class="text-[11px] font-bold text-amber-700"></p>
       <p id="posOfferErr" class="text-xs font-bold text-rose-600 min-h-[1rem]"></p>

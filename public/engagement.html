@@ -67,13 +67,32 @@
           <label>Max % of bill via points<input id="lPct" type="number" min="1" max="100" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
         </div>
         <p id="lHint" class="text-xs text-gray-500"></p>
+
+        <div class="border-t pt-3 space-y-3">
+          <p class="font-black text-gray-800">Profit badhane wale offers</p>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <label>⏳ Points expiry (din) &nbsp;<span class="text-[11px] text-gray-400">0 = kabhi expire nahi</span><input id="lExpiry" type="number" min="0" step="1" placeholder="jaise 90" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
+            <label>🎁 Pehle order par bonus points<span class="text-[11px] text-gray-400"> &nbsp;0 = band</span><input id="lFirst" type="number" min="0" step="1" placeholder="jaise 25" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
+          </div>
+          <div class="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2">
+            <label class="flex items-center gap-2 font-black"><input id="lBonusOn" type="checkbox"> ⚡ Double (ya zyada) points ke ghante</label>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <label>Start time<input id="lBStart" type="time" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
+              <label>End time<input id="lBEnd" type="time" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
+              <label>Multiplier (×)<input id="lBMult" type="number" min="1.5" max="5" step="0.5" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
+            </div>
+            <div class="flex flex-wrap items-center gap-3 text-xs font-bold text-gray-700"><span>Din (kuch na chunein = roz):</span>
+              <label><input type="checkbox" class="lDay" value="1"> Mon</label><label><input type="checkbox" class="lDay" value="2"> Tue</label><label><input type="checkbox" class="lDay" value="3"> Wed</label><label><input type="checkbox" class="lDay" value="4"> Thu</label><label><input type="checkbox" class="lDay" value="5"> Fri</label><label><input type="checkbox" class="lDay" value="6"> Sat</label><label><input type="checkbox" class="lDay" value="0"> Sun</label>
+            </div>
+          </div>
+        </div>
         <button onclick="saveLoyalty()" class="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2 rounded-xl font-black">Save loyalty settings</button>
-        <p class="text-[11px] text-gray-400">Points sirf poori paid bills par milte hain (due / complimentary par nahi). Earn rate badalne par purane orders ke points bhi naye rate se count honge.</p>
+        <p class="text-[11px] text-gray-400">Points sirf poori paid bills par milte hain (due / complimentary par nahi). Earn rate badalne par purane orders ke points bhi naye rate se count honge. Expiry, double-points ghante aur pehle-order bonus sirf save karne ke din se aage lagte hain: purane customers ke points nahi katte (unhe poora expiry time milta hai) aur purane orders ke points dobara nahi badalte.</p>
       </div>
       <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-x-auto">
         <div class="p-3 font-black text-gray-800 border-b">Top customers</div>
         <table class="w-full text-sm">
-          <thead class="bg-gray-50 text-xs uppercase text-gray-500"><tr><th class="text-left p-3">Customer</th><th class="text-left p-3">Phone</th><th class="text-right p-3">Orders</th><th class="text-right p-3">Spent</th><th class="text-right p-3">Points</th></tr></thead>
+          <thead class="bg-gray-50 text-xs uppercase text-gray-500"><tr><th class="text-left p-3">Customer</th><th class="text-left p-3">Phone</th><th class="text-right p-3">Orders</th><th class="text-right p-3">Spent</th><th class="text-right p-3">Points</th><th class="text-right p-3">Expiring soon</th></tr></thead>
           <tbody id="topRows"></tbody>
         </table>
       </div>
@@ -188,16 +207,22 @@
     ['lEarn', 'lValue'].forEach(function(i) { $(i).oninput = loyaltyHint; });
     function loadLoyalty() {
       api('/api/loyalty-admin/config').then(function(c) {
-        $('lEnabled').checked = c.enabled; $('lEarn').value = c.earn_per_100; $('lValue').value = c.point_value; $('lMin').value = c.min_redeem; $('lPct').value = c.max_redeem_pct; loyaltyHint();
+        $('lEnabled').checked = c.enabled; $('lEarn').value = c.earn_per_100; $('lValue').value = c.point_value; $('lMin').value = c.min_redeem; $('lPct').value = c.max_redeem_pct;
+        $('lExpiry').value = c.expiry_days || ''; $('lFirst').value = c.first_order_bonus || '';
+        $('lBonusOn').checked = !!c.bonus_enabled; $('lBStart').value = c.bonus_start; $('lBEnd').value = c.bonus_end; $('lBMult').value = c.bonus_multiplier;
+        document.querySelectorAll('.lDay').forEach(function(x) { x.checked = (c.bonus_days || []).indexOf(Number(x.value)) >= 0; });
+        loyaltyHint();
       }).catch(fail);
       api('/api/loyalty-admin/top').then(function(rows) {
         $('topRows').innerHTML = rows.length ? rows.map(function(r) {
-          return '<tr class="border-t"><td class="p-3 font-bold">' + esc(r.name || 'Guest') + '</td><td class="p-3 font-mono">' + esc(r.phone) + '</td><td class="p-3 text-right">' + r.orders + '</td><td class="p-3 text-right">₹' + Math.round(r.spent) + '</td><td class="p-3 text-right font-black text-amber-600">' + r.points + '</td></tr>';
-        }).join('') : '<tr><td colspan="5" class="p-6 text-center text-gray-400">Abhi phone wale orders nahi hain</td></tr>';
+          return '<tr class="border-t"><td class="p-3 font-bold">' + esc(r.name || 'Guest') + '</td><td class="p-3 font-mono">' + esc(r.phone) + '</td><td class="p-3 text-right">' + r.orders + '</td><td class="p-3 text-right">₹' + Math.round(r.spent) + '</td><td class="p-3 text-right font-black text-amber-600">' + r.points + '</td><td class="p-3 text-right text-xs text-rose-600 font-bold">' + (r.expiring ? r.expiring.points + ' pts • ' + esc(r.expiring.on) : '') + '</td></tr>';
+        }).join('') : '<tr><td colspan="6" class="p-6 text-center text-gray-400">Abhi phone wale orders nahi hain</td></tr>';
       }).catch(fail);
     }
     function saveLoyalty() {
-      api('/api/loyalty-admin/config', 'PUT', { enabled: $('lEnabled').checked, earn_per_100: $('lEarn').value, point_value: $('lValue').value, min_redeem: $('lMin').value, max_redeem_pct: $('lPct').value })
+      var days = []; document.querySelectorAll('.lDay').forEach(function(x) { if (x.checked) days.push(Number(x.value)); });
+      api('/api/loyalty-admin/config', 'PUT', { enabled: $('lEnabled').checked, earn_per_100: $('lEarn').value, point_value: $('lValue').value, min_redeem: $('lMin').value, max_redeem_pct: $('lPct').value,
+        expiry_days: $('lExpiry').value || 0, first_order_bonus: $('lFirst').value || 0, bonus_enabled: $('lBonusOn').checked, bonus_start: $('lBStart').value, bonus_end: $('lBEnd').value, bonus_multiplier: $('lBMult').value, bonus_days: days })
         .then(function() { (window.uiAlert || window.alert)('Saved'); loadLoyalty(); }).catch(fail);
     }
 

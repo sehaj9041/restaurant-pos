@@ -1428,11 +1428,68 @@
           <label class="text-[11px] font-black text-gray-500 uppercase tracking-wide block pt-1">Mobile number</label>
           <div class="border border-gray-100 bg-gray-50 p-2.5 rounded-xl text-sm font-mono text-gray-600">+91 ${esc(p.phone)}</div>
         </div>
+        <div id="loyaltyBox" class="hidden bg-white border rounded-2xl p-4 space-y-2"></div>
         <button onclick="openOrders()" class="w-full bg-white border rounded-2xl p-4 flex items-center justify-between text-left">
           <span><span class="block font-black text-gray-900 text-sm">📦 My Orders &amp; Tracking</span><span class="block text-[11px] text-gray-500 font-semibold">${n ? `${n} recent order${n === 1 ? '' : 's'} on this device` : 'Past orders and live tracking'}</span></span>
           <span class="text-gray-400 font-black">›</span>
         </button>
         <button onclick="logoutProfile()" class="w-full border border-rose-200 text-rose-600 bg-white font-black py-3 rounded-2xl text-sm">Logout</button>`;
+      loadLoyalty();
+    }
+    // ---- loyalty points + one-time redeem code (shown to staff at the counter) ----
+    let loyCodeTimer = null;
+    // Progress towards the next reward: points still needed, what they unlock and roughly how much spending that is
+    function loyaltyProgress(d) {
+      var min = Number(d.min_redeem) || 0, bal = Number(d.balance) || 0, val = Number(d.point_value) || 0, earn = Number(d.earn_per_100) || 0;
+      if (!(min > 0) || !(val > 0)) return '';
+      var rs = function (n) { return '₹' + (Math.round(n * 100) / 100).toLocaleString('en-IN'); };
+      if (bal >= min) {
+        return '<div class="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 text-left"><div class="text-xs font-black text-emerald-800">✅ Aapke ' + bal + ' points = ' + rs(bal * val) + ' ka discount</div>' +
+          '<div class="mt-1.5 h-2 rounded-full bg-emerald-200"><div class="h-2 rounded-full bg-emerald-500" style="width:100%"></div></div>' +
+          '<div class="text-[11px] font-bold text-emerald-700 mt-1">Agle order par "Redeem code" dikha kar use karein' + (d.max_redeem_pct ? ' (ek bill par bill ka max ' + d.max_redeem_pct + '% tak)' : '') + '.</div></div>';
+      }
+      var need = min - bal, spend = earn > 0 ? Math.ceil(need / earn * 100 / 10) * 10 : 0, pct = Math.max(4, Math.round(bal * 100 / min));
+      return '<div class="rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-left"><div class="text-xs font-black text-amber-900">🎯 Bas ' + need + (need === 1 ? ' point' : ' points') + ' aur → ' + rs(min * val) + ' off!</div>' +
+        '<div class="mt-1.5 h-2 rounded-full bg-amber-200"><div class="h-2 rounded-full bg-amber-500" style="width:' + pct + '%"></div></div>' +
+        '<div class="flex justify-between text-[11px] font-bold text-amber-800 mt-1"><span>' + bal + ' / ' + min + ' points</span>' + (spend ? '<span>≈ ' + rs(spend) + ' ka order aur</span>' : '') + '</div></div>';
+    }
+
+    // ---- loyalty offers text (expiry warning, double-points hours) ----
+    var DAYN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    function t12(hhmm) { var p = String(hhmm).split(':'), h = +p[0], m = p[1] || '00'; return (h % 12 || 12) + ':' + m + ' ' + (h < 12 ? 'AM' : 'PM'); }
+    function fmtLoyD(iso) { var d = new Date(iso + 'T00:00:00'); return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); }
+    function offerLines(d) {
+      var out = [];
+      if (d.expiring) out.push('<span class="text-rose-600">⚠ ' + d.expiring.points + ' points ' + fmtLoyD(d.expiring.on) + ' ko expire honge. Jaldi use karein!</span>');
+      if (d.bonus) out.push('⚡ ' + d.bonus.multiplier + '× points ' + t12(d.bonus.start) + ' – ' + t12(d.bonus.end) + (d.bonus.days && d.bonus.days.length ? ' (' + d.bonus.days.map(function (x) { return DAYN[x]; }).join(', ') + ')' : ' (roz)'));
+      if (d.expiry_days > 0) out.push('Points kamane ke ' + d.expiry_days + ' din baad expire hote hain.');
+      return out;
+    }
+
+    function loadLoyalty() {
+      const p = getProfile(), box = document.getElementById('loyaltyBox');
+      if (!p || !p.token || !box) return;
+      fetch('/api/loyalty/my', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: p.phone, token: p.token }) })
+        .then(r => r.ok ? r.json() : null).then(d => {
+          if (!d || !d.enabled) return;
+          box.classList.remove('hidden');
+          box.innerHTML = `<div class="flex items-center justify-between"><div><div class="text-[11px] font-black text-gray-500 uppercase tracking-wide">⭐ My Points</div>
+            <div class="text-3xl font-black text-amber-600">${d.balance}</div><div class="text-[11px] font-semibold text-gray-500">1 point = ₹${d.point_value} • min ${d.min_redeem} points</div></div>
+            <button onclick="showRedeemCode()" class="bg-amber-500 text-white font-black px-4 py-2.5 rounded-xl text-xs">Show redeem code</button></div>
+            ${loyaltyProgress(d)}
+            ${offerLines(d).map(l => `<div class="text-[11px] font-bold text-gray-600">${l}</div>`).join('')}<div id="loyCode"></div>`;
+        }).catch(() => {});
+    }
+    function showRedeemCode() {
+      const p = getProfile(), out = document.getElementById('loyCode');
+      fetch('/api/loyalty/code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: p.phone, token: p.token }) })
+        .then(r => r.json().then(d => { if (!r.ok) throw new Error(d.error || 'Code nahi mila'); return d; }))
+        .then(d => {
+          let left = d.expires_in; clearInterval(loyCodeTimer);
+          const paint = () => { out.innerHTML = `<div class="mt-3 bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 text-center"><div class="text-[11px] font-black text-amber-700 uppercase">Staff ko ye code batayein</div>
+            <div class="text-4xl font-black tracking-[0.3em] text-gray-900 mt-1">${d.code}</div><div class="text-[11px] font-bold text-gray-500 mt-1">${left > 0 ? Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0') + ' minute valid' : 'Expire ho gaya — naya code lein'}</div></div>`; };
+          paint(); loyCodeTimer = setInterval(() => { left--; if (left <= 0) clearInterval(loyCodeTimer); paint(); }, 1000);
+        }).catch(e => { out.innerHTML = `<p class="mt-2 text-xs font-bold text-rose-600">${esc(e.message)}</p>`; });
     }
     function saveProfileName() {
       const p = getProfile(); if (!p) return;

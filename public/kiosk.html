@@ -236,10 +236,37 @@
       </div>
     </div>
 
+    <!-- ============ LOYALTY POINTS ============ -->
+    <div id="pointsModal" class="hidden screen z-[49] kiosk-bg flex flex-col items-center justify-center px-8 text-center">
+      <div class="text-6xl">&#11088;</div>
+      <h3 class="text-3xl font-black leading-tight mt-2">Use your<br>loyalty points?</h3>
+      <p id="pointsInfo" class="text-lg font-bold mt-3"></p>
+      <div class="w-full max-w-[340px] mt-4 text-left">
+        <div class="flex items-end justify-between"><span class="text-sm font-black">Points to use <span class="opacity-60 font-bold">(tap to change)</span></span><button onclick="pointsMax()" class="text-sm font-black underline">Use max</button></div>
+        <div id="pointsAmountDisplay" onclick="pointsFocus('amount')" class="tile w-full py-3 mt-1 text-3xl font-black text-center min-h-[3.5rem]"></div>
+        <p id="pointsSaving" class="text-sm font-bold text-center mt-1 min-h-[1.25rem]"></p>
+      </div>
+      <p class="text-sm opacity-80 mt-3 max-w-[340px]">On your phone open the ordering page &rarr; <b>My Points</b> &rarr; <b>Show redeem code</b>, then tap below and type the 6-digit code.</p>
+      <div id="pointsCodeDisplay" onclick="pointsFocus('code')" class="tile w-full max-w-[340px] py-3 mt-2 text-3xl font-black tracking-[0.3em] min-h-[3.5rem]"></div>
+      <p id="pointsErr" class="text-sm font-bold text-red-600 mt-2 min-h-[1.25rem]"></p>
+      <div class="grid grid-cols-3 gap-3 w-full max-w-[340px] mt-1">
+        <button onclick="pointsKey('1')" class="tile py-3 text-2xl font-black">1</button><button onclick="pointsKey('2')" class="tile py-3 text-2xl font-black">2</button><button onclick="pointsKey('3')" class="tile py-3 text-2xl font-black">3</button>
+        <button onclick="pointsKey('4')" class="tile py-3 text-2xl font-black">4</button><button onclick="pointsKey('5')" class="tile py-3 text-2xl font-black">5</button><button onclick="pointsKey('6')" class="tile py-3 text-2xl font-black">6</button>
+        <button onclick="pointsKey('7')" class="tile py-3 text-2xl font-black">7</button><button onclick="pointsKey('8')" class="tile py-3 text-2xl font-black">8</button><button onclick="pointsKey('9')" class="tile py-3 text-2xl font-black">9</button>
+        <button onclick="pointsKey('C')" class="tile py-3 text-base font-bold">Clear</button><button onclick="pointsKey('0')" class="tile py-3 text-2xl font-black">0</button><button onclick="pointsKey('B')" class="tile py-3 text-xl font-black">&#9003;</button>
+      </div>
+      <div class="flex gap-3 w-full max-w-[340px] mt-5">
+        <button onclick="skipPoints()" class="btn-outline flex-1 py-4 text-lg">Skip</button>
+        <button id="pointsApplyBtn" onclick="applyKioskPoints()" class="btn-yellow flex-1 py-4 text-lg">Apply</button>
+      </div>
+    </div>
+
     <!-- ============ PAYMENT ============ -->
     <div id="paymentModal" class="hidden screen z-50 kiosk-bg flex flex-col items-center justify-center px-8 text-center">
       <div class="w-24 h-24 rounded-full bg-[#d9531e] text-white text-6xl font-black flex items-center justify-center pop">!</div>
       <h3 class="text-3xl font-black mt-6 leading-tight">Please select a<br>payment method.</h3>
+      <p id="payTotalNote" class="text-lg font-black mt-3 hidden"></p>
+      <div id="payProgress" class="hidden tile w-full max-w-[340px] mt-4 px-4 py-3 text-left"></div>
       <div class="w-full mt-10 space-y-4">
         <button onclick="submitKioskOrder('UPI_QR')" class="tile w-full py-5 text-xl flex items-center justify-center gap-3"><span class="text-3xl">📱</span> UPI</button>
         <button onclick="submitKioskOrder('PAY_COUNTER')" class="tile w-full py-5 text-xl flex items-center justify-center gap-3"><span class="text-3xl">💵</span> Pay at Counter</button>
@@ -1004,6 +1031,15 @@
     const traySubtotal = () => kioskTray.reduce((s, i) => s + (Number(i.price) * i.qty), 0);
     const trayGst = () => Math.round((kioskTray.reduce((s, i) => Number(i.is_exempt) ? s : s + (Number(i.price) * i.qty), 0) * 5) / 100);
     const trayTotal = () => traySubtotal() + trayGst();
+    // Loyalty points redeemed on this order (see the points step); GST is charged after the discount, same as the server
+    let kioskPromo = null; // { points, code, discount }
+    const promoDiscount = () => (kioskPromo ? Math.min(kioskPromo.discount, traySubtotal()) : 0);
+    const trayGstAfterPromo = () => {
+      const sub = traySubtotal(), disc = promoDiscount();
+      const taxable = kioskTray.reduce((s, i) => Number(i.is_exempt) ? s : s + (Number(i.price) * i.qty), 0);
+      return Math.round((sub > 0 ? Math.max(0, taxable - disc * taxable / sub) : 0) * 5 / 100);
+    };
+    const trayPayable = () => Math.round(traySubtotal() + trayGstAfterPromo() - promoDiscount());
 
     function updateTrayUI() {
       $('trayCountBadge').innerText = trayCount();
@@ -1092,11 +1128,100 @@
     function submitPhoneStep() {
       if (!/^[6-9]\d{9}$/.test(kioskPhone)) { $('phoneErr').innerText = 'Please enter a valid 10-digit mobile number'; return; }
       closePhoneStep(false);
-      openPaymentChoice();
+      openPointsStep();
+    }
+
+    // ---------- Loyalty points step (optional; only when the customer has enough points) ----------
+    let kioskLoyalty = null; // last /api/loyalty/<phone> answer (for the progress card on the payment screen)
+    let pointsCode = '', pointsAmount = '', pointsField = 'code', pointsFresh = false, pointsOffer = null; // pointsOffer = { points (max usable), value, balance, min, perPoint }
+    const pointsWanted = () => Math.floor(Number(pointsAmount) || 0);
+    function pointsAmountError() {
+      const n = pointsWanted();
+      if (!pointsOffer) return '';
+      if (n < pointsOffer.min) return 'Use at least ' + pointsOffer.min + ' points';
+      if (n > pointsOffer.points) return 'You can use up to ' + pointsOffer.points + ' points on this bill';
+      return '';
+    }
+    function renderPointsFields() {
+      $('pointsAmountDisplay').innerHTML = pointsAmount || '&nbsp;';
+      $('pointsCodeDisplay').innerHTML = pointsCode || '&nbsp;';
+      ['amount', 'code'].forEach(f => $(f === 'amount' ? 'pointsAmountDisplay' : 'pointsCodeDisplay').style.outline = pointsField === f ? '3px solid #d9531e' : 'none');
+      const err = pointsAmountError(), n = pointsWanted();
+      $('pointsSaving').innerText = err ? err : 'Saves ' + money(Math.round(n * pointsOffer.perPoint * 100) / 100);
+      $('pointsSaving').style.color = err ? '#dc2626' : '';
+      $('pointsApplyBtn').disabled = !!err || pointsCode.length !== 6;
+    }
+    function pointsFocus(f) { pointsField = f; pointsFresh = f === 'amount'; renderPointsFields(); }
+    function pointsMax() { pointsAmount = String(pointsOffer.points); pointsFresh = false; $('pointsErr').innerText = ''; renderPointsFields(); }
+    function pointsKey(k) {
+      $('pointsErr').innerText = '';
+      if (pointsField === 'amount') {
+        if (k === 'C') pointsAmount = ''; else if (k === 'B') pointsAmount = pointsAmount.slice(0, -1);
+        else { pointsAmount = (pointsFresh ? '' : pointsAmount) + k; pointsAmount = pointsAmount.replace(/^0+(?=\d)/, '').slice(0, 6); }
+        pointsFresh = false;
+      } else {
+        if (k === 'C') pointsCode = ''; else if (k === 'B') pointsCode = pointsCode.slice(0, -1); else if (pointsCode.length < 6) pointsCode += k;
+      }
+      renderPointsFields();
+    }
+    function openPointsStep() {
+      kioskPromo = null; pointsCode = ''; pointsAmount = ''; pointsOffer = null; kioskLoyalty = null;
+      fetch('/api/loyalty/' + kioskPhone).then(r => r.json()).then(d => {
+        kioskLoyalty = d && d.enabled ? d : null;
+        if (!d || !d.enabled) return openPaymentChoice();
+        // most points that may be used on this bill: customer's balance, and max_redeem_pct of the subtotal
+        const room = traySubtotal() * Number(d.max_redeem_pct) / 100;
+        const points = Math.min(Number(d.balance) || 0, Math.floor(room / Number(d.point_value)));
+        if (points < Number(d.min_redeem) || points <= 0) return openPaymentChoice();
+        pointsOffer = { points, value: Math.round(points * Number(d.point_value) * 100) / 100, balance: Number(d.balance), min: Number(d.min_redeem), perPoint: Number(d.point_value) };
+        pointsAmount = String(points); pointsField = 'code'; pointsFresh = false;
+        $('pointsInfo').innerHTML = 'You have <b>' + pointsOffer.balance + ' points</b> (1 point = ' + money(pointsOffer.perPoint) + ').<br>You can use <b>' + pointsOffer.min + '&ndash;' + pointsOffer.points + ' points</b> on this order.';
+        $('pointsErr').innerText = '';
+        renderPointsFields();
+        $('pointsModal').classList.remove('hidden');
+      }).catch(() => openPaymentChoice());
+    }
+    function skipPoints() { kioskPromo = null; $('pointsModal').classList.add('hidden'); openPaymentChoice(); }
+    function applyKioskPoints() {
+      if (!pointsOffer || pointsCode.length !== 6) return;
+      const wanted = pointsWanted(), amountErr = pointsAmountError();
+      if (amountErr) { $('pointsErr').innerText = amountErr; return; }
+      $('pointsErr').innerText = 'Checking...';
+      fetch('/api/coupons/validate', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subtotal: traySubtotal(), phone: kioskPhone, points_redeem: wanted, points_code: pointsCode }) })
+        .then(r => r.json().then(d => { if (!r.ok) throw new Error(d.error || 'Could not apply points'); return d; }))
+        .then(d => {
+          kioskPromo = { points: d.pointsRedeemed, code: pointsCode, discount: d.discount };
+          $('pointsModal').classList.add('hidden');
+          openPaymentChoice();
+        })
+        .catch(e => { $('pointsErr').innerText = e.message.indexOf('code') >= 0 ? 'That code is wrong or expired. Please get a new code on your phone.' : e.message; pointsCode = ''; pointsField = 'code'; renderPointsFields(); });
+    }
+
+    // "X more points -> Rs Y off" card: shown on the payment screen when points were not used on this order
+    function renderPayProgress() {
+      const el = $('payProgress'), d = kioskLoyalty;
+      const min = d ? Number(d.min_redeem) || 0 : 0, val = d ? Number(d.point_value) || 0 : 0;
+      if (!d || kioskPromo || !(min > 0) || !(val > 0)) { el.classList.add('hidden'); return; }
+      const bal = Number(d.balance) || 0, earn = Number(d.earn_per_100) || 0, reward = money(min * val);
+      let html;
+      if (bal >= min) {
+        html = '<div class="text-base font-black">&#11088; You have ' + bal + ' points (worth ' + money(bal * val) + ')</div><div class="text-sm opacity-80 mt-1">Use them on your next order with the redeem code from your phone.</div>';
+      } else {
+        const need = min - bal, spend = earn > 0 ? Math.ceil(need / earn * 100 / 10) * 10 : 0, pct = Math.max(4, Math.round(bal * 100 / min));
+        html = '<div class="text-base font-black">&#127919; Just ' + need + (need === 1 ? ' point' : ' points') + ' more for ' + reward + ' off!</div>' +
+          '<div class="mt-2 h-2.5 rounded-full bg-black/10"><div class="h-2.5 rounded-full" style="width:' + pct + '%;background:#d9531e"></div></div>' +
+          '<div class="flex justify-between text-sm opacity-80 mt-1"><span>' + bal + ' / ' + min + ' points</span>' + (spend ? '<span>about ' + money(spend) + ' more in orders</span>' : '') + '</div>';
+      }
+      el.innerHTML = html; el.classList.remove('hidden');
     }
 
     function openPaymentChoice() {
       if (!kioskTray.length) return;
+      renderPayProgress();
+      const note = $('payTotalNote');
+      note.classList.toggle('hidden', !kioskPromo);
+      if (kioskPromo) note.innerText = 'Total ' + money(trayPayable()) + '  (points saved ' + money(promoDiscount()) + ')';
       $('paymentModal').classList.remove('hidden');
     }
     function closePaymentModal() { $('paymentModal').classList.add('hidden'); }
@@ -1105,8 +1230,8 @@
     function submitKioskOrder(payMethod) {
       closePaymentModal();
       pendingPaymentMode = payMethod;
-      const total = trayTotal();
-      const snapshot = { items: kioskTray.map(i => ({ ...i })), subtotal: traySubtotal(), gst: trayGst(), total: total, order_type: kioskOrderType, payment_mode: payMethod };
+      const total = trayPayable(), discount = promoDiscount(), gstNow = trayGstAfterPromo();
+      const snapshot = { items: kioskTray.map(i => ({ ...i })), subtotal: traySubtotal(), discount: discount, gst: gstNow, total: total, order_type: kioskOrderType, payment_mode: payMethod };
       const orderBody = {
         order_type: kioskOrderType,
         is_kiosk: true,
@@ -1116,8 +1241,10 @@
         items: kioskTray,
         payment_mode: pendingPaymentMode,
         subtotal: traySubtotal(),
-        discount: 0,
-        gst: trayGst(),
+        discount: discount,
+        points_redeem: kioskPromo ? kioskPromo.points : 0,
+        points_code: kioskPromo ? kioskPromo.code : '',
+        gst: gstNow,
         total: total,
         is_hold: false
       };
@@ -1130,9 +1257,14 @@
         body: JSON.stringify(orderBody)
       })
       .then(res => res.json())
-      .then(data => showKioskToken(data, snapshot, kioskOrderType + ' • Pending Approval', payMethod === 'PAY_COUNTER'))
-      .catch(() => {
-        alert('Order could not be placed. Please try again or ask staff for help.');
+      .then(data => {
+        if (!data || !data.success) throw Object.assign(new Error((data && data.error) || ''), { fromServer: true });
+        showKioskToken(data, snapshot, kioskOrderType + ' • Pending Approval', payMethod === 'PAY_COUNTER');
+      })
+      .catch(err => {
+        // a rejected order (e.g. the points code expired) must not look like a placed one
+        if (err && err.fromServer && err.message) { alert(err.message); if (kioskPromo) { kioskPromo = null; return openPointsStep(); } }
+        else alert('Order could not be placed. Please try again or ask staff for help.');
         openPaymentChoice();
       });
     }
@@ -1164,6 +1296,7 @@
     }
     function upiFailed(msg) {
       upiPaytmId = null; stopUpiTimers();
+      kioskPromo = null;
       alert(msg);
       openPaymentChoice();
     }
@@ -1201,10 +1334,11 @@
           if (id !== upiPaytmId) return;
           if (s.status === 'PAID') return upiPaid(s);
           upiPaytmId = null; stopUpiTimers();
+          kioskPromo = null; // the redeem code was spent when the QR was created: points can be applied again with a new code
           if (timedOut) alert('QR expire ho gaya. Dobara try karein.');
           openPaymentChoice();
         })
-        .catch(() => { if (id === upiPaytmId) { upiPaytmId = null; stopUpiTimers(); openPaymentChoice(); } });
+        .catch(() => { if (id === upiPaytmId) { upiPaytmId = null; stopUpiTimers(); kioskPromo = null; openPaymentChoice(); } });
     }
 
     // ---------- Bill printing (settings are per-device, kept in localStorage) ----------
@@ -1323,6 +1457,7 @@
       });
       out.push(line);
       out.push(lr('Subtotal', money2(o.subtotal)));
+      if (Number(o.discount) > 0) out.push(lr('Points discount', '-' + money2(o.discount)));
       out.push(lr('CGST (2.5%)', money2(o.gst / 2)));
       out.push(lr('SGST (2.5%)', money2(o.gst / 2)));
       out.push(lr('TOTAL', 'Rs ' + money2(o.total)));
@@ -1364,6 +1499,7 @@
         <table class="items"><thead><tr><th class="nm">Item</th><th class="q">Qty</th><th class="r">Rate</th><th class="a">Amount</th></tr></thead><tbody>${rows}</tbody></table>
         <div class="divider"></div>
         <div class="row"><span>Subtotal:</span><span>${money(o.subtotal)}</span></div>
+        ${Number(o.discount) > 0 ? `<div class="row"><span>Points discount:</span><span>-${money(o.discount)}</span></div>` : ''}
         <div class="row"><span>CGST (2.50%):</span><span>${money(o.gst / 2)}</span></div>
         <div class="row"><span>SGST (2.50%):</span><span>${money(o.gst / 2)}</span></div>
         <div class="row" style="font-size:16px;font-weight:900"><span>TOTAL BILL:</span><span>${money(o.total)}</span></div>
@@ -1594,13 +1730,14 @@
       if (upiPaytmId) cancelUpiPayment();
       kioskTray = [];
       kioskPhone = '';
+      kioskPromo = null; pointsCode = ''; pointsAmount = ''; pointsOffer = null; kioskLoyalty = null;
       selectedMenuItem = null;
       selectedVariation = null;
       selectedGroupAddons = {};
       pendingUpgrade = null;
       suggestDismissed = new Set();
       updateTrayUI();
-      ['tokenSuccessModal', 'trayReviewModal', 'phoneModal', 'paymentModal', 'upiQrModal', 'customizerModal', 'modeSelectionScreen', 'addedModal', 'upsellModal', 'mealChoiceModal', 'thinkingModal']
+      ['tokenSuccessModal', 'trayReviewModal', 'phoneModal', 'pointsModal', 'paymentModal', 'upiQrModal', 'customizerModal', 'modeSelectionScreen', 'addedModal', 'upsellModal', 'mealChoiceModal', 'thinkingModal']
         .forEach(id => $(id).classList.add('hidden'));
       $('idleScreensaver').classList.remove('hidden');
       if (categories.length) { activeCategory = categories[0]; renderCategories(); }

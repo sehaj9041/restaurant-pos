@@ -878,7 +878,7 @@ app.get('/api/rider/:token/orders', async (req, res) => {
     if (!rider) return res.status(401).json({ error: 'Invalid rider link' });
     const history = req.query.history === '1';
     const orders = await dbAllAsync(`SELECT id, token_no, customer_name, customer_phone, total, COALESCE(paid_amount, 0) AS paid_amount, payment_mode, status,
-        delivery_address, delivery_lat, delivery_lng, created_at, delivered_at, rider_cash_received, rider_cash_change FROM orders
+        delivery_address, delivery_lat, delivery_lng, created_at, delivered_at, rider_cash_received, rider_cash_change, payment_split FROM orders
       WHERE rider_id = ? AND UPPER(status) NOT IN ('VOID', 'MERGED')
         AND ${history ? "delivered_at IS NOT NULL AND delivered_at >= NOW() - INTERVAL '7 days'" : 'delivered_at IS NULL'}
       ORDER BY ${history ? 'delivered_at DESC' : 'id DESC'} LIMIT 100`, [rider.id]);
@@ -905,15 +905,25 @@ app.post('/api/rider/:token/orders/:id/delivered', async (req, res) => {
     }
     // Payment still pending: the rider collects it now
     const mode = String((req.body || {}).mode || '').trim().toUpperCase();
-    if (!['CASH', 'UPI', 'CARD'].includes(mode)) return res.status(400).json({ error: 'Payment mode chunein' });
-    let received = due, change = 0;
-    if (mode === 'CASH') {
+    if (!['CASH', 'UPI', 'CARD', 'SPLIT'].includes(mode)) return res.status(400).json({ error: 'Payment mode chunein' });
+    let received = due, change = 0, splitJson = null;
+    if (mode === 'SPLIT') {
+      // Split between cash / UPI / card: parts must add up to exactly what is due
+      const raw = Array.isArray((req.body || {}).splits) ? req.body.splits : [];
+      const parts = raw.map(s => ({ mode: String((s && s.mode) || '').toUpperCase(), amount: Math.round((Number(s && s.amount) || 0) * 100) / 100 })).filter(s => s.amount > 0);
+      if (parts.length < 2 || parts.length > 4) return res.status(400).json({ error: 'Split me kam se kam 2 payment hone chahiye' });
+      if (parts.some(s => !['CASH', 'UPI', 'CARD'].includes(s.mode))) return res.status(400).json({ error: 'Split me sirf Cash, UPI ya Card chal sakta hai' });
+      const sum = Math.round(parts.reduce((t, s) => t + s.amount, 0) * 100) / 100;
+      if (Math.abs(sum - due) > 0.01) return res.status(400).json({ error: `Split ka total ₹${sum} hai, lene hain ₹${due}` });
+      splitJson = JSON.stringify(parts);
+      received = Math.round(parts.filter(s => s.mode === 'CASH').reduce((t, s) => t + s.amount, 0) * 100) / 100; // cash the rider is holding
+    } else if (mode === 'CASH') {
       received = Number((req.body || {}).received);
       if (!isFinite(received) || received < due) return res.status(400).json({ error: 'Cash kam hai. ₹' + due + ' lene hain' });
       change = Math.round((received - due) * 100) / 100;
     }
-    await run(`UPDATE orders SET payment_mode = ?, paid_amount = total, delivered_at = NOW(), rider_cash_received = ?, rider_cash_change = ?,
-        status = CASE WHEN UPPER(status) = 'KOT_DONE' THEN 'DISPATCHED' ELSE status END WHERE id = ?`, [mode, received, change, id]);
+    await run(`UPDATE orders SET payment_mode = ?, paid_amount = total, delivered_at = NOW(), rider_cash_received = ?, rider_cash_change = ?, payment_split = ?,
+        status = CASE WHEN UPPER(status) = 'KOT_DONE' THEN 'DISPATCHED' ELSE status END WHERE id = ?`, [mode, received, change, splitJson, id]);
     console.log(`[RIDER] Order #${id} delivered by ${rider.name}: ${mode} ₹${received} received, ₹${change} change, due was ₹${due}`);
     res.json({ success: true, change });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -1641,7 +1651,8 @@ const createOrderHandler = async (req, res) => {
   let couponCode = null, pointsRedeemed = 0, promoApplied = false;
   if (!isOnlineOrder && !req.body.is_complimentary && (req.body.coupon_code || Number(req.body.points_redeem) > 0)) {
     try {
-      const promo = await engagement.computeDiscount({ subtotal: calculatedSubtotal, phone: customer_phone, coupon_code: req.body.coupon_code, points_redeem: req.body.points_redeem });
+      const promo = await engagement.computeDiscount({ subtotal: calculatedSubtotal, phone: customer_phone, coupon_code: req.body.coupon_code, points_redeem: req.body.points_redeem,
+        points_code: req.body.points_code, staff_override: discountPasswordOk(req.body.auth_password) || !!req.promoVerified, consume: true });
       if (promo.error) return res.status(400).json({ error: promo.error });
       finalDiscount = promo.discount; couponCode = promo.couponCode || null; pointsRedeemed = promo.pointsRedeemed || 0;
       discountReason = promo.reason; promoApplied = true;
@@ -1756,7 +1767,7 @@ const createOrderHandler = async (req, res) => {
       console.log(`[ORDER CREATED] Order #${orderId} placed with status ${status}, mode ${finalPaymentMode}, and paid amount ${initialPaid}.`);
       // First online order of this phone creates the customer profile; the token is only handed out once.
       let profileToken = null;
-      if (isOnlineOrder) {
+      if (isOnlineOrder || req.tableQr) {
         try {
           const existing = await dbAllAsync('SELECT phone FROM customer_profiles WHERE phone = ?', [customer_phone]);
           if (!existing.length) {
@@ -2191,8 +2202,8 @@ async function saveSettingsConfig(patch) {
   const cfg = Object.assign(await getSettingsConfig(), patch);
   await dbAllAsync(`INSERT INTO settings (id, config) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET config = excluded.config RETURNING id`, [JSON.stringify(cfg)]);
 }
-engagement = require('./engagement').register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig });
-require('./paytmUpi').register(app, { dbAllAsync, createOrderHandler }); require('./razorpayPay').register(app, { dbAllAsync, createOrderHandler, extraMarkPaid: tableQrApi.markBillPaid });
+engagement = require('./engagement').register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, discountPasswordOk });
+require('./paytmUpi').register(app, { dbAllAsync, createOrderHandler, computeDiscount: (a) => engagement.computeDiscount(a) }); require('./razorpayPay').register(app, { dbAllAsync, createOrderHandler, extraMarkPaid: tableQrApi.markBillPaid });
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, '0.0.0.0', () => {

@@ -38,12 +38,20 @@
         <div class="text-xs font-bold text-rose-600">Customer se lene hain</div>
         <div id="payDue" class="text-4xl font-black text-rose-700"></div>
       </div>
-      <div class="grid grid-cols-3 gap-2" id="payModes"></div>
+      <div class="grid grid-cols-4 gap-2" id="payModes"></div>
       <div id="cashBox" class="space-y-2">
         <label class="text-xs font-bold text-gray-500">Customer ne diye (₹)</label>
         <input id="payReceived" type="number" inputmode="decimal" oninput="updateChange()" class="w-full border-2 border-gray-300 rounded-xl px-3 py-3 text-xl font-black">
         <div id="payChips" class="flex flex-wrap gap-2"></div>
         <div id="payChange" class="text-center rounded-2xl p-3 font-black text-lg bg-gray-100 text-gray-500">Change: ₹0</div>
+      </div>
+      <div id="splitBox" class="hidden space-y-2">
+        <div id="splitRows" class="space-y-2"></div>
+        <div class="flex gap-2">
+          <button onclick="addSplitRow()" id="splitAdd" class="flex-1 border-2 border-dashed border-gray-300 text-gray-600 rounded-xl py-2 font-black text-sm">+ Payment add karein</button>
+          <button onclick="fillSplitRest()" class="px-4 border-2 border-orange-300 text-orange-700 rounded-xl font-black text-sm">Fill rest</button>
+        </div>
+        <div id="splitInfo" class="text-center rounded-2xl p-3 font-black text-lg bg-gray-100 text-gray-500"></div>
       </div>
       <button id="payConfirm" onclick="confirmPay()" class="w-full bg-orange-500 disabled:bg-gray-300 text-white py-3.5 rounded-2xl font-black">✔ Payment mili • Delivered</button>
     </div>
@@ -112,13 +120,18 @@
       return d.toLocaleDateString([], { day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
 
+    function splitText(o) {
+      var parts = []; try { parts = JSON.parse(o.payment_split || '[]'); } catch (e) {}
+      return parts.length ? parts.map(function(s) { return s.mode + ' ₹' + s.amount; }).join(' + ') : '';
+    }
+
     function historyCard(o) {
       return '<div class="bg-white rounded-2xl shadow-sm p-3.5 space-y-1">' +
         '<div class="flex justify-between items-center"><div class="text-xl font-black text-gray-900">Token ' + esc(o.token_no || '-') + ' <span class="text-[11px] font-bold text-gray-400">ORD-' + o.id + '</span></div>' +
         '<span class="text-xs font-black bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full">Delivered ✓</span></div>' +
         '<div class="text-xs text-gray-500">' + fmtTime(o.delivered_at) + ' • ' + esc(o.customer_name || 'Guest') + '</div>' +
         '<div class="text-xs text-gray-600 line-clamp-1">📍 ' + (esc(o.delivery_address) || '-') + '</div>' +
-        '<div class="text-xs font-bold text-gray-700">₹' + o.total + (o.rider_cash_received ? ' • Cash mile ₹' + o.rider_cash_received + (Number(o.rider_cash_change) > 0 ? ', change ₹' + o.rider_cash_change : '') : '') + '</div></div>';
+        '<div class="text-xs font-bold text-gray-700">₹' + o.total + (splitText(o) ? ' • Split: ' + splitText(o) : (o.rider_cash_received ? ' • Cash mile ₹' + o.rider_cash_received + (Number(o.rider_cash_change) > 0 ? ', change ₹' + o.rider_cash_change : '') : '')) + '</div></div>';
     }
 
     function setTab(h) { showHistory = h; document.getElementById('list').innerHTML = ''; load(); }
@@ -129,7 +142,7 @@
       var phone = String(o.customer_phone || '').replace(/[^0-9+]/g, '');
       return '<div class="bg-white rounded-2xl shadow p-4 space-y-3 ' + (done ? 'opacity-60' : 'border-2 border-orange-300') + '">' +
         '<div class="flex justify-between items-start"><div><div class="text-2xl font-black text-gray-900 leading-none">Token ' + esc(o.token_no || '-') + '</div><div class="text-[11px] font-bold text-gray-400 mt-1">ORD-' + o.id + '</div></div>' +
-        (done ? '<span class="text-xs font-black bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full">Delivered ✓' + (o.rider_cash_received ? ' • ₹' + o.rider_cash_received + ' mile' : '') + '</span>' :
+        (done ? '<span class="text-xs font-black bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full">Delivered ✓' + (splitText(o) ? ' • Split' : (o.rider_cash_received ? ' • ₹' + o.rider_cash_received + ' mile' : '')) + '</span>' :
           (o.to_collect > 0 ? '<span class="text-sm font-black bg-rose-100 text-rose-700 px-2.5 py-1 rounded-full">Collect ₹' + o.to_collect + '</span>' : '<span class="text-xs font-black bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full">Paid ✓</span>')) + '</div>' +
         '<div class="text-sm text-gray-800"><div class="font-bold">👤 ' + esc(o.customer_name || 'Guest') + '</div>' +
         '<div class="text-gray-600 mt-0.5">📍 ' + (esc(o.delivery_address) || '<i>Address nahi hai</i>') + '</div></div>' +
@@ -196,6 +209,7 @@
 
     function openPay(o) {
       payOrder = o; payMode = 'CASH';
+      splitRows = [{ mode: 'CASH', amount: '' }, { mode: 'UPI', amount: '' }];
       document.getElementById('payOrd').innerText = 'Token ' + (o.token_no || o.id);
       document.getElementById('payDue').innerText = '₹' + o.to_collect;
       document.getElementById('payReceived').value = '';
@@ -208,10 +222,12 @@
     }
 
     function renderModes() {
-      document.getElementById('payModes').innerHTML = ['CASH', 'UPI', 'CARD'].map(function(m) {
-        return '<button onclick="setMode(\'' + m + '\')" class="py-2.5 rounded-xl font-black text-sm border-2 ' + (m === payMode ? 'bg-orange-500 text-white border-orange-600' : 'bg-white text-gray-700 border-gray-300') + '">' + m + '</button>';
+      document.getElementById('payModes').innerHTML = ['CASH', 'UPI', 'CARD', 'SPLIT'].map(function(m) {
+        return '<button onclick="setMode(\'' + m + '\')" class="py-2.5 rounded-xl font-black text-xs border-2 ' + (m === payMode ? 'bg-orange-500 text-white border-orange-600' : 'bg-white text-gray-700 border-gray-300') + '">' + m + '</button>';
       }).join('');
       document.getElementById('cashBox').classList.toggle('hidden', payMode !== 'CASH');
+      document.getElementById('splitBox').classList.toggle('hidden', payMode !== 'SPLIT');
+      if (payMode === 'SPLIT') renderSplit();
       updateChange();
     }
 
@@ -221,6 +237,7 @@
     function updateChange() {
       if (!payOrder) return;
       var btn = document.getElementById('payConfirm'), box = document.getElementById('payChange');
+      if (payMode === 'SPLIT') return updateSplit();
       if (payMode !== 'CASH') { btn.disabled = false; return; }
       var rec = parseFloat(document.getElementById('payReceived').value);
       var ok = isFinite(rec) && rec >= payOrder.to_collect;
@@ -230,8 +247,51 @@
       else { box.className = 'text-center rounded-2xl p-3 font-black text-2xl bg-emerald-100 text-emerald-800'; box.innerText = 'Wapas dein: ₹' + (Math.round((rec - payOrder.to_collect) * 100) / 100); }
     }
 
+    // ---- split payment: cash / UPI / card parts must add up to the amount due ----
+    var splitRows = [];
+    var r2 = function(n) { return Math.round((Number(n) || 0) * 100) / 100; };
+    function readSplit() {
+      splitRows.forEach(function(r, i) { var el = document.getElementById('splitAmt' + i); if (el) r.amount = el.value; });
+    }
+    function renderSplit() {
+      document.getElementById('splitRows').innerHTML = splitRows.map(function(r, i) {
+        var modes = ['CASH', 'UPI', 'CARD'].map(function(m) { return '<option value="' + m + '"' + (m === r.mode ? ' selected' : '') + '>' + m + '</option>'; }).join('');
+        return '<div class="flex items-center gap-2"><select onchange="splitRows[' + i + '].mode = this.value" class="border-2 border-gray-300 rounded-xl px-2 py-3 font-black text-sm bg-white">' + modes + '</select>' +
+          '<input id="splitAmt' + i + '" type="number" inputmode="decimal" placeholder="₹ amount" value="' + (r.amount === '' ? '' : r.amount) + '" oninput="updateSplit()" class="flex-1 min-w-0 border-2 border-gray-300 rounded-xl px-3 py-3 text-lg font-black">' +
+          (splitRows.length > 2 ? '<button onclick="removeSplitRow(' + i + ')" class="text-rose-500 text-xl font-black px-1">✕</button>' : '') + '</div>';
+      }).join('');
+      document.getElementById('splitAdd').classList.toggle('hidden', splitRows.length >= 4);
+    }
+    function addSplitRow() { readSplit(); if (splitRows.length < 4) { splitRows.push({ mode: 'CARD', amount: '' }); renderSplit(); updateSplit(); } }
+    function removeSplitRow(i) { readSplit(); if (splitRows.length > 2) { splitRows.splice(i, 1); renderSplit(); updateSplit(); } }
+    function fillSplitRest() {
+      readSplit();
+      var other = splitRows.reduce(function(t, r, i) { return t + (r.amount === '' ? 0 : (parseFloat(r.amount) || 0)); }, 0);
+      var empty = splitRows.map(function(r, i) { return r.amount === '' || !(parseFloat(r.amount) > 0) ? i : -1; }).filter(function(i) { return i >= 0; });
+      var idx = empty.length ? empty[0] : splitRows.length - 1;
+      var others = splitRows.reduce(function(t, r, i) { return i === idx ? t : t + (parseFloat(r.amount) || 0); }, 0);
+      splitRows[idx].amount = String(Math.max(0, r2(payOrder.to_collect - others)));
+      renderSplit(); updateSplit();
+    }
+    function splitParts() {
+      readSplit();
+      return splitRows.map(function(r) { return { mode: r.mode, amount: r2(parseFloat(r.amount)) }; }).filter(function(r) { return r.amount > 0; });
+    }
+    function updateSplit() {
+      if (!payOrder || payMode !== 'SPLIT') return;
+      var parts = splitParts(), sum = r2(parts.reduce(function(t, p) { return t + p.amount; }, 0)), diff = r2(payOrder.to_collect - sum);
+      var ok = parts.length >= 2 && Math.abs(diff) < 0.01;
+      document.getElementById('payConfirm').disabled = !ok;
+      var box = document.getElementById('splitInfo');
+      if (Math.abs(diff) < 0.01 && parts.length >= 2) { box.className = 'text-center rounded-2xl p-3 font-black text-lg bg-emerald-100 text-emerald-800'; box.innerText = 'Total barabar ✓ ₹' + sum; }
+      else if (diff > 0) { box.className = 'text-center rounded-2xl p-3 font-black text-lg bg-rose-100 text-rose-700'; box.innerText = 'Abhi ₹' + diff + ' baaki hain'; }
+      else if (diff < 0) { box.className = 'text-center rounded-2xl p-3 font-black text-lg bg-rose-100 text-rose-700'; box.innerText = '₹' + r2(-diff) + ' zyada hain'; }
+      else { box.className = 'text-center rounded-2xl p-3 font-black text-lg bg-gray-100 text-gray-500'; box.innerText = 'Kam se kam 2 payment daalein'; }
+    }
+
     function confirmPay() {
       if (!payOrder) return;
+      if (payMode === 'SPLIT') return sendDelivered(payOrder.id, { mode: 'SPLIT', splits: splitParts() });
       sendDelivered(payOrder.id, { mode: payMode, received: parseFloat(document.getElementById('payReceived').value) });
     }
 

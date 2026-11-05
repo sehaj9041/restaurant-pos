@@ -4,7 +4,11 @@
 //   earned   = sum of floor(total * earn_per_100 / 100) over fully paid, non-void orders of that phone
 //   redeemed = sum of orders.points_redeemed (non-void orders)
 // so it stays correct whichever screen (POS, table settle, due settle...) marked the order paid.
-// Config lives in settings.config.loyalty = { enabled, earn_per_100, point_value, min_redeem, max_redeem_pct }.
+// Config lives in settings.config.loyalty = { enabled, earn_per_100, point_value, min_redeem, max_redeem_pct,
+//   expiry_days, bonus_enabled, bonus_start, bonus_end, bonus_multiplier, bonus_days, first_order_bonus, *_since }.
+// The balance is replayed order by order (simulateLoyalty): points earned are lots, redemptions use the oldest lots first, lots expire
+// `expiry_days` after they were earned. Expiry / bonus-hours / first-order bonus only apply from the day they were switched on (`*_since`),
+// so existing customers keep their points and old orders are never re-valued.
 //
 // Coupons: table `coupons` (managed on /engagement.html, owner PIN). computeDiscount() is the single place that turns
 // a coupon code / points to redeem into a rupee discount; createOrderHandler calls it so the client can never fake one.
@@ -13,10 +17,54 @@
 const crypto = require('crypto');
 const QRCode = require('qrcode');
 
-const DEFAULT_LOYALTY = { enabled: false, earn_per_100: 5, point_value: 0.5, min_redeem: 50, max_redeem_pct: 50 };
+const DEFAULT_LOYALTY = { enabled: false, earn_per_100: 5, point_value: 0.5, min_redeem: 50, max_redeem_pct: 50,
+  expiry_days: 0, expiry_since: 0, bonus_enabled: false, bonus_start: '15:00', bonus_end: '18:00', bonus_multiplier: 2, bonus_days: [], bonus_since: 0, first_order_bonus: 0, first_bonus_since: 0 };
 const DEAD_STATUS = "('VOID', 'CANCELLED', 'HOLD')";
 
-function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig }) {
+const numOr = (v, d = 0) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
+const toMin = (hhmm) => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || '')); return m ? Math.min(23, +m[1]) * 60 + Math.min(59, +m[2]) : 0; };
+
+// Is the order time (IST wall clock: hour, minute, day of week) inside the double-points window?
+function inBonusWindow(L, hh, mm, dow) {
+  if (!L.bonus_enabled) return false;
+  if (Array.isArray(L.bonus_days) && L.bonus_days.length && !L.bonus_days.includes(dow)) return false;
+  const t = hh * 60 + mm, s = toMin(L.bonus_start), e = toMin(L.bonus_end);
+  if (s === e) return false;
+  return s < e ? (t >= s && t < e) : (t >= s || t < e); // window may run past midnight
+}
+
+// rows: that phone's orders (not void/hold), oldest first, with created_at, hh, mm, dow, total, paid_amount, is_complimentary, points_redeemed
+function simulateLoyalty(rows, L, nowMs) {
+  const DAY = 86400000, lots = [];
+  let earned = 0, redeemed = 0, firstSeen = false;
+  const expire = (at) => { if (L.expiry_days > 0) for (let i = lots.length - 1; i >= 0; i--) if (lots[i].anchor + L.expiry_days * DAY <= at) lots.splice(i, 1); };
+  for (const r of rows) {
+    const at = new Date(r.created_at).getTime();
+    expire(at);
+    // points spent on this order come from the oldest lots; the points this order earns are added afterwards
+    let red = Math.floor(numOr(r.points_redeemed));
+    redeemed += red;
+    while (red > 0 && lots.length) { const take = Math.min(red, lots[0].qty); lots[0].qty -= take; red -= take; if (lots[0].qty <= 0) lots.shift(); }
+    const paid = numOr(r.paid_amount) >= numOr(r.total) && numOr(r.total) > 0 && !numOr(r.is_complimentary);
+    if (!paid) continue;
+    const base = numOr(r.total) * L.earn_per_100 / 100;
+    let pts = Math.floor(base);
+    if (pts > 0 && at >= L.bonus_since && inBonusWindow(L, numOr(r.hh), numOr(r.mm), numOr(r.dow))) pts = Math.floor(base * L.bonus_multiplier);
+    if (!firstSeen) { firstSeen = true; if (L.first_order_bonus > 0 && at >= L.first_bonus_since) pts += L.first_order_bonus; }
+    if (pts > 0) { lots.push({ anchor: Math.max(at, L.expiry_since || 0), qty: pts }); earned += pts; }
+  }
+  expire(nowMs);
+  const balance = lots.reduce((t, l) => t + l.qty, 0);
+  // points that will expire within the next 30 days (and the first date it happens)
+  let expiring = null;
+  if (L.expiry_days > 0) {
+    const soon = lots.map(l => ({ on: l.anchor + L.expiry_days * DAY, qty: l.qty })).filter(l => l.on <= nowMs + 30 * DAY);
+    if (soon.length) expiring = { points: soon.reduce((t, l) => t + l.qty, 0), on: new Date(Math.min.apply(null, soon.map(l => l.on))).toLocaleDateString('sv-SE', { timeZone: 'Asia/Kolkata' }) };
+  }
+  return { earned, redeemed, balance, expiring };
+}
+
+function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, discountPasswordOk }) {
   dbAllAsync(`CREATE TABLE IF NOT EXISTS coupons (
     id SERIAL PRIMARY KEY,
     code TEXT UNIQUE NOT NULL,
@@ -45,6 +93,11 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig }) {
   dbAllAsync(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS coupon_code TEXT`, []).catch(() => {});
   dbAllAsync(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS points_redeemed INTEGER DEFAULT 0`, []).catch(() => {});
 
+  // One short-lived redeem code per phone: the customer shows it on their own phone (needs their profile token), staff types it at the POS.
+  dbAllAsync(`CREATE TABLE IF NOT EXISTS loyalty_codes (
+    phone TEXT PRIMARY KEY, code_hash TEXT, expires_ms BIGINT, fails INTEGER DEFAULT 0, lock_until BIGINT DEFAULT 0, created_ms BIGINT
+  )`, []).catch(e => console.error('loyalty_codes table error:', e.message));
+
   const num = (v, d = 0) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
   const cleanPhone = (p) => String(p || '').replace(/\D/g, '').slice(-10);
   const cleanCode = (c) => String(c || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 30);
@@ -52,22 +105,60 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig }) {
   async function loyaltyConfig() {
     const cfg = await getSettingsConfig();
     const l = Object.assign({}, DEFAULT_LOYALTY, cfg.loyalty || {});
-    return { enabled: !!l.enabled, earn_per_100: num(l.earn_per_100, 5), point_value: num(l.point_value, 0.5), min_redeem: num(l.min_redeem, 50), max_redeem_pct: num(l.max_redeem_pct, 50) };
+    return {
+      enabled: !!l.enabled, earn_per_100: num(l.earn_per_100, 5), point_value: num(l.point_value, 0.5), min_redeem: num(l.min_redeem, 50), max_redeem_pct: num(l.max_redeem_pct, 50),
+      expiry_days: Math.max(0, Math.floor(num(l.expiry_days, 0))), expiry_since: num(l.expiry_since, 0),
+      bonus_enabled: !!l.bonus_enabled, bonus_start: /^\d{1,2}:\d{2}$/.test(l.bonus_start) ? l.bonus_start : '15:00', bonus_end: /^\d{1,2}:\d{2}$/.test(l.bonus_end) ? l.bonus_end : '18:00',
+      bonus_multiplier: Math.min(5, Math.max(1, num(l.bonus_multiplier, 2))), bonus_days: (Array.isArray(l.bonus_days) ? l.bonus_days : []).map(Number).filter(d => d >= 0 && d <= 6), bonus_since: num(l.bonus_since, 0),
+      first_order_bonus: Math.max(0, Math.floor(num(l.first_order_bonus, 0))), first_bonus_since: num(l.first_bonus_since, 0)
+    };
   }
+
+  // What customers may be told about the offers (no internals)
+  const publicOffers = (L) => ({ expiry_days: L.expiry_days, first_order_bonus: L.first_order_bonus,
+    bonus: L.bonus_enabled ? { start: L.bonus_start, end: L.bonus_end, multiplier: L.bonus_multiplier, days: L.bonus_days } : null });
+
+  const ledgerCols = `id, total, paid_amount, is_complimentary, points_redeemed, created_at,
+    EXTRACT(HOUR FROM created_at)::int AS hh, EXTRACT(MINUTE FROM created_at)::int AS mm, EXTRACT(DOW FROM created_at)::int AS dow`;
 
   async function loyaltyBalance(phone, L, excludeId = 0) {
     phone = cleanPhone(phone);
-    if (!phone) return { phone: '', earned: 0, redeemed: 0, balance: 0 };
-    const rows = await dbAllAsync(`SELECT
-        COALESCE(SUM(CASE WHEN paid_amount >= total AND total > 0 AND COALESCE(is_complimentary, 0) = 0 THEN FLOOR(total * ? / 100) ELSE 0 END), 0) AS earned,
-        COALESCE(SUM(points_redeemed), 0) AS redeemed
-      FROM orders WHERE RIGHT(customer_phone, 10) = ? AND id <> ? AND UPPER(COALESCE(status, '')) NOT IN ${DEAD_STATUS}`, [L.earn_per_100, phone, excludeId]);
-    const earned = num(rows[0] && rows[0].earned), redeemed = num(rows[0] && rows[0].redeemed);
-    return { phone, earned, redeemed, balance: Math.max(0, earned - redeemed) };
+    if (!phone) return { phone: '', earned: 0, redeemed: 0, balance: 0, expiring: null };
+    const rows = await dbAllAsync(`SELECT ${ledgerCols} FROM orders WHERE RIGHT(customer_phone, 10) = ? AND id <> ? AND UPPER(COALESCE(status, '')) NOT IN ${DEAD_STATUS} ORDER BY created_at, id`, [phone, excludeId]);
+    return Object.assign({ phone }, simulateLoyalty(rows, L, Date.now()));
+  }
+
+  // ---- redeem codes ----
+  const CODE_TTL_MS = 15 * 60 * 1000, MAX_FAILS = 5, LOCK_MS = 15 * 60 * 1000;
+  const codeHash = (phone, code) => crypto.createHash('sha256').update(phone + ':' + String(code).trim()).digest('hex');
+  const safeEq = (a, b) => { const x = Buffer.from(String(a || '')), y = Buffer.from(String(b || '')); return x.length === y.length && crypto.timingSafeEqual(x, y); };
+
+  async function profileOk(phone, token) {
+    phone = cleanPhone(phone);
+    if (phone.length !== 10 || !token) return false;
+    const r = await dbAllAsync('SELECT token FROM customer_profiles WHERE phone = ?', [phone]);
+    return !!(r[0] && safeEq(r[0].token, token));
+  }
+
+  // consume=false only checks (POS "Apply" preview); consume=true spends the code when the bill is saved
+  async function checkRedeemCode(phone, code, consume) {
+    phone = cleanPhone(phone);
+    const row = (await dbAllAsync('SELECT * FROM loyalty_codes WHERE phone = ?', [phone]))[0];
+    const now = Date.now();
+    if (row && num(row.lock_until) > now) return { error: 'Bahut galat codes daale gaye. 15 minute baad try karein ya staff password use karein' };
+    if (!code || !row || num(row.expires_ms) < now) return { error: 'Customer ka redeem code chahiye. Customer apne phone par "My Points" se naya code dekh sakta hai' };
+    if (!safeEq(row.code_hash, codeHash(phone, code))) {
+      const fails = num(row.fails) + 1;
+      await dbAllAsync('UPDATE loyalty_codes SET fails = ?, lock_until = ? WHERE phone = ? RETURNING phone', [fails >= MAX_FAILS ? 0 : fails, fails >= MAX_FAILS ? now + LOCK_MS : 0, phone]);
+      return { error: 'Redeem code galat hai' };
+    }
+    if (consume) await dbAllAsync('DELETE FROM loyalty_codes WHERE phone = ? RETURNING phone', [phone]);
+    return { ok: true };
   }
 
   // Returns { error } or { discount, couponDiscount, pointsDiscount, couponCode, pointsRedeemed, reason }
-  async function computeDiscount({ subtotal, phone, coupon_code, points_redeem, exclude_order_id }) {
+  // Points need the customer's redeem code (or the staff discount password as an override); `consume` spends the code (order save).
+  async function computeDiscount({ subtotal, phone, coupon_code, points_redeem, exclude_order_id, points_code, staff_override, consume }) {
     const ex = Math.floor(num(exclude_order_id)); // an order being edited must not count its own earlier coupon / points
     subtotal = Math.max(0, num(subtotal));
     let couponDiscount = 0, couponCode = '', pointsDiscount = 0, pointsRedeemed = 0;
@@ -96,11 +187,16 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig }) {
       couponCode = code;
     }
     const pts = Math.floor(num(points_redeem));
+    let needCode = false;
     if (pts > 0) {
       const L = await loyaltyConfig();
       if (!L.enabled) return { error: 'Loyalty points abhi band hain' };
       if (!cleanPhone(phone)) return { error: 'Points redeem karne ke liye customer ka phone zaroori hai' };
       if (pts < L.min_redeem) return { error: `Kam se kam ${L.min_redeem} points redeem karne honge` };
+      // Points this very order already holds (it is being edited) need no new code; only extra points do
+      const held = ex ? num(((await dbAllAsync('SELECT points_redeemed FROM orders WHERE id = ? AND RIGHT(customer_phone, 10) = ?', [ex, cleanPhone(phone)]))[0] || {}).points_redeemed) : 0;
+      needCode = pts > held && !staff_override;
+      if (needCode) { const c = await checkRedeemCode(phone, points_code, false); if (c.error) return c; }
       const bal = await loyaltyBalance(phone, L, ex);
       if (pts > bal.balance) return { error: `Customer ke paas sirf ${bal.balance} points hain` };
       const room = Math.max(0, (subtotal - couponDiscount) * L.max_redeem_pct / 100);
@@ -108,6 +204,7 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig }) {
       if (pointsDiscount > room + 0.001) return { error: `Ek bill par max ${L.max_redeem_pct}% tak hi points redeem ho sakte hain (₹${Math.floor(room)})` };
       pointsRedeemed = pts;
     }
+    if (needCode && consume) { const c = await checkRedeemCode(phone, points_code, true); if (c.error) return c; }
     const parts = [];
     if (couponCode) parts.push('Coupon ' + couponCode);
     if (pointsRedeemed) parts.push(pointsRedeemed + ' pts');
@@ -117,17 +214,53 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig }) {
   // ---- public / POS routes ----
   app.post('/api/coupons/validate', async (req, res) => {
     try {
-      const r = await computeDiscount(req.body || {});
+      const body = req.body || {};
+      const r = await computeDiscount({ ...body, staff_override: discountPasswordOk(body.auth_password), consume: false });
       if (r.error) return res.status(400).json({ error: r.error });
       res.json(r);
     } catch (e) { console.error('coupon validate:', e.message); res.status(500).json({ error: 'Coupon check nahi ho paaya' }); }
+  });
+
+  // Public: what the restaurant offers (shown as a banner on the ordering pages)
+  app.get('/api/loyalty-info', async (req, res) => {
+    try { const L = await loyaltyConfig(); res.json(Object.assign({ enabled: L.enabled, earn_per_100: L.earn_per_100, point_value: L.point_value }, publicOffers(L))); }
+    catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.post('/api/loyalty/my', async (req, res) => {
+    try {
+      const { phone, token } = req.body || {};
+      if (!(await profileOk(phone, token))) return res.status(401).json({ error: 'Profile verify nahi hui' });
+      const L = await loyaltyConfig();
+      const b = await loyaltyBalance(phone, L);
+      res.json(Object.assign({ enabled: L.enabled, balance: b.balance, earned: b.earned, redeemed: b.redeemed, expiring: b.expiring, point_value: L.point_value, min_redeem: L.min_redeem, max_redeem_pct: L.max_redeem_pct, earn_per_100: L.earn_per_100 }, publicOffers(L)));
+    } catch (e) { res.status(500).json({ error: 'Load nahi hua' }); }
+  });
+
+  const codeAsks = new Map();
+  app.post('/api/loyalty/code', async (req, res) => {
+    try {
+      const { phone, token } = req.body || {};
+      if (!(await profileOk(phone, token))) return res.status(401).json({ error: 'Profile verify nahi hui' });
+      const ph = cleanPhone(phone), now = Date.now();
+      const asks = (codeAsks.get(ph) || []).filter(t => now - t < 10 * 60 * 1000);
+      if (asks.length >= 6) return res.status(429).json({ error: 'Bahut baar code manga. Thodi der baad try karein.' });
+      asks.push(now); codeAsks.set(ph, asks);
+      const L = await loyaltyConfig();
+      if (!L.enabled) return res.status(400).json({ error: 'Loyalty points abhi band hain' });
+      const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+      await dbAllAsync(`INSERT INTO loyalty_codes (phone, code_hash, expires_ms, fails, lock_until, created_ms) VALUES (?, ?, ?, 0, 0, ?)
+        ON CONFLICT (phone) DO UPDATE SET code_hash = EXCLUDED.code_hash, expires_ms = EXCLUDED.expires_ms, fails = 0, created_ms = EXCLUDED.created_ms RETURNING phone`,
+        [ph, codeHash(ph, code), now + CODE_TTL_MS, now]);
+      res.json({ code, expires_in: Math.floor(CODE_TTL_MS / 1000) });
+    } catch (e) { console.error('loyalty code:', e.message); res.status(500).json({ error: 'Code nahi ban paaya' }); }
   });
 
   app.get('/api/loyalty/:phone', async (req, res) => {
     try {
       const L = await loyaltyConfig();
       const b = await loyaltyBalance(req.params.phone, L);
-      res.json(Object.assign({ enabled: L.enabled, point_value: L.point_value, min_redeem: L.min_redeem, max_redeem_pct: L.max_redeem_pct, earn_per_100: L.earn_per_100 }, b));
+      res.json(Object.assign({ enabled: L.enabled, point_value: L.point_value, min_redeem: L.min_redeem, max_redeem_pct: L.max_redeem_pct, earn_per_100: L.earn_per_100 }, publicOffers(L), b));
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 
@@ -179,18 +312,48 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig }) {
   app.get('/api/loyalty-admin/config', async (req, res) => res.json(await loyaltyConfig()));
   app.put('/api/loyalty-admin/config', async (req, res) => {
     const b = req.body || {};
-    const l = { enabled: !!b.enabled, earn_per_100: Math.max(0, num(b.earn_per_100)), point_value: Math.max(0, num(b.point_value)), min_redeem: Math.max(0, Math.floor(num(b.min_redeem))), max_redeem_pct: Math.min(100, Math.max(1, num(b.max_redeem_pct, 50))) };
-    try { await saveSettingsConfig({ loyalty: l }); res.json({ success: true, config: l }); }
-    catch (e) { res.status(500).json({ error: e.message }); }
+    const isNum = (v) => v !== '' && v != null && Number.isFinite(Number(v));
+    if (!isNum(b.earn_per_100) || Number(b.earn_per_100) < 0) return res.status(400).json({ error: 'Earn points per ₹100 sahi daalein' });
+    if (!isNum(b.point_value) || Number(b.point_value) < 0) return res.status(400).json({ error: '1 point ki value sahi daalein' });
+    if (!isNum(b.min_redeem) || Number(b.min_redeem) < 0) return res.status(400).json({ error: 'Min points to redeem daalein (0 ya zyada)' });
+    if (!isNum(b.max_redeem_pct) || Number(b.max_redeem_pct) < 1 || Number(b.max_redeem_pct) > 100) return res.status(400).json({ error: 'Max % of bill 1 se 100 ke beech daalein (khali chhodne par points use nahi ho paate)' });
+    const days = Math.max(0, Math.floor(numOr(b.expiry_days, 0)));
+    const bonusOn = !!b.bonus_enabled;
+    if (bonusOn) {
+      if (!/^\d{1,2}:\d{2}$/.test(String(b.bonus_start || '')) || !/^\d{1,2}:\d{2}$/.test(String(b.bonus_end || ''))) return res.status(400).json({ error: 'Double points ka start aur end time daalein' });
+      if (toMin(b.bonus_start) === toMin(b.bonus_end)) return res.status(400).json({ error: 'Double points ka start aur end time alag hona chahiye' });
+      if (!(numOr(b.bonus_multiplier) >= 1.5 && numOr(b.bonus_multiplier) <= 5)) return res.status(400).json({ error: 'Multiplier 1.5 se 5 ke beech rakhein' });
+    }
+    try {
+      const prev = await loyaltyConfig(), now = Date.now();
+      const bonusDays = (Array.isArray(b.bonus_days) ? b.bonus_days : []).map(Number).filter(d => d >= 0 && d <= 6).sort();
+      const bonusChanged = bonusOn && (!prev.bonus_enabled || prev.bonus_start !== b.bonus_start || prev.bonus_end !== b.bonus_end || prev.bonus_multiplier !== numOr(b.bonus_multiplier) || JSON.stringify(prev.bonus_days) !== JSON.stringify(bonusDays));
+      const firstBonus = Math.max(0, Math.floor(numOr(b.first_order_bonus, 0)));
+      const l = {
+        enabled: !!b.enabled, earn_per_100: num(b.earn_per_100), point_value: num(b.point_value), min_redeem: Math.floor(num(b.min_redeem)), max_redeem_pct: Math.min(100, num(b.max_redeem_pct)),
+        expiry_days: days, expiry_since: days > 0 ? (prev.expiry_days > 0 && prev.expiry_since ? prev.expiry_since : now) : prev.expiry_since,
+        bonus_enabled: bonusOn, bonus_start: bonusOn ? String(b.bonus_start) : prev.bonus_start, bonus_end: bonusOn ? String(b.bonus_end) : prev.bonus_end,
+        bonus_multiplier: bonusOn ? numOr(b.bonus_multiplier, 2) : prev.bonus_multiplier, bonus_days: bonusOn ? bonusDays : prev.bonus_days, bonus_since: bonusChanged ? now : prev.bonus_since,
+        first_order_bonus: firstBonus, first_bonus_since: firstBonus > 0 ? (prev.first_order_bonus > 0 && prev.first_bonus_since ? prev.first_bonus_since : now) : prev.first_bonus_since
+      };
+      await saveSettingsConfig({ loyalty: l });
+      res.json({ success: true, config: l });
+    } catch (e) { res.status(500).json({ error: e.message }); }
   });
   app.get('/api/loyalty-admin/top', async (req, res) => {
     try {
       const L = await loyaltyConfig();
-      const rows = await dbAllAsync(`SELECT RIGHT(customer_phone, 10) AS phone, MAX(customer_name) AS name, COUNT(*) AS orders, COALESCE(SUM(total), 0) AS spent,
-          COALESCE(SUM(CASE WHEN paid_amount >= total AND total > 0 AND COALESCE(is_complimentary, 0) = 0 THEN FLOOR(total * ? / 100) ELSE 0 END), 0) - COALESCE(SUM(points_redeemed), 0) AS points
+      const top = await dbAllAsync(`SELECT RIGHT(customer_phone, 10) AS phone, MAX(customer_name) AS name, COUNT(*) AS orders, COALESCE(SUM(total), 0) AS spent
         FROM orders WHERE customer_phone ~ '[0-9]{10}' AND UPPER(COALESCE(status, '')) NOT IN ${DEAD_STATUS}
-        GROUP BY RIGHT(customer_phone, 10) ORDER BY spent DESC LIMIT 50`, [L.earn_per_100]);
-      res.json(rows.map(r => ({ phone: r.phone, name: r.name || '', orders: num(r.orders), spent: num(r.spent), points: Math.max(0, num(r.points)) })));
+        GROUP BY RIGHT(customer_phone, 10) ORDER BY spent DESC LIMIT 50`, []);
+      const orders = top.length ? await dbAllAsync(`SELECT RIGHT(customer_phone, 10) AS phone, ${ledgerCols} FROM orders
+        WHERE RIGHT(customer_phone, 10) = ANY(?::text[]) AND UPPER(COALESCE(status, '')) NOT IN ${DEAD_STATUS} ORDER BY created_at, id`, [top.map(t => t.phone)]) : [];
+      const byPhone = new Map();
+      orders.forEach(o => { (byPhone.get(o.phone) || byPhone.set(o.phone, []).get(o.phone)).push(o); });
+      res.json(top.map(r => {
+        const s = simulateLoyalty(byPhone.get(r.phone) || [], L, Date.now());
+        return { phone: r.phone, name: r.name || '', orders: num(r.orders), spent: num(r.spent), points: s.balance, expiring: s.expiring };
+      }));
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 
@@ -203,7 +366,6 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig }) {
     return s;
   }
   const sign = (secret, id) => crypto.createHmac('sha256', secret).update('fb:' + id).digest('hex').slice(0, 20);
-  const safeEq = (a, b) => { const x = Buffer.from(String(a || '')), y = Buffer.from(String(b || '')); return x.length === y.length && crypto.timingSafeEqual(x, y); };
   const baseUrl = (req) => (req.get('x-forwarded-proto') || req.protocol) + '://' + req.get('host');
 
   app.get('/api/feedback/qr/:orderId', async (req, res) => {
@@ -283,7 +445,8 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig }) {
     }
     try {
       const id = Math.floor(num(req.params.id));
-      const promo = await computeDiscount({ subtotal: b.subtotal, phone: b.customer_phone, coupon_code: b.coupon_code, points_redeem: b.points_redeem, exclude_order_id: id });
+      const promo = await computeDiscount({ subtotal: b.subtotal, phone: b.customer_phone, coupon_code: b.coupon_code, points_redeem: b.points_redeem, exclude_order_id: id,
+        points_code: b.points_code, staff_override: discountPasswordOk(b.auth_password), consume: true });
       if (promo.error) return res.status(400).json({ error: promo.error });
       await dbAllAsync('UPDATE orders SET coupon_code = ?, points_redeemed = ? WHERE id = ? RETURNING id', [promo.couponCode || null, promo.pointsRedeemed || 0, id]);
       b.discount = promo.discount; b.discount_reason = promo.reason;
@@ -295,4 +458,4 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig }) {
   return { computeDiscount, applyPromoToOrderEdit };
 }
 
-module.exports = { register };
+module.exports = { register, simulateLoyalty };

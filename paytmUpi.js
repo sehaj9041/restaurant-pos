@@ -30,18 +30,25 @@ async function paytmPost(path, body, head = {}) {
 }
 
 // Same maths as POST /api/orders (5% GST on subtotal), so the QR amount equals the order total.
-function payableAmount(p) {
+function subtotalOf(p) {
   let subtotal = Number(p.subtotal) || 0;
   if (!subtotal && Array.isArray(p.items)) subtotal = p.items.reduce((s, i) => s + Number(i.price) * Number(i.qty), 0);
+  return subtotal;
+}
+function payableAmount(p) {
+  const subtotal = subtotalOf(p);
   // "No GST" (is_exempt) items par tax nahi lagta
   const taxable = Array.isArray(p.items) && p.items.length
     ? p.items.reduce((s, i) => Number(i.is_exempt) ? s : s + Number(i.price) * Number(i.qty), 0)
     : subtotal;
-  const gst = Math.round((taxable * 5) / 100);
-  return Math.round(subtotal + gst - (Number(p.discount) || 0));
+  // GST is charged after the discount, exactly like createOrderHandler
+  const disc = Math.min(Math.max(0, Number(p.discount) || 0), subtotal);
+  const taxAfterDiscount = subtotal > 0 ? Math.max(0, taxable - disc * taxable / subtotal) : 0;
+  const gst = Math.round((taxAfterDiscount * 5) / 100);
+  return Math.round(subtotal + gst - disc);
 }
 
-function register(app, { dbAllAsync, createOrderHandler }) {
+function register(app, { dbAllAsync, createOrderHandler, computeDiscount }) {
   dbAllAsync(`CREATE TABLE IF NOT EXISTS upi_payments (
     id SERIAL PRIMARY KEY,
     paytm_order_id TEXT UNIQUE,
@@ -72,7 +79,8 @@ function register(app, { dbAllAsync, createOrderHandler }) {
         status(c) { this.statusCode = c; return this; },
         json(b) { return this.statusCode >= 400 ? reject(new Error((b && b.error) || 'order failed')) : resolve(b); }
       };
-      Promise.resolve(createOrderHandler({ body: payload }, res)).catch(reject);
+      // _promo_verified is only ever set by /api/upi/create after the redeem code was checked and spent (a client value is stripped there)
+      Promise.resolve(createOrderHandler({ body: payload, promoVerified: !!payload._promo_verified }, res)).catch(reject);
     });
   }
 
@@ -117,6 +125,16 @@ function register(app, { dbAllAsync, createOrderHandler }) {
       if (!configured()) return res.status(503).json({ error: 'UPI abhi configure nahi hai. Staff se help lein.' });
       const p = req.body || {};
       if (!Array.isArray(p.items) || !p.items.length) return res.status(400).json({ error: 'Cart khali hai' });
+      // The discount is never taken from the client: only a loyalty-points redemption (code checked and spent right now) can lower the amount
+      delete p._promo_verified;
+      p.discount = 0;
+      const pts = Math.floor(Number(p.points_redeem) || 0);
+      if (pts > 0 && computeDiscount) {
+        const promo = await computeDiscount({ subtotal: subtotalOf(p), phone: p.customer_phone, points_redeem: pts, points_code: p.points_code, staff_override: false, consume: true });
+        if (promo.error) return res.status(400).json({ error: promo.error });
+        p.discount = promo.discount; p.points_redeem = promo.pointsRedeemed; p._promo_verified = true;
+      } else { p.points_redeem = 0; }
+      delete p.points_code; delete p.coupon_code; delete p.is_complimentary; delete p.auth_password; delete p.discount_reason;
       const amount = payableAmount(p);
       if (!(amount > 0)) return res.status(400).json({ error: 'Invalid amount' });
 
