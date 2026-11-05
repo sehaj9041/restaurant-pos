@@ -68,8 +68,10 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, stor
       if (!table) return res.status(403).json({ error: 'Ye QR sahi nahi hai. Staff se poochhein.' });
       const ip = (req.get('x-forwarded-for') || '').split(',').pop().trim() || req.ip || 'x';
       if (limited('ip:' + ip, 15, 600000) || limited('tbl:' + table, 10, 600000)) return res.status(429).json({ error: 'Bahut zyada orders. Thodi der baad try karein ya staff ko bulayein.' });
+      const name = cleanText(b.customer_name, 60);
+      if (name.length < 2) return res.status(400).json({ error: 'Apna naam daalein' });
       const phone = cleanText(b.customer_phone, 15).replace(/\D/g, '');
-      if (phone && !/^[6-9]\d{9}$/.test(phone)) return res.status(400).json({ error: 'Sahi 10-digit mobile number daalein (ya khali chhodein)' });
+      if (!/^[6-9]\d{9}$/.test(phone) || /^(\d)\1{9}$/.test(phone)) return res.status(400).json({ error: 'Sahi 10-digit mobile number daalein' });
       const note = cleanText(b.note, 200);
       const items = Array.isArray(b.items) ? b.items.slice(0, 60).map((l, i) => ({
         id: Number(l && l.id), qty: Number(l && l.qty), variant: l && l.variant ? String(l.variant).slice(0, 80) : undefined,
@@ -77,7 +79,7 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, stor
         notes: i === 0 && note ? 'Note: ' + note : ''
       })) : [];
       // only these fields are ever read from a public request: no discount / payment / status can be injected
-      req.body = { order_type: 'Dine-In', table_no: table, customer_name: cleanText(b.customer_name, 60) || 'Table Guest', customer_phone: phone, items };
+      req.body = { order_type: 'Dine-In', table_no: table, customer_name: name, customer_phone: phone, items };
       req.tableQr = { table };
       const origJson = res.json.bind(res);
       res.json = async (d) => {
