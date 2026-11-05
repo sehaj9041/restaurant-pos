@@ -1466,11 +1466,50 @@
       return out;
     }
 
+    // ---- WhatsApp OTP login (needed once per device to see points / redeem code) ----
+    let otpTimer = null;
+    function otpPost(url, body, cb) {
+      fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        .then(r => r.json().then(d => ({ ok: r.ok, d }))).then(x => x.ok ? cb(x.d) : toast(x.d.error || 'Nahi hua', true)).catch(() => toast('Network error', true));
+    }
+    function showOtpCard() {
+      const box = document.getElementById('loyaltyBox'); if (!box) return;
+      box.classList.remove('hidden');
+      box.innerHTML = `<div class="text-[11px] font-black text-gray-500 uppercase tracking-wide">⭐ My Points</div>
+        <div class="text-xs font-semibold text-gray-600">Points dekhne ke liye apna number WhatsApp OTP se verify karein.</div>
+        <button id="otpSendBtn" onclick="sendOtp()" class="w-full bg-emerald-600 text-white font-black py-2.5 rounded-xl text-xs">WhatsApp par OTP bhejein</button>
+        <div id="otpStep" class="hidden space-y-2">
+          <div class="flex gap-2"><input id="otpCode" type="text" inputmode="numeric" maxlength="6" placeholder="6 digit OTP" class="flex-1 border border-gray-200 p-2.5 rounded-xl text-sm outline-none focus:border-indigo-500 font-bold tracking-widest">
+          <button onclick="verifyOtp()" class="bg-amber-500 text-white font-black px-4 rounded-xl text-xs">Verify</button></div></div>`;
+    }
+    function sendOtp() {
+      const p = getProfile(), btn = document.getElementById('otpSendBtn'); if (!p || !btn || btn.disabled) return;
+      btn.disabled = true; btn.textContent = 'Bhej rahe hain...';
+      fetch('/api/otp/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: p.phone }) })
+        .then(r => r.json().then(d => ({ ok: r.ok, d }))).then(x => {
+          if (!x.ok) { toast(x.d.error || 'OTP nahi gaya', true); btn.disabled = false; btn.textContent = 'WhatsApp par OTP bhejein'; return; }
+          document.getElementById('otpStep').classList.remove('hidden');
+          let left = x.d.resend_in || 60; clearInterval(otpTimer);
+          const tick = () => { btn.textContent = left > 0 ? 'OTP dobara bhejein (' + left + 's)' : 'OTP dobara bhejein'; btn.disabled = left > 0; };
+          tick(); otpTimer = setInterval(() => { left--; tick(); if (left <= 0) clearInterval(otpTimer); }, 1000);
+          toast('OTP WhatsApp par bhej diya');
+        }).catch(() => { toast('Network error', true); btn.disabled = false; btn.textContent = 'WhatsApp par OTP bhejein'; });
+    }
+    function verifyOtp() {
+      const p = getProfile(), code = ((document.getElementById('otpCode') || {}).value || '').trim();
+      if (!p || code.length !== 6) { toast('6 digit OTP likhein', true); return; }
+      otpPost('/api/otp/verify', { phone: p.phone, code }, d => { saveProfile({ name: p.name || d.name || '', phone: p.phone, token: d.token }); renderProfile(); });
+    }
     function loadLoyalty() {
       const p = getProfile(), box = document.getElementById('loyaltyBox');
-      if (!p || !p.token || !box) return;
+      if (!p || !box) return;
+      if (!p.token) {
+        fetch('/api/loyalty-info').then(r => r.ok ? r.json() : null).then(d => { if (d && d.enabled) showOtpCard(); }).catch(() => {});
+        return;
+      }
       fetch('/api/loyalty/my', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: p.phone, token: p.token }) })
-        .then(r => r.ok ? r.json() : null).then(d => {
+        .then(r => r.ok ? r.json() : (r.status === 401 ? 'stale' : null)).then(d => {
+          if (d === 'stale') { saveProfile({ name: p.name, phone: p.phone, token: '' }); return loadLoyalty(); }
           if (!d || !d.enabled) return;
           box.classList.remove('hidden');
           box.innerHTML = `<div class="flex items-center justify-between"><div><div class="text-[11px] font-black text-gray-500 uppercase tracking-wide">⭐ My Points</div>
@@ -1480,6 +1519,7 @@
             ${offerLines(d).map(l => `<div class="text-[11px] font-bold text-gray-600">${l}</div>`).join('')}<div id="loyCode"></div>`;
         }).catch(() => {});
     }
+
     function showRedeemCode() {
       const p = getProfile(), out = document.getElementById('loyCode');
       fetch('/api/loyalty/code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: p.phone, token: p.token }) })

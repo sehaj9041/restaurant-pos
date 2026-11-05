@@ -237,6 +237,66 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
     } catch (e) { res.status(500).json({ error: 'Load nahi hua' }); }
   });
 
+  // ---- WhatsApp OTP: proves the customer owns the phone, then hands back the profile token (creates the profile if needed) ----
+  dbAllAsync(`CREATE TABLE IF NOT EXISTS otp_codes (phone TEXT PRIMARY KEY, code_hash TEXT, expires_ms BIGINT, attempts INTEGER DEFAULT 0, last_sent_ms BIGINT DEFAULT 0, sent_log TEXT DEFAULT '')`, [])
+    .catch(e => console.error('otp_codes table error:', e.message));
+  const OTP_TTL_MS = 5 * 60 * 1000, OTP_RESEND_MS = 60 * 1000, OTP_MAX_ATTEMPTS = 5, OTP_PER_HOUR = 5, OTP_DAILY_CAP = Number(process.env.OTP_DAILY_CAP) || 300;
+  const otpDay = { day: '', n: 0 };
+
+  async function sendWhatsAppOtp(phone, code) {
+    const token = process.env.WHATSAPP_TOKEN, phoneId = process.env.WHATSAPP_PHONE_ID, tpl = process.env.WHATSAPP_OTP_TEMPLATE;
+    if (!token || !phoneId || !tpl) throw new Error('WhatsApp OTP configure nahi hai');
+    const r = await fetch(`https://graph.facebook.com/v25.0/${phoneId}/messages`, {
+      method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messaging_product: 'whatsapp', to: '91' + phone, type: 'template', template: { name: tpl, language: { code: process.env.WHATSAPP_OTP_LANG || 'en' },
+        components: [{ type: 'body', parameters: [{ type: 'text', text: code }] }, { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: code }] }] } })
+    });
+    if (!r.ok) { const t = await r.text().catch(() => ''); throw new Error('WhatsApp API ' + r.status + ' ' + t.slice(0, 300)); }
+  }
+
+  app.post('/api/otp/send', async (req, res) => {
+    try {
+      const ph = cleanPhone(req.body && req.body.phone);
+      if (ph.length !== 10) return res.status(400).json({ error: 'Phone number sahi nahi hai' });
+      const now = Date.now(), today = new Date(now).toLocaleDateString('sv-SE', { timeZone: 'Asia/Kolkata' });
+      if (otpDay.day !== today) { otpDay.day = today; otpDay.n = 0; }
+      if (otpDay.n >= OTP_DAILY_CAP) return res.status(429).json({ error: 'Aaj ke OTP ki limit poori ho gayi. Kal try karein' });
+      const row = (await dbAllAsync('SELECT * FROM otp_codes WHERE phone = ?', [ph]))[0];
+      if (row && now - num(row.last_sent_ms) < OTP_RESEND_MS) return res.status(429).json({ error: 'Thodi der baad dobara try karein', wait: Math.ceil((OTP_RESEND_MS - (now - num(row.last_sent_ms))) / 1000) });
+      const log = String((row && row.sent_log) || '').split(',').map(Number).filter(t => t && now - t < 3600 * 1000);
+      if (log.length >= OTP_PER_HOUR) return res.status(429).json({ error: 'Bahut baar OTP manga. Ek ghante baad try karein' });
+      const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+      log.push(now);
+      await dbAllAsync(`INSERT INTO otp_codes (phone, code_hash, expires_ms, attempts, last_sent_ms, sent_log) VALUES (?, ?, ?, 0, ?, ?)
+        ON CONFLICT (phone) DO UPDATE SET code_hash = EXCLUDED.code_hash, expires_ms = EXCLUDED.expires_ms, attempts = 0, last_sent_ms = EXCLUDED.last_sent_ms, sent_log = EXCLUDED.sent_log RETURNING phone`,
+        [ph, codeHash(ph, code), now + OTP_TTL_MS, now, log.join(',')]);
+      try { await sendWhatsAppOtp(ph, code); } catch (e) {
+        console.error('otp send:', e.message);
+        await dbAllAsync('UPDATE otp_codes SET last_sent_ms = 0, expires_ms = 0 WHERE phone = ? RETURNING phone', [ph]);
+        return res.status(502).json({ error: 'OTP nahi bhej paaye. Thodi der baad try karein' });
+      }
+      otpDay.n += 1;
+      res.json({ success: true, expires_in: Math.floor(OTP_TTL_MS / 1000), resend_in: Math.floor(OTP_RESEND_MS / 1000) });
+    } catch (e) { console.error('otp send:', e.message); res.status(500).json({ error: 'OTP nahi bhej paaye' }); }
+  });
+
+  app.post('/api/otp/verify', async (req, res) => {
+    try {
+      const ph = cleanPhone(req.body && req.body.phone), code = String((req.body && req.body.code) || '').replace(/\D/g, '');
+      if (ph.length !== 10 || code.length !== 6) return res.status(400).json({ error: 'OTP 6 digit ka hota hai' });
+      const row = (await dbAllAsync('SELECT * FROM otp_codes WHERE phone = ?', [ph]))[0], now = Date.now();
+      if (!row || num(row.expires_ms) < now || num(row.attempts) >= OTP_MAX_ATTEMPTS) return res.status(400).json({ error: 'OTP expire ho gaya. Naya OTP mangwayein' });
+      if (!safeEq(row.code_hash, codeHash(ph, code))) {
+        await dbAllAsync('UPDATE otp_codes SET attempts = attempts + 1 WHERE phone = ? RETURNING phone', [ph]);
+        return res.status(401).json({ error: 'OTP galat hai' });
+      }
+      await dbAllAsync('UPDATE otp_codes SET expires_ms = 0 WHERE phone = ? RETURNING phone', [ph]);
+      await dbAllAsync('INSERT INTO customer_profiles (phone, name, token) VALUES (?, ?, ?) ON CONFLICT (phone) DO NOTHING', [ph, '', crypto.randomBytes(16).toString('hex')]);
+      const r = (await dbAllAsync('SELECT token, name FROM customer_profiles WHERE phone = ?', [ph]))[0];
+      res.json({ success: true, phone: ph, token: r.token, name: r.name || '' });
+    } catch (e) { console.error('otp verify:', e.message); res.status(500).json({ error: 'Verify nahi hua' }); }
+  });
+
   const codeAsks = new Map();
   app.post('/api/loyalty/code', async (req, res) => {
     try {
