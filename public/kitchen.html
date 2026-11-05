@@ -108,6 +108,11 @@
         <button onclick="resetKOTFontScale()" title="Reset Font" class="text-slate-400 hover:text-slate-800 text-xs px-1 font-bold">↺</button>
       </div>
 
+      <!-- RECALL RECENT ORDERS -->
+      <button onclick="openRecallModal()" class="bg-amber-500 hover:bg-amber-600 text-white font-bold px-3 py-2 rounded-lg text-xs transition flex items-center gap-1.5">
+        <span>↩️</span> <span>Recall Recent Orders</span>
+      </button>
+
       <!-- KDS PRINTER SETTINGS BUTTON -->
       <button onclick="openKdsSettingsModal()" class="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold px-3 py-2 rounded-lg text-xs transition flex items-center gap-1.5">
         <span>🖨️</span> <span id="lblPrinterStatus">Printer: OFF</span>
@@ -136,6 +141,24 @@
 
   <!-- ON-SCREEN STATUS BANNER FOR ANDROID TV -->
   <div id="tvStatusBanner" style="position: fixed; bottom: 20px; right: 20px; z-index: 99999; padding: 15px 25px; border-radius: 12px; font-size: 18px; font-weight: bold; color: white; background: rgba(0,0,0,0.85); display: none; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+  </div>
+
+  <!-- ================= RECALL RECENT ORDERS MODAL ================= -->
+  <div id="recallModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-lg p-5 space-y-3 shadow-2xl text-xs max-h-[90vh] flex flex-col">
+      <div class="flex justify-between items-center border-b pb-2">
+        <div>
+          <h3 class="font-black text-slate-900 text-sm">Recall Recent Orders</h3>
+          <p class="text-[10px] text-slate-500">Aaj KDS se dispatch hue orders. Recall karne par wo wapas main screen par aa jayenge.</p>
+        </div>
+        <button onclick="closeRecallModal()" class="text-slate-400 hover:text-black font-bold text-base">✕</button>
+      </div>
+      <div id="recallList" class="overflow-y-auto space-y-2 flex-1"></div>
+      <div class="pt-2 flex justify-between gap-2 border-t">
+        <button onclick="closeRecallModal()" class="border px-3 py-2 rounded-xl font-bold bg-white">Close</button>
+        <button id="btnRecallAll" onclick="recallAllOrders()" class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-xl font-bold">Recall All</button>
+      </div>
+    </div>
   </div>
 
   <!-- ================= KDS PRINTER SETTINGS MODAL ================= -->
@@ -656,6 +679,54 @@
           saveReadyForDispatchOrders(readyStore);
 
           fetchKOT();
+        });
+    }
+
+    // ================= RECALL RECENT (DISPATCHED) ORDERS =================
+    var recallOrders = [];
+    function recallEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+    function closeRecallModal() { document.getElementById('recallModal').classList.add('hidden'); }
+    function openRecallModal() {
+      toggleTopMenu(false);
+      document.getElementById('recallModal').classList.remove('hidden');
+      loadRecallOrders();
+    }
+    function loadRecallOrders() {
+      var list = document.getElementById('recallList');
+      list.innerHTML = '<p class="text-center py-8 text-slate-400 font-bold">Loading...</p>';
+      fetch('/api/kot/recent')
+        .then(function(r) { return r.json(); })
+        .then(function(orders) {
+          recallOrders = Array.isArray(orders) ? orders : [];
+          document.getElementById('btnRecallAll').classList.toggle('hidden', recallOrders.length === 0);
+          if (!recallOrders.length) { list.innerHTML = '<p class="text-center py-8 text-slate-400 font-bold">Aaj koi dispatched order nahi hai</p>'; return; }
+          list.innerHTML = recallOrders.map(function(o) {
+            var where = /dine/i.test(o.order_type || '') ? 'Table ' + (o.table_no || '-') : (o.order_type || '');
+            var items = (o.items || []).map(function(i) { return recallEsc(i.name) + ' ×' + i.qty; }).join(', ');
+            return '<div class="flex items-center gap-3 border border-slate-200 rounded-xl p-3">' +
+              '<div class="flex-1 min-w-0"><div class="font-black text-slate-900 text-sm">Token ' + String(o.token_no || o.id).padStart(3, '0') + ' <span class="font-bold text-slate-500 text-[11px]">• ' + recallEsc(where) + ' • ' + recallEsc(o.dispatched_at || '') + '</span></div>' +
+              '<div class="text-[11px] text-slate-500 truncate">' + (items || 'No items') + '</div></div>' +
+              '<button onclick="recallOrder(' + o.id + ')" class="bg-amber-500 hover:bg-amber-600 text-white font-black px-3 py-1.5 rounded-lg shrink-0">Recall</button></div>';
+          }).join('');
+        })
+        .catch(function() { list.innerHTML = '<p class="text-center py-8 text-rose-500 font-bold">Orders load nahi hue</p>'; });
+    }
+    function recallRequest(id) {
+      return fetch('/api/kot/' + id + '/recall', { method: 'POST' }).then(function(r) { return r.json(); }).then(function(res) {
+        if (!res || !res.success) throw new Error((res && res.error) || 'Recall fail hua');
+      });
+    }
+    function recallOrder(id) {
+      recallRequest(id).then(function() { fetchKOT(); loadRecallOrders(); }).catch(function(e) { alert(e.message); loadRecallOrders(); });
+    }
+    function recallAllOrders() {
+      if (!recallOrders.length) return;
+      if (!confirm(recallOrders.length + ' orders wapas KDS par laane hain?')) return;
+      Promise.all(recallOrders.map(function(o) { return recallRequest(o.id).then(function() { return true; }, function() { return false; }); }))
+        .then(function(results) {
+          var failed = results.filter(function(ok) { return !ok; }).length;
+          if (failed) alert(failed + ' order recall nahi ho paye');
+          fetchKOT(); closeRecallModal();
         });
     }
 

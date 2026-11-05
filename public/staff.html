@@ -24,6 +24,7 @@
       <button class="tab-btn px-4 py-2 rounded-xl whitespace-nowrap" data-tab="today">Aaj</button>
       <button class="tab-btn px-4 py-2 rounded-xl whitespace-nowrap" data-tab="staff">Staff</button>
       <button class="tab-btn px-4 py-2 rounded-xl whitespace-nowrap" data-tab="attendance">Attendance</button>
+      <button class="tab-btn px-4 py-2 rounded-xl whitespace-nowrap" data-tab="leaves">Holidays</button>
       <button class="tab-btn px-4 py-2 rounded-xl whitespace-nowrap" data-tab="money">Advance / Bonus</button>
       <button class="tab-btn px-4 py-2 rounded-xl whitespace-nowrap" data-tab="payroll">Payroll</button>
     </nav>
@@ -37,7 +38,7 @@
     <!-- STAFF -->
     <section id="tab-staff" class="hidden bg-white border rounded-2xl p-4">
       <div class="flex justify-between items-center mb-3"><h2 class="font-black">Staff</h2><button onclick="openStaff()" class="bg-orange-600 text-white font-black text-xs px-4 py-2 rounded-lg">+ Add Staff</button></div>
-      <div class="overflow-x-auto"><table class="w-full text-left"><thead class="text-[11px] uppercase text-gray-400"><tr><th class="py-2 pr-3">Name</th><th class="pr-3">Role</th><th class="pr-3">Phone</th><th class="pr-3">₹/hr</th><th class="pr-3">Shift hrs</th><th class="pr-3">OT ×</th><th class="pr-3">PIN</th><th class="pr-3">Status</th><th></th></tr></thead><tbody id="staffBody"></tbody></table></div>
+      <div class="overflow-x-auto"><table class="w-full text-left"><thead class="text-[11px] uppercase text-gray-400"><tr><th class="py-2 pr-3">Name</th><th class="pr-3">Role</th><th class="pr-3">Phone</th><th class="pr-3">₹/hr</th><th class="pr-3">Shift hrs</th><th class="pr-3">OT</th><th class="pr-3">Holidays/mah</th><th class="pr-3">PIN</th><th class="pr-3">Status</th><th></th></tr></thead><tbody id="staffBody"></tbody></table></div>
     </section>
 
     <!-- ATTENDANCE -->
@@ -50,6 +51,25 @@
       </div>
       <div class="overflow-x-auto"><table class="w-full text-left"><thead class="text-[11px] uppercase text-gray-400"><tr><th class="py-2 pr-3">Date</th><th class="pr-3">Staff</th><th class="pr-3">In</th><th class="pr-3">Out</th><th class="pr-3">Hours</th><th class="pr-3">Source</th><th class="pr-3">Note</th><th></th></tr></thead><tbody id="attBody"></tbody></table></div>
       <div id="attTotal" class="text-xs font-bold text-gray-500 mt-3"></div>
+    </section>
+
+    <!-- HOLIDAYS -->
+    <section id="tab-leaves" class="hidden grid md:grid-cols-2 gap-4">
+      <div class="bg-white border rounded-2xl p-4 space-y-3">
+        <div class="flex items-center gap-2"><h2 class="font-black mr-auto">Holiday balance</h2><input type="month" id="lvMonth" onchange="loadLeaves()" class="border rounded-lg px-2 py-1.5"></div>
+        <div class="text-[11px] text-gray-400">Paid holidays tak ka din poori shift ki salary ke saath milta hai. Usse zyada chhutti unpaid hai. Allowance Staff tab me set hoti hai.</div>
+        <div class="overflow-x-auto"><table class="w-full text-left text-xs"><thead class="text-[11px] uppercase text-gray-400"><tr><th class="py-1 pr-2">Staff</th><th class="pr-2">Mili</th><th class="pr-2">Li</th><th class="pr-2">Baaki</th><th class="pr-2">Unpaid</th></tr></thead><tbody id="lvBalBody"></tbody></table></div>
+      </div>
+      <div class="bg-white border rounded-2xl p-4 space-y-3">
+        <h2 class="font-black">Holiday mark karo</h2>
+        <div class="grid grid-cols-2 gap-2">
+          <select id="lvStaff" class="border rounded-lg px-2 py-1.5"></select>
+          <input type="date" id="lvDate" class="border rounded-lg px-2 py-1.5">
+          <input id="lvNote" placeholder="Note (optional)" class="border rounded-lg px-2 py-1.5 col-span-2">
+          <button onclick="addLeave()" class="col-span-2 bg-orange-600 text-white font-black text-xs px-4 py-2 rounded-lg">Holiday add karo</button>
+        </div>
+        <div class="overflow-x-auto"><table class="w-full text-left text-xs"><thead class="text-[11px] uppercase text-gray-400"><tr><th class="py-1 pr-2">Date</th><th class="pr-2">Staff</th><th class="pr-2">Note</th><th></th></tr></thead><tbody id="lvBody"></tbody></table></div>
+      </div>
     </section>
 
     <!-- ADVANCE / BONUS -->
@@ -127,7 +147,7 @@
   }
 
   // ---- tabs ----
-  var LOADERS = { today: loadToday, staff: renderStaff, attendance: loadAttendance, money: loadMoney, payroll: loadPayroll };
+  var LOADERS = { today: loadToday, staff: renderStaff, attendance: loadAttendance, leaves: loadLeaves, money: loadMoney, payroll: loadPayroll };
   function showTab(t) {
     document.querySelectorAll('section[id^=tab-]').forEach(function (s) { s.classList.toggle('hidden', s.id !== 'tab-' + t); });
     document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.toggle('active', b.dataset.tab === t); });
@@ -139,7 +159,7 @@
   async function loadStaff() {
     STAFF = await api('GET', '/api/staff');
     var opts = STAFF.filter(function (s) { return s.active; }).map(function (s) { return '<option value="' + s.id + '">' + esc(s.name) + '</option>'; }).join('');
-    ['advStaff', 'adjStaff'].forEach(function (id) { $(id).innerHTML = opts; });
+    ['advStaff', 'adjStaff', 'lvStaff'].forEach(function (id) { $(id).innerHTML = opts; });
     $('attStaff').innerHTML = '<option value="">Sab staff</option>' + STAFF.map(function (s) { return '<option value="' + s.id + '">' + esc(s.name) + '</option>'; }).join('');
   }
 
@@ -156,9 +176,9 @@
   function renderStaff() {
     $('staffBody').innerHTML = STAFF.length ? STAFF.map(function (s) {
       return '<tr class="border-t ' + (s.active ? '' : 'opacity-50') + '"><td class="py-2 pr-3 font-bold">' + esc(s.name) + '</td><td class="pr-3">' + esc(s.role) + '</td><td class="pr-3">' + esc(s.phone) +
-        '</td><td class="pr-3">' + s.hourly_rate + '</td><td class="pr-3">' + s.shift_hours + '</td><td class="pr-3">' + s.ot_multiplier + '</td><td class="pr-3">' + (s.has_pin ? '••••' : '<span class="text-red-500">Nahi</span>') +
+        '</td><td class="pr-3">' + s.hourly_rate + '</td><td class="pr-3">' + s.shift_hours + '</td><td class="pr-3">' + (s.ot_paid ? '×' + s.ot_multiplier : '<span class="text-gray-400">Unpaid</span>') + '</td><td class="pr-3">' + s.monthly_holidays + '</td><td class="pr-3">' + (s.has_pin ? '••••' : '<span class="text-red-500">Nahi</span>') +
         '</td><td class="pr-3">' + (s.active ? 'Active' : 'Band') + '</td><td><button onclick="openStaff(' + s.id + ')" class="text-orange-600 font-bold">Edit</button></td></tr>';
-    }).join('') : '<tr><td colspan="9" class="py-6 text-center text-gray-400">Abhi koi staff nahi. "+ Add Staff" dabayein.</td></tr>';
+    }).join('') : '<tr><td colspan="10" class="py-6 text-center text-gray-400">Abhi koi staff nahi. "+ Add Staff" dabayein.</td></tr>';
   }
   function field(label, html) { return '<label class="block text-xs font-bold text-gray-500">' + label + html + '</label>'; }
   var INP = ' class="mt-1 w-full border rounded-lg px-2 py-1.5 text-sm font-normal text-gray-800"';
@@ -166,12 +186,14 @@
   function closeModal() { $('modal').classList.add('hidden'); }
 
   function openStaff(id) {
-    var s = STAFF.filter(function (x) { return x.id === id; })[0] || { name: '', role: '', phone: '', hourly_rate: 0, shift_hours: 8, ot_multiplier: 1.5, active: true, biometric_id: '' };
+    var s = STAFF.filter(function (x) { return x.id === id; })[0] || { name: '', role: '', phone: '', hourly_rate: 0, shift_hours: 8, ot_multiplier: 1.5, ot_paid: true, monthly_holidays: 0, active: true, biometric_id: '' };
     openModal('<h3 class="font-black text-base">' + (id ? 'Staff Edit' : 'Naya Staff') + '</h3>' +
       field('Naam *', '<input id="f_name"' + INP + ' value="' + esc(s.name) + '">') +
       '<div class="grid grid-cols-2 gap-2">' + field('Role', '<input id="f_role"' + INP + ' value="' + esc(s.role) + '">') + field('Phone', '<input id="f_phone"' + INP + ' value="' + esc(s.phone) + '">') +
       field('Rate ₹ / ghanta', '<input id="f_rate" type="number" min="0"' + INP + ' value="' + s.hourly_rate + '">') + field('Shift ke ghante (iske baad OT)', '<input id="f_shift" type="number" min="1"' + INP + ' value="' + s.shift_hours + '">') +
       field('OT multiplier', '<input id="f_ot" type="number" step="0.1" min="1"' + INP + ' value="' + s.ot_multiplier + '">') + field('Punch PIN (4-6 digit)', '<input id="f_pin" type="password" inputmode="numeric" maxlength="6" placeholder="' + (id && s.has_pin ? 'Khali = purana PIN' : '') + '"' + INP + '>') + '</div>' +
+      '<label class="flex items-center gap-2 text-xs font-bold text-gray-600"><input id="f_otpaid" type="checkbox"' + (s.ot_paid ? ' checked' : '') + '> Overtime ki salary milegi (band = OT ghante count honge, paise nahi)</label>' +
+      field('Mahine ki paid holidays (din)', '<input id="f_hol" type="number" min="0" max="31"' + INP + ' value="' + s.monthly_holidays + '">') +
       field('Biometric Device User ID (baad me device sync ke liye)', '<input id="f_bio"' + INP + ' value="' + esc(s.biometric_id || '') + '">') +
       (id ? '<label class="flex items-center gap-2 text-xs font-bold text-gray-600"><input id="f_active" type="checkbox"' + (s.active ? ' checked' : '') + '> Active</label>' : '') +
       '<div class="flex justify-end gap-2 pt-2"><button onclick="closeModal()" class="px-4 py-2 rounded-lg border font-bold text-xs">Cancel</button><button onclick="saveStaff(' + (id || 0) + ')" class="px-4 py-2 rounded-lg bg-orange-600 text-white font-black text-xs">Save</button></div>');
@@ -179,7 +201,7 @@
   function saveStaff(id) {
     run(async function () {
       var b = { name: $('f_name').value, role: $('f_role').value, phone: $('f_phone').value, hourly_rate: $('f_rate').value, shift_hours: $('f_shift').value,
-        ot_multiplier: $('f_ot').value, pin: $('f_pin').value, biometric_id: $('f_bio').value };
+        ot_multiplier: $('f_ot').value, ot_paid: $('f_otpaid').checked, monthly_holidays: $('f_hol').value, pin: $('f_pin').value, biometric_id: $('f_bio').value };
       if (id) { b.active = $('f_active').checked; await api('PUT', '/api/staff/' + id, b); } else await api('POST', '/api/staff', b);
       closeModal(); await loadStaff(); renderStaff();
     });
@@ -247,6 +269,28 @@
   }
   function delAdj(id) { run(async function () { await api('DELETE', '/api/staff-adjustments/' + id); await loadAdjustments(); }); }
 
+  // ---- holidays ----
+  async function loadLeaves() {
+    var m = $('lvMonth').value || thisMonth(); $('lvMonth').value = m;
+    var res = await Promise.all([api('GET', '/api/staff-leaves/balance?month=' + m), api('GET', '/api/staff-leaves?month=' + m)]);
+    $('lvBalBody').innerHTML = res[0].length ? res[0].map(function (r) {
+      return '<tr class="border-t"><td class="py-1.5 pr-2 font-bold">' + esc(r.name) + '</td><td class="pr-2">' + r.allowance + '</td><td class="pr-2">' + r.taken + '</td><td class="pr-2 font-black ' + (r.remaining ? 'text-emerald-600' : 'text-gray-400') + '">' + r.remaining +
+        '</td><td class="pr-2 ' + (r.unpaid_days ? 'text-red-600 font-black' : 'text-gray-400') + '">' + r.unpaid_days + '</td></tr>';
+    }).join('') : '<tr><td colspan="5" class="py-4 text-center text-gray-400">Koi active staff nahi</td></tr>';
+    $('lvBody').innerHTML = res[1].length ? res[1].map(function (l) {
+      return '<tr class="border-t"><td class="py-1.5 pr-2">' + fmtD(l.leave_date) + '</td><td class="pr-2 font-bold">' + esc(l.name) + (l.counted ? '' : ' <span class="text-[10px] text-gray-400">(us din attendance hai, ginti nahi)</span>') +
+        '</td><td class="pr-2">' + esc(l.note) + '</td><td><button onclick="delLeave(' + l.id + ')" class="text-red-500 font-bold">✕</button></td></tr>';
+    }).join('') : '<tr><td colspan="4" class="py-4 text-center text-gray-400">Is mahine koi holiday nahi</td></tr>';
+  }
+  function addLeave() {
+    run(async function () {
+      await api('POST', '/api/staff-leaves', { staff_id: $('lvStaff').value, leave_date: $('lvDate').value, note: $('lvNote').value });
+      $('lvNote').value = ''; if ($('lvDate').value) $('lvMonth').value = $('lvDate').value.slice(0, 7);
+      await loadLeaves();
+    });
+  }
+  function delLeave(id) { run(async function () { await api('DELETE', '/api/staff-leaves/' + id); await loadLeaves(); }); }
+
   // ---- payroll ----
   var PAYROWS = [];
   async function loadPayroll() {
@@ -255,7 +299,7 @@
     var net = 0, paid = 0;
     $('payBody').innerHTML = PAYROWS.length ? PAYROWS.map(function (r, i) {
       net += r.net; if (r.paid) paid += r.net;
-      return '<tr class="border-t"><td class="py-2 pr-3 font-bold">' + esc(r.name) + (r.open_shifts ? ' <span class="text-[10px] text-red-500 font-black">(' + r.open_shifts + ' Out nahi)</span>' : '') + '</td><td class="pr-3">' + r.days + '</td><td class="pr-3">' + r.hours + (r.ot_hours ? ' (' + r.ot_hours + ')' : '') +
+      return '<tr class="border-t"><td class="py-2 pr-3 font-bold">' + esc(r.name) + (r.open_shifts ? ' <span class="text-[10px] text-red-500 font-black">(' + r.open_shifts + ' Out nahi)</span>' : '') + '</td><td class="pr-3">' + r.days + '</td><td class="pr-3">' + r.hours + (r.ot_hours ? ' (' + r.ot_hours + (r.ot_paid ? '' : ' <span class="text-red-500">unpaid</span>') + ')' : '') + (r.leave_days ? ' <span class="text-[10px] text-emerald-600 font-bold">+' + r.leave_days + ' holiday</span>' : '') +
         '</td><td class="pr-3">' + money(r.rate) + '</td><td class="pr-3">' + money(r.gross) + '</td><td class="pr-3 text-emerald-600">' + (r.bonus ? '+' + money(r.bonus) : '') + '</td><td class="pr-3 text-red-600">' + (r.deductions ? '−' + money(r.deductions) : '') +
         '</td><td class="pr-3 text-red-600">' + (r.advance_deduct ? '−' + money(r.advance_deduct) : '') + '</td><td class="pr-3 font-black">' + money(r.net) + '</td><td class="whitespace-nowrap">' +
         (r.paid ? '<span class="text-emerald-600 font-black mr-2">✓ Paid</span><button onclick="payslip(' + r.staff_id + ')" class="text-orange-600 font-bold mr-2">Payslip</button><button onclick="undoPay(' + r.payroll_id + ')" class="text-red-500 font-bold">Undo</button>'
@@ -266,7 +310,7 @@
   function openPay(i) {
     var r = PAYROWS[i];
     openModal('<h3 class="font-black text-base">Salary Pay — ' + esc(r.name) + '</h3>' +
-      '<div class="text-xs text-gray-600 space-y-0.5"><div>Gross: <b>' + money(r.gross) + '</b> (' + r.hours + ' h' + (r.ot_hours ? ', OT ' + r.ot_hours + ' h' : '') + ')</div><div>Bonus: ' + money(r.bonus) + ' | Deduction: ' + money(r.deductions) + '</div><div>Advance baaki: <b>' + money(r.advance_due) + '</b></div></div>' +
+      '<div class="text-xs text-gray-600 space-y-0.5"><div>Gross: <b>' + money(r.gross) + '</b> (' + r.hours + ' h' + (r.ot_hours ? ', OT ' + r.ot_hours + ' h' + (r.ot_paid ? '' : ' - OT unpaid') : '') + ')</div>' + (r.leave_days ? '<div>Paid holidays: ' + r.leave_days + ' din (' + money(r.leave_pay) + ')</div>' : '') + (r.leave && r.leave.unpaid_days ? '<div class="text-red-600">Unpaid chhutti: ' + r.leave.unpaid_days + ' din</div>' : '') + '<div>Bonus: ' + money(r.bonus) + ' | Deduction: ' + money(r.deductions) + '</div><div>Advance baaki: <b>' + money(r.advance_due) + '</b></div></div>' +
       field('Advance is mahine kitna kaate (₹)', '<input id="p_adv" type="number" min="0" max="' + r.advance_due + '"' + INP + ' value="' + r.advance_deduct + '" oninput="payNetCalc(' + i + ')">') +
       '<div class="text-sm">Net payable: <b id="p_net">' + money(r.net) + '</b></div>' +
       field('Payment mode', '<select id="p_mode"' + INP + '><option>CASH</option><option>UPI</option><option>CARD</option></select>') +
@@ -294,7 +338,7 @@
       var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Payslip</title><style>body{font-family:Arial,sans-serif;max-width:720px;margin:20px auto;color:#111;font-size:13px}h2,h3{margin:2px 0}table{width:100%;border-collapse:collapse}td,th{padding:4px 6px;text-align:left}.s td,.s th{border-bottom:1px solid #ddd;font-size:12px}.hd{text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:10px}</style></head><body>' +
         '<div class="hd"><h2>' + esc(d.restaurant.restaurant_name || 'Restaurant') + '</h2><div>' + esc(d.restaurant.address || '') + '</div><h3>Salary Slip — ' + MON[+d.month.slice(5) - 1] + ' ' + d.month.slice(0, 4) + (d.paid ? '' : ' (PREVIEW - unpaid)') + '</h3></div>' +
         '<table><tr><td><b>Naam:</b> ' + esc(d.staff.name) + '</td><td><b>Role:</b> ' + esc(d.staff.role) + '</td></tr><tr><td><b>Kaam ke din:</b> ' + l.days + '</td><td><b>Total ghante:</b> ' + l.hours + (l.ot_hours ? ' (OT ' + l.ot_hours + ')' : '') + '</td></tr></table><br>' +
-        '<table>' + row('Rate (₹/ghanta)', money(l.rate)) + row('Gross salary', money(l.gross)) + row('Bonus / Incentive', '+ ' + money(l.bonus)) + row('Deductions', '− ' + money(l.deductions)) + row('Advance recovered', '− ' + money(l.advance_deduct)) + row('NET PAY', money(l.net), true) + '</table>' +
+        '<table>' + row('Rate (₹/ghanta)', money(l.rate)) + (l.ot_hours ? row('Overtime (' + l.ot_hours + ' h)', l.ot_paid ? money(l.ot_hours * l.rate * l.ot_multiplier) + ' (×' + l.ot_multiplier + ')' : 'Unpaid') : '') + (l.leave_days ? row('Paid holidays (' + l.leave_days + ' din)', money(l.leave_pay)) : '') + row('Gross salary', money(l.gross)) + row('Bonus / Incentive', '+ ' + money(l.bonus)) + row('Deductions', '− ' + money(l.deductions)) + row('Advance recovered', '− ' + money(l.advance_deduct)) + row('NET PAY', money(l.net), true) + '</table>' +
         (d.paid ? '<p>Paid on ' + esc(d.paid_on) + ' via ' + esc(d.payment_mode) + '</p>' : '') +
         (d.adjustments.length ? '<h3>Bonus / Deductions</h3><table class="s">' + d.adjustments.map(function (a) { return '<tr><td>' + (a.kind === 'BONUS' ? 'Bonus' : 'Deduction') + '</td><td>' + esc(a.note) + '</td><td style="text-align:right">' + money(a.amount) + '</td></tr>'; }).join('') + '</table>' : '') +
         '<h3>Attendance</h3><table class="s"><tr><th>Date</th><th>In</th><th>Out</th><th style="text-align:right">Hours</th></tr>' +

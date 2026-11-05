@@ -3,7 +3,9 @@
 // Times are stored as TIMESTAMPTZ and always shown/bucketed in IST.
 //
 // Payroll maths (hourly): each completed shift -> regular = min(hours, shift_hours), overtime = rest.
-// gross = regular*rate + overtime*rate*ot_multiplier. net = gross + bonus - deductions - advance recovered.
+// gross = regular*rate + overtime*rate*ot_multiplier + paid holidays*shift_hours*rate. net = gross + bonus - deductions - advance recovered.
+// Per staff: ot_paid=false -> overtime hours are tracked but not paid. monthly_holidays = paid holidays per month; leave days
+// (staff_leaves) up to that allowance are paid a normal shift, extra leave days are unpaid.
 const TZ = 'Asia/Kolkata';
 const LOCAL = (col) => `(${col} AT TIME ZONE '${TZ}')`;
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -35,13 +37,20 @@ function register(app, { dbAllAsync, checkOwnerPin }) {
         rate NUMERIC, ot_multiplier NUMERIC, gross NUMERIC, bonus NUMERIC, deductions NUMERIC, advance_deducted NUMERIC,
         net_pay NUMERIC, payment_mode TEXT, expense_id INTEGER, paid_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE (staff_id, month))`);
+      await q(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS ot_paid BOOLEAN DEFAULT TRUE`);
+      await q(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS monthly_holidays INTEGER DEFAULT 0`);
+      await q(`ALTER TABLE payroll ADD COLUMN IF NOT EXISTS ot_paid BOOLEAN DEFAULT TRUE`);
+      await q(`ALTER TABLE payroll ADD COLUMN IF NOT EXISTS leave_days NUMERIC DEFAULT 0`);
+      await q(`ALTER TABLE payroll ADD COLUMN IF NOT EXISTS leave_pay NUMERIC DEFAULT 0`);
+      await q(`CREATE TABLE IF NOT EXISTS staff_leaves (
+        id SERIAL PRIMARY KEY, staff_id INTEGER NOT NULL, leave_date DATE NOT NULL, note TEXT DEFAULT '', UNIQUE (staff_id, leave_date))`);
       await q(`CREATE TABLE IF NOT EXISTS advance_recoveries (
         id SERIAL PRIMARY KEY, payroll_id INTEGER NOT NULL, advance_id INTEGER NOT NULL, amount NUMERIC NOT NULL)`);
     } catch (e) { console.error('staffPayroll table error:', e.message); }
   })();
 
   const admin = (req, res, next) => checkOwnerPin(req.get('x-owner-pin'), (ok) => (ok ? next() : res.status(401).json({ error: 'Owner PIN required' })));
-  app.use(['/api/staff', '/api/staff-advances', '/api/staff-adjustments', '/api/payroll'], admin);
+  app.use(['/api/staff', '/api/staff-advances', '/api/staff-adjustments', '/api/staff-leaves', '/api/payroll'], admin);
   app.use('/api/attendance', (req, res, next) => (req.path === '/punch' && req.method === 'POST' ? next() : admin(req, res, next)));
 
   const toNum = (v, d) => { const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : d; };
@@ -49,7 +58,7 @@ function register(app, { dbAllAsync, checkOwnerPin }) {
   // ---------------- Staff ----------------
   app.get('/api/staff', async (req, res) => {
     try {
-      res.json(await q(`SELECT id, name, phone, role, biometric_id, hourly_rate, shift_hours, ot_multiplier, active,
+      res.json(await q(`SELECT id, name, phone, role, biometric_id, hourly_rate, shift_hours, ot_multiplier, COALESCE(ot_paid, TRUE) AS ot_paid, COALESCE(monthly_holidays, 0) AS monthly_holidays, active,
         TO_CHAR(joined_on, 'YYYY-MM-DD') AS joined_on, (pin IS NOT NULL AND pin <> '') AS has_pin FROM staff ORDER BY active DESC, name`));
     } catch (e) { fail(res, e); }
   });
@@ -68,6 +77,8 @@ function register(app, { dbAllAsync, checkOwnerPin }) {
       name, pin, phone: String(b.phone || '').trim(), role: String(b.role || '').trim(),
       biometric_id: String(b.biometric_id || '').trim() || null,
       hourly_rate: toNum(b.hourly_rate, 0), shift_hours: toNum(b.shift_hours, 8) || 8, ot_multiplier: toNum(b.ot_multiplier, 1.5) || 1,
+      ot_paid: b.ot_paid === false || b.ot_paid === 'false' ? false : true,
+      monthly_holidays: Math.min(31, Math.floor(toNum(b.monthly_holidays, 0))),
       joined_on: /^\d{4}-\d{2}-\d{2}$/.test(b.joined_on || '') ? b.joined_on : null
     };
   }
@@ -76,8 +87,8 @@ function register(app, { dbAllAsync, checkOwnerPin }) {
     try {
       const f = staffFields(req.body || {});
       if (await pinTaken(f.pin)) return fail(res, 'Ye PIN kisi aur staff ke paas hai', 409);
-      const r = await q(`INSERT INTO staff (name, phone, role, pin, biometric_id, hourly_rate, shift_hours, ot_multiplier, joined_on)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, [f.name, f.phone, f.role, f.pin, f.biometric_id, f.hourly_rate, f.shift_hours, f.ot_multiplier, f.joined_on]);
+      const r = await q(`INSERT INTO staff (name, phone, role, pin, biometric_id, hourly_rate, shift_hours, ot_multiplier, ot_paid, monthly_holidays, joined_on)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, [f.name, f.phone, f.role, f.pin, f.biometric_id, f.hourly_rate, f.shift_hours, f.ot_multiplier, f.ot_paid, f.monthly_holidays, f.joined_on]);
       res.json({ success: true, id: r[0].id });
     } catch (e) { fail(res, e, 400); }
   });
@@ -90,8 +101,8 @@ function register(app, { dbAllAsync, checkOwnerPin }) {
       if (f.pin && await pinTaken(f.pin, id)) return fail(res, 'Ye PIN kisi aur staff ke paas hai', 409);
       // pin omitted/blank = keep current PIN
       await q(`UPDATE staff SET name=?, phone=?, role=?, pin=COALESCE(NULLIF(?, ''), pin), biometric_id=?, hourly_rate=?, shift_hours=?,
-        ot_multiplier=?, joined_on=?, active=? WHERE id=?`,
-        [f.name, f.phone, f.role, f.pin || '', f.biometric_id, f.hourly_rate, f.shift_hours, f.ot_multiplier, f.joined_on, b.active === false ? false : true, id]);
+        ot_multiplier=?, ot_paid=?, monthly_holidays=?, joined_on=?, active=? WHERE id=?`,
+        [f.name, f.phone, f.role, f.pin || '', f.biometric_id, f.hourly_rate, f.shift_hours, f.ot_multiplier, f.ot_paid, f.monthly_holidays, f.joined_on, b.active === false ? false : true, id]);
       res.json({ success: true });
     } catch (e) { fail(res, e, 400); }
   });
@@ -255,6 +266,67 @@ function register(app, { dbAllAsync, checkOwnerPin }) {
     } catch (e) { fail(res, e); }
   });
 
+  // ---------------- Holidays / leave ----------------
+  // Leave days that fall on a day the staff actually punched in are ignored (no double pay).
+  const LEAVE_OK = `NOT EXISTS (SELECT 1 FROM attendance a WHERE a.staff_id = l.staff_id AND ${LOCAL('a.in_time')}::date = l.leave_date)`;
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+  async function leaveInfo(staff, month) {
+    const days = (await q(`SELECT COUNT(*)::int AS n FROM staff_leaves l WHERE l.staff_id = ? AND TO_CHAR(l.leave_date, 'YYYY-MM') = ? AND ${LEAVE_OK}`, [staff.id, month]))[0].n;
+    const allowance = Math.max(0, Number(staff.monthly_holidays) || 0);
+    const paidDays = Math.min(days, allowance);
+    return { allowance, taken: days, paid_days: paidDays, unpaid_days: days - paidDays, remaining: Math.max(0, allowance - days) };
+  }
+
+  app.get('/api/staff-leaves', async (req, res) => {
+    try {
+      const month = String(req.query.month || '');
+      if (!MONTH_RE.test(month)) return fail(res, 'month=YYYY-MM chahiye', 400);
+      const sid = Number(req.query.staff_id) || null;
+      res.json(await q(`SELECT l.id, l.staff_id, s.name, l.note, TO_CHAR(l.leave_date, 'YYYY-MM-DD') AS leave_date, (${LEAVE_OK}) AS counted
+        FROM staff_leaves l JOIN staff s ON s.id = l.staff_id WHERE TO_CHAR(l.leave_date, 'YYYY-MM') = ? ${sid ? 'AND l.staff_id = ?' : ''}
+        ORDER BY l.leave_date DESC, s.name`, sid ? [month, sid] : [month]));
+    } catch (e) { fail(res, e); }
+  });
+
+  // Per-staff holiday balance for a month
+  app.get('/api/staff-leaves/balance', async (req, res) => {
+    try {
+      const month = String(req.query.month || '');
+      if (!MONTH_RE.test(month)) return fail(res, 'month=YYYY-MM chahiye', 400);
+      const out = [];
+      for (const s of await q('SELECT * FROM staff WHERE active = TRUE ORDER BY name')) out.push({ staff_id: s.id, name: s.name, ...(await leaveInfo(s, month)) });
+      res.json(out);
+    } catch (e) { fail(res, e); }
+  });
+
+  app.post('/api/staff-leaves', async (req, res) => {
+    try {
+      const b = req.body || {};
+      const staffId = Number(b.staff_id), date = String(b.leave_date || '');
+      if (!staffId || !DATE_RE.test(date)) return fail(res, 'Staff aur date chuno', 400);
+      const staff = (await q('SELECT id FROM staff WHERE id = ?', [staffId]))[0];
+      if (!staff) return fail(res, 'Staff nahi mila', 404);
+      if (await monthPaid(staffId, date.slice(0, 7))) return fail(res, 'Is mahine ki salary paid ho chuki hai', 409);
+      const punched = await q(`SELECT 1 FROM attendance WHERE staff_id = ? AND ${LOCAL('in_time')}::date = ?::date LIMIT 1`, [staffId, date]);
+      if (punched.length) return fail(res, 'Is din staff ki attendance lagi hui hai, holiday nahi ban sakti', 409);
+      const r = await q(`INSERT INTO staff_leaves (staff_id, leave_date, note) VALUES (?, ?::date, ?) ON CONFLICT (staff_id, leave_date) DO NOTHING RETURNING id`,
+        [staffId, date, String(b.note || '').slice(0, 200)]);
+      if (!r.length) return fail(res, 'Is din ki holiday pehle se mark hai', 409);
+      res.json({ success: true, id: r[0].id });
+    } catch (e) { fail(res, e, 400); }
+  });
+
+  app.delete('/api/staff-leaves/:id', async (req, res) => {
+    try {
+      const l = (await q(`SELECT staff_id, TO_CHAR(leave_date, 'YYYY-MM') AS month FROM staff_leaves WHERE id = ?`, [req.params.id]))[0];
+      if (!l) return fail(res, 'Nahi mila', 404);
+      if (await monthPaid(l.staff_id, l.month)) return fail(res, 'Is mahine ki salary paid ho chuki hai', 409);
+      await q('DELETE FROM staff_leaves WHERE id = ?', [req.params.id]);
+      res.json({ success: true });
+    } catch (e) { fail(res, e); }
+  });
+
   // ---------------- Payroll ----------------
   async function compute(staff, month) {
     const shifts = await q(`SELECT EXTRACT(EPOCH FROM (out_time - in_time))/3600 AS hrs FROM attendance
@@ -263,7 +335,11 @@ function register(app, { dbAllAsync, checkOwnerPin }) {
     const sh = Number(staff.shift_hours) || 8, rate = Number(staff.hourly_rate) || 0, mult = Number(staff.ot_multiplier) || 1;
     let reg = 0, ot = 0;
     for (const s of shifts) { const h = Math.max(0, Number(s.hrs) || 0); reg += Math.min(h, sh); ot += Math.max(0, h - sh); }
-    const gross = r2(reg * rate + ot * rate * mult);
+    const otPaid = staff.ot_paid !== false;
+    const otPay = otPaid ? r2(ot * rate * mult) : 0;
+    const lv = await leaveInfo(staff, month);
+    const leavePay = r2(lv.paid_days * sh * rate);
+    const gross = r2(reg * rate + otPay + leavePay);
     const adj = await q('SELECT kind, SUM(amount) AS t FROM staff_adjustments WHERE staff_id = ? AND month = ? GROUP BY kind', [staff.id, month]);
     const sum = (k) => r2((adj.find(a => a.kind === k) || {}).t);
     const bonus = sum('BONUS'), deductions = sum('DEDUCTION');
@@ -271,7 +347,8 @@ function register(app, { dbAllAsync, checkOwnerPin }) {
     const before = r2(gross + bonus - deductions);
     return {
       staff_id: staff.id, name: staff.name, role: staff.role, rate, ot_multiplier: mult, shift_hours: sh,
-      days: shifts.length, hours: r2(reg + ot), regular_hours: r2(reg), ot_hours: r2(ot), open_shifts: open,
+      days: shifts.length, hours: r2(reg + ot), regular_hours: r2(reg), ot_hours: r2(ot), ot_paid: otPaid, ot_pay: otPay, open_shifts: open,
+      leave: lv, leave_days: lv.paid_days, leave_pay: leavePay,
       gross, bonus, deductions, advance_due: advanceDue,
       advance_deduct: r2(Math.max(0, Math.min(advanceDue, before))), net_before_advance: before
     };
@@ -289,7 +366,8 @@ function register(app, { dbAllAsync, checkOwnerPin }) {
         const c = await compute(s, month);
         const p = paid.find(x => x.staff_id === s.id);
         if (p) {
-          Object.assign(c, { hours: r2(p.hours), ot_hours: r2(p.ot_hours), gross: r2(p.gross), bonus: r2(p.bonus), deductions: r2(p.deductions),
+          Object.assign(c, { hours: r2(p.hours), ot_hours: r2(p.ot_hours), ot_paid: p.ot_paid !== false, leave_days: Number(p.leave_days) || 0, leave_pay: r2(p.leave_pay),
+            gross: r2(p.gross), bonus: r2(p.bonus), deductions: r2(p.deductions),
             advance_deduct: r2(p.advance_deducted), rate: r2(p.rate), ot_multiplier: Number(p.ot_multiplier) });
         }
         c.net = p ? r2(p.net_pay) : r2(c.net_before_advance - c.advance_deduct);
@@ -316,9 +394,9 @@ function register(app, { dbAllAsync, checkOwnerPin }) {
       const net = r2(c.net_before_advance - adv);
       const mode = String(b.payment_mode || 'CASH');
 
-      const ins = await q(`INSERT INTO payroll (staff_id, month, hours, ot_hours, rate, ot_multiplier, gross, bonus, deductions, advance_deducted, net_pay, payment_mode)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (staff_id, month) DO NOTHING RETURNING id`,
-        [staffId, month, c.hours, c.ot_hours, c.rate, c.ot_multiplier, c.gross, c.bonus, c.deductions, adv, net, mode]);
+      const ins = await q(`INSERT INTO payroll (staff_id, month, hours, ot_hours, rate, ot_multiplier, gross, bonus, deductions, advance_deducted, net_pay, payment_mode, ot_paid, leave_days, leave_pay)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (staff_id, month) DO NOTHING RETURNING id`,
+        [staffId, month, c.hours, c.ot_hours, c.rate, c.ot_multiplier, c.gross, c.bonus, c.deductions, adv, net, mode, c.ot_paid, c.leave_days, c.leave_pay]);
       if (!ins.length) return fail(res, 'Is mahine ki salary pehle hi paid hai', 409);
       payrollId = ins[0].id;
 
@@ -366,7 +444,7 @@ function register(app, { dbAllAsync, checkOwnerPin }) {
       const adjustments = await q('SELECT kind, amount, note FROM staff_adjustments WHERE staff_id = ? AND month = ? ORDER BY id', [staffId, month]);
       const cfg = (await q('SELECT restaurant_name, address, phone FROM settings WHERE id = 1'))[0] || {};
       const line = p
-        ? { ...c, hours: r2(p.hours), ot_hours: r2(p.ot_hours), rate: r2(p.rate), ot_multiplier: Number(p.ot_multiplier), gross: r2(p.gross), bonus: r2(p.bonus),
+        ? { ...c, hours: r2(p.hours), ot_hours: r2(p.ot_hours), ot_paid: p.ot_paid !== false, leave_days: Number(p.leave_days) || 0, leave_pay: r2(p.leave_pay), rate: r2(p.rate), ot_multiplier: Number(p.ot_multiplier), gross: r2(p.gross), bonus: r2(p.bonus),
             deductions: r2(p.deductions), advance_deduct: r2(p.advance_deducted), net: r2(p.net_pay) }
         : { ...c, net: r2(c.net_before_advance - c.advance_deduct) };
       res.json({ restaurant: cfg, staff: { id: staff.id, name: staff.name, role: staff.role, phone: staff.phone }, month, paid: !!p,

@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>All Reports - Vishal Foodiez</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/owner-auth.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen p-4 md:p-6 font-sans">
+  <div class="max-w-7xl mx-auto space-y-4">
+
+    <div class="flex flex-wrap justify-between items-center gap-2 bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
+      <div>
+        <h1 class="text-xl font-black text-gray-900">All Reports</h1>
+        <p class="text-xs text-gray-500 font-medium">Sirf billed orders ginte jaate hain (running, VOID aur merged orders nahi).</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <a id="lnkSummary" href="#" class="bg-white border border-gray-300 hover:bg-gray-50 text-gray-800 px-4 py-2 rounded-xl font-bold text-xs transition">📊 Sales Summary</a>
+        <a href="/" class="bg-gray-900 hover:bg-black text-white px-4 py-2 rounded-xl font-bold text-xs transition">← Back to POS</a>
+      </div>
+    </div>
+
+    <!-- Date filter -->
+    <div class="bg-white p-3 rounded-2xl border border-gray-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-1.5" id="presets"></div>
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-bold text-gray-500">From:</span>
+        <input type="date" id="fromDate" class="border p-1.5 rounded-xl text-xs outline-none bg-gray-50 font-bold">
+        <span class="text-xs font-bold text-gray-500">To:</span>
+        <input type="date" id="toDate" class="border p-1.5 rounded-xl text-xs outline-none bg-gray-50 font-bold">
+        <button onclick="loadReport()" class="bg-indigo-600 text-white font-bold px-4 py-1.5 rounded-xl text-xs hover:bg-indigo-700 transition">Apply</button>
+      </div>
+    </div>
+
+    <!-- Report tabs -->
+    <div id="tabs" class="flex gap-1 overflow-x-auto bg-white border border-gray-200 rounded-2xl p-1.5 text-xs font-black"></div>
+
+    <div id="note" class="text-[11px] text-gray-500 px-1"></div>
+    <div id="out" class="space-y-4"></div>
+  </div>
+
+<script src="/ui-dialogs.js"></script>
+<script>
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var rs = function (n) { return '₹' + (Number(n) || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 }); };
+  var today = function () { return new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Kolkata' }); };
+  var addDays = function (s, n) { var d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+  var fmtDay = function (s) { var d = new Date(s + 'T00:00:00Z'); return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' }); };
+
+  // ---------- small render helpers ----------
+  function kpis(list) {
+    return '<div class="grid grid-cols-2 md:grid-cols-' + Math.min(list.length, 6) + ' gap-3">' + list.map(function (k) {
+      return '<div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm"><span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">' + esc(k[0]) + '</span>' +
+        '<h2 class="text-xl font-black ' + (k[2] || 'text-gray-900') + ' mt-1">' + esc(k[1]) + '</h2>' + (k[3] ? '<p class="text-[10px] text-gray-400 mt-0.5">' + esc(k[3]) + '</p>' : '') + '</div>';
+    }).join('') + '</div>';
+  }
+  // cols: [header, fn(row) -> html, align ('r' | 'c' | '')]; foot: optional array of html cells
+  function table(title, cols, rows, foot, empty) {
+    var al = function (a) { return a === 'r' ? 'text-right' : a === 'c' ? 'text-center' : 'text-left'; };
+    var head = cols.map(function (c) { return '<th class="p-3 font-bold ' + al(c[2]) + '">' + esc(c[0]) + '</th>'; }).join('');
+    var body = rows.length ? rows.map(function (r) {
+      return '<tr class="hover:bg-gray-50">' + cols.map(function (c) { return '<td class="p-3 ' + al(c[2]) + '">' + c[1](r) + '</td>'; }).join('') + '</tr>';
+    }).join('') : '<tr><td colspan="' + cols.length + '" class="text-center py-8 text-gray-400 font-bold">' + esc(empty || 'Is range me koi data nahi') + '</td></tr>';
+    var f = foot && rows.length ? '<tfoot><tr class="bg-gray-50 font-black text-gray-900 border-t-2">' + foot.map(function (c, i) { return '<td class="p-3 ' + al(cols[i][2]) + '">' + c + '</td>'; }).join('') + '</tr></tfoot>' : '';
+    return '<div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">' + (title ? '<div class="p-3 border-b bg-gray-50"><h3 class="text-xs font-black text-gray-800 uppercase tracking-wider">' + esc(title) + '</h3></div>' : '') +
+      '<div class="overflow-x-auto"><table class="w-full text-xs border-collapse"><thead><tr class="bg-gray-50 text-gray-400 border-b">' + head + '</tr></thead><tbody class="divide-y divide-gray-100">' + body + '</tbody>' + f + '</table></div></div>';
+  }
+  function bar(pct) { return '<div class="h-1.5 bg-gray-100 rounded-full w-24 inline-block align-middle mr-2"><div class="h-1.5 bg-indigo-500 rounded-full" style="width:' + Math.min(100, pct) + '%"></div></div>' + pct + '%'; }
+  var T = function (f) { return function (r) { return esc(r[f]); }; };
+  var R = function (f) { return function (r) { return rs(r[f]); }; };
+  var B = function (f) { return function (r) { return '<b>' + esc(r[f]) + '</b>'; }; };
+
+  // ---------- reports ----------
+  var REPORTS = {
+    dayend: { label: '📅 Day End / Payment', note: 'Din ke hisaab se sales aur payment mode. Split orders ka cash/UPI breakup save nahi hota, isliye wo alag "SPLIT" me dikhte hain.',
+      render: function (d) {
+        var t = d.totals, net = r2(t.cash - d.expenses.cash);
+        return kpis([['Total Sales', rs(t.total), '', t.orders + ' orders'], ['Cash', rs(t.cash), 'text-emerald-600'], ['UPI', rs(t.upi), 'text-indigo-600'], ['Card', rs(t.card)], ['Due (Khata)', rs(t.due), 'text-rose-600'], ['Expenses', rs(d.expenses.total), 'text-amber-700', 'Cash: ' + rs(d.expenses.cash)]]) +
+          table('Day wise', [['Date', function (r) { return '<b>' + fmtDay(r.d) + '</b>'; }], ['Orders', T('orders'), 'c'], ['Subtotal', R('subtotal'), 'r'], ['Discount', R('discount'), 'r'], ['GST', R('gst'), 'r'], ['Cash', R('cash'), 'r'], ['UPI', R('upi'), 'r'], ['Card', R('card'), 'r'], ['Split', R('split'), 'r'], ['Due', R('due'), 'r'], ['Total', function (r) { return '<b>' + rs(r.total) + '</b>'; }, 'r']],
+            d.rows, ['Total', t.orders, rs(t.subtotal), rs(t.discount), rs(t.gst), rs(t.cash), rs(t.upi), rs(t.card), rs(t.split), rs(t.due), rs(t.total)]) +
+          table('Payment mode wise', [['Mode', B('mode')], ['Orders', T('orders'), 'c'], ['Amount', R('total'), 'r']], d.modes) +
+          '<div class="text-xs text-gray-500 px-1">Cash in hand (Cash sales − cash expenses): <b>' + rs(net) + '</b></div>';
+      } },
+    ordertype: { label: '🍽 Order Type', render: function (d) {
+      return table('Order type wise', [['Type', B('type')], ['Orders', T('orders'), 'c'], ['Subtotal', R('subtotal'), 'r'], ['Discount', R('discount'), 'r'], ['GST', R('gst'), 'r'], ['Total', R('total'), 'r'], ['Avg bill', R('avg'), 'r'], ['Share', function (r) { return bar(r.share); }]], d.rows);
+    } },
+    items: { label: '🍔 Items', note: 'Add-ons wali detail hata kar ek dish ki ek hi row banti hai. Amount = qty × price (discount aur GST se pehle).', render: function (d) {
+      var q = d.rows.reduce(function (t, r) { return t + r.qty; }, 0), g = r2(d.rows.reduce(function (t, r) { return t + r.gross; }, 0));
+      return kpis([['Dishes sold', d.rows.length], ['Total quantity', q], ['Gross item sales', rs(g)]]) +
+        table('Item wise sales (highest first)', [['#', function (r) { return d.rows.indexOf(r) + 1; }, 'c'], ['Item', B('item')], ['Category', T('category')], ['Qty', function (r) { return '<b class="text-indigo-600">' + r.qty + '</b>'; }, 'c'], ['Orders', T('orders'), 'c'], ['Amount', R('gross'), 'r'], ['Share', function (r) { return bar(r.share); }]], d.rows, ['', 'Total', '', q, '', rs(g), '']);
+    } },
+    categories: { label: '🗂 Categories', render: function (d) {
+      var g = r2(d.rows.reduce(function (t, r) { return t + r.gross; }, 0));
+      return table('Category wise sales', [['Category', B('category')], ['Dishes', T('dishes'), 'c'], ['Qty', T('qty'), 'c'], ['Amount', R('gross'), 'r'], ['Share', function (r) { return bar(r.share); }]], d.rows, ['Total', '', d.rows.reduce(function (t, r) { return t + r.qty; }, 0), rs(g), '']);
+    } },
+    hourly: { label: '🕒 Hourly', note: 'Poore selected range ka ghante ke hisaab se total.', render: function (d) {
+      var max = d.rows.reduce(function (m, r) { return Math.max(m, r.total); }, 0);
+      var peak = d.rows.filter(function (r) { return r.total === max; })[0];
+      return (peak ? kpis([['Busiest hour', peak.label, 'text-indigo-600', rs(peak.total) + ' • ' + peak.orders + ' orders']]) : '') +
+        table('Hour wise sales', [['Hour', B('label')], ['Orders', T('orders'), 'c'], ['Sales', R('total'), 'r'], ['Avg bill', R('avg'), 'r'], ['', function (r) { return bar(max ? r2(r.total * 100 / max) : 0); }]], d.rows);
+    } },
+    gst: { label: '🧾 GST', note: 'Net sales = subtotal − discount. GST 5% ko CGST aur SGST (2.5% + 2.5%) me barabar baanta gaya hai.', render: function (d) {
+      var t = d.totals;
+      return kpis([['Net sales', rs(t.net)], ['CGST', rs(t.cgst), 'text-indigo-600'], ['SGST', rs(t.sgst), 'text-indigo-600'], ['Total GST', rs(t.gst), 'text-emerald-600'], ['Bill total', rs(t.total), '', t.orders + ' orders']]) +
+        table('Day wise GST', [['Date', function (r) { return '<b>' + fmtDay(r.d) + '</b>'; }], ['Orders', T('orders'), 'c'], ['Net sales', R('net'), 'r'], ['CGST', R('cgst'), 'r'], ['SGST', R('sgst'), 'r'], ['Total GST', R('gst'), 'r'], ['Bill total', R('total'), 'r']], d.rows, ['Total', t.orders, rs(t.net), rs(t.cgst), rs(t.sgst), rs(t.gst), rs(t.total)]);
+    } },
+    discounts: { label: '🏷 Discount / Comp', render: function (d) {
+      var t = d.totals;
+      return kpis([['Discounted orders', t.discount_orders, '', rs(t.discount_amount) + ' total'], ['Complimentary orders', t.comp_orders, 'text-amber-700', rs(t.comp_value) + ' value'], ['Coupon orders', t.coupon_orders, 'text-indigo-600']]) +
+        table('Discount aur complimentary orders', [['Order', function (r) { return '<b>#' + r.id + '</b> <span class="text-gray-400">T' + String(r.token_no || '').padStart(3, '0') + '</span>'; }], ['Time', T('at')], ['Type', function (r) { return esc(r.type) + (r.table_no ? ' (' + esc(r.table_no) + ')' : ''); }], ['Customer', function (r) { return esc(r.customer_name || '-') + (r.customer_phone ? ' <span class="text-gray-400 font-mono">' + esc(r.customer_phone) + '</span>' : ''); }],
+          ['Kind', function (r) { return r.comp ? '<span class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-black">COMP</span>' : r.coupon ? '<span class="bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded font-black">' + esc(r.coupon) + '</span>' : '<span class="bg-gray-100 text-gray-700 px-2 py-0.5 rounded font-black">DISCOUNT</span>'; }],
+          ['Reason', function (r) { return esc(r.reason) + (r.points ? ' <span class="text-gray-400">(' + r.points + ' pts)</span>' : ''); }], ['Subtotal', R('subtotal'), 'r'], ['Discount', function (r) { return '<b class="text-rose-600">' + rs(r.discount) + '</b>'; }, 'r'], ['Bill', R('total'), 'r']], d.rows);
+    } },
+    due: { label: '📒 Due / Khata', note: 'Baaki udhaar abhi ki date tak ka hai (date range se alag). Customer ke paise kab wapas aaye, ye record save nahi hota.', render: function (d) {
+      return kpis([['Outstanding due', rs(d.outstanding), 'text-rose-600', d.orders.length + ' orders'], ['Customers', d.customers.length], ['Due diya (selected range)', rs(d.given_in_range.total), 'text-amber-700', d.given_in_range.orders + ' orders']]) +
+        table('Customer wise baaki', [['Customer', function (r) { return '<b>' + esc(r.name || 'Walk-in') + '</b>'; }], ['Phone', function (r) { return '<span class="font-mono">' + esc(r.phone) + '</span>'; }], ['Orders', T('orders'), 'c'], ['Sabse purana', function (r) { return r.oldest + ' din'; }, 'c'], ['Baaki', function (r) { return '<b class="text-rose-600">' + rs(r.due) + '</b>'; }, 'r']], d.customers) +
+        table('Due orders', [['Order', function (r) { return '<b>#' + r.id + '</b> <span class="text-gray-400">T' + String(r.token_no || '').padStart(3, '0') + '</span>'; }], ['Time', T('at')], ['Customer', function (r) { return esc(r.customer_name || 'Walk-in') + ' <span class="text-gray-400 font-mono">' + esc(r.customer_phone || '') + '</span>'; }], ['Age', function (r) { return r.age_days + ' din'; }, 'c'], ['Bill', R('total'), 'r'], ['Baaki', function (r) { return '<b class="text-rose-600">' + rs(r.due) + '</b>'; }, 'r']], d.orders);
+    } },
+    voids: { label: '🚫 Void', render: function (d) {
+      return kpis([['Void orders', d.totals.orders, 'text-rose-600'], ['Void value', rs(d.totals.value)]]) +
+        table('Void / rejected orders', [['Order', function (r) { return '<b>#' + r.id + '</b> <span class="text-gray-400">T' + String(r.token_no || '').padStart(3, '0') + '</span>'; }], ['Time', T('at')], ['Type', function (r) { return esc(r.type) + (r.table_no ? ' (' + esc(r.table_no) + ')' : ''); }], ['Customer', function (r) { return esc(r.customer_name || '-') + ' <span class="text-gray-400 font-mono">' + esc(r.customer_phone || '') + '</span>'; }], ['Items', T('items')], ['Amount', R('total'), 'r']], d.rows, null, 'Is range me koi void order nahi');
+    } },
+    customers: { label: '👥 Customers', note: 'Sirf 10 digit phone number wale customers. Top 300 (zyada kharch pehle). "Returning" = jisne selected range se pehle bhi order kiya ho.', render: function (d) {
+      var t = d.totals;
+      return kpis([['Customers', t.customers, '', t.total_spend ? rs(t.total_spend) + ' spend' : ''], ['Returning', t.repeat, 'text-emerald-600', rs(t.repeat_spend) + ' spend'], ['New', t.new_customers, 'text-indigo-600'], ['Bina phone ke orders', t.no_phone_orders, 'text-gray-500', rs(t.no_phone_spend)]]) +
+        table('Customer spend', [['#', function (r) { return d.rows.indexOf(r) + 1; }, 'c'], ['Customer', function (r) { return '<b>' + esc(r.name || '-') + '</b> <span class="text-gray-400 font-mono">' + esc(r.phone) + '</span>'; }], ['', function (r) { return r.repeat ? '<span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-black">Returning</span>' : '<span class="bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded font-black">New</span>'; }],
+          ['Orders', T('orders'), 'c'], ['Spent', function (r) { return '<b>' + rs(r.spent) + '</b>'; }, 'r'], ['Avg bill', R('avg'), 'r'], ['Coupons', T('coupons'), 'c'], ['Last order', function (r) { return esc(new Date(r.last_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })); }]], d.rows);
+    } },
+    kitchen: { label: '👨‍🍳 Kitchen Time', note: 'Kitchen time = order accept (ya place) hone se KDS par ready mark hone tak.', render: function (d) {
+      var s = d.summary;
+      return kpis([['Orders measured', s.orders], ['Average', s.avg + ' min', 'text-indigo-600'], ['Median', s.median + ' min'], ['Slowest', s.max + ' min', 'text-rose-600'], ['10 min se upar', s.slow, 'text-amber-700', s.slow_pct + '%']]) +
+        table('Order type wise', [['Type', B('type')], ['Orders', T('orders'), 'c'], ['Avg (min)', T('avg'), 'c'], ['Max (min)', T('max'), 'c']], d.byType) +
+        table('Day wise', [['Date', function (r) { return '<b>' + fmtDay(r.d) + '</b>'; }], ['Orders', T('orders'), 'c'], ['Avg (min)', T('avg'), 'c'], ['Max (min)', T('max'), 'c']], d.byDay) +
+        table('20 sabse slow orders', [['Order', function (r) { return '<b>#' + r.id + '</b> <span class="text-gray-400">T' + String(r.token_no || '').padStart(3, '0') + '</span>'; }], ['Time', T('at')], ['Type', function (r) { return esc(r.type) + (r.table_no ? ' (' + esc(r.table_no) + ')' : ''); }], ['Items', T('items')], ['Minutes', function (r) { return '<b class="text-rose-600">' + r.minutes + '</b>'; }, 'c']], d.slowest);
+    } }
+  };
+  function r2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
+
+  // ---------- page wiring ----------
+  var current = (location.hash || '').slice(1);
+  if (!REPORTS[current]) current = 'dayend';
+  var seq = 0;
+
+  function drawTabs() {
+    $('tabs').innerHTML = Object.keys(REPORTS).map(function (k) {
+      return '<button data-k="' + k + '" class="px-4 py-2 rounded-xl whitespace-nowrap ' + (k === current ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-100') + '">' + REPORTS[k].label + '</button>';
+    }).join('');
+    $('tabs').querySelectorAll('button').forEach(function (b) { b.onclick = function () { current = b.dataset.k; location.hash = current; drawTabs(); loadReport(); }; });
+  }
+  var PRESETS = [['Today', function () { return [today(), today()]; }], ['Yesterday', function () { var y = addDays(today(), -1); return [y, y]; }], ['Last 7 Days', function () { return [addDays(today(), -6), today()]; }], ['This Month', function () { return [today().slice(0, 8) + '01', today()]; }]];
+  function drawPresets() {
+    $('presets').innerHTML = PRESETS.map(function (p, i) { return '<button data-i="' + i + '" class="px-3 py-1.5 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-100 transition">' + p[0] + '</button>'; }).join('');
+    $('presets').querySelectorAll('button').forEach(function (b) { b.onclick = function () { var r = PRESETS[b.dataset.i][1](); $('fromDate').value = r[0]; $('toDate').value = r[1]; loadReport(); }; });
+  }
+
+  async function loadReport() {
+    var me = ++seq, rep = REPORTS[current];
+    var a = $('fromDate').value, b = $('toDate').value;
+    $('note').textContent = rep.note || '';
+    $('out').innerHTML = '<p class="text-center py-12 text-gray-400 font-bold">Loading...</p>';
+    try {
+      var r = await fetch('/api/reports/v2/' + current + '?startDate=' + a + '&endDate=' + b);
+      var d = await r.json();
+      if (me !== seq) return; // a newer request already took over
+      if (!r.ok) throw new Error(d.error || 'Report load nahi hui');
+      $('out').innerHTML = rep.render(d);
+    } catch (e) {
+      if (me === seq) $('out').innerHTML = '<p class="text-center py-12 text-rose-500 font-bold">' + esc(e.message) + '</p>';
+    }
+  }
+
+  $('lnkSummary').onclick = function (e) { e.preventDefault(); location.href = location.pathname.replace(/\/all\/?$/, ''); };
+  $('fromDate').value = $('toDate').value = today();
+  drawPresets(); drawTabs(); loadReport();
+</script>
+</body>
+</html>

@@ -13,7 +13,7 @@ if (-not (Test-Path $historyFile)) { Set-Content $historyFile "" }
 $processedJobs = [System.Collections.Generic.HashSet[string]]@(Get-Content $historyFile -ErrorAction SilentlyContinue)
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  TadkaTech Dual Printer Agent Running" -ForegroundColor Green
+Write-Host "  Vishal Foodiez Dual Printer Agent Running" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Cyan
 
 # Define Win32 Raw Printer class for Bypassing Driver Restrictions on Cash Drawer

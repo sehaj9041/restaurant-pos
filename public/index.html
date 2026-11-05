@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TadkaTech - Vishal Foodiez - Fast POS</title>
+  <title>Vishal Foodiez - Fast POS</title>
   
   <!-- PWA Settings -->
   <link rel="manifest" href="/manifest.json">
@@ -525,7 +525,7 @@
 
   <!-- ================= TABLE ASSIGNMENT SELECTION MODAL ================= -->
   <div id="modalAssignTableSelect" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-5 space-y-4 border border-gray-200">
+    <div class="bg-white rounded-2xl w-full max-w-3xl shadow-2xl p-5 space-y-4 border border-gray-200">
       <div class="flex justify-between items-center border-b pb-2">
         <div>
           <h3 class="font-black text-gray-900 text-sm">Select Table for Order</h3>
@@ -534,7 +534,7 @@
         <button onclick="closeAssignTableModal()" class="text-gray-400 hover:text-black font-bold text-base">✕</button>
       </div>
 
-      <div id="assignTableModalGrid" class="grid grid-cols-2 gap-2.5 max-h-60 overflow-y-auto pr-1">
+      <div id="assignTableModalGrid" class="grid grid-cols-3 sm:grid-cols-4 gap-2.5 max-h-[75vh] overflow-y-auto pr-1">
         <!-- Dynamic table buttons will load here -->
       </div>
 
@@ -1956,8 +1956,8 @@
           var dueHeaderTotalLabelEl = document.getElementById('dueHeaderTotalLabel');
 
           if (filterDueCountEl) filterDueCountEl.innerText = dueOrdersList.length;
-          if (filterDueTotalEl) filterDueTotalEl.innerText = '₹' + totalDueSum.toLocaleString();
-          if (dueHeaderTotalLabelEl) dueHeaderTotalLabelEl.innerText = '₹' + totalDueSum.toLocaleString();
+          if (filterDueTotalEl) filterDueTotalEl.innerText = '₹' + totalDueSum.toLocaleString('en-IN');
+          if (dueHeaderTotalLabelEl) dueHeaderTotalLabelEl.innerText = '₹' + totalDueSum.toLocaleString('en-IN');
 
           renderDueOrdersList();
         })
@@ -1991,7 +1991,7 @@
                 <span class="font-bold text-gray-500 text-[11px]">ORD-${o.id}</span>
               </div>
               <div class="text-[11px] font-bold text-gray-600 mt-0.5">
-                ${o.customer_name || 'Walk-in'} • <span class="font-mono text-gray-500">${o.customer_phone || '-'}</span>
+                ${escCartText(o.customer_name || 'Walk-in')} • <span class="font-mono text-gray-500">${escCartText(o.customer_phone || '-')}</span>
               </div>
             </div>
 
@@ -2025,7 +2025,7 @@
         return;
       }
 
-      container.innerHTML = dueCustomersList.map(function(c){
+      container.innerHTML = dueCustomersList.map(function(c, ci){
         var chips = (c.order_ids || []).slice(0, 3).map(function(id){
           return `<span class="bg-gray-100 text-gray-600 font-bold px-1.5 py-0.2 rounded text-[10px]">ORD-${id}</span>`;
         }).join(' ');
@@ -2036,10 +2036,10 @@
           <div class="py-3 flex justify-between items-center text-xs hover:bg-orange-50/40 px-2 rounded-xl transition">
             <div class="space-y-1">
               <div class="flex items-center gap-2">
-                <span class="font-black text-gray-900 text-sm">${c.name}</span>
+                <span class="font-black text-gray-900 text-sm">${escCartText(c.name)}</span>
                 <span class="bg-gray-100 text-gray-600 font-bold px-1.5 py-0.5 rounded text-[10px]">${c.total_orders} orders</span>
               </div>
-              <div class="text-[11px] font-mono text-gray-500">${c.phone}</div>
+              <div class="text-[11px] font-mono text-gray-500">${escCartText(c.phone)}</div>
               <div class="flex items-center gap-1.5 text-[10px] text-gray-400">
                 ${chips} ${moreCount ? `<span class="italic text-[10px] text-gray-400">${moreCount}</span>` : ''}
               </div>
@@ -2051,10 +2051,10 @@
             </div>
 
             <div class="flex items-center gap-2">
-              <button onclick="promptWhatsAppReminder('${c.phone}', '${c.name}', ${c.total_due})" class="border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-2xs flex items-center gap-1">
+              <button onclick="promptWhatsAppReminder(${ci})" class="border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-2xs flex items-center gap-1">
                 <span>💬</span> Remind
               </button>
-              <button onclick="openCustomerSettleModal('${c.phone}', '${c.name.replace(/'/g, "\\'")}', ${c.total_due})" class="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4 py-1.5 rounded-lg text-xs transition shadow-2xs flex items-center gap-1">
+              <button onclick="openCustomerSettleModal(${ci})" class="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4 py-1.5 rounded-lg text-xs transition shadow-2xs flex items-center gap-1">
                 <span>✓</span> Settle All Due
               </button>
             </div>
@@ -2063,7 +2063,9 @@
       }).join('');
     }
 
-    function promptWhatsAppReminder(phone, name, amount) {
+    function promptWhatsAppReminder(idx) {
+      var c = dueCustomersList[idx]; if (!c) return;
+      var phone = String(c.phone || ''), name = c.name, amount = c.total_due;
       var cleanPhone = phone.replace(/[^0-9]/g, '');
       if (cleanPhone.length < 10) return alert('Customer phone number invalid hai!');
       var text = encodeURIComponent(`Namaste ${name}, aapka Vishal Foodiez par ₹${amount} ka balance due hai. Kripya samay par bhuqtan karein. Dhanyawad!`);
@@ -2350,21 +2352,25 @@
       })
       .then(function(r){ return r.json(); })
       .then(function(res){
+        if (!res || !res.success) throw new Error((res && res.error) || 'Settle fail hua');
         closeSingleOrderSettleModal();
         if (targetSingleSettleMode === 'CASH') openCashDrawer();
         fetchActiveOrders();
         loadDueOrdersData();
         if (typeof loadSettledOrderHistory === 'function') loadSettledOrderHistory();
-      });
+      })
+      .catch(function(e){ alert('Settle nahi hua: ' + e.message); });
     }
 
     // ================= CUSTOMER FULL KHATA SETTLE MODAL =================
-    function openCustomerSettleModal(phone, name, amount) {
+    function openCustomerSettleModal(idx) {
+      var c = dueCustomersList[idx]; if (!c) return;
+      var phone = c.phone, name = c.name, amount = c.total_due;
       targetCustomerSettlePhone = phone;
       targetCustomerSettleMode = 'CASH';
       document.getElementById('lblSettleCustomerName').innerText = name;
       document.getElementById('lblSettleCustomerPhone').innerText = phone;
-      document.getElementById('lblSettleCustomerAmount').innerText = '₹' + amount.toLocaleString();
+      document.getElementById('lblSettleCustomerAmount').innerText = '₹' + Number(amount).toLocaleString('en-IN');
       setCustomerSettleMode('CASH');
       document.getElementById('modalSettleCustomerDue').classList.remove('hidden');
     }
@@ -2396,11 +2402,13 @@
       })
       .then(function(r){ return r.json(); })
       .then(function(res){
+        if (!res || !res.success) throw new Error((res && res.error) || 'Settle fail hua');
         closeCustomerSettleModal();
         if (targetCustomerSettleMode === 'CASH') openCashDrawer();
         loadDueOrdersData();
         fetchActiveOrders();
-      });
+      })
+      .catch(function(e){ alert('Settle nahi hua: ' + e.message); loadDueOrdersData(); });
     }
 
     // ================= LOAD & RENDER ORDER HISTORY =================
@@ -3041,32 +3049,40 @@
     }
 
     async function actionMarkDue(orderId) {
+      var dueOrd = allActiveOrders.find(function(o) { return o.id === orderId; });
+      if (dueOrd && !isValidDuePhone(dueOrd.customer_phone)) {
+        return alert('Is order me customer ka phone number nahi hai. Pehle order kholkar phone number daalo, tabhi Due me ja sakta hai.');
+      }
       if (!(await uiConfirm("Kya aap is order ko Due (Khata) mein dalna chahte hain?", {title:"Mark as Due?", okText:"Mark Due", danger:false}))) return;
 
-      fetch('/api/orders/' + orderId + '/mark-due', {
+      fetch('/api/tables/' + orderId + '/settle', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payment_mode: 'DUE' })
       })
       .then(function(r){ return r.json(); })
       .then(function(res){
+        if (!res || !res.success) throw new Error((res && res.error) || 'Mark Due fail hua');
         fetchActiveOrders();
         loadDueOrdersData();
         alert("Order successfully Due (Khata) section mein chala gaya!");
       })
-      .catch(function(){
-        fetch('/api/tables/' + orderId + '/settle', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ payment_mode: 'DUE' })
-        }).then(function(){
-          fetchActiveOrders();
-          loadDueOrdersData();
-        });
-      });
+      .catch(function(e){ alert('Mark Due nahi hua: ' + e.message); });
     }
 
     // ================= PAYMENT MODE SELECTION & CASH MODAL =================
+   // Due (Khata) sirf valid phone number wale customer ko mil sakta hai
+    function isValidDuePhone(p) { return String(p || '').replace(/\D/g, '').length >= 10; }
+    function requireDuePhone() {
+      var el = document.getElementById('posCustPhone');
+      if (isValidDuePhone(el ? el.value : '')) return true;
+      alert('Due (Khata) ke liye customer ka phone number (10 digit) zaroori hai!');
+      if (el) el.focus();
+      return false;
+    }
+
    function handlePaymentModeClick(mode) {
+      if (mode === 'DUE' && !requireDuePhone()) return;
       var calc = calculatePOSBillTotals();
       var payableAmount = calc.payableNow;
 
@@ -3164,6 +3180,7 @@
     }
 
     function setSplitMethodType(idx, type) {
+      if (type === 'DUE' && !requireDuePhone()) return;
       readSplitAmounts();
       if (splitRows[idx]) splitRows[idx].mode = type;
       renderSplitRows();
@@ -3641,6 +3658,11 @@
       var calc = calculatePOSBillTotals();
       var custPhone = document.getElementById('posCustPhone').value.trim();
       var custName = document.getElementById('posCustName').value.trim();
+
+      // Due / Split-with-Due par phone number zaroori hai
+      var hasDuePart = selectedPaymentMode === 'DUE' ||
+        (selectedPaymentMode === 'Split' && splitRows.some(function(r) { return r.mode === 'DUE'; }));
+      if (hasDuePart && !requireDuePhone()) return;
 
       // FIX: Agar user ne payment mode (Cash/UPI/Card) select kiya hai, toh payment poori maani jayegi!
 // SAFE PAYMENT CAPTURE FIX:

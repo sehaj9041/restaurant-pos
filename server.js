@@ -1,3 +1,5 @@
+// Node must also run in IST so timestamps (stored as IST wall-clock) are read back correctly, locally and on Render
+process.env.TZ = 'Asia/Kolkata';
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -19,6 +21,8 @@ db.run("ALTER TABLE orders ADD COLUMN paid_amount REAL DEFAULT 0", (err) => {});
 
 // Payment modes jinme koi amount receive nahi hota (paid_amount hamesha 0)
 const UNPAID_PAYMENT_MODES = ['UNPAID', 'DUE', 'ONLINE_PENDING'];
+const hasValidPhone = (p) => String(p || '').replace(/\D/g, '').length >= 10;
+const DUE_PHONE_ERROR = 'Due (Khata) ke liye customer ka phone number zaroori hai';
 // Payment modes jinme amount na bheja ho toh poora total paid maana jata hai
 const FULL_PAYMENT_MODES = ['CASH', 'UPI', 'CARD', 'PAID', 'RAZORPAY'];
 
@@ -86,6 +90,7 @@ app.post('/api/report-location', (req, res) => {
 });
 
 app.get('/' + REPORT_SECRET, (req, res) => res.sendFile(path.join(__dirname, 'private', 'report.html')));
+app.get('/' + REPORT_SECRET + '/all', (req, res) => res.sendFile(path.join(__dirname, 'private', 'reports-all.html')));
 
 // PWA manifest: install icon = receipt logo from Settings (falls back to static public/manifest.json icons)
 app.get('/manifest.json', async (req, res, next) => {
@@ -1068,7 +1073,8 @@ app.get('/api/due/orders', (req, res) => {
   // RUNNING_TABLE ya naye UNPAID orders yahan kabhi nahi aayenge!
   const query = `
     SELECT 
-      id, order_type, table_no, customer_name, customer_phone, 
+      id, token_no, order_type, table_no, customer_name, customer_phone, rider_name, delivered_at,
+      subtotal, discount, discount_reason, is_complimentary, gst,
       total, COALESCE(paid_amount, 0) as paid_amount,
       GREATEST(0, total - COALESCE(paid_amount, 0)) as due_amount,
       payment_mode, status, created_at
@@ -1084,11 +1090,20 @@ app.get('/api/due/orders', (req, res) => {
     ORDER BY id DESC
   `;
 
-  db.all(query, [], (err, rows) => {
+  db.all(query, [], async (err, rows) => {
     if (err) {
       console.error('Due orders fetch error:', err.message);
       return res.json([]);
     }
+    // Items are needed so View / Settle can open the order in the cart screen
+    try {
+      await Promise.all((rows || []).map(r => new Promise(resolve => {
+        db.all('SELECT id, name, qty, price, notes, user_note, pack_flip, is_exempt FROM order_items WHERE order_id = ?', [r.id], (e2, items) => {
+          r.items = items || [];
+          resolve();
+        });
+      })));
+    } catch (e) { console.error('Due items fetch error:', e.message); }
     const now = new Date();
     const formatted = (rows || []).map(r => {
       const orderDate = r.created_at ? new Date(r.created_at) : now;
@@ -1113,7 +1128,9 @@ app.get('/api/due/customers', (req, res) => {
     SELECT 
       COALESCE(NULLIF(customer_phone, ''), 'WALK-IN') as phone,
       COALESCE(NULLIF(MAX(customer_name), ''), 'Valued Guest') as name,
-      SUM(GREATEST(0, total - COALESCE(paid_amount, 0))) as total_due,
+      SUM(CASE WHEN UPPER(payment_mode) = 'DUE' OR status = 'DUE_PENDING'
+                    THEN (CASE WHEN total - COALESCE(paid_amount, 0) > 0 THEN total - COALESCE(paid_amount, 0) ELSE total END)
+                    ELSE GREATEST(0, total - COALESCE(paid_amount, 0)) END) as total_due,
       COUNT(id) as total_orders,
       STRING_AGG(id::text, ',') as order_ids,
       MIN(created_at) as oldest_order_date
@@ -1127,14 +1144,13 @@ app.get('/api/due/customers', (req, res) => {
         OR (UPPER(payment_mode) LIKE '%PARTIAL%' AND (total - COALESCE(paid_amount, 0)) > 0)
       )
     GROUP BY COALESCE(NULLIF(customer_phone, ''), 'WALK-IN')
-    HAVING SUM(GREATEST(0, total - COALESCE(paid_amount, 0))) > 0
+    HAVING SUM(CASE WHEN UPPER(payment_mode) = 'DUE' OR status = 'DUE_PENDING'
+                    THEN (CASE WHEN total - COALESCE(paid_amount, 0) > 0 THEN total - COALESCE(paid_amount, 0) ELSE total END)
+                    ELSE GREATEST(0, total - COALESCE(paid_amount, 0)) END) > 0
     ORDER BY total_due DESC
   `;
 
   db.all(query, [], (err, rows) => {
-    if (err, rows) {
-      // safe fallback if err
-    }
     if (err) {
       console.error('Due customers fetch error:', err.message);
       return res.json([]);
@@ -1162,15 +1178,22 @@ app.post('/api/due/settle-customer', (req, res) => {
   if (!phone) return res.status(400).json({ error: 'Customer phone required' });
 
   const mode = (payment_mode || 'CASH').toUpperCase();
+  if (!['CASH', 'UPI', 'CARD'].includes(mode)) return res.status(400).json({ error: 'Invalid payment mode' });
 
   db.run(
     `UPDATE orders 
      SET status = 'COMPLETED', payment_mode = ?, paid_amount = total 
-     WHERE customer_phone = ? 
-       AND status != 'COMPLETED'`,
+     WHERE COALESCE(NULLIF(customer_phone, ''), 'WALK-IN') = ? 
+       AND status NOT IN ('COMPLETED', 'DISPATCHED', 'VOID')
+       AND (
+         UPPER(payment_mode) = 'DUE'
+         OR status = 'DUE_PENDING'
+         OR (UPPER(payment_mode) LIKE '%PARTIAL%' AND (total - COALESCE(paid_amount, 0)) > 0)
+       )`,
     [mode, phone],
     function (err) {
       if (err) return res.status(500).json({ error: err.message });
+      if (!this.changes) return res.status(404).json({ error: 'Is customer ke koi due orders nahi mile' });
       console.log(`[FULL SETTLEMENT SUCCESS] Customer ${phone} bills cleared via ${mode}`);
       res.json({ success: true, message: `All bills cleared successfully via ${mode}` });
     }
@@ -1184,10 +1207,13 @@ app.get('/api/orders/history', (req, res) => {
   const query = `
     SELECT id, token_no, order_type, table_no, customer_name, customer_phone, payment_mode, status, subtotal, discount, gst, total, COALESCE(paid_amount, total) as paid_amount, created_at
     FROM orders 
-    WHERE status = 'COMPLETED' 
+    WHERE (status = 'COMPLETED' 
        OR status = 'VOID'
        OR UPPER(payment_mode) IN ('CASH', 'UPI', 'CARD', 'PAID')
-       OR COALESCE(paid_amount, 0) >= total
+       OR COALESCE(paid_amount, 0) >= total)
+      -- merged-away orders (items moved into another table's bill) are empty shells: not real sales
+      AND UPPER(status) <> 'MERGED'
+      AND NOT (status <> 'VOID' AND COALESCE(total, 0) = 0 AND NOT EXISTS (SELECT 1 FROM order_items oi WHERE oi.order_id = orders.id))
     ORDER BY id DESC
     LIMIT 50
   `;
@@ -1220,7 +1246,7 @@ app.put('/api/orders/:id', (req, res, next) => engagement.applyPromoToOrderEdit(
   const orderId = req.params.id;
   const { order_type, table_no, customer_name, customer_phone, items, subtotal, discount, gst, total, payment_mode, paid_amount } = req.body;
 
-  db.get("SELECT total, paid_amount, payment_mode, status, discount, is_complimentary FROM orders WHERE id = ?", [orderId], (errGet, currentOrder) => {
+  db.get("SELECT total, paid_amount, payment_mode, status, discount, is_complimentary, customer_phone FROM orders WHERE id = ?", [orderId], (errGet, currentOrder) => {
    db.all("SELECT name, qty FROM order_items WHERE order_id = ?", [orderId], (errItems, existingItems) => {
     // Discount badhane ya complimentary lagane ke liye password chahiye (hatane ke liye nahi)
     const putComp = !!req.body.is_complimentary;
@@ -1233,6 +1259,7 @@ app.put('/api/orders/:id', (req, res, next) => engagement.applyPromoToOrderEdit(
     let finalTotal = putComp ? 0 : (Number(total) || (currentOrder ? Number(currentOrder.total) : 0));
     
     const requestedMode = String(payment_mode || '').trim().toUpperCase();
+    if (requestedMode === 'DUE' && !hasValidPhone(customer_phone || (currentOrder && currentOrder.customer_phone))) return res.status(400).json({ error: DUE_PHONE_ERROR });
     const hasPaymentSelected = requestedMode !== '' && requestedMode !== 'PAY_COUNTER' && !UNPAID_PAYMENT_MODES.includes(requestedMode);
 
     let finalPaid = 0;
@@ -1602,6 +1629,7 @@ const createOrderHandler = async (req, res) => {
   let initialPaid = Number(paid_amount) || 0;
 
   const requestedMode = String(payment_mode || '').trim().toUpperCase();
+  if (requestedMode === 'DUE' && !hasValidPhone(customer_phone)) return res.status(400).json({ error: DUE_PHONE_ERROR });
 
   if (requestedMode && requestedMode !== 'PAY_COUNTER') {
     finalPaymentMode = requestedMode;
@@ -1717,8 +1745,15 @@ app.post('/api/tables/:id/settle', (req, res) => {
   const targetId = req.params.id;
   const mode = (payment_mode || 'Cash').toUpperCase();
 
-  db.get("SELECT table_no FROM floor_tables WHERE id = ? OR table_no = ?", [targetId, targetId], (err, tableRow) => {
+  db.get("SELECT table_no FROM floor_tables WHERE id = ? OR table_no = ?", [targetId, targetId], async (err, tableRow) => {
     const actualTableNo = tableRow ? tableRow.table_no : targetId;
+
+    if (mode === 'DUE') {
+      try {
+        const rows = await dbAllAsync("SELECT customer_phone FROM orders WHERE (table_no = ? OR id = ?) AND status != 'COMPLETED' AND status != 'VOID'", [actualTableNo, targetId]);
+        if (rows.some(r => !hasValidPhone(r.customer_phone))) return res.status(400).json({ error: DUE_PHONE_ERROR });
+      } catch (e) { return res.status(500).json({ error: e.message }); }
+    }
 
     // FULLPROOF FIX: 
     // 1. paid_amount = total kar diya taaki table par koi payable amount (balance) na bache!
@@ -1818,6 +1853,38 @@ app.post('/api/kot/:id/dispatch', (req, res) => {
     console.log(`[KDS DISPATCH] Order #${orderId} manually dispatched.`);
     res.json({ success: true });
   });
+});
+
+// KDS "Recall recent orders": orders dispatched from the KDS today (not yet settled/delivered) can be sent back to the KDS screen.
+const KDS_RECALLABLE = "UPPER(status) IN ('KOT_DONE', 'DISPATCHED', 'DUE_PENDING')";
+app.get('/api/kot/recent', async (req, res) => {
+  try {
+    const orders = await dbAllAsync(`SELECT id, token_no, order_type, table_no, status, TO_CHAR(ready_at, 'HH12:MI AM') AS dispatched_at
+      FROM orders
+      WHERE ${KDS_RECALLABLE} AND ready_at IS NOT NULL AND ready_at::date = CURRENT_DATE AND delivered_at IS NULL
+      ORDER BY ready_at DESC, id DESC LIMIT 50`, []);
+    for (const o of orders) {
+      const items = await dbAllAsync("SELECT name, qty FROM order_items WHERE order_id = ? AND name <> 'Delivery Charge' ORDER BY id", [o.id]);
+      o.items = items;
+    }
+    res.json(orders);
+  } catch (e) {
+    console.error('[KDS RECENT ERROR]:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/kot/:id/recall', async (req, res) => {
+  try {
+    const rows = await dbAllAsync(`UPDATE orders SET status = 'RUNNING_TABLE', ready_at = NULL
+      WHERE id = ? AND ${KDS_RECALLABLE} AND delivered_at IS NULL RETURNING id`, [req.params.id]);
+    if (!rows.length) return res.status(409).json({ error: 'Ye order ab recall nahi ho sakta (settle ho chuka ya delivered hai)' });
+    console.log(`[KDS RECALL] Order #${req.params.id} sent back to KDS.`);
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[KDS RECALL ERROR]:', e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 app.get('/api/customers/:phone', (req, res) => {
   db.get("SELECT * FROM customers WHERE phone = ?", [req.params.phone], (err, row) => res.json(row || null));
@@ -2070,6 +2137,7 @@ app.post('/api/whatsapp/disconnect', (req, res) => {
 });
 
 require('./staffPayroll').register(app, { dbAllAsync, checkOwnerPin });
+require('./reports').register(app, { dbAllAsync });
 async function saveSettingsConfig(patch) {
   const cfg = Object.assign(await getSettingsConfig(), patch);
   await dbAllAsync(`INSERT INTO settings (id, config) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET config = excluded.config RETURNING id`, [JSON.stringify(cfg)]);

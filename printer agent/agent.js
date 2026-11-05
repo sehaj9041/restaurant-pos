@@ -149,5 +149,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(4567, '127.0.0.1', () => {
-  console.log('TadkaTech Zero-Paper Agent Running (Polling Active)!');
+  console.log('Vishal Foodiez Zero-Paper Agent Running (Polling Active)!');
 });

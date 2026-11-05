@@ -14,6 +14,8 @@ const pool = new Pool({
   connectionTimeoutMillis: 10000
 });
 pool.on('error', (err) => console.error('[PG POOL] idle client error:', err.message));
+// Restaurant runs on IST: CURRENT_TIMESTAMP / CURRENT_DATE / TO_CHAR must use IST, not the DB server's UTC
+pool.on('connect', (client) => { client.query("SET TIME ZONE 'Asia/Kolkata'").catch((e) => console.error('[PG] timezone set failed:', e.message)); });
 
 // Convert SQLite ? syntax to PostgreSQL $1, $2, ...
 function convertSql(sql) {
