@@ -92,7 +92,7 @@
       <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-x-auto">
         <div class="p-3 font-black text-gray-800 border-b">Top customers</div>
         <table class="w-full text-sm">
-          <thead class="bg-gray-50 text-xs uppercase text-gray-500"><tr><th class="text-left p-3">Customer</th><th class="text-left p-3">Phone</th><th class="text-right p-3">Orders</th><th class="text-right p-3">Spent</th><th class="text-right p-3">Points</th><th class="text-right p-3">Expiring soon</th><th class="text-right p-3">Password</th></tr></thead>
+          <thead class="bg-gray-50 text-xs uppercase text-gray-500"><tr><th class="text-left p-3">Customer</th><th class="text-left p-3">Phone</th><th class="text-right p-3">Orders</th><th class="text-right p-3">Spent</th><th class="text-right p-3">Points</th><th class="text-right p-3">Expiring soon</th></tr></thead>
           <tbody id="topRows"></tbody>
         </table>
       </div>
@@ -215,15 +215,9 @@
       }).catch(fail);
       api('/api/loyalty-admin/top').then(function(rows) {
         $('topRows').innerHTML = rows.length ? rows.map(function(r) {
-          return '<tr class="border-t"><td class="p-3 font-bold">' + esc(r.name || 'Guest') + '</td><td class="p-3 font-mono">' + esc(r.phone) + '</td><td class="p-3 text-right">' + r.orders + '</td><td class="p-3 text-right">₹' + Math.round(r.spent) + '</td><td class="p-3 text-right font-black text-amber-600">' + r.points + '</td><td class="p-3 text-right text-xs text-rose-600 font-bold">' + (r.expiring ? r.expiring.points + ' pts • ' + esc(r.expiring.on) : '') + '</td><td class="p-3 text-right"><button onclick="resetCustPass(\'' + esc(r.phone) + '\')" class="text-xs font-bold text-indigo-600 underline">Reset</button></td></tr>';
-        }).join('') : '<tr><td colspan="7" class="p-6 text-center text-gray-400">Abhi phone wale orders nahi hain</td></tr>';
+          return '<tr class="border-t"><td class="p-3 font-bold">' + esc(r.name || 'Guest') + '</td><td class="p-3 font-mono">' + esc(r.phone) + '</td><td class="p-3 text-right">' + r.orders + '</td><td class="p-3 text-right">₹' + Math.round(r.spent) + '</td><td class="p-3 text-right font-black text-amber-600">' + r.points + '</td><td class="p-3 text-right text-xs text-rose-600 font-bold">' + (r.expiring ? r.expiring.points + ' pts • ' + esc(r.expiring.on) : '') + '</td></tr>';
+        }).join('') : '<tr><td colspan="6" class="p-6 text-center text-gray-400">Abhi phone wale orders nahi hain</td></tr>';
       }).catch(fail);
-    }
-    function resetCustPass(phone) {
-      if (!confirm(phone + ' ka password reset karein? Customer ke purane devices logout ho jayenge.')) return;
-      api('/api/loyalty-admin/reset-password', 'POST', { phone: phone }).then(function(d) {
-        alert('Customer ko ye setup code batayein (30 minute valid):\n\n' + d.code + '\n\nCustomer profile page par "Password bhool gaye?" se ye code daal kar naya password set karega.');
-      }).catch(function(e) { alert((e && e.message) || 'Reset nahi hua'); });
     }
     function saveLoyalty() {
       var days = []; document.querySelectorAll('.lDay').forEach(function(x) { if (x.checked) days.push(Number(x.value)); });

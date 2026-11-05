@@ -237,83 +237,12 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
     } catch (e) { res.status(500).json({ error: 'Load nahi hua' }); }
   });
 
-  // ---- profile password: unlocks points + redeem code without needing the device token ----
-  dbAllAsync(`CREATE TABLE IF NOT EXISTS customer_profiles (phone TEXT PRIMARY KEY, name TEXT, token TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`, [])
-    .then(() => dbAllAsync('ALTER TABLE customer_profiles ADD COLUMN IF NOT EXISTS pass_hash TEXT', []))
-    .then(() => dbAllAsync('ALTER TABLE customer_profiles ADD COLUMN IF NOT EXISTS setup_hash TEXT', []))
-    .then(() => dbAllAsync('ALTER TABLE customer_profiles ADD COLUMN IF NOT EXISTS setup_expires BIGINT DEFAULT 0', []))
-    .catch(e => console.error('customer_profiles password columns error:', e.message));
-  const hashPass = (pw) => { const salt = crypto.randomBytes(16).toString('hex'); return salt + ':' + crypto.scryptSync(String(pw), salt, 32).toString('hex'); };
-  const passMatches = (pw, stored) => { const [salt, h] = String(stored || '').split(':'); return !!(salt && h && safeEq(crypto.scryptSync(String(pw || ''), salt, 32).toString('hex'), h)); };
-  const validPass = (pw) => typeof pw === 'string' && pw.length >= 6 && pw.length <= 40;
-  const profileRow = async (phone) => (await dbAllAsync('SELECT token, name, pass_hash, setup_hash, setup_expires FROM customer_profiles WHERE phone = ?', [phone]))[0];
-  const hasPassword = async (phone) => { const r = await profileRow(phone); return !!(r && r.pass_hash); };
-  const authFails = new Map();
-  const authLocked = (ph) => { const f = authFails.get(ph); return !!(f && f.until > Date.now()); };
-  const authFail = (ph) => { const f = authFails.get(ph) || { n: 0, until: 0 }; if (++f.n >= 5) { f.until = Date.now() + 15 * 60 * 1000; f.n = 0; } authFails.set(ph, f); };
-  const LOCKED_MSG = 'Bahut galat koshish. 15 minute baad try karein';
-
-  // Points for the profile page. If the customer set a password the balance stays hidden until /api/loyalty/login.
-  app.post('/api/loyalty/view', async (req, res) => {
-    try {
-      const ph = cleanPhone(req.body && req.body.phone);
-      if (ph.length !== 10) return res.status(400).json({ error: 'Phone sahi nahi hai' });
-      const L = await loyaltyConfig();
-      if (!L.enabled) return res.json({ enabled: false });
-      if (await hasPassword(ph)) return res.json({ enabled: true, locked: true });
-      const b = await loyaltyBalance(ph, L);
-      res.json(Object.assign({ enabled: true, locked: false, point_value: L.point_value, min_redeem: L.min_redeem, max_redeem_pct: L.max_redeem_pct, earn_per_100: L.earn_per_100 }, publicOffers(L), b));
-    } catch (e) { res.status(500).json({ error: 'Load nahi hua' }); }
-  });
-
-  app.post('/api/loyalty/login', async (req, res) => {
-    try {
-      const ph = cleanPhone(req.body && req.body.phone), pw = req.body && req.body.password;
-      if (ph.length !== 10 || !pw) return res.status(400).json({ error: 'Phone aur password likhein' });
-      if (authLocked(ph)) return res.status(429).json({ error: LOCKED_MSG });
-      const r = await profileRow(ph);
-      if (!r || !r.pass_hash || !passMatches(pw, r.pass_hash)) { authFail(ph); return res.status(401).json({ error: 'Password galat hai' }); }
-      res.json({ success: true, phone: ph, token: r.token, name: r.name || '' });
-    } catch (e) { res.status(500).json({ error: 'Login nahi hua' }); }
-  });
-
-  // Set/change password. Proof of ownership: the device token (+ old password if one exists) or a one-time setup code from staff.
-  app.post('/api/loyalty/set-password', async (req, res) => {
-    try {
-      const b = req.body || {}, ph = cleanPhone(b.phone);
-      if (ph.length !== 10) return res.status(400).json({ error: 'Phone sahi nahi hai' });
-      if (!validPass(b.password)) return res.status(400).json({ error: 'Password 6 se 40 akshar ka rakhein' });
-      if (authLocked(ph)) return res.status(429).json({ error: LOCKED_MSG });
-      let r = await profileRow(ph), ok = false;
-      if (b.token && r && safeEq(r.token, b.token)) ok = !r.pass_hash || passMatches(b.old_password, r.pass_hash);
-      else if (b.setup_code && r && r.setup_hash && num(r.setup_expires) > Date.now()) ok = safeEq(r.setup_hash, codeHash(ph, b.setup_code));
-      if (!ok) { authFail(ph); return res.status(401).json({ error: b.setup_code ? 'Setup code galat ya expire ho gaya' : 'Verify nahi hua (purana password galat?)' }); }
-      await dbAllAsync('UPDATE customer_profiles SET pass_hash = ?, setup_hash = NULL, setup_expires = 0 WHERE phone = ? RETURNING phone', [hashPass(b.password), ph]);
-      res.json({ success: true, phone: ph, token: r.token, name: r.name || '' });
-    } catch (e) { res.status(500).json({ error: 'Password set nahi hua' }); }
-  });
-
-  // Owner/staff: customer forgot (or never had) a password. Wipes it, rotates the token and gives a 30-minute one-time setup code.
-  app.post('/api/loyalty-admin/reset-password', async (req, res) => {
-    try {
-      const ph = cleanPhone(req.body && req.body.phone);
-      if (ph.length !== 10) return res.status(400).json({ error: 'Phone sahi nahi hai' });
-      const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0'), token = crypto.randomBytes(16).toString('hex');
-      await dbAllAsync(`INSERT INTO customer_profiles (phone, name, token, setup_hash, setup_expires) VALUES (?, '', ?, ?, ?)
-        ON CONFLICT (phone) DO UPDATE SET pass_hash = NULL, token = EXCLUDED.token, setup_hash = EXCLUDED.setup_hash, setup_expires = EXCLUDED.setup_expires RETURNING phone`,
-        [ph, token, codeHash(ph, code), Date.now() + 30 * 60 * 1000]);
-      authFails.delete(ph);
-      res.json({ success: true, phone: ph, code, expires_in: 1800 });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-  });
-
   const codeAsks = new Map();
   app.post('/api/loyalty/code', async (req, res) => {
     try {
       const { phone, token } = req.body || {};
       if (!(await profileOk(phone, token))) return res.status(401).json({ error: 'Profile verify nahi hui' });
       const ph = cleanPhone(phone), now = Date.now();
-      if (!(await hasPassword(ph))) return res.status(403).json({ error: 'Redeem code ke liye pehle password set karein', need_password: true });
       const asks = (codeAsks.get(ph) || []).filter(t => now - t < 10 * 60 * 1000);
       if (asks.length >= 6) return res.status(429).json({ error: 'Bahut baar code manga. Thodi der baad try karein.' });
       asks.push(now); codeAsks.set(ph, asks);
