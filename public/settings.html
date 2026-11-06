@@ -1038,7 +1038,7 @@
       $('sf_min_order').value = r.min_order_value || '';
       $('sfPrepRows').innerHTML = rowsHTML('sfp', [{ k: 'show', def: false, label: 'Show prep time', desc: 'Website par anumaanit "Ready in ~X min" dikhata hai.' }], { show: r.show_prep_time });
       $('sf_prep_min').value = r.prep_time_min || 30;
-      $('sfApprovalRows').innerHTML = rowsHTML('sfr', [{ k: 'require_approval', def: true, label: 'Require approval for prepaid orders', desc: 'ON hone par jo online orders pehle se paid hain wo staff ke approve karne tak Orders → Needs Approval queue me rukte hain, seedha kitchen nahi jate.' }], { require_approval: r.require_approval_prepaid });
+      $('sfApprovalRows').innerHTML = rowsHTML('sfr', [{ k: 'require_approval', def: true, label: 'Require approval for prepaid orders', desc: 'ON hone par jo online orders pehle se paid hain wo staff ke approve karne tak Orders → Needs Approval queue me rukte hain, seedha kitchen nahi jate.' }, { k: 'require_otp', def: true, label: 'Website par WhatsApp OTP login zaroori', desc: 'ON: customer ko order se pehle WhatsApp OTP se number verify karna padega aur login browser me save rahega. OFF: bina OTP ke, sirf number do baar likhkar order (OTP service band ho to ise OFF kar dein).' }], { require_approval: r.require_approval_prepaid, require_otp: r.require_otp });
       const g = cfg.highly_ordered || {};
       $('sfBadgeRows').innerHTML = rowsHTML('sfb', [{ k: 'show', def: true, label: 'Show "Highly ordered" badge', desc: 'Website aur QR menu par qualifying dishes ke neeche ek chhota label lagata hai.' }], { show: g.show });
       $('sf_badge_weeks').value = g.look_back_weeks || 12;
@@ -1061,7 +1061,7 @@
       const min = Number($('sf_min_order').value || 0), prep = Number($('sf_prep_min').value);
       if (isNaN(min) || min < 0) return toast('Minimum order value sahi daalein', true);
       if (!(prep >= 1 && prep <= 240)) return toast('Prep time 1 se 240 minute ke beech hona chahiye', true);
-      putConfig({ ordering_rules: { min_order_value: min, show_prep_time: $('sfp_show').checked, prep_time_min: prep, require_approval_prepaid: $('sfr_require_approval').checked } })
+      putConfig({ ordering_rules: { min_order_value: min, show_prep_time: $('sfp_show').checked, prep_time_min: prep, require_approval_prepaid: $('sfr_require_approval').checked, require_otp: $('sfr_require_otp').checked } })
         .then(() => toast('Ordering rules save ho gaye ✓')).catch(e => toast(e.message, true));
     }
     function saveBadge() {

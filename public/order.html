@@ -166,7 +166,8 @@
         <input type="text" id="cName" placeholder="Your Name *" maxlength="40" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-500 font-medium">
         <div id="ckPhoneBox" class="space-y-2">
           <input type="tel" id="cPhone" inputmode="numeric" placeholder="10-digit WhatsApp Number" maxlength="10" oninput="this.value=this.value.replace(/\D/g,'')" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-500 font-medium font-mono">
-          <div class="text-[11px] font-semibold text-gray-500">Aapke WhatsApp par OTP aayega. Verify hote hi aap yahin login ho jayenge aur dobara OTP nahi dena padega.</div>
+          <input type="tel" id="cPhone2" inputmode="numeric" placeholder="Phone Number dobara likhein (confirm)" maxlength="10" autocomplete="off" oninput="this.value=this.value.replace(/\D/g,'')" onpaste="return false" class="hidden w-full border border-gray-200 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-500 font-medium font-mono">
+          <div id="ckOtpHint" class="text-[11px] font-semibold text-gray-500">Aapke WhatsApp par OTP aayega. Verify hote hi aap yahin login ho jayenge aur dobara OTP nahi dena padega.</div>
           <button type="button" id="ckOtpBtn" onclick="ckSendOtp()" class="w-full bg-emerald-600 text-white font-black py-2.5 rounded-xl text-xs">WhatsApp par OTP bhejein</button>
           <div id="ckOtpStep" class="hidden flex gap-2"><input type="text" id="ckOtpCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6 digit OTP" oninput="this.value=this.value.replace(/\D/g,'')" class="flex-1 w-full border border-gray-200 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-500 font-medium font-bold tracking-widest">
             <button type="button" onclick="ckVerifyOtp()" class="bg-amber-500 text-white font-black px-4 rounded-xl text-xs">Verify</button></div>
@@ -1146,7 +1147,10 @@
       if (!/^[6-9]\d{9}$/.test(phone) || /^(\d)\1{9}$/.test(phone) || /^(?:0123456789|1234567890|9876543210|0987654321)$/.test(phone) || /^(\d{2})\1{4}$/.test(phone) || /^(\d{5})\1$/.test(phone)) { toast('Sahi 10-digit mobile number daalein', true); return null; }
       // Number WhatsApp OTP se verify hona chahiye (verify hone par profile token browser me save hota hai)
       const prof = getProfile();
-      if (!(prof && prof.token && prof.phone === phone)) { toast('Pehle WhatsApp OTP se number verify karein', true); return null; }
+      if (!(prof && prof.token && prof.phone === phone)) {
+        if (otpRequired()) { toast('Pehle WhatsApp OTP se number verify karein', true); return null; }
+        if (document.getElementById('cPhone2').value.trim() !== phone) { toast('Dono phone number same likhein', true); return null; }
+      }
       return { phone, loc: mode === 'Takeaway' ? document.getElementById('cNote').value.trim() : '' };
     }
 
@@ -1278,10 +1282,15 @@
       if (c) c.value = '';
       if (b) { b.disabled = false; b.textContent = 'WhatsApp par OTP bhejein'; }
     }
+    // Settings > Ordering rules > "Website par WhatsApp OTP login zaroori" (default ON)
+    function otpRequired() { return (storeCfg.ordering_rules || {}).require_otp !== false; }
     function renderCkPhone() {
-      const prof = getProfile(), ok = !!(prof && prof.token && prof.phone);
+      const prof = getProfile(), ok = !!(prof && prof.token && prof.phone), req = otpRequired();
       document.getElementById('ckPhoneBox').classList.toggle('hidden', ok);
       document.getElementById('ckVerified').classList.toggle('hidden', !ok);
+      ['ckOtpHint', 'ckOtpBtn'].forEach(id => document.getElementById(id).classList.toggle('hidden', !req));
+      document.getElementById('cPhone2').classList.toggle('hidden', req);
+      if (!req) { document.getElementById('ckOtpStep').classList.add('hidden'); document.getElementById('cPhone').readOnly = false; }
       if (ok) { document.getElementById('cPhone').value = prof.phone; document.getElementById('ckVerifiedNum').textContent = '+91 ' + prof.phone; }
       else resetCkOtp();
     }
@@ -1384,6 +1393,7 @@
         renderMenu();
         document.getElementById('cName').value = '';
         document.getElementById('cPhone').value = '';
+        document.getElementById('cPhone2').value = '';
         document.getElementById('cNote').value = '';
         document.getElementById('addrText').value = '';
         document.getElementById('addrLandmark').value = '';
