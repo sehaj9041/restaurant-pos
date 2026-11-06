@@ -164,8 +164,17 @@
       <!-- Customer Details Input -->
       <div class="space-y-2 pt-1">
         <input type="text" id="cName" placeholder="Your Name *" maxlength="40" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-500 font-medium">
-        <input type="tel" id="cPhone" inputmode="numeric" placeholder="10-digit Phone Number" maxlength="10" oninput="this.value=this.value.replace(/\D/g,'');document.getElementById('cPhone2').classList.remove('hidden')" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs font-mono outline-none focus:border-indigo-500 font-medium">
-        <input type="tel" id="cPhone2" inputmode="numeric" placeholder="Phone Number dobara likhein (confirm)" maxlength="10" autocomplete="off" oninput="this.value=this.value.replace(/\D/g,'')" onpaste="return false" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs font-mono outline-none focus:border-indigo-500 font-medium">
+        <div id="ckPhoneBox" class="space-y-2">
+          <input type="tel" id="cPhone" inputmode="numeric" placeholder="10-digit WhatsApp Number" maxlength="10" oninput="this.value=this.value.replace(/\D/g,'')" class="w-full border border-gray-200 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-500 font-medium font-mono">
+          <div class="text-[11px] font-semibold text-gray-500">Aapke WhatsApp par OTP aayega. Verify hote hi aap yahin login ho jayenge aur dobara OTP nahi dena padega.</div>
+          <button type="button" id="ckOtpBtn" onclick="ckSendOtp()" class="w-full bg-emerald-600 text-white font-black py-2.5 rounded-xl text-xs">WhatsApp par OTP bhejein</button>
+          <div id="ckOtpStep" class="hidden flex gap-2"><input type="text" id="ckOtpCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6 digit OTP" oninput="this.value=this.value.replace(/\D/g,'')" class="flex-1 w-full border border-gray-200 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-500 font-medium font-bold tracking-widest">
+            <button type="button" onclick="ckVerifyOtp()" class="bg-amber-500 text-white font-black px-4 rounded-xl text-xs">Verify</button></div>
+        </div>
+        <div id="ckVerified" class="hidden flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5">
+          <span class="text-xs font-black text-emerald-800">✅ <span id="ckVerifiedNum"></span> verified</span>
+          <button type="button" onclick="ckChangeNumber()" class="text-[11px] font-black text-indigo-600">Number badlein</button>
+        </div>
       </div>
 
       <!-- Bill Total & Send Button -->
@@ -1122,8 +1131,7 @@
         if (!document.getElementById('cName').value) document.getElementById('cName').value = prof.name || '';
         if (!document.getElementById('cPhone').value) document.getElementById('cPhone').value = prof.phone || '';
       }
-      const c2 = document.getElementById('cPhone2');
-      c2.classList.toggle('hidden', !!(prof && prof.token && prof.phone && prof.phone === document.getElementById('cPhone').value.trim()));
+      renderCkPhone();
       document.getElementById('checkoutModal').classList.remove('hidden');
     }
 
@@ -1136,9 +1144,9 @@
       if (document.getElementById('cName').value.trim().length < 2) { toast('Apna naam daalein', true); return null; }
       const phone = document.getElementById('cPhone').value.trim();
       if (!/^[6-9]\d{9}$/.test(phone) || /^(\d)\1{9}$/.test(phone) || /^(?:0123456789|1234567890|9876543210|0987654321)$/.test(phone) || /^(\d{2})\1{4}$/.test(phone) || /^(\d{5})\1$/.test(phone)) { toast('Sahi 10-digit mobile number daalein', true); return null; }
-      // Pehle server se verified number (profile token) dobara confirm nahi karwate; naye number ko 2 baar likhwate hain
+      // Number WhatsApp OTP se verify hona chahiye (verify hone par profile token browser me save hota hai)
       const prof = getProfile();
-      if (!(prof && prof.token && prof.phone === phone) && document.getElementById('cPhone2').value.trim() !== phone) { toast('Dono phone number same likhein', true); return null; }
+      if (!(prof && prof.token && prof.phone === phone)) { toast('Pehle WhatsApp OTP se number verify karein', true); return null; }
       return { phone, loc: mode === 'Takeaway' ? document.getElementById('cNote').value.trim() : '' };
     }
 
@@ -1260,6 +1268,60 @@
       }
     }
 
+    // ---- checkout login: phone -> WhatsApp OTP -> profile saved in this browser ----
+    let ckTimer = null;
+    function resetCkOtp() {
+      clearInterval(ckTimer);
+      const b = document.getElementById('ckOtpBtn'), c = document.getElementById('ckOtpCode');
+      document.getElementById('cPhone').readOnly = false;
+      document.getElementById('ckOtpStep').classList.add('hidden');
+      if (c) c.value = '';
+      if (b) { b.disabled = false; b.textContent = 'WhatsApp par OTP bhejein'; }
+    }
+    function renderCkPhone() {
+      const prof = getProfile(), ok = !!(prof && prof.token && prof.phone);
+      document.getElementById('ckPhoneBox').classList.toggle('hidden', ok);
+      document.getElementById('ckVerified').classList.toggle('hidden', !ok);
+      if (ok) { document.getElementById('cPhone').value = prof.phone; document.getElementById('ckVerifiedNum').textContent = '+91 ' + prof.phone; }
+      else resetCkOtp();
+    }
+    function ckSendOtp() {
+      const phone = document.getElementById('cPhone').value.trim(), btn = document.getElementById('ckOtpBtn');
+      if (btn.disabled) return;
+      if (!/^[6-9]\d{9}$/.test(phone)) { toast('Sahi 10-digit mobile number daalein', true); return; }
+      btn.disabled = true; btn.textContent = 'Bhej rahe hain...';
+      fetch('/api/otp/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone }) })
+        .then(r => r.json().then(d => ({ ok: r.ok, d }))).then(x => {
+          if (!x.ok) { toast(x.d.error || 'OTP nahi gaya', true); btn.disabled = false; btn.textContent = 'WhatsApp par OTP bhejein'; return; }
+          document.getElementById('cPhone').readOnly = true;
+          document.getElementById('ckOtpStep').classList.remove('hidden');
+          document.getElementById('ckOtpCode').focus();
+          let left = x.d.resend_in || 60; clearInterval(ckTimer);
+          const tick = () => { btn.textContent = left > 0 ? 'OTP dobara bhejein (' + left + 's)' : 'OTP dobara bhejein'; btn.disabled = left > 0; };
+          tick(); ckTimer = setInterval(() => { left--; tick(); if (left <= 0) clearInterval(ckTimer); }, 1000);
+          toast('OTP WhatsApp par bhej diya');
+        }).catch(() => { toast('Network error', true); btn.disabled = false; btn.textContent = 'WhatsApp par OTP bhejein'; });
+    }
+    function ckVerifyOtp() {
+      const phone = document.getElementById('cPhone').value.trim(), code = document.getElementById('ckOtpCode').value.trim();
+      if (code.length !== 6) { toast('6 digit OTP likhein', true); return; }
+      fetch('/api/otp/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, code }) })
+        .then(r => r.json().then(d => ({ ok: r.ok, d }))).then(x => {
+          if (!x.ok) { toast(x.d.error || 'Verify nahi hua', true); return; }
+          const nameEl = document.getElementById('cName'), old = getProfile();
+          const name = nameEl.value.trim() || x.d.name || (old && old.phone === x.d.phone ? old.name : '') || '';
+          saveProfile({ name, phone: x.d.phone, token: x.d.token });
+          if (!nameEl.value) nameEl.value = name;
+          refreshProfileUI(); renderCkPhone(); toast('Number verify ho gaya ✓');
+        }).catch(() => toast('Network error', true));
+    }
+    async function ckChangeNumber() {
+      if (!(await uiConfirm('Number badalne par is device ka login hat jayega. Aage badhein?'))) return;
+      try { localStorage.removeItem('vf_profile'); } catch (e) {}
+      document.getElementById('cPhone').value = '';
+      refreshProfileUI(); renderCkPhone();
+    }
+
     function placeOrder() {
       if (placing || !cart.length) return;
       if (!storeOpen) return toast(storeMsg || 'Abhi restaurant band hai', true);
@@ -1322,7 +1384,6 @@
         renderMenu();
         document.getElementById('cName').value = '';
         document.getElementById('cPhone').value = '';
-        document.getElementById('cPhone2').value = '';
         document.getElementById('cNote').value = '';
         document.getElementById('addrText').value = '';
         document.getElementById('addrLandmark').value = '';
