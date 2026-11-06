@@ -1366,6 +1366,7 @@
           table_no: mode,
           customer_name: name || 'Online Guest',
           customer_phone: phone,
+          profile_token: (getProfile() || {}).token || '',
           items,
           payment_mode: 'ONLINE_PENDING',
           subtotal: sub,
@@ -1408,6 +1409,8 @@
       })
       .catch(err => {
         if (err.rpOrderId) fetch('/api/razorpay/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rpOrderId: err.rpOrderId }) }).catch(() => {});
+        // Server no longer accepts this login (old/invalid token): drop it so the customer verifies the number again
+        if (/OTP se number verify/.test(err.message || '')) { const pf = getProfile(); if (pf) { saveProfile({ name: pf.name, phone: pf.phone, token: '' }); } renderCkPhone(); }
         placing = false;
         toast(/^HTTP|Failed to fetch|NetworkError|order failed/.test(err.message) ? 'Order nahi bhej paaye. Connection check karke dobara try karein.' : err.message, true);
         btnState(btn, false);

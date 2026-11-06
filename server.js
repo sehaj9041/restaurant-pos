@@ -1555,6 +1555,13 @@ const createOrderHandler = async (req, res) => {
   const isOnlineOrder = /ONLINE/i.test(String(order_type || ''));
   if (isOnlineOrder) {
     if (!/^[6-9]\d{9}$/.test(String(customer_phone || ''))) return res.status(400).json({ error: 'Valid 10-digit mobile number daalein' });
+    // Settings > Ordering rules > "Website par WhatsApp OTP login zaroori" (default ON): the browser must send the profile token that /api/otp/verify handed out for this phone
+    if (((await getSettingsConfig()).ordering_rules || {}).require_otp !== false) {
+      const sent = String(req.body.profile_token || '');
+      const prof = sent ? await dbAllAsync('SELECT token FROM customer_profiles WHERE phone = ?', [String(customer_phone)]) : [];
+      const have = prof[0] ? String(prof[0].token || '') : '';
+      if (!sent || !have || have.length !== sent.length || !crypto.timingSafeEqual(Buffer.from(have), Buffer.from(sent))) return res.status(401).json({ error: 'Pehle WhatsApp OTP se number verify karein', need_otp: true });
+    }
     const open = storeStatus(await getSettingsConfig());
     if (!open.open) return res.status(400).json({ error: open.message });
     try {
