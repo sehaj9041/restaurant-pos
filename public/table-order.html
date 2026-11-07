@@ -402,9 +402,8 @@
           '<div class="w-16 text-right font-black text-sm">' + rs(c.price * c.qty) + '</div></div>';
       }).join('') + '</div>' +
       '<div class="space-y-2 mb-3"><input id="gName" placeholder="Your name *" maxlength="40" class="w-full border rounded-xl px-3 py-2.5 text-sm"><input id="gPhone" type="tel" inputmode="numeric" maxlength="10" placeholder="Mobile number (10 digit) *" class="w-full border rounded-xl px-3 py-2.5 text-sm"><div id="tqOtp" class="space-y-2"></div><input id="gNote" placeholder="Any note for the kitchen? (optional)" maxlength="150" class="w-full border rounded-xl px-3 py-2.5 text-sm"></div>' +
-      '<div id="ptsBox" class="mb-3"></div>' +
       '<div class="flex justify-between font-black text-base mb-1"><span>Subtotal</span><span>' + rs(cartSub()) + '</span></div>' +
-      '<div id="ptsOff" class="flex justify-between font-black text-sm text-amber-700 mb-1"></div><p class="text-[11px] text-gray-500 mb-3">GST (5%) final bill me judega. Payment khana khane ke baad counter par karein.</p>' +
+      '<p class="text-[11px] text-gray-500 mb-3">GST (5%) final bill me judega. Payment ka option order ke baad milega.</p>' +
       '<button id="placeBtn" onclick="placeOrder()" class="w-full bg-indigo-600 text-white rounded-2xl py-3.5 font-black text-sm">🚀 Place Order</button>');
     $('gName').value = keep.gName != null ? keep.gName : (g.name || '');
     $('gPhone').value = keep.gPhone != null ? keep.gPhone : (g.phone || '');
@@ -470,10 +469,14 @@
   }
   // Points this cart can redeem (balance, min points and "max % of bill"); only for the phone this device is logged in with
   function maxPts() {
-    var p = profile(), ph = $('gPhone');
-    if (!ptsInfo || !p || !ph || ph.value.replace(/\D/g, '') !== p.phone) return 0;
+    return maxPtsFor(cartSub(), $('gPhone') ? $('gPhone').value.replace(/\D/g, '') : (pg ? pg.phone : ''));
+  }
+  // Points redeemable on `base` rupees of food for this phone (must be the number this device is logged in with)
+  function maxPtsFor(base, phone) {
+    var p = profile();
+    if (!ptsInfo || !p || !phone || phone !== p.phone) return 0;
     var pv = Number(ptsInfo.point_value) || 0; if (pv <= 0) return 0;
-    var n = Math.min(Math.floor(Number(ptsInfo.balance) || 0), Math.floor(cartSub() * (Number(ptsInfo.max_redeem_pct) || 0) / 100 / pv + 1e-9));
+    var n = Math.min(Math.floor(Number(ptsInfo.balance) || 0), Math.floor(base * (Number(ptsInfo.max_redeem_pct) || 0) / 100 / pv + 1e-9));
     return n > 0 && n >= (Number(ptsInfo.min_redeem) || 0) ? n : 0;
   }
   var ptsOffer = function () { return Math.round(maxPts() * Number(ptsInfo.point_value) * 100) / 100; };
@@ -481,8 +484,8 @@
   function renderPts() {
     var box = $('ptsBox'), off = $('ptsOff'); if (!box) return;
     var n = maxPts(); if (!n) usePts = false;
-    box.innerHTML = n ? '<label class="flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 cursor-pointer"><input type="checkbox" id="usePts" onchange="togglePts()" class="w-4 h-4 accent-amber-500"' + (usePts ? ' checked' : '') + '><span class="text-xs font-black text-amber-900">⭐ ' + n + ' points use karein (−' + rs(ptsOffer()) + ') • aapke paas ' + ptsInfo.balance + '</span></label>' : '';
-    off.innerHTML = usePts ? '<span>Points discount (' + n + ' pts)</span><span>−' + rs(ptsOffer()) + '</span>' : '';
+    box.innerHTML = n ? '<label class="flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 cursor-pointer"><input type="checkbox" id="usePts" onchange="togglePts()" class="w-4 h-4 accent-amber-500"' + (usePts ? ' checked' : '') + '><span class="text-xs font-black text-amber-900">⭐ ' + n + ' points use karein (−' + rs(ptsOffer()) + ', Pay now par lagega) • aapke paas ' + ptsInfo.balance + '</span></label>' : '';
+    if (off) off.innerHTML = usePts ? '<span>Points discount (' + n + ' pts)</span><span>−' + rs(ptsOffer()) + '</span>' : '';
   }
   function chg(i, d) {
     cart[i].qty += d; if (cart[i].qty < 1) cart.splice(i, 1);
@@ -490,37 +493,76 @@
     if (cart.length) cartSheet(); else closeSheet();
   }
 
-  var placing = false;
-  async function placeOrder() {
+  var placing = false, pg = null;
+  function setPlaceBusy(on) {
+    [['placeBtn', '🚀 Place Order'], ['payNowBtn', '💳 Pay now (UPI / Card)'], ['payLaterBtn', '🕒 Pay at the end']].forEach(function (b) {
+      var el = $(b[0]); if (!el) return; el.disabled = on; el.textContent = on ? 'Please wait...' : b[1];
+    });
+  }
+  // First order of this table with online payment available: the guest picks when to pay. Points are only offered here (Pay now) or on the bill (pay at the end).
+  function payChoiceSheet() {
+    openSheet(sheetHead('Payment kab karenge?') +
+      '<p class="text-xs text-gray-500 mb-3">Subtotal ' + rs(cartSub()) + ' (GST 5% alag se judega)</p>' +
+      '<div id="ptsBox" class="mb-3"></div><div id="ptsOff" class="flex justify-between font-black text-sm text-amber-700 mb-2"></div>' +
+      '<button id="payNowBtn" onclick="placeOrder(\'now\')" class="w-full bg-emerald-600 text-white rounded-2xl py-3.5 font-black text-sm mb-2">💳 Pay now (UPI / Card)</button>' +
+      '<button id="payLaterBtn" onclick="placeOrder(\'later\')" class="w-full bg-white border-2 border-indigo-600 text-indigo-700 rounded-2xl py-3 font-black text-sm">🕒 Pay at the end</button>' +
+      '<p class="text-[11px] text-gray-500 text-center mt-2">Points sirf payment ke waqt use hote hain: abhi Pay now par, ya baad me bill par.</p>');
+    renderPts(); loadPts();
+  }
+  async function placeOrder(mode) {
     if (placing || !cart.length) return;
     if (!storeOpen) return toast(storeMsg || 'Abhi restaurant band hai', true);
-    var name = $('gName').value.trim(), phone = $('gPhone').value.replace(/\D/g, '');
-    if (name.length < 2) { $('gName').focus(); return toast('Apna naam daalein', true); }
-    if (!validPhone(phone)) { $('gPhone').focus(); return toast('Sahi 10-digit mobile number daalein', true); }
-    var prof = profile(), tok = prof && prof.phone === phone ? prof.token || '' : '';
-    if (tqOtpOn && !tok) return toast('Pehle WhatsApp OTP se number verify karein', true);
-    placing = true; var btn = $('placeBtn'); btn.disabled = true; btn.textContent = 'Sending...';
-    var lines = cart.slice(), sub = cartSub(), pts = usePts ? maxPts() : 0, off = pts ? ptsOffer() : 0;
+    if (!mode) {
+      var name = $('gName').value.trim(), phone = $('gPhone').value.replace(/\D/g, '');
+      if (name.length < 2) { $('gName').focus(); return toast('Apna naam daalein', true); }
+      if (!validPhone(phone)) { $('gPhone').focus(); return toast('Sahi 10-digit mobile number daalein', true); }
+      var prof = profile(), tok = prof && prof.phone === phone ? prof.token || '' : '';
+      if (tqOtpOn && !tok) return toast('Pehle WhatsApp OTP se number verify karein', true);
+      pg = { name: name, phone: phone, note: $('gNote').value, tok: tok };
+      usePts = false;
+      var b0 = null; try { b0 = await fetch('/api/table-qr/bill?t=' + encodeURIComponent(T) + '&k=' + encodeURIComponent(K)).then(jsonOrThrow); } catch (e) { /* no bill info: just place it unpaid */ }
+      if (b0 && b0.online && !b0.lines.length && !b0.pendingCount) return payChoiceSheet();
+      mode = 'later';
+    }
+    if (!pg) return;
+    placing = true; setPlaceBusy(true);
+    var lines = cart.slice(), sub = cartSub(), pts = (mode === 'now' && usePts) ? maxPts() : 0, off = pts ? ptsOffer() : 0, rpId = null;
     try {
       var r = await fetch('/api/table-qr/order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-        t: T, k: K, customer_name: name, customer_phone: phone, note: $('gNote').value, points_redeem: pts || undefined, profile_token: tok,
+        t: T, k: K, customer_name: pg.name, customer_phone: pg.phone, note: pg.note, points_redeem: pts || undefined, pay_now: mode === 'now' || undefined, profile_token: pg.tok,
         items: lines.map(function (c) { return { id: c.id, qty: c.qty, variant: c.variant || undefined, addons: c.addons }; }) }) });
       var d = await r.json().catch(function () { return {}; });
       if (!r.ok || !d.success) throw new Error(d.error || 'Order nahi ho paaya. Dobara try karein.');
-      try { localStorage.setItem(GUEST_KEY, JSON.stringify({ name: name, phone: phone })); } catch (e) {}
+      if (mode === 'now') {
+        // the order is saved hidden; staff only see it once this payment is verified (closing the window cancels it)
+        if (!d.pay) throw new Error('Payment shuru nahi ho paaya. Dobara try karein.');
+        rpId = d.pay.rpOrderId;
+        await loadRazorpay();
+        var resp = await new Promise(function (resolve, reject) {
+          new Razorpay({
+            key: d.pay.keyId, amount: d.pay.amount, currency: 'INR', order_id: d.pay.rpOrderId, name: $('restName').textContent || 'Vishal Foodiez',
+            description: 'Table ' + T + (d.token_no ? ' • Token #' + d.token_no : ''), prefill: { name: pg.name, contact: pg.phone }, theme: { color: '#059669' },
+            handler: resolve, modal: { ondismiss: function () { reject(Object.assign(new Error('Payment cancel ho gayi. Order place nahi hua.'), { cancelled: true })); } }
+          }).open();
+        });
+        await fetch('/api/razorpay/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ razorpay_order_id: resp.razorpay_order_id, razorpay_payment_id: resp.razorpay_payment_id, razorpay_signature: resp.razorpay_signature }) }).then(jsonOrThrow);
+        rpId = null;
+      }
+      try { localStorage.setItem(GUEST_KEY, JSON.stringify({ name: pg.name, phone: pg.phone })); } catch (e) {}
       // first order with this number creates the customer profile; its secret token (shared with the online ordering page) is what lets this phone show a redeem code
-      if (d.profile_token) { try { localStorage.setItem('vf_profile', JSON.stringify({ name: name, phone: phone, token: d.profile_token })); } catch (e) {} }
+      if (d.profile_token) { try { localStorage.setItem('vf_profile', JSON.stringify({ name: pg.name, phone: pg.phone, token: d.profile_token })); } catch (e) {} }
       var orders = []; try { orders = JSON.parse(localStorage.getItem(ORD_KEY) || '[]'); } catch (e) {}
       var rec = { id: d.orderId, s: d.track, token: d.token_no, shared: !!d.shared, total: sub - off, at: Date.now(), items: lines.map(function (c) { return { name: c.name, qty: c.qty }; }) };
       orders.unshift(rec);
       try { localStorage.setItem(ORD_KEY, JSON.stringify(orders.slice(0, 5))); } catch (e) {}
-      usePts = false; ptsInfo = null;
+      usePts = false; ptsInfo = null; pg = null;
       cart = []; saveCart(); updateCartBar(); renderMenu(); closeSheet(); placing = false;
       showOrderPage(rec); pollOrders();
     } catch (e) {
+      if (rpId) fetch('/api/razorpay/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rpOrderId: rpId }) }).catch(function () {});
       // Server no longer accepts this login: drop it so the customer verifies the number again
       if (/OTP se number verify/.test(e.message || '')) { try { var pf = profile(); if (pf) localStorage.setItem('vf_profile', JSON.stringify({ name: pf.name, phone: pf.phone, token: '' })); } catch (x) {} ptsInfo = null; renderTqLogin(); }
-      placing = false; btn.disabled = false; btn.textContent = '🚀 Place Order'; toast(e.message, true);
+      placing = false; setPlaceBusy(false); toast(e.message, true);
     }
   }
 
@@ -697,7 +739,8 @@
   async function billSheet() {
     openSheet(sheetHead('🧾 Bill • Table ' + esc(T)) + '<p class="text-center py-10 text-gray-400 font-bold">Loading...</p>');
     var d;
-    try { d = await fetch('/api/table-qr/bill?t=' + encodeURIComponent(T) + '&k=' + encodeURIComponent(K)).then(jsonOrThrow); }
+    var p0 = profile();
+    try { d = await fetch('/api/table-qr/bill?t=' + encodeURIComponent(T) + '&k=' + encodeURIComponent(K) + (p0 && p0.token ? '&phone=' + encodeURIComponent(p0.phone) : '')).then(jsonOrThrow); }
     catch (e) { return openSheet(sheetHead('🧾 Bill') + '<p class="text-center py-8 text-rose-500 font-bold">' + esc(e.message) + '</p>'); }
     var html = sheetHead('🧾 Bill • Table ' + esc(T), d.token ? 'Token #' + d.token : '');
     if (!d.lines.length && !d.pendingCount) {
@@ -720,12 +763,33 @@
     }
     if (d.lines.length && d.due > 0) {
       if (d.pendingCount) html += '<p class="mt-3 text-[11px] text-gray-500 text-center">Naya order accept hone ke baad bill update hoga, tab payment karein.</p>';
-      else if (d.online) html += '<button id="payBtn" onclick="payBill()" class="mt-4 w-full bg-emerald-600 text-white rounded-2xl py-3.5 font-black text-sm">💳 Pay ' + rs(d.due) + ' online</button><p class="mt-2 text-[11px] text-gray-500 text-center">Ya counter par bhi payment kar sakte hain.</p>';
+      else if (d.online) {
+        billPts = 0; billDue = d.due;
+        var bn = 0;
+        if (d.points_base > 0 && p0 && p0.token) { if (!ptsInfo) await loadPts(); bn = maxPtsFor(d.points_base, p0.phone); }
+        if (bn) html += '<label class="mt-4 flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 cursor-pointer"><input type="checkbox" id="useBillPts" onchange="toggleBillPts(' + bn + ')" class="w-4 h-4 accent-amber-500"><span class="text-xs font-black text-amber-900">⭐ ' + bn + ' points use karein • aapke paas ' + ptsInfo.balance + '</span></label><div id="billPtsNote" class="text-xs font-black text-amber-700 mt-1 text-right"></div>';
+        html += '<button id="payBtn" onclick="payBill()" class="mt-4 w-full bg-emerald-600 text-white rounded-2xl py-3.5 font-black text-sm">💳 Pay ' + rs(d.due) + ' online</button><p class="mt-2 text-[11px] text-gray-500 text-center">Ya counter par bhi payment kar sakte hain.</p>';
+      }
       else html += '<p class="mt-4 text-sm font-bold text-center text-gray-600">Payment counter par karein.</p>';
     } else if (d.lines.length) {
       html += '<div class="mt-4 bg-emerald-50 border border-emerald-200 rounded-2xl py-3 text-center font-black text-emerald-700">✅ Payment received. Thank you!</div>';
     }
     openSheet(html);
+  }
+
+  var billPts = 0, billDue = 0;
+  // Tick = ask the server what the bill becomes with these points (it recomputes GST on the reduced amount); untick = back to the full due
+  async function toggleBillPts(n) {
+    var cb = $('useBillPts'), btn = $('payBtn'), note = $('billPtsNote'), p = profile(); billPts = 0;
+    if (cb.checked && p) {
+      cb.disabled = true;
+      try {
+        var qd = await fetch('/api/table-qr/pay/quote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ t: T, k: K, phone: p.phone, profile_token: p.token, points_redeem: n }) }).then(jsonOrThrow);
+        billPts = qd.points; note.textContent = '−' + rs(qd.discount) + ' discount (' + qd.points + ' pts)'; btn.textContent = '💳 Pay ' + rs(qd.amount) + ' online';
+      } catch (e) { cb.checked = false; toast(e.message, true); }
+      cb.disabled = false;
+    }
+    if (!billPts) { note.textContent = ''; btn.textContent = '💳 Pay ' + rs(billDue) + ' online'; }
   }
 
   var paying = false;
@@ -734,7 +798,7 @@
     paying = true; var btn = $('payBtn'); if (btn) { btn.disabled = true; btn.textContent = 'Please wait...'; }
     var g = guest(), rpOrderId = null;
     try {
-      var d = await fetch('/api/table-qr/pay/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ t: T, k: K }) }).then(jsonOrThrow);
+      var d = await fetch('/api/table-qr/pay/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ t: T, k: K, points_redeem: billPts || undefined, phone: billPts ? g.phone : undefined, profile_token: billPts && profile() ? profile().token : undefined }) }).then(jsonOrThrow);
       rpOrderId = d.rpOrderId;
       await loadRazorpay();
       var resp = await new Promise(function (resolve, reject) {

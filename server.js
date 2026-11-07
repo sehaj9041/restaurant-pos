@@ -1734,7 +1734,7 @@ const createOrderHandler = async (req, res) => {
   const isKioskOrOnline = is_kiosk || upperType.includes('KIOSK') || upperType.includes('ONLINE') || upperType.includes('SWIGGY') || upperType.includes('ZOMATO');
   
   if (req.tableQr) {
-    status = 'NEEDS_APPROVAL';
+    status = req.tableQrPayNow ? 'HOLD' : 'NEEDS_APPROVAL'; // "Pay now": hidden until the Razorpay payment is verified, then it needs staff approval (see razorpayPay.js)
   } else if (isOnlineOrder && req.body.pay_online) {
     status = 'HOLD'; // hidden until Razorpay payment is verified (see razorpayPay.js)
   } else if (req.autoAccept) {
@@ -2242,7 +2242,7 @@ app.post('/api/whatsapp/disconnect', (req, res) => {
 
 require('./staffPayroll').register(app, { dbAllAsync, checkOwnerPin });
 require('./reports').register(app, { dbAllAsync });
-const tableQrApi = require('./tableQr').register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, storeStatus, createOrderHandler });
+const tableQrApi = require('./tableQr').register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, storeStatus, createOrderHandler, profileTokenOk, taxableSubtotal, computeDiscount: (a) => engagement.computeDiscount(a) });
 async function saveSettingsConfig(patch) {
   const cfg = Object.assign(await getSettingsConfig(), patch);
   await dbAllAsync(`INSERT INTO settings (id, config) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET config = excluded.config RETURNING id`, [JSON.stringify(cfg)]);

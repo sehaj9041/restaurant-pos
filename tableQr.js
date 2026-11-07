@@ -8,7 +8,7 @@ const sig = (secret, text) => crypto.createHmac('sha256', secret).update(text).d
 const safeEq = (a, b) => { const x = Buffer.from(String(a || '')), y = Buffer.from(String(b || '')); return x.length === y.length && crypto.timingSafeEqual(x, y); };
 const cleanText = (v, n) => String(v == null ? '' : v).replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, n);
 
-function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, storeStatus, createOrderHandler }) {
+function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, storeStatus, createOrderHandler, profileTokenOk, taxableSubtotal, computeDiscount }) {
   const q = (sql, p) => dbAllAsync(sql, p || []);
 
   async function secret() {
@@ -102,15 +102,29 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, stor
         notes: i === 0 && note ? 'Note: ' + note : ''
       })) : [];
       // only these fields are ever read from a public request: no discount / payment / status can be injected
-      const pts = Math.floor(Number(b.points_redeem));
+      // "Pay now" (first order only, chosen by the guest): the order stays hidden until Razorpay confirms the payment. Points are only used when paying:
+      // here for Pay now, later on the bill sheet for pay-at-the-end (never when the order is placed unpaid).
+      const payNow = b.pay_now === true;
+      if (payNow && !rzConfigured()) return res.status(503).json({ error: 'Online payment abhi available nahi hai. Pay at the end chunein.' });
+      const pts = payNow ? Math.floor(Number(b.points_redeem)) : 0;
       req.body = { order_type: 'Dine-In', table_no: table, customer_name: name, customer_phone: phone, items,
         points_redeem: pts > 0 ? pts : undefined, profile_token: String(b.profile_token || '').slice(0, 100) };
       req.tableQr = { table };
+      req.tableQrPayNow = payNow;
       const origJson = res.json.bind(res);
       res.json = async (d) => {
         if (d && d.success && d.orderId) {
           d.track = await orderSig(d.orderId);
           try { const r = await resolveOrder(d.orderId); if (r) { d.token_no = r.token; d.shared = r.shared; } } catch (e) { /* keep the order's own token */ }
+          if (payNow) {
+            try { d.pay = await app.locals.razorpayStart(d.orderId, d.token_no, d.profile_token); }
+            catch (e) {
+              console.error('[TABLE QR PAY NOW] razorpay start failed:', e.message);
+              await q("UPDATE orders SET status = 'VOID' WHERE id = ? AND status = 'HOLD' RETURNING id", [d.orderId]).catch(() => {});
+              res.status(500);
+              return origJson({ error: 'Payment shuru nahi ho paaya. Dobara try karein ya Pay at the end chunein.' });
+            }
+          }
         }
         return origJson(d);
       };
@@ -140,14 +154,15 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, stor
   // ---- bill + online payment (Razorpay) ----
   q(`CREATE TABLE IF NOT EXISTS table_bill_payments (
     id SERIAL PRIMARY KEY, rp_order_id TEXT UNIQUE, table_no TEXT, orders TEXT, amount NUMERIC,
-    status TEXT DEFAULT 'CREATED', payment_id TEXT, created_ms BIGINT)`).catch(e => console.error('table_bill_payments error:', e.message));
+    status TEXT DEFAULT 'CREATED', payment_id TEXT, created_ms BIGINT)`)
+    .then(() => q('ALTER TABLE table_bill_payments ADD COLUMN IF NOT EXISTS points_plan TEXT')).catch(e => console.error('table_bill_payments error:', e.message));
   const rzConfigured = () => !!(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET);
   const rzHmac = (data) => crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET || '').update(data).digest('hex');
   const money = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
   // The table's bill = every accepted (running) dine-in order on the table. Orders still waiting for staff are listed apart and not payable yet.
   async function tableBill(table) {
-    const live = await q(`SELECT id, token_no, status, subtotal, discount, gst, total, COALESCE(paid_amount, 0) AS paid FROM orders
+    const live = await q(`SELECT id, token_no, status, subtotal, discount, gst, total, customer_phone, COALESCE(points_redeemed, 0) AS points_redeemed, COALESCE(paid_amount, 0) AS paid FROM orders
       WHERE ${LIVE_BILL} AND UPPER(table_no) = UPPER(?) ORDER BY id`, [table]);
     const pending = await q(`SELECT id, token_no FROM orders WHERE source = 'TABLE_QR' AND UPPER(status) = 'NEEDS_APPROVAL' AND UPPER(table_no) = UPPER(?) ORDER BY id`, [table]);
     const lineMap = new Map();
@@ -171,9 +186,49 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, stor
       const table = await verifyTable(req.query.t, req.query.k);
       if (!table) return res.status(403).json({ error: 'Ye QR sahi nahi hai. Staff se poochhein.' });
       const bill = await tableBill(table);
+      // points can be used on the final online payment: this guest's own order the points discount would go on (see planPoints)
+      const ph = cleanText(req.query.phone, 15).replace(/\D/g, '').slice(-10);
+      const cand = ph.length === 10 ? pointsTarget(bill, ph) : null;
+      const points_base = cand ? money(cand.subtotal) : 0;
       delete bill.live;
-      res.json({ table, ...bill, online: rzConfigured() });
+      res.json({ table, ...bill, online: rzConfigured(), points_base });
     } catch (e) { console.error('[TABLE QR BILL]', e.message); res.status(500).json({ error: 'Bill load nahi hua' }); }
+  });
+
+  // Loyalty points on the final bill payment: the whole points discount goes on ONE order of the table placed with the guest's own number
+  // (the points ledger is per phone/order), with GST recomputed on the reduced amount exactly like a counter discount.
+  const pointsTarget = (bill, phone) => bill.live
+    .filter(o => String(o.customer_phone || '').slice(-10) === phone && !(Number(o.discount) > 0) && !(Number(o.points_redeemed) > 0) && money(Number(o.total) - Number(o.paid)) > 0 && Number(o.subtotal) > 0)
+    .sort((a, b) => Number(b.subtotal) - Number(a.subtotal))[0];
+  async function planPoints(bill, phone, pts, token) {
+    phone = cleanText(phone, 15).replace(/\D/g, '').slice(-10);
+    pts = Math.floor(Number(pts));
+    if (!(pts > 0) || phone.length !== 10) return { error: 'Points sahi nahi hain' };
+    if (!(await profileTokenOk(phone, token))) return { error: 'Points verify nahi ho paaye. Number WhatsApp OTP se verify karein.' };
+    const o = pointsTarget(bill, phone);
+    if (!o) return { error: 'Points sirf aapke apne number se kiye gaye order par lag sakte hain, aur us par koi discount nahi hona chahiye.' };
+    const promo = await computeDiscount({ subtotal: Number(o.subtotal), phone, points_redeem: pts, staff_override: true, consume: false });
+    if (promo.error) return { error: promo.error };
+    const items = await q('SELECT name, qty, price, is_exempt FROM order_items WHERE order_id = ?', [o.id]);
+    const sub = Number(o.subtotal), disc = promo.discount, taxBase = taxableSubtotal(items);
+    const gst = Math.round((Math.max(0, taxBase - disc * taxBase / sub) * 5) / 100);
+    const total = Math.round(sub + gst - disc);
+    return { orderId: o.id, pts: promo.pointsRedeemed, discount: disc, gst, total, reason: promo.reason, paid: Number(o.paid) };
+  }
+  // what the guest owes per order, with the points order's reduced total applied
+  const payParts = (bill, plan) => bill.live.map(o => ({ id: o.id, amount: money(Math.max(0, (plan && plan.orderId === o.id ? plan.total : Number(o.total)) - Number(o.paid))) })).filter(p => p.amount > 0);
+
+  app.post('/api/table-qr/pay/quote', async (req, res) => {
+    try {
+      const b = req.body || {};
+      const table = await verifyTable(b.t, b.k);
+      if (!table) return res.status(403).json({ error: 'Ye QR sahi nahi hai.' });
+      if (limited('quote:' + table, 30, 600000)) return res.status(429).json({ error: 'Thodi der baad try karein.' });
+      const bill = await tableBill(table);
+      const plan = await planPoints(bill, b.phone, b.points_redeem, b.profile_token);
+      if (plan.error) return res.status(400).json({ error: plan.error });
+      res.json({ points: plan.pts, discount: money(plan.discount), amount: money(payParts(bill, plan).reduce((t, p) => t + p.amount, 0)) });
+    } catch (e) { console.error('[TABLE QR QUOTE]', e.message); res.status(500).json({ error: 'Points check nahi ho paaye' }); }
   });
 
   app.post('/api/table-qr/pay/create', async (req, res) => {
@@ -189,8 +244,14 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, stor
       const busy = await q("SELECT 1 FROM table_bill_payments WHERE table_no = ? AND status = 'CREATED' AND created_ms > ? LIMIT 1", [table, Date.now() - 180000]);
       if (busy.length) return res.status(409).json({ error: 'Is table ka payment already chal raha hai. 2-3 minute baad dobara dekhein.' });
 
-      const parts = bill.live.map(o => ({ id: o.id, amount: money(Math.max(0, Number(o.total) - Number(o.paid))) })).filter(p => p.amount > 0);
+      let plan = null;
+      if (Math.floor(Number((req.body || {}).points_redeem)) > 0) {
+        plan = await planPoints(bill, req.body.phone, req.body.points_redeem, req.body.profile_token);
+        if (plan.error) return res.status(400).json({ error: plan.error });
+      }
+      const parts = payParts(bill, plan);
       const amount = money(parts.reduce((t, p) => t + p.amount, 0));
+      if (plan && amount < 1) return res.status(400).json({ error: 'Itne points ke baad amount bahut kam bachta hai. Kam points use karein.' });
       const auth = Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString('base64');
       const r = await fetch('https://api.razorpay.com/v1/orders', {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Basic ${auth}` },
@@ -198,7 +259,7 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, stor
       });
       const rp = await r.json();
       if (!r.ok || !rp.id) throw new Error('razorpay order failed: ' + JSON.stringify(rp.error || rp));
-      await q('INSERT INTO table_bill_payments (rp_order_id, table_no, orders, amount, created_ms) VALUES (?, ?, ?, ?, ?) RETURNING id', [rp.id, table, JSON.stringify(parts), amount, Date.now()]);
+      await q('INSERT INTO table_bill_payments (rp_order_id, table_no, orders, amount, created_ms, points_plan) VALUES (?, ?, ?, ?, ?, ?) RETURNING id', [rp.id, table, JSON.stringify(parts), amount, Date.now(), plan ? JSON.stringify(plan) : null]);
       res.json({ keyId: process.env.RAZORPAY_KEY_ID, rpOrderId: rp.id, amount: Math.round(amount * 100), total: amount, token: bill.token });
     } catch (e) {
       console.error('[TABLE QR PAY] create error:', e.message);
@@ -212,6 +273,12 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, stor
     const claimed = await q("UPDATE table_bill_payments SET status = 'PAID', payment_id = ? WHERE rp_order_id = ? AND status <> 'PAID' RETURNING *", [paymentId || '', rpOrderId]);
     if (!claimed.length) return false;
     let parts = []; try { parts = JSON.parse(claimed[0].orders || '[]'); } catch (e) { parts = []; }
+    // points used on this payment: now that it is paid, put the discount on the order (this also spends the points in the ledger)
+    let plan = null; try { plan = claimed[0].points_plan ? JSON.parse(claimed[0].points_plan) : null; } catch (e) { plan = null; }
+    if (plan && plan.orderId) {
+      await q("UPDATE orders SET discount = ?, gst = ?, total = ?, points_redeemed = ?, discount_reason = ? WHERE id = ? AND COALESCE(points_redeemed, 0) = 0 RETURNING id",
+        [plan.discount, plan.gst, plan.total, plan.pts, plan.reason || (plan.pts + ' pts'), plan.orderId]);
+    }
     for (const p of parts) {
       await q(`UPDATE orders SET paid_amount = LEAST(total, COALESCE(paid_amount, 0) + ?::numeric), payment_mode = 'RAZORPAY',
           status = CASE WHEN UPPER(status) = 'KOT_DONE' AND COALESCE(paid_amount, 0) + ?::numeric >= total THEN 'DISPATCHED' ELSE status END

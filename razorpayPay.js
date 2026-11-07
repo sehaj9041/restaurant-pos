@@ -81,29 +81,35 @@ function register(app, { dbAllAsync, createOrderHandler, extraMarkPaid }) {
 
   app.get('/api/razorpay/config', (req, res) => res.json({ enabled: configured() }));
 
+  // Creates the Razorpay order for an already saved HOLD order (its DB total) and records it. Used by the website checkout and by table QR "Pay now".
+  async function startRazorpay(orderId, tokenNo, profileToken) {
+    const rows = await dbAllAsync('SELECT total FROM orders WHERE id = ?', [orderId]);
+    const total = Number(rows[0] && rows[0].total);
+    if (!(total > 0)) throw new Error('invalid total');
+
+    const auth = Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString('base64');
+    const r = await fetch('https://api.razorpay.com/v1/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Basic ${auth}` },
+      body: JSON.stringify({ amount: Math.round(total * 100), currency: 'INR', receipt: `POS${orderId}`, notes: { pos_order_id: String(orderId) } })
+    });
+    const rp = await r.json();
+    if (!r.ok || !rp.id) throw new Error('razorpay order failed: ' + JSON.stringify(rp.error || rp));
+
+    await dbAllAsync(
+      'INSERT INTO razorpay_payments (rp_order_id, pos_order_id, token_no, profile_token, amount, created_ms) VALUES (?, ?, ?, ?, ?, ?) RETURNING id',
+      [rp.id, orderId, tokenNo, profileToken || null, total, Date.now()]);
+    return { keyId: process.env.RAZORPAY_KEY_ID, rpOrderId: rp.id, amount: Math.round(total * 100), total, orderId, token_no: tokenNo };
+  }
+  app.locals.razorpayStart = (orderId, tokenNo, profileToken) => configured() ? startRazorpay(orderId, tokenNo, profileToken) : Promise.reject(new Error('razorpay not configured'));
+
   app.post('/api/razorpay/create-order', async (req, res) => {
     if (!configured()) return res.status(503).json({ error: 'Online payment abhi available nahi hai' });
     let orderId;
     try {
       const o = await runCreateOrder({ ...req.body, pay_online: true });
       orderId = o.orderId;
-      const rows = await dbAllAsync('SELECT total FROM orders WHERE id = ?', [orderId]);
-      const total = Number(rows[0] && rows[0].total);
-      if (!(total > 0)) throw new Error('invalid total');
-
-      const auth = Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString('base64');
-      const r = await fetch('https://api.razorpay.com/v1/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Basic ${auth}` },
-        body: JSON.stringify({ amount: Math.round(total * 100), currency: 'INR', receipt: `POS${orderId}`, notes: { pos_order_id: String(orderId) } })
-      });
-      const rp = await r.json();
-      if (!r.ok || !rp.id) throw new Error('razorpay order failed: ' + JSON.stringify(rp.error || rp));
-
-      await dbAllAsync(
-        'INSERT INTO razorpay_payments (rp_order_id, pos_order_id, token_no, profile_token, amount, created_ms) VALUES (?, ?, ?, ?, ?, ?) RETURNING id',
-        [rp.id, orderId, o.token_no, o.profile_token || null, total, Date.now()]);
-      res.json({ keyId: process.env.RAZORPAY_KEY_ID, rpOrderId: rp.id, amount: Math.round(total * 100), total, orderId, token_no: o.token_no });
+      res.json(await startRazorpay(orderId, o.token_no, o.profile_token));
     } catch (e) {
       console.error('[RAZORPAY] create-order error:', e.message);
       if (orderId) dbAllAsync("UPDATE orders SET status = 'VOID' WHERE id = ? AND status = 'HOLD' RETURNING id", [orderId]).catch(() => {});
