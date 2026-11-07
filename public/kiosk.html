@@ -288,7 +288,6 @@
       <div class="mt-6 bg-white rounded-3xl p-4 shadow-lg"><img id="upiQrImg" alt="UPI QR" class="w-72 h-72"></div>
       <div id="upiAmount" class="text-4xl font-black mt-6"></div>
       <div id="upiStatus" class="text-lg mt-2 opacity-80">Waiting for payment…</div>
-      <div id="upiTimer" class="text-base mt-1 opacity-60"></div>
       <button onclick="cancelUpiPayment()" class="btn-outline w-full py-3 text-base mt-8">Cancel</button>
     </div>
 
@@ -1291,10 +1290,10 @@
     }
 
     // ---------- UPI QR payment (Paytm) ----------
-    let upiPaytmId = null, upiPollTimer = null, upiCountTimer = null, upiSnapshot = null;
+    let upiPaytmId = null, upiPollTimer = null, upiSnapshot = null;
     function stopUpiTimers() {
-      clearInterval(upiPollTimer); clearInterval(upiCountTimer);
-      upiPollTimer = upiCountTimer = null;
+      clearInterval(upiPollTimer);
+      upiPollTimer = null;
       $('upiQrModal').classList.add('hidden');
     }
     function upiPaid(d) {
@@ -1317,10 +1316,7 @@
           $('upiQrImg').src = d.qrImage;
           $('upiAmount').innerText = '₹' + d.amount;
           $('upiQrModal').classList.remove('hidden');
-          let left = d.expiresInSec;
-          const tick = () => { $('upiTimer').innerText = 'QR valid for ' + Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0'); };
-          tick();
-          upiCountTimer = setInterval(() => { left--; tick(); if (left <= 0) cancelUpiPayment(true); }, 1000);
+          // no countdown: the QR stays until Cancel; a payment that lands after it is closed still places the order
           upiPollTimer = setInterval(() => {
             const id = upiPaytmId;
             if (!id) return;
@@ -1796,7 +1792,7 @@
     }
 
     function showThinking() {
-      if (!$('upiQrModal').classList.contains('hidden')) { armIdleTimer(); return; } // customer is scanning the QR
+      if (!$('upiQrModal').classList.contains('hidden')) { armIdleTimer(); return; } // never interrupt the QR page; a payment that lands after it is closed still places the order
       let left = 20;
       $('thinkingCountdown').innerText = left;
       $('thinkingModal').classList.remove('hidden');

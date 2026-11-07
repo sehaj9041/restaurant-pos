@@ -12,8 +12,9 @@ const crypto = require('crypto');
 const PaytmChecksum = require('paytmchecksum');
 const QRCode = require('qrcode');
 
-const QR_WINDOW_MS = 5 * 60 * 1000;
 const STATUS_THROTTLE_MS = 2000;
+
+const isPaid = (st) => st === 'PAID';
 
 const paytmEnv = () => String(process.env.PAYTM_ENV || 'stage').toLowerCase();
 const isMock = () => paytmEnv() === 'mock';
@@ -85,6 +86,8 @@ function register(app, { dbAllAsync, createOrderHandler, computeDiscount, discou
     created_ms BIGINT
   )`, []).catch(e => console.error('paytm_callback_log table error:', e.message));
 
+  dbAllAsync('ALTER TABLE upi_payments ADD COLUMN IF NOT EXISTS paid_ms BIGINT DEFAULT 0', []).catch(e => console.error('upi_payments paid_ms error:', e.message));
+
   const mockPaid = new Set();
   const getRow = async (paytmOrderId) => (await dbAllAsync('SELECT * FROM upi_payments WHERE paytm_order_id = ?', [paytmOrderId]))[0];
 
@@ -101,6 +104,23 @@ function register(app, { dbAllAsync, createOrderHandler, computeDiscount, discou
     });
   }
 
+  // A POS / rider collection is tied to the order (or the customer's khata) the QR was made for. When Paytm confirms, the money is applied there by the
+  // server itself, so it still lands on the right order even if the screen that showed the QR was closed before the payment came in.
+  async function applyCollect(parked, amount) {
+    if (parked.order_id) {
+      await dbAllAsync(`UPDATE orders SET paid_amount = LEAST(total, COALESCE(paid_amount, 0) + ?::numeric),
+          payment_mode = CASE WHEN COALESCE(paid_amount, 0) > 0 AND UPPER(COALESCE(payment_mode, '')) <> 'UPI' THEN 'SPLIT' ELSE 'UPI' END,
+          status = CASE WHEN UPPER(status) = 'KOT_DONE' AND COALESCE(paid_amount, 0) + ?::numeric >= total THEN 'DISPATCHED'
+                        WHEN UPPER(status) = 'DUE_PENDING' AND COALESCE(paid_amount, 0) + ?::numeric >= total THEN 'COMPLETED'   -- a khata (Due) order paid in full leaves the Due list, like "settle customer"
+                        ELSE status END
+        WHERE id = ? AND UPPER(COALESCE(status, '')) NOT IN ('VOID', 'CANCELLED', 'COMPLETED') RETURNING id`, [amount, amount, amount, parked.order_id]);
+    } else if (parked.settle_customer) {
+      await dbAllAsync(`UPDATE orders SET status = 'COMPLETED', payment_mode = 'UPI', paid_amount = total
+        WHERE COALESCE(NULLIF(customer_phone, ''), 'WALK-IN') = ? AND status NOT IN ('COMPLETED', 'DISPATCHED', 'VOID')
+          AND (UPPER(payment_mode) = 'DUE' OR status = 'DUE_PENDING' OR (UPPER(payment_mode) LIKE '%PARTIAL%' AND (total - COALESCE(paid_amount, 0)) > 0)) RETURNING id`, [parked.settle_customer]);
+    }
+  }
+
   // Creates the paid POS order exactly once, even if callback and polling arrive together.
   async function finalize(row, txnId) {
     const claimed = await dbAllAsync(
@@ -109,8 +129,10 @@ function register(app, { dbAllAsync, createOrderHandler, computeDiscount, discou
     if (!claimed.length) return;
     let parked = {}; try { parked = JSON.parse(row.payload); } catch (e) { /* kiosk payload below will fail the same way */ }
     if (parked._collect) {
-      await dbAllAsync("UPDATE upi_payments SET status = 'PAID' WHERE id = ? RETURNING id", [row.id]);
-      console.log(`[UPI PAID] ${row.paytm_order_id} Rs.${row.amount} (POS / rider collection)`);
+      try { await applyCollect(parked, Number(row.amount)); }
+      catch (e) { await dbAllAsync("UPDATE upi_payments SET status = 'ORDER_FAILED' WHERE id = ? RETURNING id", [row.id]); console.error(`[UPI ERROR] Paid but could not be applied for ${row.paytm_order_id}:`, e.message); return; }
+      await dbAllAsync("UPDATE upi_payments SET status = 'PAID', paid_ms = ? WHERE id = ? RETURNING id", [Date.now(), row.id]);
+      console.log(`[UPI PAID] ${row.paytm_order_id} Rs.${row.amount} (POS / rider collection${parked.order_id ? ' -> order #' + parked.order_id : parked.settle_customer ? ' -> khata ' + parked.settle_customer : ''})`);
       return;
     }
     try {
@@ -125,7 +147,7 @@ function register(app, { dbAllAsync, createOrderHandler, computeDiscount, discou
 
   // Asks Paytm (server to server) whether this order is paid. This is the only thing that can mark it paid.
   async function checkWithPaytm(row) {
-    if (row.status === 'PAID' || row.status === 'FINALIZING') return;
+    if (isPaid(row.status) || row.status === 'FINALIZING') return;
     if (!isMock() && !(process.env.PAYTM_MID && process.env.PAYTM_KEY)) return; // own-QR mode without MID: callback / staff confirm only
     let success = false, txnId = '';
     if (isMock()) {
@@ -147,7 +169,7 @@ function register(app, { dbAllAsync, createOrderHandler, computeDiscount, discou
   // Own-QR mode: a callback is only believed when it is a success for this order id, this amount and this merchant, AND it is authentic
   // (valid CHECKSUMHASH, or Paytm's own Status API says the same). Anything else is left for Paytm's Status API / the staff to confirm.
   async function confirmFromCallback(row, b, trusted) {
-    if (row.status === 'PAID' || row.status === 'FINALIZING') return;
+    if (isPaid(row.status) || row.status === 'FINALIZING') return;
     if (String(b.STATUS) !== 'TXN_SUCCESS') return;
     const amountOk = Math.abs(Number(b.TXNAMOUNT) - Number(row.amount)) < 0.005;
     const midOk = !process.env.PAYTM_MID || String(b.MID) === process.env.PAYTM_MID;
@@ -159,6 +181,22 @@ function register(app, { dbAllAsync, createOrderHandler, computeDiscount, discou
     console.error(`[UPI CALLBACK] ${row.paytm_order_id} not verifiable (no valid checksum / secret). Staff can confirm it from the POS; trying Status API`);
     await checkWithPaytm(row);
   }
+
+  // POS: QR payments that a rider's app collected and Paytm confirmed (polled by the POS for its notification + sound). First call (no `since`) only returns the server clock.
+  app.get('/api/upi/rider-paid', async (req, res) => {
+    try {
+      const since = Number(req.query.since);
+      if (!(since > 0)) return res.json({ now: Date.now(), items: [] });
+      const rows = await dbAllAsync("SELECT paytm_order_id, amount, payload, paid_ms FROM upi_payments WHERE status = 'PAID' AND paid_ms > ? AND payload LIKE '%\"source\":\"rider\"%' ORDER BY paid_ms LIMIT 20", [since]);
+      const items = [];
+      for (const r of rows) {
+        let oid = 0; try { oid = Math.floor(Number(JSON.parse(r.payload).order_id)); } catch (e) { /* none */ }
+        const o = oid > 0 ? (await dbAllAsync('SELECT id, token_no, customer_name, rider_name FROM orders WHERE id = ?', [oid]))[0] : null;
+        items.push({ id: r.paytm_order_id, amount: Number(r.amount), paid_ms: Number(r.paid_ms), order_id: oid || null, token_no: o ? o.token_no : null, customer: o ? o.customer_name : '', rider: o ? o.rider_name : '' });
+      }
+      res.json({ now: Math.max(Date.now(), ...items.map(i => i.paid_ms)), items });
+    } catch (e) { res.json({ now: Date.now(), items: [] }); }
+  });
 
   // The text inside the QR for `amount`, tagged with our order id (mock / own-QR / Paytm Dynamic QR API). null = Paytm refused.
   async function qrDataFor(amount, paytmOrderId, posId) {
@@ -187,12 +225,19 @@ function register(app, { dbAllAsync, createOrderHandler, computeDiscount, discou
       const amount = Math.round((Number(req.body && req.body.amount) || 0) * 100) / 100;
       if (!(amount >= 1) || amount > 100000) return res.status(400).json({ error: 'Amount sahi nahi hai' });
       const label = String((req.body && req.body.label) || '').slice(0, 60);
+      const link = {};
+      const oid = Math.floor(Number(req.body && req.body.order_id));
+      if (oid > 0) {
+        if (!(await dbAllAsync('SELECT id FROM orders WHERE id = ?', [oid])).length) return res.status(404).json({ error: 'Order nahi mila' });
+        link.order_id = oid;
+      } else if (req.body && /^\d{6,15}$/.test(String(req.body.settle_customer || ''))) link.settle_customer = String(req.body.settle_customer);
+      if (req.body && req.body.source === 'rider') link.source = 'rider';   // the POS gets a notification when a rider's QR is paid
       const paytmOrderId = 'COL' + now + crypto.randomBytes(2).toString('hex');
       const qrData = await qrDataFor(amount, paytmOrderId, process.env.PAYTM_COLLECT_POS_ID || 'POS1');
       if (!qrData) return res.status(502).json({ error: 'QR nahi ban paaya.' });
       await dbAllAsync('INSERT INTO upi_payments (paytm_order_id, amount, payload, created_ms) VALUES (?, ?, ?, ?) RETURNING id',
-        [paytmOrderId, amount, JSON.stringify({ _collect: true, label }), now]);
-      res.json({ paytmOrderId, amount, expiresInSec: QR_WINDOW_MS / 1000, qrImage: await QRCode.toDataURL(qrData, { margin: 1, width: 420 }), mock: isMock() });
+        [paytmOrderId, amount, JSON.stringify({ _collect: true, label, ...link }), now]);
+      res.json({ paytmOrderId, amount, qrImage: await QRCode.toDataURL(qrData, { margin: 1, width: 420 }), mock: isMock() });
     } catch (e) {
       console.error('[UPI] collect error:', e.message);
       res.status(500).json({ error: 'QR nahi ban paaya.' });
@@ -224,7 +269,7 @@ function register(app, { dbAllAsync, createOrderHandler, computeDiscount, discou
       await dbAllAsync(
         'INSERT INTO upi_payments (paytm_order_id, amount, payload, created_ms) VALUES (?, ?, ?, ?) RETURNING id',
         [paytmOrderId, amount, JSON.stringify(p), Date.now()]);
-      res.json({ paytmOrderId, amount, expiresInSec: QR_WINDOW_MS / 1000, qrImage: await QRCode.toDataURL(qrData, { margin: 1, width: 420 }), mock: isMock() });
+      res.json({ paytmOrderId, amount, qrImage: await QRCode.toDataURL(qrData, { margin: 1, width: 420 }), mock: isMock() });
     } catch (e) {
       console.error('[UPI] create error:', e.message);
       res.status(500).json({ error: 'QR nahi ban paaya. Dobara try karein.' });
@@ -235,26 +280,25 @@ function register(app, { dbAllAsync, createOrderHandler, computeDiscount, discou
     try {
       let row = await getRow(req.params.id);
       if (!row) return res.status(404).json({ error: 'Not found' });
-      if (row.status !== 'PAID' && Date.now() - Number(row.checked_ms) > STATUS_THROTTLE_MS) {
+      if (!isPaid(row.status) && Date.now() - Number(row.checked_ms) > STATUS_THROTTLE_MS) {
         await checkWithPaytm(row);
         row = await getRow(req.params.id);
       }
-      if (row.status === 'PAID') return res.json({ status: 'PAID', orderId: row.pos_order_id, token_no: row.token_no });
-      const expired = Date.now() - Number(row.created_ms) > QR_WINDOW_MS || row.status === 'CANCELLED';
-      res.json({ status: expired ? 'EXPIRED' : 'PENDING' });
+      if (isPaid(row.status)) return res.json({ status: 'PAID', orderId: row.pos_order_id, token_no: row.token_no });
+      res.json({ status: row.status === 'CANCELLED' ? 'EXPIRED' : 'PENDING' });
     } catch (e) {
       console.error('[UPI] status error:', e.message);
       res.json({ status: 'PENDING' });
     }
   });
 
-  // Customer pressed Back / QR timed out. Final check first so a payment made at the last second is not lost.
+  // Customer pressed Back / the screen closed. Final check first so a payment made at the last second is not lost.
   app.post('/api/upi/cancel', async (req, res) => {
     try {
       let row = await getRow(req.body && req.body.paytmOrderId);
       if (!row) return res.json({ status: 'EXPIRED' });
-      if (row.status !== 'PAID') { await checkWithPaytm(row); row = await getRow(row.paytm_order_id); }
-      if (row.status === 'PAID') return res.json({ status: 'PAID', orderId: row.pos_order_id, token_no: row.token_no });
+      if (!isPaid(row.status)) { await checkWithPaytm(row); row = await getRow(row.paytm_order_id); }
+      if (isPaid(row.status)) return res.json({ status: 'PAID', orderId: row.pos_order_id, token_no: row.token_no });
       await dbAllAsync("UPDATE upi_payments SET status = 'CANCELLED' WHERE id = ? AND status = 'PENDING' RETURNING id", [row.id]);
       res.json({ status: 'EXPIRED' });
     } catch (e) {
@@ -289,12 +333,37 @@ function register(app, { dbAllAsync, createOrderHandler, computeDiscount, discou
       const id = String((req.body && req.body.paytmOrderId) || '');
       let row = await getRow(id);
       if (!row) return res.status(404).json({ error: 'Ye payment nahi mili' });
-      if (row.status !== 'PAID') { await finalize(row, 'MANUAL'); row = await getRow(id); console.log(`[UPI MANUAL CONFIRM] ${id} Rs.${row.amount} by staff`); }
-      if (row.status === 'PAID') return res.json({ ok: true, orderId: row.pos_order_id, token_no: row.token_no });
+      if (!isPaid(row.status)) { await finalize(row, 'MANUAL'); row = await getRow(id); console.log(`[UPI MANUAL CONFIRM] ${id} Rs.${row.amount} by staff`); }
+      if (isPaid(row.status)) return res.json({ ok: true, orderId: row.pos_order_id, token_no: row.token_no });
       res.status(409).json({ error: 'Order nahi ban paaya (status ' + row.status + '). Dobara try karein.' });
     } catch (e) {
       console.error('[UPI] manual confirm error:', e.message);
       res.status(500).json({ error: 'Confirm nahi ho paaya' });
+    }
+  });
+
+  // POS only: the QR could not be made, so the staff records the UPI money by hand (staff password) and it is applied the same way
+  app.post('/api/upi/apply-manual', async (req, res) => {
+    try {
+      const ip = req.ip || 'x', f = manualFails.get(ip);
+      if (f && f.until > Date.now()) return res.status(429).json({ error: 'Bahut galat password. Thodi der baad try karein.' });
+      if (!discountPasswordOk || !discountPasswordOk(req.body && req.body.auth_password)) {
+        const n = (f && !(f.until && f.until <= Date.now()) ? f.n : 0) + 1;
+        manualFails.set(ip, { n, until: n >= 8 ? Date.now() + 60000 : 0 });
+        return res.status(403).json({ error: 'Staff password galat hai' });
+      }
+      manualFails.delete(ip);
+      const amount = Math.round((Number(req.body.amount) || 0) * 100) / 100;
+      if (!(amount > 0) || amount > 100000) return res.status(400).json({ error: 'Amount sahi nahi hai' });
+      const oid = Math.floor(Number(req.body.order_id));
+      const parked = oid > 0 ? { order_id: oid } : /^\d{6,15}$/.test(String(req.body.settle_customer || '')) ? { settle_customer: String(req.body.settle_customer) } : null;
+      if (!parked) return res.status(400).json({ error: 'Order ya customer chahiye' });
+      await applyCollect(parked, amount);
+      console.log(`[UPI MANUAL APPLY] Rs.${amount} ${JSON.stringify(parked)} by staff`);
+      res.json({ ok: true });
+    } catch (e) {
+      console.error('[UPI] apply-manual error:', e.message);
+      res.status(500).json({ error: 'Record nahi ho paaya' });
     }
   });
 

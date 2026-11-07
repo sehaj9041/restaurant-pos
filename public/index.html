@@ -363,13 +363,6 @@
 
     <!-- MAIN FLOOR CONTENT (Floor Plan & Queues) -->
     <div id="mainFloorDashboardContent" class="space-y-3">
-      <div id="upiPendingBox" class="hidden bg-white rounded-xl border border-indigo-300 p-3 shadow-2xs space-y-2 mb-3">
-        <div class="flex justify-between items-center text-xs font-bold text-gray-700 border-b pb-2">
-          <span class="flex items-center gap-1.5"><span>📲</span> Kiosk UPI payments (Paytm me paisa aaya to confirm karein)</span>
-          <span id="upiPendingCount" class="bg-indigo-600 text-white px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
-        </div>
-        <div id="upiPendingList" class="space-y-2"></div>
-      </div>
       <div id="onlineOrdersBox" class="bg-white rounded-xl border border-orange-300 p-3 shadow-2xs space-y-2 mb-3 hidden">
         <div class="flex justify-between items-center text-xs font-bold text-gray-700 border-b pb-2">
           <span class="flex items-center gap-1.5"><span>🌐</span> Online Orders</span>
@@ -948,6 +941,9 @@
   </div>
 
   <!-- ================= SINGLE ORDER QUICK SETTLE MODAL ================= -->
+  <!-- Rider collected an order's amount through the UPI QR: stays until the staff taps OK -->
+  <div id="riderUpiNotices" class="fixed top-3 right-3 z-[96] w-80 max-w-[92vw] space-y-2"></div>
+
   <!-- UPI QR: scan, pay, and the screen moves on by itself when Paytm confirms -->
   <div id="upiCollectModal" class="hidden fixed inset-0 bg-black/60 z-[95] flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl w-full max-w-xs p-4 text-center space-y-2">
@@ -1328,13 +1324,13 @@
       fetchActiveOrders();
       loadDueOrdersData();
       fetchNeedsApprovalOrders();
-      fetchUpiPending();
+      pollRiderUpi();
 
       setInterval(function() {
         fetchActiveOrders();
         loadDueOrdersData();
         fetchNeedsApprovalOrders();
-        fetchUpiPending();
+        pollRiderUpi();
       }, 3000);
 
       var today = new Date().toISOString().slice(0, 10);
@@ -1347,7 +1343,10 @@
     }
 
     // ================= UPI QR COLLECT (callback-confirmed) =================
-    // collectUpi(amount, label) -> Promise<boolean>: true once the payment is confirmed (by Paytm callback, or by the person pressing "Payment aa gayi").
+    // collectUpi(amount, label, link) -> Promise<false | 'auto' | 'manual'>
+    //  link = { order_id } or { settle_customer }: the QR is tied to that order / customer, so when Paytm confirms the SERVER applies the money
+    //  there by itself, even if this popup was closed before the payment came in.
+    //  'auto' = payment confirmed and applied by the server; 'manual' = (rider only) "Payment aa gayi" pressed, nothing is recorded yet.
     var ucState = null;
     function ucDisplayQr(body) {   // mirror the QR on the customer display (customer.html)
       fetch('/api/display/qr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(function() {});
@@ -1355,86 +1354,99 @@
     function ucClose(result) {
       if (!ucState) return;
       var st = ucState; ucState = null;
-      ucDisplayQr({ clear: true });
       clearInterval(st.timer);
+      ucDisplayQr({ clear: true });
       document.getElementById('upiCollectModal').classList.add('hidden');
       st.resolve(result);
     }
-    function collectUpi(amount, label) {
+    function collectUpi(amount, label, link) {
       return new Promise(function(resolve) {
         amount = Math.round((Number(amount) || 0) * 100) / 100;
-        if (!(amount > 0)) return resolve(true);
-        fetch('/api/upi/collect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount: amount, label: label || '' }) })
+        if (!(amount > 0)) return resolve('auto');
+        link = link || {};
+        fetch('/api/upi/collect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ amount: amount, label: label || '' }, link)) })
           .then(function(r) { return r.json().then(function(d) { if (!r.ok) throw new Error(d.error || 'QR nahi ban paaya'); return d; }); })
           .then(function(d) {
             ucState = { id: d.paytmOrderId, amount: amount, resolve: resolve, timer: null };
             document.getElementById('ucAmount').innerText = '₹' + amount;
             document.getElementById('ucLabel').innerText = label || '';
             document.getElementById('ucQr').src = d.qrImage;
-            ucDisplayQr({ qrImage: d.qrImage, amount: amount });
             document.getElementById('ucStatus').innerText = 'Payment ka intezaar...';
             document.getElementById('upiCollectModal').classList.remove('hidden');
+            ucDisplayQr({ qrImage: d.qrImage, amount: amount });
             var st = ucState;
             st.timer = setInterval(function() {
               fetch('/api/upi/status/' + encodeURIComponent(st.id)).then(function(r) { return r.json(); }).then(function(s) {
                 if (ucState !== st) return;
-                if (s.status === 'PAID') { document.getElementById('ucStatus').innerText = '✅ Payment mil gayi'; setTimeout(function() { if (ucState === st) ucClose(true); }, 600); clearInterval(st.timer); }
-                else if (s.status === 'EXPIRED') { ucClose(false); uiAlert('QR expire ho gaya. Dobara try karein.'); }
+                if (s.status === 'PAID') { document.getElementById('ucStatus').innerText = '✅ Payment mil gayi'; clearInterval(st.timer); setTimeout(function() { if (ucState === st) ucClose('auto'); }, 600); }
               }).catch(function() {});
             }, 2000);
           })
           .catch(function(e) {
-            // QR could not be made (UPI not set up / network): fall back to the old way, the person confirms the money by hand
-            Promise.resolve(uiConfirm('QR nahi ban paaya (' + e.message + '). Kya ₹' + amount + ' UPI se mil gaye? Haan = manual maan lein.')).then(function(yes) { resolve(!!yes); });
+            // The QR could not be made (UPI not set up / network)
+            Promise.resolve(uiConfirm('QR nahi ban paaya (' + e.message + '). Staff password se ₹' + amount + ' ka UPI payment manual record karein?')).then(function(yes) {
+              if (!yes) return resolve(false);
+              return Promise.resolve(uiPrompt('Paytm app / soundbox me ₹' + amount + ' aa gaya? Tabhi staff password daalein:', '', { title: 'Record UPI payment', type: 'password', okText: 'Record' })).then(function(pw) {
+                if (!pw) return resolve(false);
+                return fetch('/api/upi/apply-manual', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ amount: amount, auth_password: pw }, link)) })
+                  .then(function(r) { return r.json().then(function(d) { if (!r.ok) { uiAlert(d.error || 'Record nahi hua'); return resolve(false); } resolve('auto'); }); });
+              });
+            }).catch(function() { resolve(false); });
           });
       });
     }
     function ucCancel() {
       if (!ucState) return;
       var id = ucState.id;
-      // last check first: a payment made at the very last second must not be lost
+      // The QR row is kept: if the customer pays after this popup is closed, the server still applies it to the same order. Last check first so a payment made just now is not lost.
       fetch('/api/upi/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paytmOrderId: id }) })
-        .then(function(r) { return r.json(); }).then(function(s) { ucClose(s.status === 'PAID'); }).catch(function() { ucClose(false); });
+        .then(function(r) { return r.json(); }).then(function(s) { ucClose(s.status === 'PAID' ? 'auto' : false); }).catch(function() { ucClose(false); });
     }
     function ucManual() {
       if (!ucState) return;
-      Promise.resolve(uiConfirm('Paytm app / soundbox me ₹' + ucState.amount + ' aa gaya? Tabhi "Haan" karein.')).then(function(yes) {
-        if (!yes || !ucState) return;
-        var id = ucState.id;
-        fetch('/api/upi/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paytmOrderId: id }) }).catch(function() {});
-        ucClose(true);
+      var st = ucState;
+      Promise.resolve(uiPrompt('Paytm app / soundbox me ₹' + st.amount + ' aa gaya? Tabhi staff password daalein:', '', { title: 'Confirm UPI payment', type: 'password', okText: 'Payment received' })).then(function(pw) {
+        if (!pw || ucState !== st) return;
+        fetch('/api/upi/manual-confirm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paytmOrderId: st.id, auth_password: pw }) })
+          .then(function(r) { return r.json().then(function(d) { if (!r.ok) return uiAlert(d.error || 'Confirm nahi hua'); if (ucState === st) ucClose('auto'); }); });
       });
     }
 
-    // ================= KIOSK UPI: staff confirms a payment by hand =================
-    var upiPendingBusy = false;
-    function fetchUpiPending() {
-      if (upiPendingBusy) return;
-      fetch('/api/upi/pending').then(function(r) { return r.ok ? r.json() : []; }).then(function(list) {
-        var box = document.getElementById('upiPendingBox'), wrap = document.getElementById('upiPendingList');
-        if (!box || !wrap || upiPendingBusy) return;
-        box.classList.toggle('hidden', !list.length);
-        document.getElementById('upiPendingCount').innerText = list.length;
-        wrap.innerHTML = list.map(function(p) {
-          var mins = Math.max(0, Math.round((Date.now() - p.created_ms) / 60000));
-          var items = p.items.slice(0, 4).map(function(i) { return wizEsc(i.name) + ' ×' + i.qty; }).join(', ') + (p.items.length > 4 ? ' +' + (p.items.length - 4) + ' more' : '');
-          var note = p.status === 'ORDER_FAILED' ? '<span class="text-rose-600 font-black">Paid but order fail hua, confirm karein</span>' : (p.status === 'PENDING' ? 'QR chal raha hai' : 'QR band ho gaya');
-          return '<div class="flex items-center justify-between gap-2 p-2.5 rounded-lg border bg-gray-50"><div class="min-w-0"><div class="font-black text-sm text-gray-900">₹' + p.amount + ' <span class="text-[10px] font-bold text-gray-500">• ' + mins + ' min pehle • ' + note + '</span></div>' +
-            '<div class="text-[11px] text-gray-600 truncate">' + items + '</div></div>' +
-            '<button onclick="confirmUpiPayment(\'' + wizEsc(p.id) + '\',' + p.amount + ')" class="shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black px-3 py-2 rounded-lg">✓ Payment received</button></div>';
-        }).join('');
-      }).catch(function() {});
+    // ================= RIDER COLLECTED UPI: notification + sound =================
+    var riderUpiSince = 0, riderUpiSeen = {};
+    function playRiderUpiChime() {
+      if (!approvalAudioCtx || approvalAudioCtx.state !== 'running') return;
+      var t = approvalAudioCtx.currentTime;
+      [659, 880, 1175].forEach(function(freq, i) {   // rising "payment received" chime
+        var osc = approvalAudioCtx.createOscillator(), gain = approvalAudioCtx.createGain(), at = t + i * 0.16;
+        osc.type = 'triangle'; osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.0001, at);
+        gain.gain.exponentialRampToValueAtTime(0.4, at + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.5);
+        osc.connect(gain); gain.connect(approvalAudioCtx.destination);
+        osc.start(at); osc.stop(at + 0.55);
+      });
     }
-    async function confirmUpiPayment(id, amount) {
-      upiPendingBusy = true;
-      try {
-        var pw = await uiPrompt('Paytm app / soundbox me ₹' + amount + ' aaya hua dekh liya? Tab staff password daalein:', '', { title: 'Confirm UPI payment', type: 'password', okText: 'Payment received' });
-        if (!pw) return;
-        var r = await fetch('/api/upi/manual-confirm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paytmOrderId: id, auth_password: pw }) });
-        var d = await r.json().catch(function() { return {}; });
-        if (!r.ok) return uiAlert(d.error || 'Confirm nahi ho paaya');
-        uiAlert('Payment confirm ho gayi. Token ' + (d.token_no || d.orderId) + ' kitchen ko chala gaya.');
-      } finally { upiPendingBusy = false; fetchUpiPending(); }
+    function pollRiderUpi() {
+      fetch('/api/upi/rider-paid' + (riderUpiSince ? '?since=' + riderUpiSince : '')).then(function(r) { return r.ok ? r.json() : null; }).then(function(d) {
+        if (!d) return;
+        riderUpiSince = d.now || riderUpiSince;
+        var box = document.getElementById('riderUpiNotices');
+        (d.items || []).forEach(function(n) {
+          if (riderUpiSeen[n.id]) return;
+          riderUpiSeen[n.id] = true;
+          var el = document.createElement('div');
+          el.className = 'bg-emerald-600 text-white rounded-xl shadow-2xl p-3 border-2 border-emerald-300';
+          el.innerHTML = '<div class="text-[11px] font-black uppercase tracking-wide opacity-90">🛵 Rider ne UPI se collect kiya</div>' +
+            '<div class="text-lg font-black leading-tight">₹' + n.amount + (n.token_no ? ' • Token ' + wizEsc(String(n.token_no).padStart(3, '0')) : '') + '</div>' +
+            '<div class="text-xs font-bold opacity-90">' + wizEsc(n.rider ? n.rider + ' ne ' : '') + 'is order ki amount UPI se collect kar li' + (n.customer ? ' • ' + wizEsc(n.customer) : '') + '</div>' +
+            '<button class="mt-2 w-full bg-white text-emerald-700 font-black text-xs py-1.5 rounded-lg">OK</button>';
+          el.querySelector('button').onclick = function() { el.remove(); };
+          box.appendChild(el);
+          playRiderUpiChime();
+          fetchActiveOrders(); loadDueOrdersData();
+        });
+      }).catch(function() {});
     }
 
     // ================= NEEDS APPROVAL MODULE =================
@@ -2532,7 +2544,12 @@
 
     async function confirmCustomerSettleAllExecute() {
       if (!targetCustomerSettlePhone) return;
-      if (targetCustomerSettleMode === 'UPI' && !(await collectUpi(targetCustomerSettleAmount, 'Khata settle • ' + targetCustomerSettlePhone))) return;
+      if (targetCustomerSettleMode === 'UPI') {
+        // tied to this customer: the server settles their due bills by itself once Paytm confirms (even if this popup is closed first)
+        if (!(await collectUpi(targetCustomerSettleAmount, 'Khata settle • ' + targetCustomerSettlePhone, { settle_customer: targetCustomerSettlePhone }))) return;
+        closeCustomerSettleModal(); loadDueOrdersData(); fetchActiveOrders();
+        return;
+      }
 
       fetch('/api/due/settle-customer', {
         method: 'POST',
@@ -3794,21 +3811,32 @@
 
     // ================= ROBUST PLACE ORDER =================
   // ================= ROBUST PLACE ORDER =================
-    // UPI (single or a split part) is paid through a QR first; the order is saved only after the payment is confirmed
+    // UPI (single or a split part): the order is saved first with that part still unpaid, then the QR is shown for that saved order. Paytm's callback
+    // adds the money to the same order on the server, so it lands there even if this popup is closed before the payment arrives.
+    var upiDeferred = null;
     async function executePlaceOrder() {
       if (!posCart.length || !currentPOSOrderType) return executePlaceOrderNow();   // it shows its own message
+      var parts = [], savedMode = selectedPaymentMode, savedRows = null, full = null;
       if (!posComp.on) {
-        var parts = [];
-        if (selectedPaymentMode === 'UPI') parts.push({ amount: Math.max(0, calculatePOSBillTotals().grandTotal - recordedPaidAmount), label: 'POS order' });
-        else if (selectedPaymentMode === 'Split') { readSplitAmounts(); splitRows.forEach(function(r) { if (r.mode === 'UPI' && (parseFloat(r.amount) || 0) > 0) parts.push({ amount: parseFloat(r.amount), label: 'POS order • split UPI part' }); }); }
-        for (var i = 0; i < parts.length; i++) {
-          if (parts[i].amount < 0.01) continue;
-          if (!(await collectUpi(parts[i].amount, parts[i].label))) return;
+        if (selectedPaymentMode === 'UPI') {
+          var due = Math.max(0, calculatePOSBillTotals().grandTotal - recordedPaidAmount);
+          if (due >= 0.01) { parts.push({ amount: due, label: 'POS order' }); full = { mode: 'UPI', split: null }; }
+        } else if (selectedPaymentMode === 'Split') {
+          readSplitAmounts();
+          splitRows.forEach(function(r) { if (r.mode === 'UPI' && (parseFloat(r.amount) || 0) >= 0.01) parts.push({ amount: parseFloat(r.amount), label: 'POS order • split UPI part' }); });
+          if (parts.length) full = { mode: 'SPLIT', split: splitRows.map(function(r) { return { mode: r.mode, amount: parseFloat(r.amount) || 0 }; }) };
         }
       }
-      executePlaceOrderNow();
+      if (!parts.length) return executePlaceOrderNow();
+      upiDeferred = { parts: parts, full: full };
+      // save everything except the UPI part (it is added by the server when the QR is paid)
+      if (savedMode === 'UPI') selectedPaymentMode = '';
+      else { savedRows = splitRows.map(function(r) { return r.amount; }); splitRows.forEach(function(r) { if (r.mode === 'UPI') r.amount = ''; }); }
+      try { executePlaceOrderNow(); }
+      finally { selectedPaymentMode = savedMode; if (savedRows) splitRows.forEach(function(r, i) { r.amount = savedRows[i]; }); }
     }
     function executePlaceOrderNow() {
+      var upiHook = upiDeferred; upiDeferred = null;   // consumed here so a message-and-return below can never leave it behind for the next order
       if (!posCart.length) return alert('Kripya cart mein item add karein!');
       if (!currentPOSOrderType) return alert('Kripya pehle Order Type (Dine-In, Takeaway, Delivery) select karein!');
 
@@ -3903,6 +3931,7 @@
             body: JSON.stringify({ table_no: mergeTable })
           }).then(function(r) { return r.json().then(function(x) { if (!r.ok) throw new Error(x.error || 'Table merge failed'); }); });
         }).catch(function(err) { alert('Table assign nahi hua: ' + err.message); })
+        .then(function() { return collectDeferredUpi(upiHook, saveOrderId, payload, calc); })
         .then(function() { fetchActiveOrders(); closePOSOrderView(); });
       } else {
         fetch('/api/orders', {
@@ -3914,8 +3943,20 @@
         .then(function(data) {
           payload.token_no = data.token_no;
           if (paymentCollectedNow && billCfg.c.auto_print_bill !== false) dispatchDirectPrintReceipt(data.orderId, payload, calc);
-          closePOSOrderView();
-        });
+          return collectDeferredUpi(upiHook, data.orderId, payload, calc);
+        })
+        .then(function() { fetchActiveOrders(); closePOSOrderView(); });
+      }
+    }
+    // The order is saved; now show the QR(s) for its UPI part(s). Closing a popup unpaid leaves the order saved with that part due; a late payment is applied by the server.
+    async function collectDeferredUpi(hook, orderId, payload, calc) {
+      if (!hook || !orderId) return;
+      var allPaid = true;
+      for (var i = 0; i < hook.parts.length; i++) {
+        if (!(await collectUpi(hook.parts[i].amount, hook.parts[i].label + ' • #' + orderId, { order_id: orderId }))) { allPaid = false; break; }
+      }
+      if (allPaid && billCfg.c.auto_print_bill !== false) {
+        dispatchDirectPrintReceipt(orderId, Object.assign({}, payload, { payment_mode: hook.full.mode, split_details: hook.full.split }), calc);
       }
     }
     function dispatchDirectPrintReceipt(orderId, payload, calc) {
