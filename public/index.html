@@ -363,6 +363,13 @@
 
     <!-- MAIN FLOOR CONTENT (Floor Plan & Queues) -->
     <div id="mainFloorDashboardContent" class="space-y-3">
+      <div id="upiPendingBox" class="hidden bg-white rounded-xl border border-indigo-300 p-3 shadow-2xs space-y-2 mb-3">
+        <div class="flex justify-between items-center text-xs font-bold text-gray-700 border-b pb-2">
+          <span class="flex items-center gap-1.5"><span>📲</span> Kiosk UPI payments (Paytm me paisa aaya to confirm karein)</span>
+          <span id="upiPendingCount" class="bg-indigo-600 text-white px-2 py-0.5 rounded-full text-[10px] font-black">0</span>
+        </div>
+        <div id="upiPendingList" class="space-y-2"></div>
+      </div>
       <div id="onlineOrdersBox" class="bg-white rounded-xl border border-orange-300 p-3 shadow-2xs space-y-2 mb-3 hidden">
         <div class="flex justify-between items-center text-xs font-bold text-gray-700 border-b pb-2">
           <span class="flex items-center gap-1.5"><span>🌐</span> Online Orders</span>
@@ -1306,11 +1313,13 @@
       fetchActiveOrders();
       loadDueOrdersData();
       fetchNeedsApprovalOrders();
+      fetchUpiPending();
 
       setInterval(function() {
         fetchActiveOrders();
         loadDueOrdersData();
         fetchNeedsApprovalOrders();
+        fetchUpiPending();
       }, 3000);
 
       var today = new Date().toISOString().slice(0, 10);
@@ -1320,6 +1329,37 @@
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js').catch(function(){});
       }
+    }
+
+    // ================= KIOSK UPI: staff confirms a payment by hand =================
+    var upiPendingBusy = false;
+    function fetchUpiPending() {
+      if (upiPendingBusy) return;
+      fetch('/api/upi/pending').then(function(r) { return r.ok ? r.json() : []; }).then(function(list) {
+        var box = document.getElementById('upiPendingBox'), wrap = document.getElementById('upiPendingList');
+        if (!box || !wrap || upiPendingBusy) return;
+        box.classList.toggle('hidden', !list.length);
+        document.getElementById('upiPendingCount').innerText = list.length;
+        wrap.innerHTML = list.map(function(p) {
+          var mins = Math.max(0, Math.round((Date.now() - p.created_ms) / 60000));
+          var items = p.items.slice(0, 4).map(function(i) { return wizEsc(i.name) + ' ×' + i.qty; }).join(', ') + (p.items.length > 4 ? ' +' + (p.items.length - 4) + ' more' : '');
+          var note = p.status === 'ORDER_FAILED' ? '<span class="text-rose-600 font-black">Paid but order fail hua, confirm karein</span>' : (p.status === 'PENDING' ? 'QR chal raha hai' : 'QR band ho gaya');
+          return '<div class="flex items-center justify-between gap-2 p-2.5 rounded-lg border bg-gray-50"><div class="min-w-0"><div class="font-black text-sm text-gray-900">₹' + p.amount + ' <span class="text-[10px] font-bold text-gray-500">• ' + mins + ' min pehle • ' + note + '</span></div>' +
+            '<div class="text-[11px] text-gray-600 truncate">' + items + '</div></div>' +
+            '<button onclick="confirmUpiPayment(\'' + wizEsc(p.id) + '\',' + p.amount + ')" class="shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black px-3 py-2 rounded-lg">✓ Payment received</button></div>';
+        }).join('');
+      }).catch(function() {});
+    }
+    async function confirmUpiPayment(id, amount) {
+      upiPendingBusy = true;
+      try {
+        var pw = await uiPrompt('Paytm app / soundbox me ₹' + amount + ' aaya hua dekh liya? Tab staff password daalein:', '', { title: 'Confirm UPI payment', type: 'password', okText: 'Payment received' });
+        if (!pw) return;
+        var r = await fetch('/api/upi/manual-confirm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paytmOrderId: id, auth_password: pw }) });
+        var d = await r.json().catch(function() { return {}; });
+        if (!r.ok) return uiAlert(d.error || 'Confirm nahi ho paaya');
+        uiAlert('Payment confirm ho gayi. Token ' + (d.token_no || d.orderId) + ' kitchen ko chala gaya.');
+      } finally { upiPendingBusy = false; fetchUpiPending(); }
     }
 
     // ================= NEEDS APPROVAL MODULE =================

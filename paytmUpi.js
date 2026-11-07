@@ -4,6 +4,9 @@
 // Only after a verified TXN_SUCCESS (same orderId + same amount) the real POS order is created, already marked paid.
 //
 // Env: PAYTM_ENV = stage | prod | mock (default stage), PAYTM_MID, PAYTM_KEY, optional PAYTM_POS_ID, PAYTM_CLIENT_ID.
+// Own-QR mode: set PAYTM_UPI_ID (merchant UPI id, e.g. xxxx@ptys) and the QR is built here as a upi://pay link with our order id in tr/tn
+// (no Paytm QR API needed). Paytm then echoes that id back as ORDERID in its callback, which is checked (checksum or Status API) before the order is made.
+// Optional PAYTM_PAYEE_NAME. Staff can also confirm a payment by hand from the POS (see /api/upi/pending + /api/upi/manual-confirm).
 const express = require('express');
 const crypto = require('crypto');
 const PaytmChecksum = require('paytmchecksum');
@@ -16,7 +19,18 @@ const paytmEnv = () => String(process.env.PAYTM_ENV || 'stage').toLowerCase();
 const isMock = () => paytmEnv() === 'mock';
 if (paytmEnv() !== 'prod') console.warn('[PAYTM] PAYTM_ENV=' + paytmEnv() + ' (prod nahi hai). Live payments ke liye PAYTM_ENV=prod set karo.');
 const host = () => (paytmEnv() === 'prod' ? 'https://securegw.paytm.in' : 'https://securegw-stage.paytm.in');
-const configured = () => isMock() || (process.env.PAYTM_MID && process.env.PAYTM_KEY);
+const selfQr = () => !!process.env.PAYTM_UPI_ID && !isMock();
+const configured = () => isMock() || (selfQr() && process.env.PAYTM_KEY) || (process.env.PAYTM_MID && process.env.PAYTM_KEY);
+const upiLink = (amount, orderId) => 'upi://pay?pa=' + process.env.PAYTM_UPI_ID + '&pn=' + encodeURIComponent(process.env.PAYTM_PAYEE_NAME || 'Vishal Foodiez') +
+  '&am=' + Number(amount).toFixed(2) + '&cu=INR&tn=' + orderId + '&tr=' + orderId;
+// Paytm signs its callback with the merchant key: CHECKSUMHASH over all other fields
+function callbackChecksumOk(params) {
+  try {
+    const p = { ...params }, cs = p.CHECKSUMHASH;
+    if (!cs || !process.env.PAYTM_KEY) return false;
+    return !!PaytmChecksum.verifySignature(p, process.env.PAYTM_KEY, cs);
+  } catch (e) { return false; }
+}
 
 async function paytmPost(path, body, head = {}) {
   const signature = await PaytmChecksum.generateSignature(JSON.stringify(body), process.env.PAYTM_KEY);
@@ -48,7 +62,7 @@ function payableAmount(p) {
   return Math.round(subtotal + gst - disc);
 }
 
-function register(app, { dbAllAsync, createOrderHandler, computeDiscount }) {
+function register(app, { dbAllAsync, createOrderHandler, computeDiscount, discountPasswordOk }) {
   dbAllAsync(`CREATE TABLE IF NOT EXISTS upi_payments (
     id SERIAL PRIMARY KEY,
     paytm_order_id TEXT UNIQUE,
@@ -103,6 +117,7 @@ function register(app, { dbAllAsync, createOrderHandler, computeDiscount }) {
   // Asks Paytm (server to server) whether this order is paid. This is the only thing that can mark it paid.
   async function checkWithPaytm(row) {
     if (row.status === 'PAID' || row.status === 'FINALIZING') return;
+    if (!isMock() && !(process.env.PAYTM_MID && process.env.PAYTM_KEY)) return; // own-QR mode without MID: callback / staff confirm only
     let success = false, txnId = '';
     if (isMock()) {
       success = mockPaid.has(row.paytm_order_id);
@@ -118,6 +133,19 @@ function register(app, { dbAllAsync, createOrderHandler, computeDiscount }) {
     }
     await dbAllAsync('UPDATE upi_payments SET checked_ms = ? WHERE id = ? RETURNING id', [Date.now(), row.id]);
     if (success) await finalize(row, txnId);
+  }
+
+  // Own-QR mode: a callback is only believed when it is a success for this order id, this amount and this merchant, AND it is authentic
+  // (valid CHECKSUMHASH, or Paytm's own Status API says the same). Anything else is left for Paytm's Status API / the staff to confirm.
+  async function confirmFromCallback(row, b) {
+    if (row.status === 'PAID' || row.status === 'FINALIZING') return;
+    if (String(b.STATUS) !== 'TXN_SUCCESS') return;
+    const amountOk = Math.abs(Number(b.TXNAMOUNT) - Number(row.amount)) < 0.005;
+    const midOk = !process.env.PAYTM_MID || String(b.MID) === process.env.PAYTM_MID;
+    if (!amountOk || !midOk) { console.error(`[UPI MISMATCH] ${row.paytm_order_id}: callback amount ${b.TXNAMOUNT} mid ${b.MID} vs expected ${row.amount}`); return; }
+    if (callbackChecksumOk(b)) { console.log(`[UPI CALLBACK] ${row.paytm_order_id} checksum ok`); return finalize(row, b.TXNID); }
+    console.error(`[UPI CALLBACK] ${row.paytm_order_id} checksum missing/invalid, asking Paytm Status API`);
+    await checkWithPaytm(row);
   }
 
   app.post('/api/upi/create', async (req, res) => {
@@ -142,6 +170,8 @@ function register(app, { dbAllAsync, createOrderHandler, computeDiscount }) {
       let qrData;
       if (isMock()) {
         qrData = `upi://pay?pa=mock@paytm&pn=MockStore&am=${amount.toFixed(2)}&tr=${paytmOrderId}&cu=INR`;
+      } else if (selfQr()) {
+        qrData = upiLink(amount, paytmOrderId);
       } else {
         const b = await paytmPost('/paymentservices/qr/create', {
           mid: process.env.PAYTM_MID,
@@ -198,10 +228,48 @@ function register(app, { dbAllAsync, createOrderHandler, computeDiscount }) {
     }
   });
 
+  // ---- POS staff: kiosk QR payments that are not confirmed yet (list is public, it holds no personal data) ----
+  app.get('/api/upi/pending', async (req, res) => {
+    try {
+      const rows = await dbAllAsync("SELECT paytm_order_id, amount, status, payload, created_ms FROM upi_payments WHERE status IN ('PENDING','CANCELLED','EXPIRED','ORDER_FAILED') AND created_ms > ? ORDER BY created_ms DESC LIMIT 30", [Date.now() - 30 * 60 * 1000]);
+      res.json(rows.map(r => {
+        let items = [];
+        try { items = (JSON.parse(r.payload).items || []).map(i => ({ name: String(i.name || '').slice(0, 60), qty: Number(i.qty) || 1 })); } catch (e) { /* no items */ }
+        return { id: r.paytm_order_id, amount: Number(r.amount), status: r.status, created_ms: Number(r.created_ms), items };
+      }));
+    } catch (e) { res.json([]); }
+  });
+
+  // Staff saw the money in the Paytm app / soundbox: create the paid order by hand. Needs the staff (discount) password, so a kiosk customer cannot call it.
+  const manualFails = new Map(); // ip -> { n, until }
+  app.post('/api/upi/manual-confirm', async (req, res) => {
+    try {
+      const ip = req.ip || 'x', f = manualFails.get(ip);
+      if (f && f.until > Date.now()) return res.status(429).json({ error: 'Bahut galat password. Thodi der baad try karein.' });
+      if (!discountPasswordOk || !discountPasswordOk(req.body && req.body.auth_password)) {
+        const n = (f && !(f.until && f.until <= Date.now()) ? f.n : 0) + 1;
+        manualFails.set(ip, { n, until: n >= 8 ? Date.now() + 60000 : 0 });
+        return res.status(403).json({ error: 'Staff password galat hai' });
+      }
+      manualFails.delete(ip);
+      const id = String((req.body && req.body.paytmOrderId) || '');
+      let row = await getRow(id);
+      if (!row) return res.status(404).json({ error: 'Ye payment nahi mili' });
+      if (row.status !== 'PAID') { await finalize(row, 'MANUAL'); row = await getRow(id); console.log(`[UPI MANUAL CONFIRM] ${id} Rs.${row.amount} by staff`); }
+      if (row.status === 'PAID') return res.json({ ok: true, orderId: row.pos_order_id, token_no: row.token_no });
+      res.status(409).json({ error: 'Order nahi ban paaya (status ' + row.status + '). Dobara try karein.' });
+    } catch (e) {
+      console.error('[UPI] manual confirm error:', e.message);
+      res.status(500).json({ error: 'Confirm nahi ho paaya' });
+    }
+  });
+
   // Paytm webhook. The payload is NOT trusted: it only tells us which order to re-check via the Status API.
   app.post('/api/paytm/callback', express.urlencoded({ extended: true }), express.text({ type: '*/*' }), async (req, res) => {
     try {
-      const b = typeof req.body === 'string' ? {} : (req.body || {});
+      let b = req.body;
+      if (typeof b === 'string') { try { b = JSON.parse(b); } catch (e) { b = {}; } }
+      b = b && typeof b === 'object' ? b : {};
       // Keep every raw callback so the real Paytm payload format can be inspected (static-QR flow needs it).
       const raw = (typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {})).slice(0, 5000);
       console.log('[PAYTM CALLBACK RAW]', req.headers['content-type'], raw);
@@ -213,7 +281,8 @@ function register(app, { dbAllAsync, createOrderHandler, computeDiscount }) {
       dbAllAsync('INSERT INTO paytm_callback_log (content_type, body, created_ms) VALUES (?, ?, ?) RETURNING id', [String(req.headers['content-type'] || ''), raw, Date.now()]).catch(() => {});
       const orderId = b.ORDERID || b.orderId || b.order_id || (b.body && b.body.orderId);
       const row = orderId && await getRow(String(orderId));
-      if (row) await checkWithPaytm(row);
+      if (row && selfQr()) await confirmFromCallback(row, b);
+      else if (row) await checkWithPaytm(row);
       else console.log('[PAYTM CALLBACK] unknown order', orderId);
     } catch (e) {
       console.error('[PAYTM CALLBACK] error:', e.message);

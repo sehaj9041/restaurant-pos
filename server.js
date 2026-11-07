@@ -2229,7 +2229,7 @@ async function saveSettingsConfig(patch) {
   await dbAllAsync(`INSERT INTO settings (id, config) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET config = excluded.config RETURNING id`, [JSON.stringify(cfg)]);
 }
 engagement = require('./engagement').register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, discountPasswordOk });
-require('./paytmUpi').register(app, { dbAllAsync, createOrderHandler, computeDiscount: (a) => engagement.computeDiscount(a) }); require('./razorpayPay').register(app, { dbAllAsync, createOrderHandler, extraMarkPaid: tableQrApi.markBillPaid });
+require('./paytmUpi').register(app, { dbAllAsync, createOrderHandler, computeDiscount: (a) => engagement.computeDiscount(a), discountPasswordOk }); require('./razorpayPay').register(app, { dbAllAsync, createOrderHandler, extraMarkPaid: tableQrApi.markBillPaid });
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, '0.0.0.0', () => {
