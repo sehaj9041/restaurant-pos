@@ -237,14 +237,15 @@
     var rule = (min ? 'Required' : 'Optional') + ' • ' + (max === 1 ? 'choose 1' : 'choose up to ' + max);
     var opts = groupOptions(g).map(function (a, ai) {
       var on = chosen.indexOf(a.name) >= 0;
-      return '<button onclick="toggleOpt(' + ai + ')" class="w-full flex items-center gap-3 p-2.5 rounded-xl border-2 text-left ' + (on ? 'border-indigo-600 bg-indigo-50' : 'border-gray-200') + '">' +
-        thumb(a.image, 52) + '<span class="flex-1 min-w-0 text-sm font-bold leading-tight">' + esc(a.name) + '</span>' +
-        '<span class="text-xs font-black shrink-0 ' + (Number(a.price) ? 'text-emerald-700' : 'text-gray-400') + '">' + (Number(a.price) ? '+' + rs(a.price) : 'Free') + '</span>' +
-        '<span class="w-5 h-5 shrink-0 rounded-full border-2 flex items-center justify-center text-[11px] text-white font-black ' + (on ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300') + '">' + (on ? '✓' : '') + '</span></button>';
+      return '<button onclick="toggleOpt(' + ai + ')" class="relative flex flex-col items-center text-center p-2 rounded-xl border-2 ' + (on ? 'border-indigo-600 bg-indigo-50' : 'border-gray-200 bg-white') + '">' +
+        (max === 1 ? '' : '<span class="absolute top-1.5 right-1.5 w-4 h-4 rounded-full border-2 flex items-center justify-center text-[10px] text-white font-black ' + (on ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white') + '">' + (on ? '✓' : '') + '</span>') +
+        '<div class="h-16 w-full flex items-center justify-center">' + (a.image ? '<img src="' + esc(imgSrc(a.image)) + '" loading="lazy" class="max-h-full max-w-full object-contain" onerror="this.style.display=\'none\'">' : '<span class="text-3xl">🍽️</span>') + '</div>' +
+        '<span class="block text-[11px] font-bold leading-tight mt-1 line-clamp-2 min-h-[2.1em]">' + esc(a.name) + '</span>' +
+        '<span class="block text-[11px] font-black mt-0.5 ' + (Number(a.price) ? 'text-emerald-700' : 'text-gray-400') + '">' + (Number(a.price) ? '+' + rs(a.price) : 'Free') + '</span></button>';
     }).join('');
     var back = pick.step > 0 ? 'prevStep()' : (variationsOf(pick.item).length && !pick.fromReview ? 'variantSheet()' : (pick.fromReview ? 'reviewSheet()' : 'closeSheet()'));
     openSheet(sheetHead(esc(pick.item.name), 'Step ' + (pick.step + 1) + ' of ' + pick.groups.length + ' • ' + esc(g.name)) +
-      '<div class="text-[11px] font-black uppercase text-gray-500 mb-2">' + rule + '</div><div class="space-y-2 mb-4">' + opts + '</div>' +
+      '<div class="text-[11px] font-black uppercase text-gray-500 mb-2">' + rule + '</div><div class="grid grid-cols-3 gap-2 mb-4">' + opts + '</div>' +
       '<div class="flex gap-2"><button onclick="' + back + '" class="px-5 rounded-2xl border-2 border-gray-200 font-black text-sm">Back</button>' +
       '<button onclick="nextStep()" class="flex-1 bg-indigo-600 text-white rounded-2xl py-3.5 font-black text-sm">' + (last || pick.fromReview ? 'Review' : 'Next') + '</button></div>');
   }
@@ -256,6 +257,11 @@
     else if (cur.length >= max) return toast('Maximum ' + max + ' choose kar sakte hain', true);
     else cur.push(a.name);
     pick.sel[g.id] = cur; stepSheet();
+    // a compulsory single choice moves on by itself (same as the website / kiosk)
+    if (i < 0 && max === 1 && groupMin(g) >= 1) {
+      var at = pick, st = pick.step;
+      setTimeout(function () { if (pick === at && pick.step === st) nextStep(); }, 250);
+    }
   }
   function prevStep() { if (pick.step > 0) { pick.step--; stepSheet(); } }
   function nextStep() {
@@ -264,18 +270,74 @@
     if (!pick.fromReview && pick.step < pick.groups.length - 1) { pick.step++; return stepSheet(); }
     reviewSheet();
   }
+  // Meal review (same look as the website): burger tile + a tile for every group that has pictures, the rest as rows, no prices
+  function mealBase(item) {
+    var u = upsells.filter(function (x) { return x.upsell_type === 'upgrade' && x.suggested_item === item.name; })[0];
+    var base = u && menu.filter(function (m) { return m.name === u.item_name; })[0];
+    if (!base) {
+      var n = item.name.replace(/\s*\(?\s*meal\s*\)?\s*$/i, '').trim();
+      base = n && n !== item.name ? menu.filter(function (m) { return m.name === n; })[0] : null;
+    }
+    return base || null;
+  }
+  function mealReviewSheet() {
+    var groups = pick.groups, tiles = [], shown = {}, burgerIdx = -1, burgerNote = '';
+    var chosenOpts = function (g) { return (pick.sel[g.id] || []).map(function (n) { return groupOptions(g).filter(function (x) { return x.name === n; })[0]; }).filter(Boolean); };
+    groups.forEach(function (g, i) { if (burgerIdx < 0 && /burger/i.test(g.name || '')) burgerIdx = i; });
+    var base = mealBase(pick.item) || pick.item;
+    if (burgerIdx >= 0) { shown[burgerIdx] = true; burgerNote = chosenOpts(groups[burgerIdx]).map(function (a) { return a.name; }).join(', '); }
+    tiles.push({ img: imgSrc(base.image || base.image_url), name: base.name, note: burgerNote, label: 'Burger', step: burgerIdx });
+    groups.forEach(function (g, i) {
+      if (i === burgerIdx || /customi[sz]e/i.test(g.name || '')) return;
+      var opts = chosenOpts(g), withImg = opts.filter(function (a) { return a.image; });
+      if (!withImg.length) return;
+      shown[i] = true;
+      tiles.push({ img: imgSrc(withImg[0].image), name: opts.map(function (a) { return a.name + (Number(a.price) ? ' (+' + rs(a.price) + ')' : ''); }).join(', '), note: '', label: g.name, step: i });
+    });
+    var html = '<p class="font-black text-gray-800 text-sm mb-2">Your meal</p><div class="flex gap-2 items-stretch">' + tiles.map(function (t) {
+      return '<div class="flex-1 min-w-0 p-2 rounded-xl border bg-gray-50 flex flex-col items-center text-center">' +
+        '<span class="text-[9px] font-bold uppercase tracking-widest text-gray-500 truncate w-full">' + esc(t.label) + '</span>' +
+        '<div class="h-20 flex items-center justify-center">' + (t.img ? '<img src="' + esc(t.img) + '" class="max-h-full max-w-full object-contain" onerror="this.style.display=\'none\'">' : '<span class="text-3xl">🍽️</span>') + '</div>' +
+        '<span class="text-[11px] font-bold leading-tight mt-1 line-clamp-2">' + esc(t.name) + '</span>' +
+        (t.note ? '<span class="text-[10px] text-gray-500 leading-tight line-clamp-2">+ ' + esc(t.note) + '</span>' : '') +
+        (t.step >= 0 ? '<button onclick="editStep(' + t.step + ')" class="border px-3 py-1 rounded-lg font-bold text-[11px] mt-2 w-full">Edit</button>' : '') + '</div>';
+    }).join('') + '</div>';
+    var rows = groups.map(function (g, i) {
+      if (shown[i]) return '';
+      var opts = chosenOpts(g);
+      return '<div class="flex items-center justify-between gap-2 p-2.5 rounded-xl border bg-gray-50"><div class="min-w-0 flex-1"><div class="text-[10px] font-bold uppercase text-gray-500">' + esc(g.name) + '</div>' +
+        '<div class="font-bold text-gray-800 text-sm">' + (opts.length ? opts.map(function (a) { return esc(a.name) + (Number(a.price) ? ' (+' + rs(a.price) + ')' : ''); }).join(', ') : 'None') + '</div></div>' +
+        '<button onclick="editStep(' + i + ')" class="shrink-0 border px-3 py-1 rounded-lg font-bold text-[11px]">Edit</button></div>';
+    }).join('');
+    openSheet(sheetHead(esc(pick.item.name) + (pick.variant ? ' (' + esc(pick.variant.name) + ')' : ''), 'Review your selection') + html + (rows ? '<div class="space-y-2 mt-3">' + rows + '</div>' : '') +
+      '<div class="flex items-stretch border border-gray-300 rounded-xl overflow-hidden bg-white mt-3 h-11"><button onclick="pickQty(-1)" aria-label="Decrease" class="w-14 text-xl font-black text-gray-500 active:bg-gray-100">−</button>' +
+      '<div class="flex-1 flex items-center justify-center font-black border-x border-gray-300">' + pick.qty + '</div><button onclick="pickQty(1)" aria-label="Increase" class="w-14 text-xl font-black active:bg-gray-100">+</button></div>' +
+      '<div class="flex gap-2 mt-4 pt-3 border-t"><button onclick="backFromReview()" class="flex-1 border-2 border-gray-200 rounded-2xl py-3 font-black text-sm">Back</button>' +
+      '<button onclick="commitPick()" class="flex-1 bg-indigo-600 text-white rounded-2xl py-3 font-black text-sm">Add to Cart ✓</button></div>');
+  }
+  function backFromReview() { pick.fromReview = false; pick.step = pick.groups.length - 1; stepSheet(); }
+  // Plain review (same look as the website): item row (with Change size), a row per group, quantity stepper, total + Back / Add to Cart
   function reviewSheet() {
+    if (pick.hide) return mealReviewSheet();
+    var base = pick.variant ? Number(pick.variant.price) || 0 : Number(pick.item.price) || 0;
     var rows = pick.groups.map(function (g, i) {
       var chosen = pick.sel[g.id] || [], opts = chosen.map(function (n) { return groupOptions(g).filter(function (x) { return x.name === n; })[0]; }).filter(Boolean);
-      var imgs = opts.filter(function (a) { return a.image; }).slice(0, 3).map(function (a) { return thumb(a.image, 40, 'border-2 border-white'); }).join('');
-      return '<div class="flex items-center gap-2 p-2.5 rounded-xl border bg-gray-50">' + (imgs ? '<span class="flex -space-x-2 shrink-0">' + imgs + '</span>' : '') +
-        '<div class="min-w-0 flex-1"><div class="text-[10px] font-black uppercase text-gray-500">' + esc(g.name) + '</div><div class="text-sm font-bold leading-tight">' +
+      var imgs = opts.filter(function (a) { return a.image; }).slice(0, 3).map(function (a) { return '<img src="' + esc(imgSrc(a.image)) + '" class="w-10 h-10 rounded-lg object-cover border-2 border-white">'; }).join('');
+      return '<div class="flex items-center justify-between gap-2 p-2.5 rounded-xl border bg-gray-50">' + (imgs ? '<span class="flex -space-x-2 shrink-0">' + imgs + '</span>' : '') +
+        '<div class="min-w-0 flex-1"><div class="text-[10px] font-bold uppercase text-gray-500">' + esc(g.name) + '</div><div class="font-bold text-gray-800 text-sm">' +
         (opts.length ? opts.map(function (a) { return esc(a.name) + (Number(a.price) ? ' (+' + rs(a.price) + ')' : ''); }).join(', ') : 'None') + '</div></div>' +
-        '<button onclick="editStep(' + i + ')" class="shrink-0 border px-3 py-1 rounded-lg font-black text-[11px]">Edit</button></div>';
+        '<button onclick="editStep(' + i + ')" class="shrink-0 border px-3 py-1 rounded-lg font-bold text-[11px]">Edit</button></div>';
     }).join('');
-    openSheet(sheetHead(esc(pick.item.name) + (pick.variant ? ' (' + esc(pick.variant.name) + ')' : ''), 'Review your selection') + '<div class="space-y-2 mb-4">' + rows + '</div>' +
-      '<div class="flex items-center justify-between mb-4"><span class="font-black text-sm">Quantity</span><div class="flex items-center gap-3"><button onclick="pickQty(-1)" class="w-9 h-9 rounded-lg border font-black">−</button><span class="w-6 text-center font-black">' + pick.qty + '</span><button onclick="pickQty(1)" class="w-9 h-9 rounded-lg border font-black">+</button></div></div>' +
-      '<button onclick="commitPick()" class="w-full bg-indigo-600 text-white rounded-2xl py-3.5 font-black text-sm">Add to cart • ' + rs(pickPrice() * pick.qty) + '</button>');
+    openSheet(sheetHead(esc(pick.item.name) + (pick.variant ? ' (' + esc(pick.variant.name) + ')' : ''), 'Review your selection') +
+      '<p class="font-black text-gray-800 text-sm mb-2">Your selection</p><div class="space-y-2">' +
+      '<div class="flex items-center justify-between gap-2 p-2.5 rounded-xl border bg-gray-50"><div class="min-w-0"><div class="text-[10px] font-bold uppercase text-gray-500">Item</div>' +
+      '<div class="font-bold text-gray-800 text-sm">' + esc(pick.item.name) + (pick.variant ? ' (' + esc(pick.variant.name) + ')' : '') + ' · ' + rs(base) + '</div></div>' +
+      (pick.variant ? '<button onclick="variantSheet()" class="shrink-0 border px-3 py-1 rounded-lg font-bold text-[11px]">Change size</button>' : '') + '</div>' + rows + '</div>' +
+      '<div class="flex items-stretch border border-gray-300 rounded-xl overflow-hidden bg-white mt-3 h-11"><button onclick="pickQty(-1)" aria-label="Decrease" class="w-14 text-xl font-black text-gray-500 active:bg-gray-100">−</button>' +
+      '<div class="flex-1 flex items-center justify-center font-black border-x border-gray-300">' + pick.qty + '</div><button onclick="pickQty(1)" aria-label="Increase" class="w-14 text-xl font-black active:bg-gray-100">+</button></div>' +
+      '<div class="mt-4 pt-3 border-t"><div class="text-xs font-bold text-gray-700 mb-2">Total Price: <span class="text-sm font-black text-indigo-600">' + rs(pickPrice() * pick.qty) + '</span></div>' +
+      '<div class="flex gap-2"><button onclick="backFromReview()" class="flex-1 border-2 border-gray-200 rounded-2xl py-3 font-black text-sm">Back</button>' +
+      '<button onclick="commitPick()" class="flex-1 bg-indigo-600 text-white rounded-2xl py-3 font-black text-sm">Add to Cart ✓</button></div></div>');
   }
   function editStep(i) { pick.step = i; pick.fromReview = true; stepSheet(); }
   function pickQty(d) { pick.qty = Math.max(1, Math.min(20, pick.qty + d)); reviewSheet(); }
