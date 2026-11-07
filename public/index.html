@@ -1239,6 +1239,7 @@
     var selectedPaymentMode = null; 
     var currentGuestCount = 1;
     var editingActiveOrderId = null;
+    var approvalBillPrintedFor = null;
 
     var alreadyPaidAmount = 0;
     var alreadyPaidMode = '';
@@ -1628,6 +1629,14 @@
           openPOSOrderView(targetOrder.order_type || 'Takeaway', targetOrder.table_no || '');
           editingActiveOrderId = targetOrder.id;
 
+          // website order accepted: print its bill right away (the later save in POS will not print it a second time)
+          if (billCfg.c.auto_print_bill !== false) {
+            var billTotal = (targetOrder.total != null && targetOrder.total !== '') ? Number(targetOrder.total) : 0;
+            var billCalc = { subtotal: Number(targetOrder.subtotal) || billTotal, gst: Number(targetOrder.gst) || 0, grandTotal: billTotal, discount: Number(targetOrder.discount) || 0, payableNow: 0 };
+            approvalBillPrintedFor = targetOrder.id;
+            dispatchDirectPrintReceipt(targetOrder.id, targetOrder, billCalc);
+          }
+
           document.getElementById('posCustPhone').value = targetOrder.customer_phone || '';
           document.getElementById('posCustName').value = targetOrder.customer_name || '';
 
@@ -1665,6 +1674,8 @@
       .then(function(data) {
         if (data.success) {
           fetchNeedsApprovalOrders();
+          if (data.refund) alert('Order reject ho gaya. ₹' + data.refund.amount + ' customer ko refund kar diya gaya.');
+          if (data.refund_error) alert('Order reject ho gaya, par AUTO REFUND FAIL hua: ' + data.refund_error + '\nRazorpay dashboard se manually refund karein.');
         }
       });
     }
@@ -3923,7 +3934,7 @@
           body: JSON.stringify(payload)
         }).then(function(r){ return r.json().catch(function(){ return {}; }); }).then(function(d){
           payload.token_no = d && d.token_no;
-          if (paymentCollectedNow && billCfg.c.auto_print_bill !== false) dispatchDirectPrintReceipt(saveOrderId, payload, calc);
+          if (paymentCollectedNow && billCfg.c.auto_print_bill !== false && approvalBillPrintedFor !== saveOrderId) dispatchDirectPrintReceipt(saveOrderId, payload, calc);
           if (!mergeTable) return;
           return fetch('/api/orders/' + saveOrderId + '/assign-table', {
             method: 'POST',

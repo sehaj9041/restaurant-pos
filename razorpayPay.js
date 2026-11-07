@@ -52,6 +52,33 @@ function register(app, { dbAllAsync, createOrderHandler, extraMarkPaid }) {
     return (await dbAllAsync('SELECT * FROM razorpay_payments WHERE rp_order_id = ?', [rpOrderId]))[0];
   }
 
+  // Full refund of a paid Razorpay order (used when staff rejects it). speed 'optimum' = instant when the
+  // payment method/account supports it, else normal; same as the dashboard's default. Returns null if nothing to refund.
+  app.locals.razorpayRefund = async function refundOrder(posOrderId) {
+    const claimed = await dbAllAsync(
+      "UPDATE razorpay_payments SET status = 'REFUNDING' WHERE pos_order_id = ? AND status = 'PAID' AND payment_id <> '' RETURNING *",
+      [posOrderId]);
+    if (!claimed.length) return null;
+    const row = claimed[0];
+    try {
+      const auth = Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString('base64');
+      const r = await fetch(`https://api.razorpay.com/v1/payments/${row.payment_id}/refund`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Basic ${auth}` },
+        body: JSON.stringify({ amount: Math.round(Number(row.amount) * 100), speed: 'optimum', receipt: `REJ${posOrderId}`, notes: { pos_order_id: String(posOrderId), reason: 'order rejected' } })
+      });
+      const rf = await r.json();
+      if (!r.ok || !rf.id) throw new Error((rf.error && rf.error.description) || 'refund failed');
+      await dbAllAsync("UPDATE razorpay_payments SET status = 'REFUNDED' WHERE id = ? RETURNING id", [row.id]);
+      console.log(`[RAZORPAY REFUND] order #${posOrderId} Rs.${row.amount} refund ${rf.id} (${rf.speed_processed || rf.speed_requested || ''})`);
+      return { id: rf.id, amount: Number(row.amount), speed: rf.speed_processed || rf.speed_requested || '' };
+    } catch (e) {
+      await dbAllAsync("UPDATE razorpay_payments SET status = 'PAID' WHERE id = ? RETURNING id", [row.id]).catch(() => {}); // allow a retry
+      console.error('[RAZORPAY REFUND] failed for order #' + posOrderId + ':', e.message);
+      throw e;
+    }
+  };
+
   app.get('/api/razorpay/config', (req, res) => res.json({ enabled: configured() }));
 
   app.post('/api/razorpay/create-order', async (req, res) => {

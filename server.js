@@ -769,10 +769,14 @@ app.post('/api/orders/:id/approve', (req, res) => {
 });
 app.post('/api/orders/:id/reject', (req, res) => {
   const orderId = req.params.id;
-  db.run("UPDATE orders SET status = 'VOID' WHERE id = ?", [orderId], (err) => {
+  db.run("UPDATE orders SET status = 'VOID' WHERE id = ?", [orderId], async (err) => {
     if (err) return res.status(500).json({ error: err.message });
     console.log(`[ORDER REJECTED] Order #${orderId} rejected.`);
-    res.json({ success: true });
+    // paid online via Razorpay: refund the customer automatically
+    let refund = null, refundError = '';
+    try { refund = app.locals.razorpayRefund ? await app.locals.razorpayRefund(Number(orderId)) : null; }
+    catch (e) { refundError = e.message || 'refund failed'; }
+    res.json({ success: true, refund, refund_error: refundError });
   });
 });
 
