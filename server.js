@@ -1721,6 +1721,8 @@ const createOrderHandler = async (req, res) => {
     status = 'NEEDS_APPROVAL';
   } else if (isOnlineOrder && req.body.pay_online) {
     status = 'HOLD'; // hidden until Razorpay payment is verified (see razorpayPay.js)
+  } else if (req.autoAccept) {
+    status = 'RUNNING_TABLE'; // kiosk order already paid by UPI (set only by paytmUpi.js, never from a request): goes straight to the kitchen, no staff accept needed
   } else if (isKioskOrOnline && !is_hold) {
     status = 'NEEDS_APPROVAL';
   } else {
@@ -1766,6 +1768,7 @@ const createOrderHandler = async (req, res) => {
     if (!orderId) {
       return res.status(500).json({ error: 'Failed to retrieve order id' });
     }
+    if (req.autoAccept) await dbAllAsync('UPDATE orders SET accepted_at = COALESCE(accepted_at, CURRENT_TIMESTAMP) WHERE id = ? RETURNING id', [orderId]).catch(() => {});
 
     try {
       if (Array.isArray(items) && items.length > 0) {

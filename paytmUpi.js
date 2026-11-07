@@ -96,7 +96,8 @@ function register(app, { dbAllAsync, createOrderHandler, computeDiscount, discou
         json(b) { return this.statusCode >= 400 ? reject(new Error((b && b.error) || 'order failed')) : resolve(b); }
       };
       // _promo_verified is only ever set by /api/upi/create after the redeem code was checked and spent (a client value is stripped there)
-      Promise.resolve(createOrderHandler({ body: payload, promoVerified: !!payload._promo_verified }, res)).catch(reject);
+      // autoAccept: the money is already confirmed, so the kiosk order skips the POS "Accept" step
+      Promise.resolve(createOrderHandler({ body: payload, promoVerified: !!payload._promo_verified, autoAccept: true }, res)).catch(reject);
     });
   }
 
