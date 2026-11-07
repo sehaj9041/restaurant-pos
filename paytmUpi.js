@@ -6,7 +6,7 @@
 // Env: PAYTM_ENV = stage | prod | mock (default stage), PAYTM_MID, PAYTM_KEY, optional PAYTM_POS_ID, PAYTM_CLIENT_ID.
 // Own-QR mode: set PAYTM_UPI_ID (merchant UPI id, e.g. xxxx@ptys) and the QR is built here as a upi://pay link with our order id in tr/tn
 // (no Paytm QR API needed). Paytm then echoes that id back as ORDERID in its callback, which is checked (checksum or Status API) before the order is made.
-// Optional PAYTM_PAYEE_NAME. Staff can also confirm a payment by hand from the POS (see /api/upi/pending + /api/upi/manual-confirm).
+// Optional PAYTM_PAYEE_NAME. PAYTM_TRUST_CALLBACK=1 = accept matching callbacks without any signature (unsafe, see confirmFromCallback). Staff can also confirm a payment by hand from the POS (see /api/upi/pending + /api/upi/manual-confirm).
 const express = require('express');
 const crypto = require('crypto');
 const PaytmChecksum = require('paytmchecksum');
@@ -20,7 +20,9 @@ const isMock = () => paytmEnv() === 'mock';
 if (paytmEnv() !== 'prod') console.warn('[PAYTM] PAYTM_ENV=' + paytmEnv() + ' (prod nahi hai). Live payments ke liye PAYTM_ENV=prod set karo.');
 const host = () => (paytmEnv() === 'prod' ? 'https://securegw.paytm.in' : 'https://securegw-stage.paytm.in');
 const selfQr = () => !!process.env.PAYTM_UPI_ID && !isMock();
-const configured = () => isMock() || (selfQr() && process.env.PAYTM_KEY) || (process.env.PAYTM_MID && process.env.PAYTM_KEY);
+const configured = () => isMock() || selfQr() || (process.env.PAYTM_MID && process.env.PAYTM_KEY);
+// Optional: PAYTM_CALLBACK_SECRET. Without the merchant key a callback cannot be signature-checked, so Paytm can be given the callback URL with ?s=<secret>; only a call carrying it is trusted.
+const secretOk = (given) => { const a = Buffer.from(String(given || '')), b = Buffer.from(String(process.env.PAYTM_CALLBACK_SECRET || '')); return b.length >= 16 && a.length === b.length && crypto.timingSafeEqual(a, b); };
 const upiLink = (amount, orderId) => 'upi://pay?pa=' + process.env.PAYTM_UPI_ID + '&pn=' + encodeURIComponent(process.env.PAYTM_PAYEE_NAME || 'Vishal Foodiez') +
   '&am=' + Number(amount).toFixed(2) + '&cu=INR&tn=' + orderId + '&tr=' + orderId;
 // Paytm signs its callback with the merchant key: CHECKSUMHASH over all other fields
@@ -137,14 +139,17 @@ function register(app, { dbAllAsync, createOrderHandler, computeDiscount, discou
 
   // Own-QR mode: a callback is only believed when it is a success for this order id, this amount and this merchant, AND it is authentic
   // (valid CHECKSUMHASH, or Paytm's own Status API says the same). Anything else is left for Paytm's Status API / the staff to confirm.
-  async function confirmFromCallback(row, b) {
+  async function confirmFromCallback(row, b, trusted) {
     if (row.status === 'PAID' || row.status === 'FINALIZING') return;
     if (String(b.STATUS) !== 'TXN_SUCCESS') return;
     const amountOk = Math.abs(Number(b.TXNAMOUNT) - Number(row.amount)) < 0.005;
     const midOk = !process.env.PAYTM_MID || String(b.MID) === process.env.PAYTM_MID;
     if (!amountOk || !midOk) { console.error(`[UPI MISMATCH] ${row.paytm_order_id}: callback amount ${b.TXNAMOUNT} mid ${b.MID} vs expected ${row.amount}`); return; }
     if (callbackChecksumOk(b)) { console.log(`[UPI CALLBACK] ${row.paytm_order_id} checksum ok`); return finalize(row, b.TXNID); }
-    console.error(`[UPI CALLBACK] ${row.paytm_order_id} checksum missing/invalid, asking Paytm Status API`);
+    if (trusted) { console.log(`[UPI CALLBACK] ${row.paytm_order_id} accepted via callback secret`); return finalize(row, b.TXNID); }
+    // Explicit owner opt-in (PAYTM_TRUST_CALLBACK=1): no key / secret, so anyone who knows the order id could fake this call. Txn id is logged to check against the Paytm app.
+    if (process.env.PAYTM_TRUST_CALLBACK === '1') { console.warn(`[UPI CALLBACK] ${row.paytm_order_id} accepted UNVERIFIED (PAYTM_TRUST_CALLBACK=1), txn ${b.TXNID}`); return finalize(row, b.TXNID); }
+    console.error(`[UPI CALLBACK] ${row.paytm_order_id} not verifiable (no valid checksum / secret). Staff can confirm it from the POS; trying Status API`);
     await checkWithPaytm(row);
   }
 
@@ -281,7 +286,7 @@ function register(app, { dbAllAsync, createOrderHandler, computeDiscount, discou
       dbAllAsync('INSERT INTO paytm_callback_log (content_type, body, created_ms) VALUES (?, ?, ?) RETURNING id', [String(req.headers['content-type'] || ''), raw, Date.now()]).catch(() => {});
       const orderId = b.ORDERID || b.orderId || b.order_id || (b.body && b.body.orderId);
       const row = orderId && await getRow(String(orderId));
-      if (row && selfQr()) await confirmFromCallback(row, b);
+      if (row && selfQr()) await confirmFromCallback(row, b, secretOk(req.query && req.query.s));
       else if (row) await checkWithPaytm(row);
       else console.log('[PAYTM CALLBACK] unknown order', orderId);
     } catch (e) {
