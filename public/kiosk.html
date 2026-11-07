@@ -1278,13 +1278,13 @@
     }
 
     function showKioskToken(data, snapshot, note, payAtCounter) {
-      printKioskBill(data, snapshot);
+      printKioskBill(data, payAtCounter ? Object.assign({}, snapshot, { slip: true }) : snapshot);
       $('kioskTokenDisplay').innerText = '#' + (data.token_no || data.orderId);
       $('kioskModeNote').innerText = note;
       // Pay at counter: no token on screen, just tell the customer to pay and collect the receipt
       $('kioskTokenTile').classList.toggle('hidden', !!payAtCounter);
       $('kioskPlacedTitle').innerText = payAtCounter ? 'Almost Done!' : 'Order Placed!';
-      $('kioskPlacedSub').innerText = payAtCounter ? 'Please complete your payment at the counter to proceed with your order, and collect your receipt.' : 'Please take your order token & receipt';
+      $('kioskPlacedSub').innerText = payAtCounter ? 'Please complete your payment at the counter to proceed with your order. Collect your token slip.' : 'Please take your order token & receipt';
       $('kioskPlacedFoot').classList.toggle('hidden', !!payAtCounter);
       $('tokenSuccessModal').classList.remove('hidden');
       setTimeout(resetKioskSession, payAtCounter ? 10000 : 5000);
@@ -1448,6 +1448,20 @@
       const money2 = n => Number(n).toFixed(2);
       const line = '-'.repeat(width);
       const out = [];
+      if (o.slip) {   // Pay at Counter: a small slip with token, total and what to do next (no bill)
+        const wrap = t => { const w = []; let cur = ''; clean(t).split(' ').forEach(x => { if ((cur + ' ' + x).trim().length > width) { w.push(cur); cur = x; } else cur = (cur + ' ' + x).trim(); }); if (cur) w.push(cur); return w; };
+        out.push(center(s.restaurant_name || 'VISHAL FOODIEZ'));
+        out.push(line);
+        out.push(center('PAYMENT PENDING'));
+        out.push(center('TOKEN #' + (data.token_no || data.orderId)));
+        out.push(line);
+        out.push(lr('ORDER TOTAL', 'Rs ' + money2(o.total)));
+        out.push(lr(String(o.order_type).toUpperCase(), new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })));
+        out.push(line);
+        wrap('Please complete your payment at the counter to proceed with your order.').forEach(l => out.push(center(l)));
+        out.push(center('Show this slip at the counter.'));
+        return out.join('\n') + '\n\n\n\n';
+      }
       out.push(center(s.restaurant_name || 'VISHAL FOODIEZ'));
       if (s.address) out.push(center(s.address));
       if (s.phone) out.push(center('Ph: ' + s.phone));
@@ -1494,6 +1508,21 @@
         .bill table.items .q { width: 8mm; text-align: center; }
         .bill table.items .r { width: 13mm; text-align: right; }
         .bill table.items .a { width: 16mm; text-align: right; }`;
+      if (o.slip) {   // Pay at Counter: a small slip with token, total and what to do next (no bill)
+        const slip = `<div class="bill">
+        ${logoHtml || ''}
+        <div class="center" style="font-size:18px;font-weight:900">${esc(s.restaurant_name || 'VISHAL FOODIEZ')}</div>
+        <div class="divider"></div>
+        <div class="center" style="font-size:13px;font-weight:900;letter-spacing:1px">PAYMENT PENDING</div>
+        <div class="token">TOKEN #${esc(data.token_no || data.orderId)}</div>
+        <div class="row" style="font-size:17px;font-weight:900"><span>ORDER TOTAL:</span><span>${money(o.total)}</span></div>
+        <div class="row" style="font-size:11px"><span>${esc(String(o.order_type).toUpperCase())}</span><span>${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span></div>
+        <div class="divider"></div>
+        <div class="center" style="font-size:14px;font-weight:900;line-height:1.3">Please complete your payment at the counter to proceed with your order.</div>
+        <div class="center" style="font-size:11px;margin-top:6px">Show this slip at the counter.</div>
+      </div>`;
+        return { css, body: slip };
+      }
       const body = `<div class="bill">
         ${logoHtml || ''}
         <div class="center" style="font-size:18px;font-weight:900">${esc(s.restaurant_name || 'VISHAL FOODIEZ')}</div>

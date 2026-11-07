@@ -107,6 +107,12 @@ function register(app, { dbAllAsync, createOrderHandler, computeDiscount, discou
       "UPDATE upi_payments SET status = 'FINALIZING', txn_id = ? WHERE id = ? AND status IN ('PENDING','CANCELLED','EXPIRED','ORDER_FAILED') RETURNING id",
       [txnId || '', row.id]);
     if (!claimed.length) return;
+    let parked = {}; try { parked = JSON.parse(row.payload); } catch (e) { /* kiosk payload below will fail the same way */ }
+    if (parked._collect) {
+      await dbAllAsync("UPDATE upi_payments SET status = 'PAID' WHERE id = ? RETURNING id", [row.id]);
+      console.log(`[UPI PAID] ${row.paytm_order_id} Rs.${row.amount} (POS / rider collection)`);
+      return;
+    }
     try {
       const o = await runCreateOrder({ ...JSON.parse(row.payload), payment_mode: 'UPI', is_kiosk: true, is_hold: false });
       await dbAllAsync("UPDATE upi_payments SET status = 'PAID', pos_order_id = ?, token_no = ? WHERE id = ? RETURNING id", [o.orderId, o.token_no, row.id]);
@@ -154,6 +160,45 @@ function register(app, { dbAllAsync, createOrderHandler, computeDiscount, discou
     await checkWithPaytm(row);
   }
 
+  // The text inside the QR for `amount`, tagged with our order id (mock / own-QR / Paytm Dynamic QR API). null = Paytm refused.
+  async function qrDataFor(amount, paytmOrderId, posId) {
+    if (isMock()) return `upi://pay?pa=mock@paytm&pn=MockStore&am=${Number(amount).toFixed(2)}&tr=${paytmOrderId}&cu=INR`;
+    if (selfQr()) return upiLink(amount, paytmOrderId);
+    const b = await paytmPost('/paymentservices/qr/create', {
+      mid: process.env.PAYTM_MID,
+      orderId: paytmOrderId,
+      amount: Number(amount).toFixed(2),
+      businessType: 'UPI_QR_CODE',
+      posId
+    }, { clientId: process.env.PAYTM_CLIENT_ID || 'C11', version: 'v1' });
+    if (!b.qrData) { console.error('[UPI] QR create failed:', JSON.stringify(b.resultInfo || b)); return null; }
+    return b.qrData;
+  }
+
+  // POS / rider app: a QR for an amount that is collected on an order which already exists (or is being placed). No order is made here:
+  // the row is only a "was this QR paid" flag that the staff / rider screen waits for, then it carries on with its normal payment save.
+  const collectAsks = new Map(); // ip -> timestamps
+  app.post('/api/upi/collect', async (req, res) => {
+    try {
+      if (!configured()) return res.status(503).json({ error: 'UPI abhi configure nahi hai.' });
+      const ip = req.ip || 'x', now = Date.now(), asks = (collectAsks.get(ip) || []).filter(t => now - t < 10 * 60 * 1000);
+      if (asks.length >= 40) return res.status(429).json({ error: 'Bahut zyada QR maange. Thodi der baad try karein.' });
+      asks.push(now); collectAsks.set(ip, asks);
+      const amount = Math.round((Number(req.body && req.body.amount) || 0) * 100) / 100;
+      if (!(amount >= 1) || amount > 100000) return res.status(400).json({ error: 'Amount sahi nahi hai' });
+      const label = String((req.body && req.body.label) || '').slice(0, 60);
+      const paytmOrderId = 'COL' + now + crypto.randomBytes(2).toString('hex');
+      const qrData = await qrDataFor(amount, paytmOrderId, process.env.PAYTM_COLLECT_POS_ID || 'POS1');
+      if (!qrData) return res.status(502).json({ error: 'QR nahi ban paaya.' });
+      await dbAllAsync('INSERT INTO upi_payments (paytm_order_id, amount, payload, created_ms) VALUES (?, ?, ?, ?) RETURNING id',
+        [paytmOrderId, amount, JSON.stringify({ _collect: true, label }), now]);
+      res.json({ paytmOrderId, amount, expiresInSec: QR_WINDOW_MS / 1000, qrImage: await QRCode.toDataURL(qrData, { margin: 1, width: 420 }), mock: isMock() });
+    } catch (e) {
+      console.error('[UPI] collect error:', e.message);
+      res.status(500).json({ error: 'QR nahi ban paaya.' });
+    }
+  });
+
   app.post('/api/upi/create', async (req, res) => {
     try {
       if (!configured()) return res.status(503).json({ error: 'UPI abhi configure nahi hai. Staff se help lein.' });
@@ -173,25 +218,8 @@ function register(app, { dbAllAsync, createOrderHandler, computeDiscount, discou
       if (!(amount > 0)) return res.status(400).json({ error: 'Invalid amount' });
 
       const paytmOrderId = 'KIOSK' + Date.now() + crypto.randomBytes(2).toString('hex');
-      let qrData;
-      if (isMock()) {
-        qrData = `upi://pay?pa=mock@paytm&pn=MockStore&am=${amount.toFixed(2)}&tr=${paytmOrderId}&cu=INR`;
-      } else if (selfQr()) {
-        qrData = upiLink(amount, paytmOrderId);
-      } else {
-        const b = await paytmPost('/paymentservices/qr/create', {
-          mid: process.env.PAYTM_MID,
-          orderId: paytmOrderId,
-          amount: amount.toFixed(2),
-          businessType: 'UPI_QR_CODE',
-          posId: process.env.PAYTM_POS_ID || 'KIOSK1'
-        }, { clientId: process.env.PAYTM_CLIENT_ID || 'C11', version: 'v1' });
-        if (!b.qrData) {
-          console.error('[UPI] QR create failed:', JSON.stringify(b.resultInfo || b));
-          return res.status(502).json({ error: 'QR nahi ban paaya. Dobara try karein ya Cash/Counter chunein.' });
-        }
-        qrData = b.qrData;
-      }
+      const qrData = await qrDataFor(amount, paytmOrderId, process.env.PAYTM_POS_ID || 'KIOSK1');
+      if (!qrData) return res.status(502).json({ error: 'QR nahi ban paaya. Dobara try karein ya Cash/Counter chunein.' });
 
       await dbAllAsync(
         'INSERT INTO upi_payments (paytm_order_id, amount, payload, created_ms) VALUES (?, ?, ?, ?) RETURNING id',
@@ -237,7 +265,7 @@ function register(app, { dbAllAsync, createOrderHandler, computeDiscount, discou
   // ---- POS staff: kiosk QR payments that are not confirmed yet (list is public, it holds no personal data) ----
   app.get('/api/upi/pending', async (req, res) => {
     try {
-      const rows = await dbAllAsync("SELECT paytm_order_id, amount, status, payload, created_ms FROM upi_payments WHERE status IN ('PENDING','CANCELLED','EXPIRED','ORDER_FAILED') AND created_ms > ? ORDER BY created_ms DESC LIMIT 30", [Date.now() - 30 * 60 * 1000]);
+      const rows = await dbAllAsync("SELECT paytm_order_id, amount, status, payload, created_ms FROM upi_payments WHERE status IN ('PENDING','CANCELLED','EXPIRED','ORDER_FAILED') AND payload NOT LIKE '%\"_collect\":true%' AND created_ms > ? ORDER BY created_ms DESC LIMIT 30", [Date.now() - 30 * 60 * 1000]);
       res.json(rows.map(r => {
         let items = [];
         try { items = (JSON.parse(r.payload).items || []).map(i => ({ name: String(i.name || '').slice(0, 60), qty: Number(i.qty) || 1 })); } catch (e) { /* no items */ }

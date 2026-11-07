@@ -238,8 +238,18 @@ app.post('/api/display/sync', (req, res) => {
   res.json({ success: true });
 });
 
+// UPI QR the POS is collecting right now (set by POS index.html while its "Scan & Pay" popup is open); expires by itself so a stuck QR never stays on screen
+let liveDisplayQr = null;
+app.post('/api/display/qr', (req, res) => {
+  const b = req.body || {};
+  const img = String(b.qrImage || '');
+  liveDisplayQr = !b.clear && /^data:image\/png;base64,[A-Za-z0-9+\/=]+$/.test(img) && img.length < 200000
+    ? { qrImage: img, amount: Math.round((Number(b.amount) || 0) * 100) / 100, until: Date.now() + 6 * 60 * 1000 } : null;
+  res.json({ success: true });
+});
 app.get('/api/display/current', (req, res) => {
-  res.json(liveCustomerCart);
+  if (liveDisplayQr && liveDisplayQr.until < Date.now()) liveDisplayQr = null;
+  res.json(Object.assign({}, liveCustomerCart, { qr: liveDisplayQr ? { qrImage: liveDisplayQr.qrImage, amount: liveDisplayQr.amount } : null }));
 });
 
 // 2. HARDWARE ZERO-PAPER CASH DRAWER PULSE

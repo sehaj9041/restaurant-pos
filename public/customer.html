@@ -35,7 +35,13 @@
 
     <!-- Right: Pay Summary -->
     <div class="col-span-4 bg-gradient-to-br from-indigo-900 to-slate-900 rounded-3xl p-6 border border-indigo-500/30 shadow-2xl flex flex-col justify-between h-[65vh]">
-      <div>
+      <div id="qrBox" class="hidden flex-1 flex flex-col items-center justify-center text-center gap-2">
+        <p class="text-xs font-bold text-indigo-300 uppercase tracking-wider">Scan &amp; Pay with any UPI app</p>
+        <div id="qrAmount" class="text-4xl font-black text-emerald-400"></div>
+        <img id="qrImg" alt="UPI QR" class="w-full max-w-[230px] aspect-square rounded-2xl bg-white p-2.5 object-contain">
+        <p class="text-[11px] text-slate-400">Order apne aap confirm ho jayega</p>
+      </div>
+      <div id="billSummary">
         <p class="text-xs font-bold text-indigo-300 uppercase tracking-wider">Bill Summary</p>
         <div class="space-y-2 mt-4 text-sm text-slate-300">
           <div class="flex justify-between"><span>Subtotal:</span><span id="subTotalVal" class="font-bold text-white">₹0</span></div>
@@ -45,7 +51,7 @@
         </div>
       </div>
 
-      <div class="bg-black/30 p-5 rounded-2xl border border-white/10 text-center">
+      <div id="payBox" class="bg-black/30 p-5 rounded-2xl border border-white/10 text-center">
         <p class="text-xs text-indigo-300 font-bold uppercase">Payable Amount</p>
         <div id="totalVal" class="text-5xl font-black text-emerald-400 mt-2">₹0</div>
         <p class="text-[11px] text-slate-400 mt-2">UPI & Cash Accepted</p>
@@ -71,6 +77,12 @@
       fetch('/api/display/current')
         .then(res => res.json())
         .then(data => {
+          // POS is collecting a UPI payment: the right panel turns into the QR until it is paid / cancelled
+          const q = data.qr;
+          document.getElementById('qrBox').classList.toggle('hidden', !q);
+          document.getElementById('billSummary').classList.toggle('hidden', !!q);
+          document.getElementById('payBox').classList.toggle('hidden', !!q);
+          if (q) { document.getElementById('qrAmount').innerText = '₹' + q.amount; if (document.getElementById('qrImg').getAttribute('src') !== q.qrImage) document.getElementById('qrImg').src = q.qrImage; }
           document.getElementById('displayType').innerText = data.orderType || 'Dine-In';
           const tableBadge = document.getElementById('displayTable');
           if (data.tableNo) {
