@@ -32,6 +32,8 @@ app.use((req, res, next) => {
   next();
 });
 
+require('./staffAuth').register(app, { db, checkOwnerPin }); // staff login gate: protects staff pages + non-customer /api routes (see staffAuth.js)
+
 app.get('/', (req, res, next) => { if (/^(www\.)?vishalfoodiez\.in$/i.test(req.hostname) || req.query.site === '1') return res.sendFile(path.join(__dirname, 'public', 'site', 'index.html')); next(); });
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'order.html'));

@@ -7,6 +7,7 @@
   <meta name="theme-color" content="#f97316">
   <meta name="mobile-web-app-capable" content="yes">
   <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function () {});</script>
+  <script src="/login-guard.js"></script>
   <script src="/ui-dialogs.js"></script>
   <link rel="stylesheet" href="/kitchen.css">
   <style>
@@ -33,7 +34,9 @@
     #kotGrid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(var(--kot-card-min-width), 1fr));
-      gap: calc(16px * var(--kot-scale));
+      column-gap: calc(16px * var(--kot-scale));
+      row-gap: 0;
+      grid-auto-rows: 1px; /* masonry: each card spans as many 1px rows as its height (see layoutKotMasonry) so short cards fill the gaps above */
       align-items: start;
     }
 
@@ -1132,8 +1135,27 @@
         `;
       }).join('');
 
+      layoutKotMasonry();
       updateLiveTimers();
     }
+
+    // Masonry: a card spans (its height + gap) 1px rows, so the next card slides up under shorter neighbours instead of waiting for the tallest card in the row
+    var kotCardObserver = (typeof ResizeObserver === 'function') ? new ResizeObserver(function() { layoutKotMasonry(); }) : null;
+    function layoutKotMasonry() {
+      var grid = document.getElementById('kotGrid');
+      if (!grid) return;
+      var gap = 16 * (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kot-scale')) || 1);
+      // card n goes to column n % columns (oldest first, left to right); the next round stacks under the same column's card, e.g. 8th card under 1st
+      var cols = Math.max(1, getComputedStyle(grid).gridTemplateColumns.split(' ').length);
+      var n = 0;
+      Array.prototype.forEach.call(grid.children, function(card) {
+        if (!card.classList.contains('kot-card-box')) return;
+        card.style.gridColumnStart = (n++ % cols) + 1;
+        card.style.gridRowEnd = 'span ' + Math.ceil(card.getBoundingClientRect().height + gap);
+        if (kotCardObserver && !card._kotObserved) { card._kotObserved = true; kotCardObserver.observe(card); } // cards are re-created on every render, so no cleanup needed
+      });
+    }
+    window.addEventListener('resize', layoutKotMasonry);
 
     window.addEventListener('click', function() {
       if (isAudioAllowed) {
