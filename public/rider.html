@@ -243,6 +243,13 @@
       document.getElementById('splitBox').classList.toggle('hidden', payMode !== 'SPLIT');
       if (payMode === 'SPLIT') renderSplit();
       updateChange();
+      updateConfirmLabel();
+    }
+
+    // UPI opens the QR only when this button is pressed, so say so on the button
+    function updateConfirmLabel() {
+      var upi = payMode === 'UPI' || (payMode === 'SPLIT' && splitRows.some(function(r) { return r.mode === 'UPI'; }));
+      document.getElementById('payConfirm').innerText = upi ? '📲 QR dikhayein • Payment lein' : '✔ Payment mili • Delivered';
     }
 
     function setMode(m) { payMode = m; renderModes(); }
@@ -270,14 +277,14 @@
     function renderSplit() {
       document.getElementById('splitRows').innerHTML = splitRows.map(function(r, i) {
         var modes = ['CASH', 'UPI', 'CARD'].map(function(m) { return '<option value="' + m + '"' + (m === r.mode ? ' selected' : '') + '>' + m + '</option>'; }).join('');
-        return '<div class="flex items-center gap-2"><select onchange="splitRows[' + i + '].mode = this.value" class="border-2 border-gray-300 rounded-xl px-2 py-3 font-black text-sm bg-white">' + modes + '</select>' +
+        return '<div class="flex items-center gap-2"><select onchange="splitRows[' + i + '].mode = this.value; updateConfirmLabel()" class="border-2 border-gray-300 rounded-xl px-2 py-3 font-black text-sm bg-white">' + modes + '</select>' +
           '<input id="splitAmt' + i + '" type="number" inputmode="decimal" placeholder="₹ amount" value="' + (r.amount === '' ? '' : r.amount) + '" oninput="updateSplit()" class="flex-1 min-w-0 border-2 border-gray-300 rounded-xl px-3 py-3 text-lg font-black">' +
           (splitRows.length > 2 ? '<button onclick="removeSplitRow(' + i + ')" class="text-rose-500 text-xl font-black px-1">✕</button>' : '') + '</div>';
       }).join('');
       document.getElementById('splitAdd').classList.toggle('hidden', splitRows.length >= 4);
     }
     function addSplitRow() { readSplit(); if (splitRows.length < 4) { splitRows.push({ mode: 'CARD', amount: '' }); renderSplit(); updateSplit(); } }
-    function removeSplitRow(i) { readSplit(); if (splitRows.length > 2) { splitRows.splice(i, 1); renderSplit(); updateSplit(); } }
+    function removeSplitRow(i) { readSplit(); if (splitRows.length > 2) { splitRows.splice(i, 1); renderSplit(); updateSplit(); updateConfirmLabel(); } }
     function fillSplitRest() {
       readSplit();
       var other = splitRows.reduce(function(t, r, i) { return t + (r.amount === '' ? 0 : (parseFloat(r.amount) || 0)); }, 0);
