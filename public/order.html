@@ -174,7 +174,7 @@
         </div>
         <div id="ckVerified" class="hidden flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5">
           <span class="text-xs font-black text-emerald-800">✅ <span id="ckVerifiedNum"></span> verified</span>
-          <button type="button" onclick="ckChangeNumber()" class="text-[11px] font-black text-indigo-600">Number badlein</button>
+          <button type="button" onclick="ckChangeNumber()" title="Number change karein" aria-label="Number change karein" class="w-7 h-7 flex items-center justify-center rounded-full text-emerald-700 hover:bg-emerald-100 active:bg-emerald-200"><svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.768-6.768a2.5 2.5 0 113.536 3.536L12.536 16.5 8 18l1-4.5z"/></svg></button>
         </div>
       </div>
 
@@ -182,8 +182,13 @@
       <div class="pt-3 border-t text-xs text-gray-600 space-y-1">
         <div class="flex justify-between"><span>Subtotal</span><span id="cSub" class="font-bold">₹0</span></div>
         <div id="cDelRow" class="hidden flex justify-between"><span>Delivery charge</span><span id="cDel" class="font-bold">—</span></div>
+        <div id="cPtsRow" class="hidden flex justify-between text-amber-700"><span id="cPtsLbl">Points discount</span><span id="cPts" class="font-bold">₹0</span></div>
         <div class="flex justify-between"><span>GST (5%)</span><span id="cGst" class="font-bold">₹0</span></div>
       </div>
+      <label id="cPtsBox" class="hidden flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 cursor-pointer">
+        <input type="checkbox" id="cUsePts" onchange="togglePoints()" class="w-4 h-4 accent-amber-500">
+        <span id="cPtsText" class="text-xs font-black text-amber-900"></span>
+      </label>
       <div class="pt-3 border-t flex justify-between items-center">
         <div>
           <p class="text-[10px] text-gray-400 uppercase font-black tracking-wider">Total Payable</p>
@@ -253,6 +258,7 @@
           <p class="text-[10px] text-gray-400 uppercase font-black tracking-wider mb-1">Bill Details</p>
           <div class="flex justify-between"><span>Subtotal</span><span id="aSub" class="font-bold">₹0</span></div>
           <div id="aDelRow" class="flex justify-between"><span>Delivery charge</span><span id="aDel" class="font-bold">—</span></div>
+          <div id="aPtsRow" class="hidden flex justify-between text-amber-700"><span id="aPtsLbl">Points discount</span><span id="aPts" class="font-bold">₹0</span></div>
           <div class="flex justify-between"><span>GST (5%)</span><span id="aGst" class="font-bold">₹0</span></div>
           <div class="flex justify-between border-t pt-1.5 mt-1 text-sm text-gray-900"><span class="font-black">Total Payable</span><span id="aTotal" class="font-black text-emerald-600">₹0</span></div>
         </div>
@@ -1019,24 +1025,60 @@
       return cart.reduce((s, i) => { const m = menu.find(x => x.id === i.id); return m && Number(m.is_exempt) ? s : s + (i.price * i.qty); }, 0);
     }
 
+    // ---- loyalty points on the website checkout (the server re-checks everything; this only mirrors its maths) ----
+    let loyCk = null, usePts = false; // loyCk = /api/loyalty/my reply for the verified phone
+    function loadCkLoyalty() {
+      const p = getProfile();
+      if (!p || !p.token) { loyCk = null; usePts = false; return updateCartUI(); }
+      fetch('/api/loyalty/my', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: p.phone, token: p.token }) })
+        .then(r => r.ok ? r.json() : null).then(d => { loyCk = d && d.enabled ? d : null; updateCartUI(); }).catch(() => {});
+    }
+    // Most points this cart can redeem (balance, min points and "max % of bill" all respected); 0 = not possible
+    function maxPoints() {
+      if (!loyCk) return 0;
+      const pv = Number(loyCk.point_value) || 0; if (pv <= 0) return 0;
+      const pts = Math.min(Math.floor(Number(loyCk.balance) || 0), Math.floor(cartSubtotal() * (Number(loyCk.max_redeem_pct) || 0) / 100 / pv + 1e-9));
+      return pts > 0 && pts >= (Number(loyCk.min_redeem) || 0) ? pts : 0;
+    }
+    function togglePoints() { usePts = document.getElementById('cUsePts').checked; updateCartUI(); }
+    // Server order: discount comes off the subtotal (incl. delivery) and GST is charged on what is left of the taxable part
+    function ckTotals() {
+      const sub = cartSubtotal() + chargeNow(), pts = usePts ? maxPoints() : 0;
+      const off = pts ? Math.round(pts * Number(loyCk.point_value) * 100) / 100 : 0, tax = taxableOf();
+      const gst = gstOf(sub > 0 ? Math.max(0, tax - off * tax / sub) : 0);
+      return { sub, pts, off, gst, total: Math.round(sub + gst - off) };
+    }
+    function renderPointsBox(T) {
+      const mp = maxPoints();
+      if (!mp) usePts = false;
+      const off = Math.round(mp * (loyCk ? Number(loyCk.point_value) : 0) * 100) / 100;
+      document.getElementById('cPtsBox').classList.toggle('hidden', !mp);
+      document.getElementById('cUsePts').checked = usePts;
+      document.getElementById('cPtsText').textContent = `⭐ ${mp} points use karein (−₹${off}) • aapke paas ${loyCk ? loyCk.balance : 0}`;
+      ['c', 'a'].forEach(k => {
+        document.getElementById(k + 'PtsRow').classList.toggle('hidden', !T.off);
+        document.getElementById(k + 'PtsLbl').textContent = `Points discount (${T.pts} pts)`;
+        document.getElementById(k + 'Pts').textContent = `−₹${T.off}`;
+      });
+    }
+
     function updateCartUI() {
       const count = cart.reduce((s, i) => s + i.qty, 0);
-      const charge = chargeNow();
-      const total = cartSubtotal() + charge;
-      const gst = gstOf(taxableOf());
+      const T = ckTotals(), gst = T.gst;
+      renderPointsBox(T);
       document.getElementById('cartCount').innerText = `${count} ${count === 1 ? 'item' : 'items'}`;
-      document.getElementById('cartTotal').innerText = `₹${total + gst}`;
+      document.getElementById('cartTotal').innerText = `₹${T.total}`;
       document.getElementById('cSub').innerText = `₹${cartSubtotal()}`;
       const row = document.getElementById('cDelRow');
       row.classList.toggle('hidden', mode !== 'Delivery');
       document.getElementById('cDel').innerText = deliveryQuote.charge == null ? 'Address step me' : (Number(deliveryQuote.charge) > 0 ? `₹${deliveryQuote.charge}` : 'FREE');
       document.getElementById('cGst').innerText = `₹${gst}`;
-      document.getElementById('cTotal').innerText = `₹${total + gst}`;
-      document.getElementById('addrTotal').innerText = `₹${total + gst}`;
+      document.getElementById('cTotal').innerText = `₹${T.total}`;
+      document.getElementById('addrTotal').innerText = `₹${T.total}`;
       document.getElementById('aSub').innerText = `₹${cartSubtotal()}`;
       document.getElementById('aDel').innerText = document.getElementById('cDel').innerText;
       document.getElementById('aGst').innerText = `₹${gst}`;
-      document.getElementById('aTotal').innerText = `₹${total + gst}`;
+      document.getElementById('aTotal').innerText = `₹${T.total}`;
       const aq = document.getElementById('addrQuote');
       if (mode === 'Delivery' && cart.length) {
         const bad = deliveryQuote.charge == null;
@@ -1133,6 +1175,7 @@
         if (!document.getElementById('cPhone').value) document.getElementById('cPhone').value = prof.phone || '';
       }
       renderCkPhone();
+      loadCkLoyalty();
       document.getElementById('checkoutModal').classList.remove('hidden');
     }
 
@@ -1292,7 +1335,7 @@
       document.getElementById('cPhone2').classList.toggle('hidden', req);
       if (!req) { document.getElementById('ckOtpStep').classList.add('hidden'); document.getElementById('cPhone').readOnly = false; }
       if (ok) { document.getElementById('cPhone').value = prof.phone; document.getElementById('ckVerifiedNum').textContent = '+91 ' + prof.phone; }
-      else resetCkOtp();
+      else { resetCkOtp(); loyCk = null; usePts = false; }
     }
     function ckSendOtp() {
       const phone = document.getElementById('cPhone').value.trim(), btn = document.getElementById('ckOtpBtn');
@@ -1321,7 +1364,7 @@
           const name = nameEl.value.trim() || x.d.name || (old && old.phone === x.d.phone ? old.name : '') || '';
           saveProfile({ name, phone: x.d.phone, token: x.d.token });
           if (!nameEl.value) nameEl.value = name;
-          refreshProfileUI(); renderCkPhone(); toast('Number verify ho gaya ✓');
+          refreshProfileUI(); renderCkPhone(); loadCkLoyalty(); toast('Number verify ho gaya ✓');
         }).catch(() => toast('Network error', true));
     }
     async function ckChangeNumber() {
@@ -1354,8 +1397,7 @@
       placing = true;
       btnState(btn, true);
 
-      const sub = cartSubtotal() + chargeNow();
-      const gst = gstOf(taxableOf());
+      const T = ckTotals(), sub = T.sub, gst = T.gst;
       // delivery address/location are stored on the order itself (shown on POS + bill, not on the kitchen screen)
       const note = isDelivery ? '' : (loc ? `Note: ${loc}` : '');
       const items = cart.map((c, i) => ({ ...c, notes: i === 0 ? note : '' }));
@@ -1370,9 +1412,10 @@
           items,
           payment_mode: 'ONLINE_PENDING',
           subtotal: sub,
-          discount: 0,
+          discount: T.off,
+          points_redeem: T.pts || undefined,
           gst: gst,
-          total: sub + gst,
+          total: T.total,
           delivery_address: isDelivery ? address : undefined,
           delivery_lat: isDelivery && deliveryLoc ? deliveryLoc.lat : undefined,
           delivery_lng: isDelivery && deliveryLoc ? deliveryLoc.lng : undefined
@@ -1385,7 +1428,8 @@
       .then(d => {
         if (!d || !d.success) throw new Error('order failed');
         if (addrObj) saveAddress(addrObj);
-        const total = sub + gst;
+        const total = T.total;
+        usePts = false; loyCk = null;
         cart = [];
         saveCart();
         closeCheckout();

@@ -80,7 +80,7 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, stor
       if (!table) return res.status(403).json({ error: 'Ye QR sahi nahi hai. Staff se poochhein.' });
       const cfg = await getSettingsConfig();
       const st = storeStatus(cfg);
-      res.json({ table, open: !!st.open, message: st.message || '', restaurant: await restaurantName() });
+      res.json({ table, open: !!st.open, message: st.message || '', restaurant: await restaurantName(), require_otp: (cfg.ordering_rules || {}).require_otp !== false });
     } catch (e) { res.status(500).json({ error: 'Load nahi hua' }); }
   });
 
@@ -102,7 +102,9 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, stor
         notes: i === 0 && note ? 'Note: ' + note : ''
       })) : [];
       // only these fields are ever read from a public request: no discount / payment / status can be injected
-      req.body = { order_type: 'Dine-In', table_no: table, customer_name: name, customer_phone: phone, items };
+      const pts = Math.floor(Number(b.points_redeem));
+      req.body = { order_type: 'Dine-In', table_no: table, customer_name: name, customer_phone: phone, items,
+        points_redeem: pts > 0 ? pts : undefined, profile_token: String(b.profile_token || '').slice(0, 100) };
       req.tableQr = { table };
       const origJson = res.json.bind(res);
       res.json = async (d) => {

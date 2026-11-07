@@ -105,7 +105,7 @@
       var r = await fetch('/api/table-qr/info?t=' + encodeURIComponent(T) + '&k=' + encodeURIComponent(K));
       var info = await r.json();
       if (!r.ok) return fatal(info.error || 'QR sahi nahi hai');
-      T = info.table; storeOpen = info.open; storeMsg = info.message;
+      T = info.table; storeOpen = info.open; storeMsg = info.message; tqOtpOn = info.require_otp !== false;
       CART_KEY = 'vf_tq_cart_' + T; ORD_KEY = 'vf_tq_orders_' + T;
       if (info.restaurant) $('restName').textContent = info.restaurant;
       $('tableBadge').textContent = 'Table ' + T;
@@ -339,12 +339,88 @@
           '<div class="flex items-center gap-2"><button onclick="chg(' + i + ',-1)" class="w-8 h-8 rounded-lg border font-black">−</button><span class="w-5 text-center font-black text-sm">' + c.qty + '</span><button onclick="chg(' + i + ',1)" class="w-8 h-8 rounded-lg border font-black">+</button></div>' +
           '<div class="w-16 text-right font-black text-sm">' + rs(c.price * c.qty) + '</div></div>';
       }).join('') + '</div>' +
-      '<div class="space-y-2 mb-3"><input id="gName" placeholder="Your name *" maxlength="40" class="w-full border rounded-xl px-3 py-2.5 text-sm"><input id="gPhone" type="tel" inputmode="numeric" maxlength="10" placeholder="Mobile number (10 digit) *" class="w-full border rounded-xl px-3 py-2.5 text-sm"><input id="gNote" placeholder="Any note for the kitchen? (optional)" maxlength="150" class="w-full border rounded-xl px-3 py-2.5 text-sm"></div>' +
-      '<div class="flex justify-between font-black text-base mb-1"><span>Subtotal</span><span>' + rs(cartSub()) + '</span></div><p class="text-[11px] text-gray-500 mb-3">GST (5%) final bill me judega. Payment khana khane ke baad counter par karein.</p>' +
+      '<div class="space-y-2 mb-3"><input id="gName" placeholder="Your name *" maxlength="40" class="w-full border rounded-xl px-3 py-2.5 text-sm"><input id="gPhone" type="tel" inputmode="numeric" maxlength="10" placeholder="Mobile number (10 digit) *" class="w-full border rounded-xl px-3 py-2.5 text-sm"><div id="tqOtp" class="space-y-2"></div><input id="gNote" placeholder="Any note for the kitchen? (optional)" maxlength="150" class="w-full border rounded-xl px-3 py-2.5 text-sm"></div>' +
+      '<div id="ptsBox" class="mb-3"></div>' +
+      '<div class="flex justify-between font-black text-base mb-1"><span>Subtotal</span><span>' + rs(cartSub()) + '</span></div>' +
+      '<div id="ptsOff" class="flex justify-between font-black text-sm text-amber-700 mb-1"></div><p class="text-[11px] text-gray-500 mb-3">GST (5%) final bill me judega. Payment khana khane ke baad counter par karein.</p>' +
       '<button id="placeBtn" onclick="placeOrder()" class="w-full bg-indigo-600 text-white rounded-2xl py-3.5 font-black text-sm">🚀 Place Order</button>');
     $('gName').value = keep.gName != null ? keep.gName : (g.name || '');
     $('gPhone').value = keep.gPhone != null ? keep.gPhone : (g.phone || '');
     $('gNote').value = keep.gNote || '';
+    $('gPhone').oninput = function () { this.value = this.value.replace(/\D/g, ''); renderPts(); };
+    renderTqLogin(); loadPts();
+  }
+  // ---- WhatsApp OTP login (same as the website checkout): verified once, remembered on this device ----
+  var tqOtpOn = true, tqTimer = null;
+  function renderTqLogin() {
+    var box = $('tqOtp'), ph = $('gPhone'); if (!box) return;
+    clearInterval(tqTimer);
+    if (!tqOtpOn) { box.innerHTML = ''; ph.readOnly = false; return; }
+    var p = profile();
+    if (p && p.token && p.phone) {
+      ph.value = p.phone; ph.readOnly = true;
+      box.innerHTML = '<div class="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5"><span class="text-xs font-black text-emerald-800">✅ +91 ' + esc(p.phone) + ' verified</span><button type="button" onclick="tqChangeNumber()" class="text-[11px] font-black text-indigo-600">Number badlein</button></div>';
+      return;
+    }
+    ph.readOnly = false;
+    box.innerHTML = '<div class="text-[11px] font-semibold text-gray-500">Aapke WhatsApp par OTP aayega. Verify hone ke baad dobara OTP nahi dena padega.</div>' +
+      '<button type="button" id="tqOtpBtn" onclick="tqSendOtp()" class="w-full bg-emerald-600 text-white font-black py-2.5 rounded-xl text-xs">WhatsApp par OTP bhejein</button>' +
+      '<div id="tqOtpStep" class="hidden flex gap-2"><input id="tqOtpCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6 digit OTP" class="flex-1 w-full border rounded-xl px-3 py-2.5 text-sm font-bold tracking-widest" oninput="this.value=this.value.replace(/\\D/g,\'\')"><button type="button" onclick="tqVerifyOtp()" class="bg-amber-500 text-white font-black px-4 rounded-xl text-xs">Verify</button></div>';
+  }
+  async function tqSendOtp() {
+    var phone = $('gPhone').value.replace(/\D/g, ''), btn = $('tqOtpBtn');
+    if (btn.disabled) return;
+    if (!validPhone(phone)) { $('gPhone').focus(); return toast('Sahi 10-digit mobile number daalein', true); }
+    btn.disabled = true; btn.textContent = 'Bhej rahe hain...';
+    try {
+      var d = await fetch('/api/otp/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: phone }) }).then(jsonOrThrow);
+      $('gPhone').readOnly = true; $('tqOtpStep').classList.remove('hidden'); $('tqOtpCode').focus();
+      var left = d.resend_in || 60; clearInterval(tqTimer);
+      var tick = function () { btn.textContent = left > 0 ? 'OTP dobara bhejein (' + left + 's)' : 'OTP dobara bhejein'; btn.disabled = left > 0; };
+      tick(); tqTimer = setInterval(function () { left--; tick(); if (left <= 0) clearInterval(tqTimer); }, 1000);
+      toast('OTP WhatsApp par bhej diya');
+    } catch (e) { btn.disabled = false; btn.textContent = 'WhatsApp par OTP bhejein'; toast(e.message, true); }
+  }
+  async function tqVerifyOtp() {
+    var phone = $('gPhone').value.replace(/\D/g, ''), code = $('tqOtpCode').value.trim();
+    if (code.length !== 6) return toast('6 digit OTP likhein', true);
+    try {
+      var d = await fetch('/api/otp/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: phone, code: code }) }).then(jsonOrThrow);
+      var name = $('gName').value.trim() || d.name || '';
+      try { localStorage.setItem('vf_profile', JSON.stringify({ name: name, phone: d.phone, token: d.token })); } catch (e) {}
+      if (!$('gName').value) $('gName').value = name;
+      ptsInfo = null; renderTqLogin(); loadPts(); toast('Number verify ho gaya ✓');
+    } catch (e) { toast(e.message, true); }
+  }
+  function tqChangeNumber() {
+    if (!window.confirm('Number badalne par is device ka login hat jayega. Aage badhein?')) return;
+    try { localStorage.removeItem('vf_profile'); } catch (e) {}
+    $('gPhone').value = ''; ptsInfo = null; usePts = false; renderTqLogin(); renderPts();
+  }
+  // ---- use loyalty points on this order (server re-checks everything; this only mirrors its limits) ----
+  var ptsInfo = null, usePts = false;
+  async function loadPts() {
+    var p = profile();
+    if (p && p.token && !ptsInfo) {
+      try { var d = await fetch('/api/loyalty/my', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: p.phone, token: p.token }) }).then(function (r) { return r.ok ? r.json() : null; }); ptsInfo = d && d.enabled ? d : null; } catch (e) {}
+    }
+    renderPts();
+  }
+  // Points this cart can redeem (balance, min points and "max % of bill"); only for the phone this device is logged in with
+  function maxPts() {
+    var p = profile(), ph = $('gPhone');
+    if (!ptsInfo || !p || !ph || ph.value.replace(/\D/g, '') !== p.phone) return 0;
+    var pv = Number(ptsInfo.point_value) || 0; if (pv <= 0) return 0;
+    var n = Math.min(Math.floor(Number(ptsInfo.balance) || 0), Math.floor(cartSub() * (Number(ptsInfo.max_redeem_pct) || 0) / 100 / pv + 1e-9));
+    return n > 0 && n >= (Number(ptsInfo.min_redeem) || 0) ? n : 0;
+  }
+  var ptsOffer = function () { return Math.round(maxPts() * Number(ptsInfo.point_value) * 100) / 100; };
+  function togglePts() { usePts = $('usePts').checked; renderPts(); }
+  function renderPts() {
+    var box = $('ptsBox'), off = $('ptsOff'); if (!box) return;
+    var n = maxPts(); if (!n) usePts = false;
+    box.innerHTML = n ? '<label class="flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 cursor-pointer"><input type="checkbox" id="usePts" onchange="togglePts()" class="w-4 h-4 accent-amber-500"' + (usePts ? ' checked' : '') + '><span class="text-xs font-black text-amber-900">⭐ ' + n + ' points use karein (−' + rs(ptsOffer()) + ') • aapke paas ' + ptsInfo.balance + '</span></label>' : '';
+    off.innerHTML = usePts ? '<span>Points discount (' + n + ' pts)</span><span>−' + rs(ptsOffer()) + '</span>' : '';
   }
   function chg(i, d) {
     cart[i].qty += d; if (cart[i].qty < 1) cart.splice(i, 1);
@@ -359,11 +435,13 @@
     var name = $('gName').value.trim(), phone = $('gPhone').value.replace(/\D/g, '');
     if (name.length < 2) { $('gName').focus(); return toast('Apna naam daalein', true); }
     if (!validPhone(phone)) { $('gPhone').focus(); return toast('Sahi 10-digit mobile number daalein', true); }
+    var prof = profile(), tok = prof && prof.phone === phone ? prof.token || '' : '';
+    if (tqOtpOn && !tok) return toast('Pehle WhatsApp OTP se number verify karein', true);
     placing = true; var btn = $('placeBtn'); btn.disabled = true; btn.textContent = 'Sending...';
-    var lines = cart.slice(), sub = cartSub();
+    var lines = cart.slice(), sub = cartSub(), pts = usePts ? maxPts() : 0, off = pts ? ptsOffer() : 0;
     try {
       var r = await fetch('/api/table-qr/order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-        t: T, k: K, customer_name: name, customer_phone: phone, note: $('gNote').value,
+        t: T, k: K, customer_name: name, customer_phone: phone, note: $('gNote').value, points_redeem: pts || undefined, profile_token: tok,
         items: lines.map(function (c) { return { id: c.id, qty: c.qty, variant: c.variant || undefined, addons: c.addons }; }) }) });
       var d = await r.json().catch(function () { return {}; });
       if (!r.ok || !d.success) throw new Error(d.error || 'Order nahi ho paaya. Dobara try karein.');
@@ -371,12 +449,17 @@
       // first order with this number creates the customer profile; its secret token (shared with the online ordering page) is what lets this phone show a redeem code
       if (d.profile_token) { try { localStorage.setItem('vf_profile', JSON.stringify({ name: name, phone: phone, token: d.profile_token })); } catch (e) {} }
       var orders = []; try { orders = JSON.parse(localStorage.getItem(ORD_KEY) || '[]'); } catch (e) {}
-      var rec = { id: d.orderId, s: d.track, token: d.token_no, shared: !!d.shared, total: sub, at: Date.now(), items: lines.map(function (c) { return { name: c.name, qty: c.qty }; }) };
+      var rec = { id: d.orderId, s: d.track, token: d.token_no, shared: !!d.shared, total: sub - off, at: Date.now(), items: lines.map(function (c) { return { name: c.name, qty: c.qty }; }) };
       orders.unshift(rec);
       try { localStorage.setItem(ORD_KEY, JSON.stringify(orders.slice(0, 5))); } catch (e) {}
+      usePts = false; ptsInfo = null;
       cart = []; saveCart(); updateCartBar(); renderMenu(); closeSheet(); placing = false;
       showOrderPage(rec); pollOrders();
-    } catch (e) { placing = false; btn.disabled = false; btn.textContent = '🚀 Place Order'; toast(e.message, true); }
+    } catch (e) {
+      // Server no longer accepts this login: drop it so the customer verifies the number again
+      if (/OTP se number verify/.test(e.message || '')) { try { var pf = profile(); if (pf) localStorage.setItem('vf_profile', JSON.stringify({ name: pf.name, phone: pf.phone, token: '' })); } catch (x) {} ptsInfo = null; renderTqLogin(); }
+      placing = false; btn.disabled = false; btn.textContent = '🚀 Place Order'; toast(e.message, true);
+    }
   }
 
   // ---------- token + live status ----------
@@ -512,7 +595,7 @@
   async function pointsSheet() {
     clearInterval(codeTimer);
     var p = profile();
-    if (!p || !p.token) return openSheet(sheetHead('⭐ My Points') + '<p class="text-center py-6 text-sm font-bold text-gray-500">Pehla order place karte hi aapka points account is phone par ban jayega.</p>');
+    if (!p || !p.token) return openSheet(sheetHead('⭐ My Points') + '<p class="text-center py-6 text-sm font-bold text-gray-500">Points dekhne ke liye order karte waqt WhatsApp OTP se number verify karein.</p>');
     openSheet(sheetHead('⭐ My Points') + '<p class="text-center py-8 text-gray-400 font-bold">Loading...</p>');
     var d;
     try { d = await fetch('/api/loyalty/my', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: p.phone, token: p.token }) }).then(jsonOrThrow); }

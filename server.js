@@ -1545,6 +1545,15 @@ app.post('/api/delivery-charge', async (req, res) => {
 // GST sirf un items par lagta hai jinpe "No GST" (is_exempt) set nahi hai
 const taxableSubtotal = (rows) => (rows || []).reduce((s, i) => Number(i.is_exempt) || i.name === 'Delivery Charge' ? s : s + Number(i.price) * Number(i.qty), 0);
 
+// True when `sent` is the profile token that /api/otp/verify (or the first order) handed out for this phone
+const profileTokenOk = async (phone, sent) => {
+  sent = String(sent || '');
+  const prof = sent ? await dbAllAsync('SELECT token FROM customer_profiles WHERE phone = ?', [String(phone)]) : [];
+  const have = prof[0] ? String(prof[0].token || '') : '';
+  return !!sent && !!have && have.length === sent.length && crypto.timingSafeEqual(Buffer.from(have), Buffer.from(sent));
+};
+const otpRequired = async () => ((await getSettingsConfig()).ordering_rules || {}).require_otp !== false;
+
 let engagement = null; // set by require('./engagement').register(...) below
 const createOrderHandler = async (req, res) => {
   console.log('[DEBUG ORDER PAYLOAD]:', req.body);
@@ -1556,12 +1565,7 @@ const createOrderHandler = async (req, res) => {
   if (isOnlineOrder) {
     if (!/^[6-9]\d{9}$/.test(String(customer_phone || ''))) return res.status(400).json({ error: 'Valid 10-digit mobile number daalein' });
     // Settings > Ordering rules > "Website par WhatsApp OTP login zaroori" (default ON): the browser must send the profile token that /api/otp/verify handed out for this phone
-    if (((await getSettingsConfig()).ordering_rules || {}).require_otp !== false) {
-      const sent = String(req.body.profile_token || '');
-      const prof = sent ? await dbAllAsync('SELECT token FROM customer_profiles WHERE phone = ?', [String(customer_phone)]) : [];
-      const have = prof[0] ? String(prof[0].token || '') : '';
-      if (!sent || !have || have.length !== sent.length || !crypto.timingSafeEqual(Buffer.from(have), Buffer.from(sent))) return res.status(401).json({ error: 'Pehle WhatsApp OTP se number verify karein', need_otp: true });
-    }
+    if ((await otpRequired()) && !(await profileTokenOk(customer_phone, req.body.profile_token))) return res.status(401).json({ error: 'Pehle WhatsApp OTP se number verify karein', need_otp: true });
     const open = storeStatus(await getSettingsConfig());
     if (!open.open) return res.status(400).json({ error: open.message });
     try {
@@ -1610,6 +1614,7 @@ const createOrderHandler = async (req, res) => {
 
   // Table QR order (see tableQr.js): table comes from the signed QR, prices are rebuilt from the DB, staff must approve
   if (req.tableQr) {
+    if ((await otpRequired()) && !(await profileTokenOk(customer_phone, req.body.profile_token))) return res.status(401).json({ error: 'Pehle WhatsApp OTP se number verify karein', need_otp: true });
     const open = storeStatus(await getSettingsConfig());
     if (!open.open) return res.status(400).json({ error: open.message });
     try {
@@ -1664,6 +1669,20 @@ const createOrderHandler = async (req, res) => {
       finalDiscount = promo.discount; couponCode = promo.couponCode || null; pointsRedeemed = promo.pointsRedeemed || 0;
       discountReason = promo.reason; promoApplied = true;
     } catch (e) { console.error('Promo error:', e.message); return res.status(500).json({ error: 'Coupon / points check nahi ho paaya' }); }
+  }
+  // Website / table QR order paying with loyalty points: the customer's profile token proves the phone is theirs (replaces the counter redeem code).
+  // Only food counts towards the "max % of bill" cap, not the delivery charge.
+  if ((isOnlineOrder || req.tableQr) && Number(req.body.points_redeem) > 0) {
+    if (!(await profileTokenOk(customer_phone, req.body.profile_token))) return res.status(401).json({ error: req.tableQr ? 'Points verify nahi ho paaye. "My Points" me check karein ya counter par redeem code use karein' : 'Points use karne ke liye pehle WhatsApp OTP se number verify karein', need_otp: true });
+    // Razorpay orders sit in HOLD (not counted in the points ledger) until paid, so a second order could spend the same points: allow one pending points payment per phone
+    const pend = await dbAllAsync("SELECT id FROM orders WHERE status = 'HOLD' AND points_redeemed > 0 AND RIGHT(customer_phone, 10) = ? AND created_at > NOW() - INTERVAL '30 minutes' LIMIT 1", [String(customer_phone)]);
+    if (pend.length) return res.status(400).json({ error: 'Points wala ek payment abhi pending hai. Use poora karein ya thodi der baad (30 min) dobara try karein.' });
+    try {
+      const foodSubtotal = items.reduce((sum, i) => i.name === 'Delivery Charge' ? sum : sum + Number(i.price) * Number(i.qty), 0);
+      const promo = await engagement.computeDiscount({ subtotal: foodSubtotal, phone: customer_phone, points_redeem: req.body.points_redeem, staff_override: true, consume: true });
+      if (promo.error) return res.status(400).json({ error: promo.error });
+      finalDiscount = promo.discount; pointsRedeemed = promo.pointsRedeemed || 0; discountReason = promo.reason; promoApplied = true;
+    } catch (e) { console.error('Online points error:', e.message); return res.status(500).json({ error: 'Points check nahi ho paaya' }); }
   }
   if (isComp || (finalDiscount > 0 && !promoApplied)) {
     if (!discountPasswordOk(req.body.auth_password)) return res.status(403).json({ error: 'Discount / Complimentary ke liye sahi password chahiye' });
