@@ -3790,7 +3790,7 @@
       }
 
       var rowHTML = function(item, idx) {
-        var badge = item.locked ? (/READY|COMPLETED/i.test(item.order_status || '') ? '<span class="shrink-0 px-1 rounded text-[9px] font-black bg-emerald-100 text-emerald-700">Ready</span>' : '<span class="shrink-0 px-1 rounded text-[9px] font-black bg-amber-100 text-amber-700">Preparing</span>') : '';
+        var badge = item.locked ? (/READY|COMPLETED/i.test(item.order_status || '') ? '<span class="shrink-0 px-1 rounded text-[9px] font-black bg-emerald-100 text-emerald-700">Ready</span>' : '<span class="shrink-0 px-1 rounded text-[9px] font-black bg-amber-100 text-amber-700">Preparing</span>') : (editingActiveOrderId ? '<span class="shrink-0 px-1 rounded text-[9px] font-black bg-sky-100 text-sky-700">New</span>' : '');
         var iconBtn = function(cls, fn, label, title) { return '<button onclick="' + fn + '" title="' + title + '" class="px-1 rounded border text-[11px] font-bold leading-5 ' + cls + '">' + label + '</button>'; };
         var noteBtn = iconBtn(item.user_note ? 'bg-yellow-100 border-yellow-400 text-yellow-800' : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-100', 'editCartItemNote(' + idx + ')', '📝', 'Note');
         var moveBtn = (editingActiveOrderId && selectedPOSTableId && /dine/i.test(currentPOSOrderType || '')) ? iconBtn('bg-white border-orange-300 text-orange-700 hover:bg-orange-50', 'promptMoveItem(' + idx + ')', '⇄', 'Move') : '';
@@ -4596,8 +4596,13 @@
 
       var addedLine;
       if (editingActiveOrderId) {
-        addedLine = { id: itemObj ? itemObj.id : null, name: displayName, price: Number(displayPrice), qty: 1, addons: [], is_exempt: itemObj && Number(itemObj.is_exempt) ? 1 : 0 };
-        posCart.push(addedLine);
+        // Already-ordered (locked) rows are never merged into: the same item added again gets its own "New" row; further taps bump that new row
+        var existNew = posCart.find(function(i) { return !i.locked && i.name === displayName && (!i.addons || i.addons.length === 0) && !i.user_note; });
+        if (existNew) { existNew.qty += 1; addedLine = existNew; }
+        else {
+          addedLine = { id: itemObj ? itemObj.id : null, name: displayName, price: Number(displayPrice), qty: 1, addons: [], is_exempt: itemObj && Number(itemObj.is_exempt) ? 1 : 0 };
+          posCart.push(addedLine);
+        }
       } else {
         var exist = posCart.find(function(i) { return i.name === displayName && (!i.addons || i.addons.length === 0); });
         if (exist) { exist.qty += 1; addedLine = exist; }
