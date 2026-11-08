@@ -4065,15 +4065,15 @@
         <head>
           <style>
             @page { margin: 0; size: 80mm auto; }
-            body { font-family: Arial, sans-serif; font-size: ${bFont}px; font-weight: 700; color: #000; margin: 0 0 0 ${bLeft}mm; padding: 2px 6px 0; width: 68mm; zoom: ${bZoom}; }
+            body { font-family: Arial, sans-serif; font-size: ${bFont}px; font-weight: 500; color: #000; margin: 0 0 0 ${bLeft}mm; padding: 2px 6px 0; width: 68mm; zoom: ${bZoom}; }
             .center { text-align: center; }
             .token { border: 2.5px solid #000; font-size: 26px; font-weight: 900; text-align: center; padding: 4px 0; margin: 6px 0; }
             .divider { border-top: 1.5px dashed #000; margin: 6px 0; }
             .row { display: flex; justify-content: space-between; }
             table.items { width: 100%; border-collapse: collapse; table-layout: fixed; }
-            table.items th { border-bottom: 1.5px solid #000; padding: 2px 0; font-size: 12px; }
+            table.items th { border-bottom: 1.5px solid #000; padding: 2px 0; font-size: 12px; font-weight: 600; }
             table.items td { padding: 3px 0; vertical-align: top; }
-            table.items .nm { text-align: left; white-space: normal; word-break: break-word; overflow-wrap: anywhere; padding-right: 4px; }
+            table.items .nm { font-weight: 700; text-align: left; white-space: normal; word-break: break-word; overflow-wrap: anywhere; padding-right: 4px; }
             table.items .q { width: 8mm; text-align: center; }
             table.items .r { width: 13mm; text-align: right; }
             table.items .a { width: 16mm; text-align: right; }
@@ -4087,7 +4087,7 @@
           ${billCfg.s.gstin && bOn('show_gstin') ? `<div class="center" style="font-size:11px;">GSTIN: ${billEsc(billCfg.s.gstin)}</div>` : ''}
           ${bOn('show_token') ? `<div class="token">TOKEN #${payload.token_no || orderId || '---'}</div>` : ''}
           <div class="row"><span>Order: #${orderId}</span><span>(${payload.order_type.toUpperCase()})</span></div>
-          ${payload.table_no ? `<div>Table: ${payload.table_no}</div>` : ''}
+          ${payload.table_no ? `<div style="font-weight:700;">Table: ${payload.table_no}</div>` : ''}
           ${payload.customer_name && bOn('show_guest') ? `<div>Guest: ${payload.customer_name}</div>` : ''}
           ${payload.customer_phone && bOn('show_customer_phone') ? `<div>Phone: ${payload.customer_phone}</div>` : ''}
           ${payload.customer_address && bOn('show_address') ? `<div>Address: ${String(payload.customer_address).replace(/[&<>]/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; })}</div>` : ''}

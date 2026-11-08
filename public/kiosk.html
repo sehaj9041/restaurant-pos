@@ -1493,15 +1493,15 @@
       const s = kioskStoreCfg, c = kioskReceiptCfg;
       const rows = o.items.map(i => `<tr><td class="nm">${esc(i.name)}${i.notes ? `<div style="font-size:10px;font-weight:400">${esc(i.notes)}</div>` : ''}</td><td class="q">${i.qty}</td><td class="r">${Number(i.price).toFixed(2)}</td><td class="a">${(i.price * i.qty).toFixed(2)}</td></tr>`).join('');
       const css = `
-        .bill { font-family: Arial, Helvetica, sans-serif; font-size: 13px; font-weight: 700; color: #000; background: #fff; padding: 0 6px 4px; }
+        .bill { font-family: Arial, Helvetica, sans-serif; font-size: 13px; font-weight: 500; color: #000; background: #fff; padding: 0 6px 4px; }
         .bill .center { text-align: center; }
         .bill .token { border: 2.5px solid #000; font-size: 26px; font-weight: 900; text-align: center; padding: 4px 0; margin: 6px 0; }
         .bill .divider { border-top: 1.5px dashed #000; margin: 6px 0; }
         .bill .row { display: flex; justify-content: space-between; }
         .bill table.items { width: 100%; border-collapse: collapse; table-layout: fixed; }
-        .bill table.items th { border-bottom: 1.5px solid #000; padding: 2px 0; font-size: 12px; }
+        .bill table.items th { border-bottom: 1.5px solid #000; padding: 2px 0; font-size: 12px; font-weight: 600; }
         .bill table.items td { padding: 3px 0; vertical-align: top; }
-        .bill table.items .nm { text-align: left; white-space: normal; word-break: break-word; overflow-wrap: anywhere; padding-right: 4px; }
+        .bill table.items .nm { font-weight: 700; text-align: left; white-space: normal; word-break: break-word; overflow-wrap: anywhere; padding-right: 4px; }
         .bill table.items .q { width: 8mm; text-align: center; }
         .bill table.items .r { width: 13mm; text-align: right; }
         .bill table.items .a { width: 16mm; text-align: right; }`;
