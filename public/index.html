@@ -1621,8 +1621,6 @@
 
                 ${addrHtml}
 
-                ${order.source === 'TABLE_QR' ? qrTablePickerHtml(order) : ''}
-
                 <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-100 space-y-1">
                   ${itemsHtml}
                 </div>
@@ -1645,35 +1643,8 @@
           }).join('');
           // skip identical re-renders so the map iframes do not reload on every poll
           if (container._lastHtml !== newHtml) { container.innerHTML = newHtml; container._lastHtml = newHtml; }
-          orders.forEach(function(o) { if (o.source === 'TABLE_QR') refreshQrTableNote(o.id); });
         })
         .catch(function(err) { console.error('Approval fetch error:', err); });
-    }
-
-    // Table QR approval card: shows whether a table already has a running bill (view only; the order still goes to the QR's own table)
-    var qrTableChoice = {};
-    function qrTablePickerHtml(order) {
-      var cur = String(qrTableChoice[order.id] || order.table_no || '').toUpperCase();
-      var ids = defaultFloorTables.map(function(t) { return t.id; });
-      if (cur && ids.indexOf(cur) === -1) ids.unshift(cur);
-      var opts = ids.map(function(id) { return '<option value="' + escCartText(id) + '"' + (id === cur ? ' selected' : '') + '>' + escCartText(id) + '</option>'; }).join('');
-      return '<div class="bg-indigo-50 border border-indigo-100 rounded-lg p-2.5 space-y-1.5">' +
-        '<div class="flex items-center gap-2"><span class="text-[10px] font-black uppercase text-indigo-700">Table</span>' +
-        '<select id="qrTbl-' + order.id + '" onchange="qrTableChoice[' + order.id + '] = this.value; refreshQrTableNote(' + order.id + ')" class="border border-indigo-200 rounded-lg px-2 py-1 text-xs font-black bg-white">' + opts + '</select></div>' +
-        '<div id="qrTblNote-' + order.id + '" class="text-[11px] font-bold"></div></div>';
-    }
-    function refreshQrTableNote(orderId) {
-      var sel = document.getElementById('qrTbl-' + orderId), note = document.getElementById('qrTblNote-' + orderId);
-      if (!sel || !note) return;
-      var live = tableActiveOrders(sel.value).filter(function(o) { return o.id !== orderId && /RUNNING_TABLE|KOT_DONE/i.test(o.status || ''); });
-      if (live.length) {
-        var amt = live.reduce(function(s, o) { return s + orderValue(o); }, 0);
-        note.className = 'text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1';
-        note.innerText = '⚠ ' + sel.value + ' pe pehle se running bill hai (Token ' + tokenLabel(live[0]) + ', ₹' + amt + ') — ye order usi bill me judega.';
-      } else {
-        note.className = 'text-[11px] font-bold text-emerald-700';
-        note.innerText = sel.value + ' khali hai — naya bill banega.';
-      }
     }
 
     function approveNeedsApprovalOrder(orderId) {
