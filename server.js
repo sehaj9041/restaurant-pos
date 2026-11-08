@@ -1052,7 +1052,7 @@ app.get('/api/orders/active', (req, res) => {
       const fullOrders = await Promise.all(
         orders.map(order => {
           return new Promise((resolve) => {
-            db.all('SELECT id, name, qty, price, notes, user_note, pack_flip, is_exempt FROM order_items WHERE order_id = ?', [order.id], (err2, items) => {
+            db.all('SELECT id, name, qty, price, notes, user_note, pack_flip, is_exempt, COALESCE(done_qty, 0) AS done_qty FROM order_items WHERE order_id = ?', [order.id], (err2, items) => {
               let paid = Number(order.paid_amount) || 0;
               let tot = Number(order.total) || 0;
               let mode = (order.payment_mode || '').toUpperCase();

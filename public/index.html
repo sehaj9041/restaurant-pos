@@ -1266,7 +1266,15 @@
     }
 
     // Active orders API sends the remaining balance in `total` (0 once paid); the real order value is `actual_total`
-    function orderValue(o) { return Number(o && o.actual_total) || Number(o && o.total) || 0; }
+    // Same split the kitchen screen shows: units the kitchen already sent out are their own "Ready" row, the rest stay "Preparing"
+    function splitByKitchenDone(row, doneQty) {
+      var q = row.qty, d = Math.min(Math.max(Number(doneQty) || 0, 0), q);
+      if (d <= 0) return [row];
+      var ready = Object.assign({}, row, { qty: d, order_status: 'READY' });
+      if (d >= q) return [ready];
+      return [ready, Object.assign({}, row, { qty: q - d })];
+    }
+        function orderValue(o) { return Number(o && o.actual_total) || Number(o && o.total) || 0; }
 
     // Online payments (website / table QR) paid by UPI or card -> "Paid via UPI" / "Paid via CARD"; '' for everything else
     function paidViaLabel(o) {
@@ -2725,8 +2733,8 @@
       document.getElementById('posCustName').value = ord.customer_name || '';
 
       if (Array.isArray(ord.items) && ord.items.length > 0) {
-        posCart = ord.items.map(function(item) {
-          return { id: item.id || null, name: item.name, price: Number(item.price) || 0, qty: Number(item.qty) || 1, user_note: item.user_note || '', pack_flip: Number(item.pack_flip) ? 1 : 0, is_exempt: Number(item.is_exempt) ? 1 : 0, locked: 1, order_status: ord.status || '' };
+        posCart = ord.items.flatMap(function(item) {
+          return splitByKitchenDone({ id: item.id || null, name: item.name, price: Number(item.price) || 0, qty: Number(item.qty) || 1, user_note: item.user_note || '', pack_flip: Number(item.pack_flip) ? 1 : 0, is_exempt: Number(item.is_exempt) ? 1 : 0, locked: 1, order_status: ord.status || '' }, item.done_qty);
         });
       } else {
         posCart = [{ id: null, name: 'Order #' + ord.id, price: Number(ord.total) || 0, qty: 1 }];
@@ -3230,8 +3238,8 @@
       loadRecordedPayment(ord);
       loadDiscountState(ord);
 
-      posCart = (ord.items || []).map(function(i) {
-        return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1, user_note: i.user_note || '', pack_flip: Number(i.pack_flip) ? 1 : 0, is_exempt: Number(i.is_exempt) ? 1 : 0, locked: 1, order_status: ord.status || '' };
+      posCart = (ord.items || []).flatMap(function(i) {
+        return splitByKitchenDone({ id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1, user_note: i.user_note || '', pack_flip: Number(i.pack_flip) ? 1 : 0, is_exempt: Number(i.is_exempt) ? 1 : 0, locked: 1, order_status: ord.status || '' }, i.done_qty);
       });
       renderPOSCart();
     }
@@ -4330,8 +4338,8 @@
         editingActiveOrderId = running.id;
         document.getElementById('posCustPhone').value = running.customer_phone || '';
         document.getElementById('posCustName').value = running.customer_name || '';
-        posCart = (running.items || []).map(function(i) {
-          return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1, user_note: i.user_note || '', pack_flip: Number(i.pack_flip) ? 1 : 0, is_exempt: Number(i.is_exempt) ? 1 : 0, locked: 1, order_status: running.status || '' };
+        posCart = (running.items || []).flatMap(function(i) {
+          return splitByKitchenDone({ id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1, user_note: i.user_note || '', pack_flip: Number(i.pack_flip) ? 1 : 0, is_exempt: Number(i.is_exempt) ? 1 : 0, locked: 1, order_status: running.status || '' }, i.done_qty);
         });
 
         // Sirf actual received amount hi "Already Received" me dikhega; unpaid order par 0
