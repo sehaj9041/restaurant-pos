@@ -1587,7 +1587,7 @@
                   </div>
                   <div class="text-right">
                     <div class="font-black text-slate-900 text-base">₹${order.total}</div>
-                    <div class="text-[10px] font-bold text-slate-400">Payment: ${order.payment_mode || 'COUNTER'}</div>
+                    <div class="text-[10px] font-bold text-slate-400">Payment: ${order.payment_mode === 'ONLINE_PENDING' ? 'UNPAID' : (order.payment_mode || 'COUNTER')}</div>
                   </div>
                 </div>
 
@@ -4079,7 +4079,7 @@
           ${cashSection}
           ${splitSection}
           <div class="divider"></div>
-          <div class="center" style="font-size:11px;">Payment Mode: <b>${payload.payment_mode}</b></div>
+          <div class="center" style="font-size:11px;">Payment Mode: <b>${payload.payment_mode === 'ONLINE_PENDING' ? 'UNPAID' : payload.payment_mode}</b></div>
           <div class="center" style="font-size:11px; margin-top:4px;">${billEsc(billCfg.c.thank_you || 'Thanks For Visiting Us!')}</div>
           ${billCfg.c.footer ? `<div class="center" style="font-size:10px; margin-top:2px;">${billEsc(billCfg.c.footer)}</div>` : ''}
           ${bOn('show_feedback_qr') && orderId ? `<div class="center" style="margin-top:6px;"><img src="/api/feedback/qr/${encodeURIComponent(orderId)}" style="width:26mm;height:26mm;"><div style="font-size:10px;">Scan to rate us</div></div>` : ''}
@@ -4089,7 +4089,10 @@
       // Receipt copies (Settings > Receipt & Print): every copy on its own page
       var copies = Math.max(1, Math.min(5, Number(billCfg.c.copies) || 1));
       // Unpaid delivery orders print 2 copies; everything else (incl. Razorpay-paid) uses the normal copy count
-      var isUnpaidDelivery = /delivery/i.test(String(payload.order_type || '')) && /unpaid/i.test(String(payload.payment_mode || ''));
+      var rcptMode = String(payload.payment_mode || '').toUpperCase();
+      var rcptPaidAmt = payload.paid_amount != null ? Number(payload.paid_amount) : null;
+      var rcptUnpaid = UNPAID_PAYMENT_MODES.indexOf(rcptMode) !== -1 || (rcptPaidAmt !== null && rcptPaidAmt < Number(calc.grandTotal || 0));
+      var isUnpaidDelivery = /delivery/i.test(String(payload.order_type || '')) && rcptUnpaid;
       if (isUnpaidDelivery) copies = Math.max(copies, 2);
       var htmlOne = html;
       if (copies > 1) {
