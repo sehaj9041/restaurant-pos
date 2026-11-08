@@ -1265,6 +1265,24 @@
       return orderTotal > 0 ? Math.min(paid, orderTotal) : paid;
     }
 
+    // Active orders API sends the remaining balance in `total` (0 once paid); the real order value is `actual_total`
+    function orderValue(o) { return Number(o && o.actual_total) || Number(o && o.total) || 0; }
+
+    // Online payments (website / table QR) paid by UPI or card -> "Paid via UPI" / "Paid via CARD"; '' for everything else
+    function paidViaLabel(o) {
+      var m = String((o && o.payment_mode) || '').toUpperCase();
+      if (!o || !o.source || (m !== 'UPI' && m !== 'CARD')) return '';
+      var total = orderValue(o);
+      return (total > 0 && Number(o.paid_amount) >= total) ? 'Paid via ' + m : '';
+    }
+    // Payment text for approval cards and bills: unpaid -> UNPAID, online paid -> "✓ PAID" / "✓ Paid via UPI"
+    function payModeText(o, fallback) {
+      var m = String((o && o.payment_mode) || '').toUpperCase();
+      if (m === 'ONLINE_PENDING') return 'UNPAID';
+      if (m === 'RAZORPAY') return '✓ PAID';
+      var via = paidViaLabel(o);
+      return via ? '✓ ' + via : ((o && o.payment_mode) || fallback);
+    }
     function setAlreadyPaid(amount, mode) {
       alreadyPaidAmount = amount > 0 ? amount : 0;
       alreadyPaidMode = alreadyPaidAmount > 0 ? (mode || 'PAID') : '';
@@ -1283,6 +1301,8 @@
       recordedPaidAmount = getOrderReceivedAmount(ord);
       recordedPaidMode = recordedPaidAmount > 0 ? (ord.payment_mode || 'PAID') : '';
       setAlreadyPaid(recordedPaidAmount, recordedPaidMode);
+      var via = paidViaLabel(ord);
+      if (via && recordedPaidAmount > 0) document.getElementById('lblAlreadyPaidMode').innerText = via;
     }
 
     var currentCashReceived = 0;
@@ -1587,7 +1607,7 @@
                   </div>
                   <div class="text-right">
                     <div class="font-black text-slate-900 text-base">₹${order.total}</div>
-                    <div class="text-[10px] font-bold text-slate-400">Payment: ${order.payment_mode === 'ONLINE_PENDING' ? 'UNPAID' : (order.payment_mode || 'COUNTER')}</div>
+                    <div class="text-[10px] font-bold text-slate-400">Payment: ${payModeText(order, 'COUNTER')}</div>
                   </div>
                 </div>
 
@@ -2638,7 +2658,7 @@
 
         var modeBadge = (o.status === 'VOID')
           ? '<span class="bg-rose-50 text-rose-800 font-bold px-1.5 py-0.5 rounded text-[10px]">VOID / REJECTED</span>'
-          : `<span class="bg-emerald-50 text-emerald-800 font-bold px-1.5 py-0.5 rounded text-[10px]">PAID • ${o.payment_mode || 'Cash'}</span>`;
+          : `<span class="bg-emerald-50 text-emerald-800 font-bold px-1.5 py-0.5 rounded text-[10px]">${paidViaLabel(o) ? paidViaLabel(o).toUpperCase() : 'PAID • ' + (String(o.payment_mode).toUpperCase() === 'RAZORPAY' ? 'Online' : (o.payment_mode || 'Cash'))}</span>`;
 
         var d = new Date(o.created_at);
         var timeFormatted = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) + ' • ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }).toLowerCase();
@@ -3027,7 +3047,7 @@
           var statusTag = '';
           var tagBg = '';
           if (isFullyPaid) {
-            statusTag = o.payment_mode || 'Paid';
+            statusTag = payModeText(o, 'Paid');
             tagBg = 'bg-emerald-100 text-emerald-800';
           } else if (isPartiallyPaid) {
             statusTag = `Partially Paid (Due: ₹${remainingDue})`;
@@ -3055,7 +3075,7 @@
 
                 <div class="text-right">
                   <div class="flex items-center justify-end gap-1 mb-0.5">
-                    <span class="font-black text-gray-900 text-sm">₹${o.total}</span>
+                    <span class="font-black text-gray-900 text-sm">₹${orderValue(o)}</span>
                     <span class="text-[10px] font-black px-1.5 py-0.5 rounded ${tagBg}">${statusTag}</span>
                   </div>
                   <div class="text-[9px] text-gray-400">${o.time || ''}</div>
@@ -3094,7 +3114,7 @@
         var statusTag = '';
         var tagBg = '';
         if (isFullyPaid) {
-          statusTag = o.payment_mode || 'Paid';
+          statusTag = payModeText(o, 'Paid');
           tagBg = 'bg-emerald-100 text-emerald-800';
         } else if (isPartiallyPaid) {
           statusTag = `Partially Paid (Due: ₹${remainingDue})`;
@@ -3122,7 +3142,7 @@
               <div class="text-right">
                 <div class="flex items-center justify-end gap-1 mb-0.5">
                   <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100/70 text-orange-800">${o.order_type || 'Online'}</span>
-                  <span class="font-black text-gray-900 text-sm">₹${o.total}</span>
+                  <span class="font-black text-gray-900 text-sm">₹${orderValue(o)}</span>
                   <span class="text-[10px] font-black px-1.5 py-0.5 rounded ${tagBg}">${statusTag}</span>
                 </div>
                 <div class="text-[9px] text-gray-400">Live Order</div>
@@ -3194,7 +3214,7 @@
     function actionPrintReceipt(orderId) {
       var ord = allActiveOrders.find(function(o) { return o.id === orderId; });
       if (!ord) return;
-      var calc = { subtotal: Number(ord.subtotal) || Number(ord.total), gst: Number(ord.gst) || 0, grandTotal: (ord.total != null && ord.total !== '') ? Number(ord.total) : ((Number(ord.subtotal) || 0) - (Number(ord.discount) || 0) + (Number(ord.gst) || 0)), discount: Number(ord.discount) || 0, payableNow: 0 };
+      var calc = { subtotal: Number(ord.subtotal) || Number(ord.total), gst: Number(ord.gst) || 0, grandTotal: orderValue(ord) ? orderValue(ord) : ((Number(ord.subtotal) || 0) - (Number(ord.discount) || 0) + (Number(ord.gst) || 0)), discount: Number(ord.discount) || 0, payableNow: 0 };
       dispatchDirectPrintReceipt(ord.id, ord, calc);
     }
 
@@ -4079,7 +4099,7 @@
           ${cashSection}
           ${splitSection}
           <div class="divider"></div>
-          <div class="center" style="font-size:11px;">Payment Mode: <b>${payload.payment_mode === 'ONLINE_PENDING' ? 'UNPAID' : payload.payment_mode}</b></div>
+          <div class="center" style="font-size:11px;">Payment Mode: <b>${payModeText(payload, '')}</b></div>
           <div class="center" style="font-size:11px; margin-top:4px;">${billEsc(billCfg.c.thank_you || 'Thanks For Visiting Us!')}</div>
           ${billCfg.c.footer ? `<div class="center" style="font-size:10px; margin-top:2px;">${billEsc(billCfg.c.footer)}</div>` : ''}
           ${bOn('show_feedback_qr') && orderId ? `<div class="center" style="margin-top:6px;"><img src="/api/feedback/qr/${encodeURIComponent(orderId)}" style="width:26mm;height:26mm;"><div style="font-size:10px;">Scan to rate us</div></div>` : ''}

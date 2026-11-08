@@ -279,10 +279,21 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, stor
       await q("UPDATE orders SET discount = ?, gst = ?, total = ?, points_redeemed = ?, discount_reason = ? WHERE id = ? AND COALESCE(points_redeemed, 0) = 0 RETURNING id",
         [plan.discount, plan.gst, plan.total, plan.pts, plan.reason || (plan.pts + ' pts'), plan.orderId]);
     }
+    // actual method the customer used (upi / card); anything else or a lookup failure stays 'RAZORPAY'
+    let mode = 'RAZORPAY';
+    try {
+      if (paymentId) {
+        const auth = Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString('base64');
+        const pr = await fetch(`https://api.razorpay.com/v1/payments/${encodeURIComponent(paymentId)}`, { headers: { Authorization: `Basic ${auth}` } });
+        const pj = await pr.json();
+        if (pj && pj.method === 'upi') mode = 'UPI';
+        else if (pj && pj.method === 'card') mode = 'CARD';
+      }
+    } catch (e) { console.error('[TABLE QR PAY] method lookup failed:', e.message); }
     for (const p of parts) {
-      await q(`UPDATE orders SET paid_amount = LEAST(total, COALESCE(paid_amount, 0) + ?::numeric), payment_mode = 'RAZORPAY',
+      await q(`UPDATE orders SET paid_amount = LEAST(total, COALESCE(paid_amount, 0) + ?::numeric), payment_mode = ?,
           status = CASE WHEN UPPER(status) = 'KOT_DONE' AND COALESCE(paid_amount, 0) + ?::numeric >= total THEN 'DISPATCHED' ELSE status END
-        WHERE id = ? AND UPPER(status) IN ('RUNNING_TABLE', 'KOT_DONE') RETURNING id`, [p.amount, p.amount, p.id]);
+        WHERE id = ? AND UPPER(status) IN ('RUNNING_TABLE', 'KOT_DONE') RETURNING id`, [p.amount, mode, p.amount, p.id]);
     }
     console.log(`[TABLE QR PAID] ${rpOrderId} Rs.${claimed[0].amount} table ${claimed[0].table_no}`);
     return true;

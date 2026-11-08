@@ -44,9 +44,20 @@ function register(app, { dbAllAsync, createOrderHandler, extraMarkPaid }) {
       [paymentId || '', rpOrderId]);
     if (claimed.length) {
       const row = claimed[0];
+      // actual method the customer used (upi / card); anything else or a lookup failure stays 'RAZORPAY'
+      let mode = 'RAZORPAY';
+      try {
+        if (paymentId) {
+          const auth = Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString('base64');
+          const pr = await fetch(`https://api.razorpay.com/v1/payments/${encodeURIComponent(paymentId)}`, { headers: { Authorization: `Basic ${auth}` } });
+          const pj = await pr.json();
+          if (pj && pj.method === 'upi') mode = 'UPI';
+          else if (pj && pj.method === 'card') mode = 'CARD';
+        }
+      } catch (e) { console.error('[RAZORPAY] method lookup failed:', e.message); }
       await dbAllAsync(
-        "UPDATE orders SET status = 'NEEDS_APPROVAL', payment_mode = 'RAZORPAY', paid_amount = total WHERE id = ? RETURNING id",
-        [row.pos_order_id]);
+        "UPDATE orders SET status = 'NEEDS_APPROVAL', payment_mode = ?, paid_amount = total WHERE id = ? RETURNING id",
+        [mode, row.pos_order_id]);
       console.log(`[RAZORPAY PAID] ${rpOrderId} Rs.${row.amount} -> POS order #${row.pos_order_id}`);
     }
     return (await dbAllAsync('SELECT * FROM razorpay_payments WHERE rp_order_id = ?', [rpOrderId]))[0];
