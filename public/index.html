@@ -529,7 +529,7 @@
 
   <!-- ================= TABLE ASSIGNMENT SELECTION MODAL ================= -->
   <div id="modalAssignTableSelect" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl w-full max-w-3xl shadow-2xl p-5 space-y-4 border border-gray-200">
+    <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl p-5 space-y-4 border border-gray-200">
       <div class="flex justify-between items-center border-b pb-2">
         <div>
           <h3 class="font-black text-gray-900 text-sm">Select Table for Order</h3>
@@ -538,8 +538,12 @@
         <button onclick="closeAssignTableModal()" class="text-gray-400 hover:text-black font-bold text-base">✕</button>
       </div>
 
-      <div id="assignTableModalGrid" class="grid grid-cols-3 sm:grid-cols-4 gap-2.5 max-h-[75vh] overflow-y-auto pr-1">
-        <!-- Dynamic table buttons will load here -->
+      <!-- Same layout as the Floor Plan on the main screen: Billing/POS bar on top, two columns of tables in the same order -->
+      <div class="floor-dots rounded-xl border border-gray-100 py-4 px-4 flex flex-col items-center max-h-[70vh] overflow-y-auto">
+        <div class="bg-gray-100 text-gray-500 text-[10px] font-black px-4 py-1 rounded-md border border-gray-200 mb-4 tracking-wide">Billing/POS</div>
+        <div id="assignTableModalGrid" class="grid grid-cols-2 gap-x-12 gap-y-3.5 max-w-sm w-full">
+          <!-- Dynamic table buttons will load here -->
+        </div>
       </div>
 
       <div class="pt-2 text-right border-t">
@@ -1660,7 +1664,8 @@
           editingActiveOrderId = targetOrder.id;
 
           // website order accepted: print its bill right away (the later save in POS will not print it a second time)
-          if (billCfg.c.auto_print_bill !== false) {
+          // only website orders (order type "Online ...") print on accept; kiosk pay-at-counter orders print when they are settled in the POS
+          if (billCfg.c.auto_print_bill !== false && /online/i.test(String(targetOrder.order_type || ''))) {
             var billTotal = (targetOrder.total != null && targetOrder.total !== '') ? Number(targetOrder.total) : 0;
             var billCalc = { subtotal: Number(targetOrder.subtotal) || billTotal, gst: Number(targetOrder.gst) || 0, grandTotal: billTotal, discount: Number(targetOrder.discount) || 0, payableNow: 0 };
             approvalBillPrintedFor = targetOrder.id;
