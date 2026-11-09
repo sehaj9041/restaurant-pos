@@ -180,6 +180,8 @@ pool.query(`
   await pool.query(`CREATE TABLE IF NOT EXISTS riders (id SERIAL PRIMARY KEY, name TEXT NOT NULL, phone TEXT DEFAULT '', active BOOLEAN DEFAULT TRUE);`).catch(() => {});
   await pool.query(`ALTER TABLE riders ADD COLUMN IF NOT EXISTS token TEXT;`).catch(() => {});
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_lng NUMERIC;`).catch(() => {});
+  await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS cancel_reason TEXT;`).catch(() => {});
+  await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP;`).catch(() => {});
   await pool.query(`ALTER TABLE menu ADD COLUMN IF NOT EXISTS send_to_kds INTEGER DEFAULT 1;`).catch(() => {});
   await pool.query(`ALTER TABLE menu ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'available';`).catch(() => {});
   await pool.query(`ALTER TABLE menu ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;`).catch(() => {});

@@ -250,6 +250,7 @@
           <div id="payChoice2" class="hidden grid grid-cols-2 gap-2 text-xs font-bold">
             <button type="button" id="payBtnCod2" onclick="setPayMode('COD')" class="border-2 rounded-xl py-2.5 px-2 transition">💵 Cash on Delivery</button>
             <button type="button" id="payBtnOnline2" onclick="setPayMode('ONLINE')" class="border-2 rounded-xl py-2.5 px-2 transition">💳 Pay Online</button>
+            <button type="button" id="payBtnUpi2" onclick="setPayMode('UPI')" class="hidden col-span-2 border-2 rounded-xl py-2.5 px-2 transition">📲 Pay by UPI (this phone or another phone)</button>
           </div>
           <div id="payCodOnly" class="border-2 border-emerald-600 bg-emerald-50 text-emerald-700 rounded-xl py-2.5 px-3 text-xs font-bold">💵 Cash on Delivery</div>
         </div>
@@ -274,6 +275,19 @@
   </div>
 
   <!-- ================= ORDER PLACED PAGE ================= -->
+  <!-- Paytm UPI payment: pay from this phone (opens the UPI app) or from another phone (QR) -->
+  <div id="upiPayOverlay" class="hidden fixed inset-0 bg-black/60 z-[80] flex items-end sm:items-center justify-center p-3">
+    <div class="bg-white rounded-2xl w-full max-w-sm p-4 space-y-3 text-center">
+      <p class="text-[10px] text-gray-400 uppercase font-black tracking-wider">Pay by UPI</p>
+      <p id="upiPayAmt" class="text-2xl font-black text-gray-900">₹0</p>
+      <a id="upiPayLink" href="#" class="block w-full bg-emerald-600 text-white font-black rounded-xl py-3 text-sm">📱 Pay from this phone</a>
+      <button type="button" onclick="upiPayShowQr()" class="w-full border-2 border-gray-200 text-gray-700 font-black rounded-xl py-3 text-sm">🔳 Pay from another phone (show QR)</button>
+      <div id="upiPayQrBox" class="hidden"><img id="upiPayQr" alt="UPI QR" class="mx-auto w-56 h-56"><p class="text-[11px] text-gray-500 mt-1">Doosre phone ke UPI app se ye QR scan karein</p></div>
+      <p id="upiPayMsg" class="text-xs font-bold text-amber-700"></p>
+      <button type="button" onclick="upiPayCancel()" class="text-xs font-bold text-rose-600">Cancel payment</button>
+    </div>
+  </div>
+
   <div id="successPage" class="hidden fixed inset-0 bg-gray-50 z-[56] overflow-y-auto">
     <div class="max-w-md mx-auto min-h-full flex flex-col items-center justify-center p-6 text-center space-y-3">
       <div class="text-6xl">✅</div>
@@ -398,9 +412,20 @@
       const on = 'border-emerald-600 bg-emerald-50 text-emerald-700', off = 'border-gray-200 text-gray-500';
       document.getElementById('payBtnCod2').className = 'border-2 rounded-xl py-2.5 px-2 transition ' + (m === 'COD' ? on : off);
       document.getElementById('payBtnOnline2').className = 'border-2 rounded-xl py-2.5 px-2 transition ' + (m === 'ONLINE' ? on : off);
+      document.getElementById('payBtnUpi2').className = (upiEnabled ? '' : 'hidden ') + 'col-span-2 border-2 rounded-xl py-2.5 px-2 transition ' + (m === 'UPI' ? on : off);
+    }
+    let upiEnabled = false;
+    function showPayChoices() {
+      document.getElementById('payChoice2').classList.remove('hidden');
+      document.getElementById('payCodOnly').classList.add('hidden');
+      document.getElementById('payBtnOnline2').classList.toggle('hidden', !rpEnabled);
+      setPayMode(rpEnabled ? 'ONLINE' : 'UPI');
     }
     fetch('/api/razorpay/config').then(r => r.json()).then(c => {
-      if (c && c.enabled) { rpEnabled = true; document.getElementById('payChoice2').classList.remove('hidden'); document.getElementById('payCodOnly').classList.add('hidden'); setPayMode('ONLINE'); }
+      if (c && c.enabled) { rpEnabled = true; showPayChoices(); }
+    }).catch(() => {});
+    fetch('/api/upi/web-config').then(r => r.json()).then(c => {
+      if (c && c.enabled) { upiEnabled = true; showPayChoices(); }
     }).catch(() => {});
     function loadRazorpay() {
       if (window.Razorpay) return Promise.resolve();
@@ -428,6 +453,40 @@
           rz.open();
         })))
         .then(resp => fetch('/api/razorpay/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(resp) }).then(jsonOrThrow));
+    }
+
+    // Paytm UPI: the order is saved hidden, then the customer pays from this phone (UPI app link) or scans the QR from another phone.
+    function payUpi(orderBody) {
+      return fetch('/api/upi/web-create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(orderBody) })
+        .then(jsonOrThrow)
+        .then(d => new Promise((resolve, reject) => {
+          const ov = document.getElementById('upiPayOverlay');
+          document.getElementById('upiPayAmt').innerText = '₹' + d.amount;
+          document.getElementById('upiPayLink').href = d.upiLink;
+          document.getElementById('upiPayQr').src = d.qrImage;
+          document.getElementById('upiPayQrBox').classList.add('hidden');
+          document.getElementById('upiPayMsg').innerText = 'Payment ka wait kar rahe hain...';
+          ov.classList.remove('hidden');
+          let done = false;
+          const finish = (fn, v) => { if (done) return; done = true; clearInterval(tm); clearTimeout(to); ov.classList.add('hidden'); fn(v); };
+          const tm = setInterval(() => {
+            fetch('/api/upi/status/' + encodeURIComponent(d.paytmOrderId)).then(r => r.json()).then(st => {
+              if (st && st.status === 'PAID') finish(resolve, { success: true, orderId: d.orderId, token_no: d.token_no, profile_token: d.profile_token });
+            }).catch(() => {});
+          }, 2500);
+          const to = setTimeout(() => {
+            fetch('/api/upi/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paytmOrderId: d.paytmOrderId }) }).catch(() => {});
+            finish(reject, new Error('Payment time khatam ho gaya. Dobara try karein.'));
+          }, 10 * 60 * 1000);
+          window.upiPayShowQr = () => document.getElementById('upiPayQrBox').classList.remove('hidden');
+          window.upiPayCancel = () => {
+            fetch('/api/upi/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paytmOrderId: d.paytmOrderId }) })
+              .then(r => r.json()).then(st => {
+                if (st && st.status === 'PAID') finish(resolve, { success: true, orderId: d.orderId, token_no: d.token_no, profile_token: d.profile_token });
+                else finish(reject, new Error('Payment cancel ho gayi. Order place nahi hua.'));
+              }).catch(() => finish(reject, new Error('Payment cancel ho gayi. Order place nahi hua.')));
+          };
+        }));
     }
 
     function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
@@ -1423,6 +1482,8 @@
       const ctx = { name, phone, btn };
       const request = payMode === 'ONLINE'
         ? payOnline(orderBody, ctx)
+        : payMode === 'UPI'
+        ? payUpi(orderBody)
         : fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(orderBody) }).then(jsonOrThrow);
       request
       .then(d => {
@@ -1449,7 +1510,7 @@
         rememberOrderId(d.orderId);
         lastPlaced = { id: d.orderId, phone };
         refreshProfileUI();
-        showSuccess(d.token_no || d.orderId, `${itemCount} ${itemCount === 1 ? 'item' : 'items'} • ₹${total} • ${mode}` + (payMode === 'ONLINE' ? ' • Paid online ✓' : ''));
+        showSuccess(d.token_no || d.orderId, `${itemCount} ${itemCount === 1 ? 'item' : 'items'} • ₹${total} • ${mode}` + (payMode !== 'COD' ? ' • Paid online ✓' : ''));
       })
       .catch(err => {
         if (err.rpOrderId) fetch('/api/razorpay/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rpOrderId: err.rpOrderId }) }).catch(() => {});

@@ -135,6 +135,19 @@ function register(app, { dbAllAsync, createOrderHandler, computeDiscount, discou
       console.log(`[UPI PAID] ${row.paytm_order_id} Rs.${row.amount} (POS / rider collection${parked.order_id ? ' -> order #' + parked.order_id : parked.settle_customer ? ' -> khata ' + parked.settle_customer : ''})`);
       return;
     }
+    if (parked._web_order) {
+      // Website order: it was saved hidden (HOLD) before the QR / UPI link was shown. Paid now -> staff approval, like a verified Razorpay payment.
+      // Also revives an order the customer backed out of but still paid for.
+      try {
+        await dbAllAsync("UPDATE orders SET status = 'NEEDS_APPROVAL', payment_mode = 'UPI', paid_amount = total WHERE id = ? AND UPPER(status) IN ('HOLD', 'VOID') RETURNING id", [parked._web_order]);
+        await dbAllAsync("UPDATE upi_payments SET status = 'PAID', pos_order_id = ?, token_no = ?, paid_ms = ? WHERE id = ? RETURNING id", [parked._web_order, parked.token_no || null, Date.now(), row.id]);
+        console.log(`[UPI PAID] ${row.paytm_order_id} Rs.${row.amount} -> website order #${parked._web_order}`);
+      } catch (e) {
+        await dbAllAsync("UPDATE upi_payments SET status = 'ORDER_FAILED' WHERE id = ? RETURNING id", [row.id]);
+        console.error(`[UPI ERROR] Paid but website order could not be updated for ${row.paytm_order_id} (txn ${txnId}):`, e.message);
+      }
+      return;
+    }
     try {
       const o = await runCreateOrder({ ...JSON.parse(row.payload), payment_mode: 'UPI', is_kiosk: true, is_hold: false });
       await dbAllAsync("UPDATE upi_payments SET status = 'PAID', pos_order_id = ?, token_no = ? WHERE id = ? RETURNING id", [o.orderId, o.token_no, row.id]);
@@ -244,6 +257,42 @@ function register(app, { dbAllAsync, createOrderHandler, computeDiscount, discou
     }
   });
 
+  // ---- Website checkout: pay by Paytm UPI (from this phone via UPI app link, or from another phone via QR) ----
+  app.get('/api/upi/web-config', (req, res) => res.json({ enabled: !!configured() }));
+
+  function runCreateWebOrder(payload) {
+    return new Promise((resolve, reject) => {
+      const res = {
+        statusCode: 200,
+        status(c) { this.statusCode = c; return this; },
+        json(b) { return this.statusCode >= 400 ? reject(Object.assign(new Error((b && b.error) || 'order failed'), { userFacing: true })) : resolve(b); }
+      };
+      Promise.resolve(createOrderHandler({ body: payload }, res)).catch(reject);
+    });
+  }
+
+  app.post('/api/upi/web-create', async (req, res) => {
+    let orderId;
+    try {
+      if (!configured()) return res.status(503).json({ error: 'UPI abhi available nahi hai' });
+      // saved hidden (HOLD) with the server-side total; it only reaches staff once Paytm confirms the payment
+      const o = await runCreateWebOrder({ ...(req.body || {}), pay_online: true });
+      orderId = o.orderId;
+      const total = Number((await dbAllAsync('SELECT total FROM orders WHERE id = ?', [orderId]))[0].total);
+      if (!(total > 0)) throw new Error('invalid total');
+      const paytmOrderId = 'WEB' + Date.now() + crypto.randomBytes(2).toString('hex');
+      const qrData = await qrDataFor(total, paytmOrderId, process.env.PAYTM_POS_ID || 'WEB1');
+      if (!qrData) throw new Error('QR nahi ban paaya');
+      await dbAllAsync('INSERT INTO upi_payments (paytm_order_id, amount, payload, created_ms) VALUES (?, ?, ?, ?) RETURNING id',
+        [paytmOrderId, total, JSON.stringify({ _web_order: orderId, token_no: o.token_no }), Date.now()]);
+      res.json({ paytmOrderId, amount: total, upiLink: qrData, qrImage: await QRCode.toDataURL(qrData, { margin: 1, width: 420 }), orderId, token_no: o.token_no, profile_token: o.profile_token, mock: isMock() });
+    } catch (e) {
+      console.error('[UPI] web-create error:', e.message);
+      if (orderId) dbAllAsync("UPDATE orders SET status = 'VOID' WHERE id = ? AND status = 'HOLD' RETURNING id", [orderId]).catch(() => {});
+      res.status(e.userFacing ? 400 : 500).json({ error: e.userFacing ? e.message : 'Payment shuru nahi ho paaya. Dobara try karein.' });
+    }
+  });
+
   app.post('/api/upi/create', async (req, res) => {
     try {
       if (!configured()) return res.status(503).json({ error: 'UPI abhi configure nahi hai. Staff se help lein.' });
@@ -299,7 +348,11 @@ function register(app, { dbAllAsync, createOrderHandler, computeDiscount, discou
       if (!row) return res.json({ status: 'EXPIRED' });
       if (!isPaid(row.status)) { await checkWithPaytm(row); row = await getRow(row.paytm_order_id); }
       if (isPaid(row.status)) return res.json({ status: 'PAID', orderId: row.pos_order_id, token_no: row.token_no });
-      await dbAllAsync("UPDATE upi_payments SET status = 'CANCELLED' WHERE id = ? AND status = 'PENDING' RETURNING id", [row.id]);
+      const cancelled = await dbAllAsync("UPDATE upi_payments SET status = 'CANCELLED' WHERE id = ? AND status = 'PENDING' RETURNING payload", [row.id]);
+      try {
+        const pk = cancelled.length ? JSON.parse(cancelled[0].payload || '{}') : {};
+        if (pk._web_order) await dbAllAsync("UPDATE orders SET status = 'VOID' WHERE id = ? AND status = 'HOLD' RETURNING id", [pk._web_order]);
+      } catch (e) { /* best effort */ }
       res.json({ status: 'EXPIRED' });
     } catch (e) {
       res.json({ status: 'EXPIRED' });

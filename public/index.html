@@ -2481,6 +2481,12 @@
       .catch(function(err) { alert(err.message); });
     }
 
+    // Cancel the running order(s) on a table (asks for the reason per order; a table normally has just one running bill)
+    async function actionCancelTable(tableId) {
+      var orders = tableActiveOrders(tableId);
+      for (var i = 0; i < orders.length; i++) await actionCancelOrder(orders[i].id, false);
+    }
+
     function printTableReceipt(tableId) {
       tableActiveOrders(tableId).forEach(function(o) { actionPrintReceipt(o.id); });
     }
@@ -2709,6 +2715,9 @@
                   <button onclick="actionPrintReceiptFromHistory(${o.id})" class="border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 px-2 py-1 rounded-lg text-[11px] font-bold shadow-2xs transition">
                     Receipt
                   </button>
+                  <button onclick="actionCancelOrder(${o.id}, true)" class="border border-rose-200 bg-white hover:bg-rose-50 text-rose-600 px-2 py-1 rounded-lg text-[11px] font-bold shadow-2xs transition">
+                    Cancel
+                  </button>
                 ` : `<span class="text-xs text-gray-400 italic">No Action</span>`}
               </div>
             </td>
@@ -2754,6 +2763,32 @@
       renderPOSCart();
       renderPOSItems();
       switchRightTab('SUMMARY');
+    }
+
+    // Cancel an order: reason always; settled (history) orders also need the owner password
+    async function actionCancelOrder(orderId, settled) {
+      var reason = await uiPrompt('Order #ORD-' + orderId + ' cancel karne ka reason likhein', '', { title: 'Cancel order', okText: 'Next' });
+      if (reason === null) return;
+      reason = String(reason).trim();
+      if (reason.length < 2) { alert('Reason likhna zaroori hai.'); return; }
+      var pw = '';
+      if (settled) {
+        pw = await uiPrompt('Settled order cancel karne ke liye password daalein', '', { title: 'Password required', type: 'password', okText: 'Cancel order' });
+        if (pw === null) return;
+      } else if (!(await uiConfirm('Order #ORD-' + orderId + ' cancel kar dein?', { title: 'Cancel order?', okText: 'Cancel order' }))) return;
+      try {
+        var res = await fetch('/api/orders/' + orderId + '/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: reason, password: pw }) });
+        var d = await res.json().catch(function() { return {}; });
+        if (!res.ok || !d.success) { alert((d && d.error) || 'Order cancel nahi hua'); return; }
+        var msg = 'Order #ORD-' + orderId + ' cancel ho gaya.';
+        if (d.refund) msg += '\n₹' + d.refund.amount + ' customer ko online refund kar diya gaya.';
+        if (d.refund_error) msg += '\nAUTO REFUND FAIL hua: ' + d.refund_error + '\nRazorpay dashboard se manually refund karein.';
+        if (d.refund_needed) msg += '\n\n⚠ Ye order ' + d.payment_mode + ' se paid tha (₹' + d.paid + '). Please refund from your end.';
+        else if (d.settled && d.payment_mode === 'CASH') msg += '\nCash sales se apne aap minus ho gaya.';
+        await uiAlert(msg, { kind: (d.refund_needed || d.refund_error) ? 'warn' : 'success', title: (d.refund_needed || d.refund_error) ? 'Refund required' : 'Order cancelled' });
+        if (typeof fetchActiveOrders === 'function') fetchActiveOrders();
+        if (settled && typeof loadSettledOrderHistory === 'function') loadSettledOrderHistory();
+      } catch (e) { alert('Order cancel nahi hua: ' + e.message); }
     }
 
     function actionPrintReceiptFromHistory(orderId) {
@@ -3005,7 +3040,8 @@
             <div class="flex gap-1 mt-1.5 w-full">
               <button onclick="event.stopPropagation(); promptMoveTable('${t.id}')" class="flex-1 px-1 py-1 bg-white hover:bg-orange-100 text-orange-700 rounded border border-orange-300 text-[10px] font-black shadow-2xs">⇄ Move</button>
               <button onclick="event.stopPropagation(); printTableReceipt('${t.id}')" class="flex-1 px-1 py-1 bg-white hover:bg-gray-100 text-gray-700 rounded border border-gray-300 text-[10px] font-black shadow-2xs">🖨 Print</button>
-            </div>` : `<span class="text-[9px] text-emerald-600 font-bold mt-1">Free</span>`}
+            </div>
+            <button onclick="event.stopPropagation(); actionCancelTable('${t.id}')" class="w-full mt-1 px-1 py-1 bg-white hover:bg-rose-50 text-rose-600 rounded border border-rose-200 text-[10px] font-black shadow-2xs">✕ Cancel</button>` : `<span class="text-[9px] text-emerald-600 font-bold mt-1">Free</span>`}
           </div>
         `;
       }).join('');
@@ -3098,6 +3134,7 @@
                 <button onclick="actionPrintKOT(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🍳</span> KOT</button>
                 <button onclick="actionPrintReceipt(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🖨</span> Print Receipt</button>
                 <button onclick="actionEditAddItems(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>+</span> Add Item</button>
+                <button onclick="actionCancelOrder(${o.id}, false)" class="px-2 py-1 bg-white hover:bg-rose-50 text-rose-600 rounded border border-rose-200 flex items-center gap-1 shadow-2xs">✕ Cancel</button>
               ${/delivery/i.test(o.order_type || '') ? `<button onclick="promptAssignRider(${o.id})" class="px-2 py-1 ${o.rider_name ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-sky-50 hover:bg-sky-100 text-sky-800 border-sky-300'} rounded border font-black flex items-center gap-1 shadow-2xs"><span>🛵</span> ${o.rider_name ? escCartText(o.rider_name) + (o.delivered_at ? ' ✓ Delivered' : '') + ' • Change' : 'Assign Rider'}</button>` : ''}
                 ${/delivery/i.test(o.order_type || '') && !o.delivered_at ? `<button onclick="actionMarkDelivered(${o.id})" class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded border border-emerald-700 font-black shadow-2xs">✓ Mark Delivered</button>` : ''}
               <button onclick="actionSettlePopup(${o.id})" class="px-2.5 py-1 bg-orange-100 hover:bg-orange-200 text-orange-800 rounded border border-orange-300 font-black shadow-2xs">Settle</button>
@@ -3164,6 +3201,7 @@
               <button onclick="actionPrintKOT(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🍳</span> KOT</button>
               <button onclick="actionPrintReceipt(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>🖨</span> Print Receipt</button>
               <button onclick="actionEditAddItems(${o.id})" class="px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 rounded border border-gray-200 flex items-center gap-1 shadow-2xs"><span>+</span> Add Item</button>
+                <button onclick="actionCancelOrder(${o.id}, false)" class="px-2 py-1 bg-white hover:bg-rose-50 text-rose-600 rounded border border-rose-200 flex items-center gap-1 shadow-2xs">✕ Cancel</button>
               ${/delivery/i.test(o.order_type || '') ? `<button onclick="promptAssignRider(${o.id})" class="px-2 py-1 ${o.rider_name ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-sky-50 hover:bg-sky-100 text-sky-800 border-sky-300'} rounded border font-black flex items-center gap-1 shadow-2xs"><span>🛵</span> ${o.rider_name ? escCartText(o.rider_name) + (o.delivered_at ? ' ✓ Delivered' : '') + ' • Change' : 'Assign Rider'}</button>` : ''}
               ${/delivery/i.test(o.order_type || '') && !o.delivered_at ? `<button onclick="actionMarkDelivered(${o.id})" class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded border border-emerald-700 font-black shadow-2xs">✓ Mark Delivered</button>` : ''}
               <button onclick="actionSettlePopup(${o.id})" class="px-2.5 py-1 bg-orange-100 hover:bg-orange-200 text-orange-800 rounded border border-orange-300 font-black shadow-2xs">Settle</button>

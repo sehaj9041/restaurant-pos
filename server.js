@@ -782,6 +782,47 @@ app.post('/api/orders/:id/reject', (req, res) => {
   });
 });
 
+// Cancel (void) an order. Running orders: a reason is enough. Settled orders (COMPLETED / DISPATCHED): reason + owner password.
+// Voided orders drop out of every report, so cash disappears from the day's sales by itself. Razorpay payments are refunded automatically;
+// any other paid order comes back with refund_needed so staff refund the customer themselves.
+app.post('/api/orders/:id/cancel', async (req, res) => {
+  try {
+    const orderId = Number(req.params.id);
+    const reason = String((req.body || {}).reason || '').trim().slice(0, 300);
+    if (reason.length < 2) return res.status(400).json({ error: 'Cancel karne ka reason likhein' });
+    const order = (await dbAllAsync('SELECT id, status, payment_mode, paid_amount, total FROM orders WHERE id = ?', [orderId]))[0];
+    if (!order) return res.status(404).json({ error: 'Order nahi mila' });
+    const st = String(order.status || '').toUpperCase();
+    if (st === 'VOID') return res.status(400).json({ error: 'Order pehle se cancel hai' });
+    if (st === 'MERGED') return res.status(400).json({ error: 'Ye order doosre bill me merge ho chuka hai' });
+    const settled = ['COMPLETED', 'DISPATCHED', 'BILLED'].includes(st);
+    if (settled) {
+      const ip = req.ip || 'x';
+      const f = discountFails.get(ip);
+      if (f && f.until > Date.now()) return res.status(429).json({ error: 'Bahut galat password. Thodi der baad try karein.' });
+      if (!discountPasswordOk((req.body || {}).password)) {
+        const n = (f && !(f.until && f.until <= Date.now()) ? f.n : 0) + 1;
+        discountFails.set(ip, { n, until: n >= 8 ? Date.now() + 60000 : 0 });
+        return res.status(403).json({ error: 'Settled order cancel karne ke liye sahi password chahiye' });
+      }
+      discountFails.delete(ip);
+    }
+    await dbAllAsync("UPDATE orders SET status = 'VOID', cancel_reason = ?, cancelled_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING id", [reason, orderId]);
+    console.log(`[ORDER CANCELLED] Order #${orderId} (${settled ? 'settled' : 'running'}): ${reason}`);
+
+    const mode = String(order.payment_mode || '').toUpperCase();
+    const paid = Math.min(Number(order.paid_amount) || 0, Number(order.total) || 0);
+    let refund = null, refundError = '', refundNeeded = false;
+    try { refund = app.locals.razorpayRefund ? await app.locals.razorpayRefund(orderId) : null; }
+    catch (e) { refundError = e.message || 'refund failed'; }
+    if (!refund && paid > 0 && mode !== 'CASH' && mode !== 'DUE' && !UNPAID_PAYMENT_MODES.includes(mode)) refundNeeded = true;
+    res.json({ success: true, settled, paid, payment_mode: mode, refund, refund_error: refundError, refund_needed: refundNeeded });
+  } catch (e) {
+    console.error('Cancel order error:', e.message);
+    res.status(500).json({ error: 'Order cancel nahi hua' });
+  }
+});
+
 // Table Assign API Route
 // If the chosen table already has a running dine-in order, this order's items (and any amount already paid)
 // are merged into that bill instead of creating a second order on the same table.
