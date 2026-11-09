@@ -3337,7 +3337,7 @@
         selectPaymentMode('Split');
         document.getElementById('splitTotalDisplay').innerText = '₹' + payableAmount.toFixed(2);
         
-        splitRows = loadPendingSplit(payableAmount) || [{ mode: 'Cash', amount: '' }, { mode: 'UPI', amount: '' }];
+        splitRows = [{ mode: 'Cash', amount: '' }, { mode: 'UPI', amount: '' }];
         renderSplitRows();
         calculateSplitDifference();
         
@@ -3376,27 +3376,6 @@
       document.getElementById('splitPaymentPanel').classList.add('hidden');
       openCashDrawer();
       executePlaceOrder();
-    }
-
-    // A split with a UPI part whose QR was closed unpaid: the entered amounts are remembered (this device) so the split popup of that order opens pre-filled.
-    function pendingSplitKey(id) { return 'pendingSplit_' + id; }
-    function savePendingSplit(orderId, rows) {
-      try { localStorage.setItem(pendingSplitKey(orderId), JSON.stringify(rows.map(function(r) { return { mode: r.mode, amount: String(r.amount) }; }))); } catch (e) {}
-    }
-    function clearPendingSplit(orderId) { try { localStorage.removeItem(pendingSplitKey(orderId)); } catch (e) {} }
-    function loadPendingSplit(payableAmount) {
-      if (!editingActiveOrderId) return null;
-      try {
-        var rows = JSON.parse(localStorage.getItem(pendingSplitKey(editingActiveOrderId)) || 'null');
-        if (!Array.isArray(rows) || rows.length < 2 || rows.length > SPLIT_MAX_ROWS) return null;
-        var sum = 0;
-        for (var i = 0; i < rows.length; i++) {
-          if (SPLIT_MODES.indexOf(rows[i].mode) === -1) return null;
-          sum += parseFloat(rows[i].amount) || 0;
-        }
-        // the bill changed since: do not bring back amounts that no longer add up
-        return Math.abs(sum - payableAmount) < 0.01 ? rows : null;
-      } catch (e) { return null; }
     }
 
     // ================= SPLIT PAYMENT LOGIC =================
@@ -3927,12 +3906,10 @@
         }
       }
       if (!parts.length) return executePlaceOrderNow();
-      if (savedMode === 'Split' && splitRows.some(function(r) { return r.mode === 'DUE'; }) && !requireDuePhone()) return;
       upiDeferred = { parts: parts, full: full };
-      // The order stays completely unpaid until the UPI part is confirmed: nothing (not even the cash / card part of a split) is recorded now.
-      // The UPI part is added by the server when the QR is paid; the rest is recorded afterwards (see collectDeferredUpi).
-      selectedPaymentMode = '';
-      if (savedMode !== 'UPI') { savedRows = splitRows.map(function(r) { return r.amount; }); splitRows.forEach(function(r) { r.amount = ''; }); }
+      // save everything except the UPI part (it is added by the server when the QR is paid)
+      if (savedMode === 'UPI') selectedPaymentMode = '';
+      else { savedRows = splitRows.map(function(r) { return r.amount; }); splitRows.forEach(function(r) { if (r.mode === 'UPI') r.amount = ''; }); }
       try { executePlaceOrderNow(); }
       finally { selectedPaymentMode = savedMode; if (savedRows) splitRows.forEach(function(r, i) { r.amount = savedRows[i]; }); }
     }
@@ -4055,16 +4032,6 @@
       var allPaid = true;
       for (var i = 0; i < hook.parts.length; i++) {
         if (!(await collectUpi(hook.parts[i].amount, hook.parts[i].label + ' • #' + orderId, { order_id: orderId }))) { allPaid = false; break; }
-      }
-      if (hook.full && hook.full.mode === 'SPLIT') { if (allPaid) clearPendingSplit(orderId); else savePendingSplit(orderId, hook.full.split || []); }
-      if (allPaid && hook.full && hook.full.mode === 'SPLIT') {
-        // UPI part confirmed: now record the other parts (cash / card) of the split
-        var rest = (hook.full.split || []).filter(function(r) { return r.mode !== 'UPI' && r.mode !== 'DUE'; }).reduce(function(t, r) { return t + (Number(r.amount) || 0); }, 0);
-        if ((hook.full.split || []).some(function(r) { return r.mode === 'Cash' && Number(r.amount) > 0; })) openCashDrawer();
-        try {
-          var rr = await fetch('/api/orders/' + orderId + '/record-split', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount: rest }) });
-          if (!rr.ok) throw new Error('HTTP ' + rr.status);
-        } catch (e) { alert('UPI mil gayi par baaki payment record nahi hui (' + e.message + '). Order #' + orderId + ' ko khol kar baaki hissa dobara settle karein.'); allPaid = false; }
       }
       if (allPaid && billCfg.c.auto_print_bill !== false) {
         dispatchDirectPrintReceipt(orderId, Object.assign({}, payload, { payment_mode: hook.full.mode, split_details: hook.full.split }), calc);
