@@ -3912,10 +3912,12 @@
       if (!parts.length) return executePlaceOrderNow();
       upiDeferred = { parts: parts, full: full };
       // save everything except the UPI part (it is added by the server when the QR is paid)
-      if (savedMode === 'UPI') selectedPaymentMode = '';
+      // Picking "UPI" already showed the whole bill as received in the banner (alreadyPaidAmount = total); for this save only what was really recorded before counts
+      var savedAlready = { amount: alreadyPaidAmount, mode: alreadyPaidMode };
+      if (savedMode === 'UPI') { selectedPaymentMode = ''; alreadyPaidAmount = recordedPaidAmount; alreadyPaidMode = recordedPaidMode; }
       else { savedRows = splitRows.map(function(r) { return r.amount; }); splitRows.forEach(function(r) { if (r.mode === 'UPI') r.amount = ''; }); }
       try { executePlaceOrderNow(); }
-      finally { selectedPaymentMode = savedMode; if (savedRows) splitRows.forEach(function(r, i) { r.amount = savedRows[i]; }); }
+      finally { selectedPaymentMode = savedMode; alreadyPaidAmount = savedAlready.amount; alreadyPaidMode = savedAlready.mode; if (savedRows) splitRows.forEach(function(r, i) { r.amount = savedRows[i]; }); }
     }
     function executePlaceOrderNow() {
       var upiHook = upiDeferred; upiDeferred = null;   // consumed here so a message-and-return below can never leave it behind for the next order
@@ -4006,6 +4008,7 @@
           body: JSON.stringify(payload)
         }).then(function(r){ return r.json().catch(function(){ return {}; }); }).then(function(d){
           payload.token_no = d && d.token_no;
+          saveSplitBreakdown(saveOrderId, upiHook ? upiHook.full : null, payload);
           if (paymentCollectedNow && billCfg.c.auto_print_bill !== false && approvalBillPrintedFor !== saveOrderId) dispatchDirectPrintReceipt(saveOrderId, payload, calc);
           if (!mergeTable) return;
           return fetch('/api/orders/' + saveOrderId + '/assign-table', {
@@ -4025,6 +4028,7 @@
         .then(function(r) { return r.json(); })
         .then(function(data) {
           payload.token_no = data.token_no;
+          saveSplitBreakdown(data.orderId, upiHook ? upiHook.full : null, payload);
           if (paymentCollectedNow && billCfg.c.auto_print_bill !== false) dispatchDirectPrintReceipt(data.orderId, payload, calc);
           return collectDeferredUpi(upiHook, data.orderId, payload, calc);
         })
@@ -4032,6 +4036,12 @@
       }
     }
     // The order is saved; now show the QR(s) for its UPI part(s). Closing a popup unpaid leaves the order saved with that part due; a late payment is applied by the server.
+    // Stores how a split order is paid (Cash / UPI / Card amounts) so the bill and later reprints can list it. A split whose UPI part is still pending stores the full plan.
+    function saveSplitBreakdown(orderId, deferredFull, payload) {
+      var split = deferredFull && deferredFull.mode === 'SPLIT' ? deferredFull.split : (payload.payment_mode === 'SPLIT' ? payload.split_details : null);
+      if (!orderId || !Array.isArray(split) || !split.length) return;
+      fetch('/api/orders/' + orderId + '/split-details', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ split: split }) }).catch(function() {});
+    }
     async function collectDeferredUpi(hook, orderId, payload, calc) {
       if (!hook || !orderId) return;
       var allPaid = true;
@@ -4092,9 +4102,12 @@
       }
 
       var splitSection = '';
-      if (payload.split_details && payload.split_details.length > 0) {
-        splitSection = payload.split_details.map(function(s) {
-          return `<div class="row"><span>${s.mode === 'DUE' ? 'Khata (Due)' : s.mode}:</span><span>₹${s.amount.toFixed(2)}</span></div>`;
+      // fresh split from the POS (array) or the saved breakdown of the order (JSON text from the database)
+      var splitList = payload.split_details;
+      if (typeof splitList === 'string') { try { splitList = JSON.parse(splitList); } catch (e) { splitList = null; } }
+      if (Array.isArray(splitList) && splitList.length > 0) {
+        splitSection = splitList.map(function(s) {
+          return `<div class="row"><span>${s.mode === 'DUE' ? 'Khata (Due)' : s.mode}:</span><span>₹${Number(s.amount).toFixed(2)}</span></div>`;
         }).join('');
       }
 

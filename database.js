@@ -182,6 +182,7 @@ pool.query(`
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_lng NUMERIC;`).catch(() => {});
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS cancel_reason TEXT;`).catch(() => {});
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP;`).catch(() => {});
+  await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS split_details TEXT;`).catch(() => {});
   await pool.query(`ALTER TABLE menu ADD COLUMN IF NOT EXISTS send_to_kds INTEGER DEFAULT 1;`).catch(() => {});
   await pool.query(`ALTER TABLE menu ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'available';`).catch(() => {});
   await pool.query(`ALTER TABLE menu ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;`).catch(() => {});

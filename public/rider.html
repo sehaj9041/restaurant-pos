@@ -320,6 +320,23 @@
         var tok = 'Token ' + (payOrder.token_no || payOrder.id), id = payOrder.id;
         if (payMode === 'SPLIT') {
           var parts = splitParts(), rest = [];
+          var upiParts = parts.filter(function(p) { return p.mode === 'UPI'; }), otherParts = parts.filter(function(p) { return p.mode !== 'UPI'; });
+          if (upiParts.length && otherParts.length) {
+            // Same as the POS: the cash / card part is recorded on the order first; the order is delivered only once the UPI part is really paid.
+            // Closing the QR leaves the order partly paid (cash recorded) with only the UPI amount still to collect.
+            try {
+              var rp = await fetch('/api/rider/' + encodeURIComponent(token) + '/orders/' + id + '/record-part', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ parts: otherParts, plan: parts }) });
+              var rd = await rp.json().catch(function() { return {}; });
+              if (!rp.ok) throw new Error(rd.error || 'Payment record nahi hui');
+            } catch (e) { alert(e.message); return; }
+            for (var k = 0; k < upiParts.length; k++) {
+              var got2 = await collectUpi(upiParts[k].amount, tok + ' • split UPI part', { order_id: id, source: 'rider' });
+              if (!got2) { load(); return; }
+              if (got2 === 'manual') rest.push(upiParts[k]);   // rider confirmed by hand: not recorded yet, sent with the delivery
+            }
+            if (!rest.length) return sendDelivered(id, {});
+            return sendDelivered(id, rest.length === 1 ? { mode: 'UPI' } : { mode: 'SPLIT', splits: rest });
+          }
           for (var i = 0; i < parts.length; i++) {
             if (parts[i].mode !== 'UPI') { rest.push(parts[i]); continue; }
             var got = await collectUpi(parts[i].amount, tok + ' • split UPI part', { order_id: id, source: 'rider' });

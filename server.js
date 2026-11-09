@@ -823,6 +823,16 @@ app.post('/api/orders/:id/cancel', async (req, res) => {
   }
 });
 
+// Remembers how a SPLIT order was paid (e.g. Cash 1 + UPI 1) so every bill print can list it
+app.post('/api/orders/:id/split-details', async (req, res) => {
+  try {
+    const rows = Array.isArray((req.body || {}).split) ? req.body.split : [];
+    const clean = rows.slice(0, 6).map(r => ({ mode: String(r.mode || '').slice(0, 12), amount: Math.max(0, Number(r.amount) || 0) })).filter(r => r.mode && r.amount > 0);
+    await dbAllAsync('UPDATE orders SET split_details = ? WHERE id = ? RETURNING id', [clean.length ? JSON.stringify(clean) : null, Number(req.params.id)]);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: 'Save nahi hua' }); }
+});
+
 // Table Assign API Route
 // If the chosen table already has a running dine-in order, this order's items (and any amount already paid)
 // are merged into that bill instead of creating a second order on the same table.
@@ -946,12 +956,38 @@ app.get('/api/rider/:token/orders', async (req, res) => {
     res.json({ rider: { name: rider.name }, orders });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+// Rider split with a UPI part: like the POS, the cash / card part is recorded on the order first (the rider holds that cash) and the order stays
+// undelivered until the UPI part is confirmed. `plan` is the full breakdown (incl. UPI) kept for the bill.
+app.post('/api/rider/:token/orders/:id/record-part', async (req, res) => {
+  try {
+    const rider = await riderByToken(req.params.token);
+    if (!rider) return res.status(401).json({ error: 'Invalid rider link' });
+    const id = Number(req.params.id);
+    const o = (await dbAllAsync("SELECT total, COALESCE(paid_amount, 0) AS paid_amount, delivered_at FROM orders WHERE id = ? AND rider_id = ?", [id, rider.id]))[0];
+    if (!o) return res.status(404).json({ error: 'Order nahi mila' });
+    if (o.delivered_at) return res.status(400).json({ error: 'Order pehle se deliver ho chuka hai' });
+    const clean = (arr) => (Array.isArray(arr) ? arr : []).slice(0, 4).map(s => ({ mode: String((s && s.mode) || '').toUpperCase(), amount: Math.round((Number(s && s.amount) || 0) * 100) / 100 }))
+      .filter(s => ['CASH', 'UPI', 'CARD'].includes(s.mode) && s.amount > 0);
+    const parts = clean((req.body || {}).parts), plan = clean((req.body || {}).plan);
+    const sum = Math.round(parts.reduce((t, s) => t + s.amount, 0) * 100) / 100;
+    const due = Math.max(0, Number(o.total) - Number(o.paid_amount));
+    if (!parts.length || sum > due + 0.01) return res.status(400).json({ error: `Payment ₹${sum} hai, lene hain ₹${due}` });
+    const cash = Math.round(parts.filter(s => s.mode === 'CASH').reduce((t, s) => t + s.amount, 0) * 100) / 100;
+    const planJson = plan.length > 1 ? JSON.stringify(plan) : null;
+    await dbAllAsync(`UPDATE orders SET paid_amount = LEAST(total, COALESCE(paid_amount, 0) + ?::numeric), payment_mode = 'SPLIT',
+        rider_cash_received = COALESCE(rider_cash_received, 0) + ?::numeric, payment_split = COALESCE(?::text, payment_split), split_details = COALESCE(?::text, split_details)
+      WHERE id = ? RETURNING id`, [sum, cash, planJson, planJson, id]);
+    console.log(`[RIDER] Order #${id} split part recorded by ${rider.name}: Rs.${sum} (cash Rs.${cash}); UPI part still pending`);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/rider/:token/orders/:id/delivered', async (req, res) => {
   try {
     const rider = await riderByToken(req.params.token);
     if (!rider) return res.status(401).json({ error: 'Invalid rider link' });
     const id = Number(req.params.id);
-    const o = (await dbAllAsync("SELECT total, COALESCE(paid_amount, 0) AS paid_amount, status, delivered_at FROM orders WHERE id = ? AND rider_id = ?", [id, rider.id]))[0];
+    const o = (await dbAllAsync("SELECT total, COALESCE(paid_amount, 0) AS paid_amount, status, delivered_at, payment_mode, COALESCE(rider_cash_received, 0) AS prev_cash FROM orders WHERE id = ? AND rider_id = ?", [id, rider.id]))[0];
     if (!o) return res.status(404).json({ error: 'Order nahi mila' });
     if (o.delivered_at) return res.json({ success: true });
     const due = Math.max(0, Number(o.total) - Number(o.paid_amount));
@@ -979,8 +1015,12 @@ app.post('/api/rider/:token/orders/:id/delivered', async (req, res) => {
       if (!isFinite(received) || received < due) return res.status(400).json({ error: 'Cash kam hai. ₹' + due + ' lene hain' });
       change = Math.round((received - due) * 100) / 100;
     }
-    await run(`UPDATE orders SET payment_mode = ?, paid_amount = total, delivered_at = NOW(), rider_cash_received = ?, rider_cash_change = ?, payment_split = ?,
-        status = CASE WHEN UPPER(status) = 'KOT_DONE' THEN 'DISPATCHED' ELSE status END WHERE id = ?`, [mode, received, change, splitJson, id]);
+    // A split whose cash / card part was already recorded earlier (record-part below) stays a SPLIT and keeps the full breakdown it saved then
+    const wasSplit = String(o.payment_mode || '').toUpperCase() === 'SPLIT';
+    await run(`UPDATE orders SET payment_mode = ?, paid_amount = total, delivered_at = NOW(), rider_cash_received = ?, rider_cash_change = ?,
+        payment_split = CASE WHEN ?::boolean THEN payment_split ELSE ?::text END, split_details = CASE WHEN ?::boolean THEN split_details ELSE COALESCE(?::text, split_details) END,
+        status = CASE WHEN UPPER(status) = 'KOT_DONE' THEN 'DISPATCHED' ELSE status END WHERE id = ?`,
+      [wasSplit ? 'SPLIT' : mode, wasSplit ? Number(o.prev_cash) + ((mode === 'UPI' || mode === 'CARD') ? 0 : received) : received, change, wasSplit, splitJson, wasSplit, splitJson, id]);
     console.log(`[RIDER] Order #${id} delivered by ${rider.name}: ${mode} ₹${received} received, ₹${change} change, due was ₹${due}`);
     res.json({ success: true, change });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -1065,7 +1105,7 @@ app.post('/api/orders/:id/move-item', async (req, res) => {
 // 7. ACTIVE ORDERS
 app.get('/api/orders/active', (req, res) => {
   const query = `
-    SELECT id, token_no, order_type, table_no, customer_name, customer_phone, rider_name, delivered_at, total, subtotal, discount, discount_reason, is_complimentary, gst, payment_mode, status, COALESCE(paid_amount, 0) as paid_amount,
+    SELECT id, token_no, order_type, table_no, customer_name, customer_phone, rider_name, delivered_at, total, subtotal, discount, discount_reason, is_complimentary, gst, payment_mode, split_details, status, COALESCE(paid_amount, 0) as paid_amount,
            GREATEST(0, total - COALESCE(paid_amount, 0)) as remaining_balance,
            -- Order timers: kitchen time = accepted (or placed) -> KDS done; still running while the kitchen works on it
            GREATEST(0, EXTRACT(EPOCH FROM ((CASE WHEN ready_at IS NOT NULL AND UPPER(status) = 'KOT_DONE' THEN ready_at ELSE NOW() END) - COALESCE(accepted_at, created_at)))) AS kitchen_sec,
@@ -1278,7 +1318,7 @@ app.get('/api/orders/history', (req, res) => {
   const filterDate = date ? date : new Date().toISOString().slice(0, 10);
 
   const query = `
-    SELECT id, token_no, order_type, table_no, customer_name, customer_phone, payment_mode, status, subtotal, discount, gst, total, COALESCE(paid_amount, total) as paid_amount, created_at
+    SELECT id, token_no, order_type, table_no, customer_name, customer_phone, payment_mode, status, subtotal, discount, gst, total, COALESCE(paid_amount, total) as paid_amount, split_details, created_at
     FROM orders 
     WHERE (status = 'COMPLETED' 
        OR status = 'VOID'
