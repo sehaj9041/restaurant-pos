@@ -843,7 +843,8 @@
             </button>
           </div>
 
-          <div class="grid grid-cols-2 gap-2">
+          <div class="grid grid-cols-2 gap-2" style="position:relative;">
+            <div id="posCustSuggest" class="hidden fixed z-[140] bg-white border border-gray-200 rounded-xl shadow-xl max-h-56 overflow-y-auto"></div>
             <div>
               <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Phone Number</label>
               <input type="text" id="posCustPhone" readonly onclick="openVirtualKeyboard(this, 'number', 'right')" placeholder="e.g. 9876543210" class="w-full border border-gray-200 rounded-lg p-2 text-xs font-mono outline-none focus:border-orange-500 bg-white cursor-pointer">
@@ -1922,7 +1923,7 @@
 
         const categoriesSet = new Set(items.map(i => i.category || 'General'));
         let totalItems = items.length;
-        let outOfStock = items.filter(i => (Number(i.stock) || 0) <= 0 || i.status === 'Out of Stock').length;
+        let outOfStock = items.filter(i => i.status === 'Out of Stock').length;
         let hiddenItems = items.filter(i => i.status === 'Hidden').length;
 
         document.getElementById('statCategories').innerText = categoriesSet.size;
@@ -1947,7 +1948,7 @@
               <div class="divide-y divide-gray-100">
           `;
           catItems.forEach(item => {
-            let statusBadge = (Number(item.stock) || 0) <= 0 ? '<span class="text-rose-600 font-bold">Out of Stock</span>' : '<span class="text-emerald-600 font-bold">Available</span>';
+            let statusBadge = item.status === 'Out of Stock' ? '<span class="text-rose-600 font-bold">Out of Stock</span>' : '<span class="text-emerald-600 font-bold">Available</span>';
             html += `
               <div class="p-3 flex justify-between items-center hover:bg-orange-50/30 transition">
                 <div>
@@ -2837,6 +2838,7 @@
     }
 
     function closeVirtualKeyboards() {
+      hideCustSuggest();
       document.getElementById('vKeypadNum').classList.add('hidden');
       document.getElementById('vKeypadText').classList.add('hidden');
 
@@ -2919,7 +2921,7 @@
     }
 
     var outCategories = {}, hiddenCategories = {};
-    function isItemUnavailable(i) { return outCategories[String(i.category || '').trim()] || (Number(i.stock) || 0) <= 0 || i.status === 'Out of Stock'; }
+    function isItemUnavailable(i) { return outCategories[String(i.category || '').trim()] || i.status === 'Out of Stock'; }
     var categoryImages = {};
     function loadCategoryImages() {
       fetch('/api/categories').then(function(r) { return r.json(); }).then(function(rows) {
@@ -4350,6 +4352,52 @@
       }).catch(function(){});
     }
 
+    // ---- customer suggestions under the phone / name fields of the cart ----
+    var custSuggestList = [], custSuggestTimer = null, custSuggestSeq = 0;
+    function hideCustSuggest() {
+      custSuggestSeq++; clearTimeout(custSuggestTimer);
+      var box = document.getElementById('posCustSuggest');
+      if (box) box.classList.add('hidden');
+    }
+    function onCustFieldInput(el) {
+      clearTimeout(custSuggestTimer);
+      var q = el.value.trim();
+      if (!q) { hideCustSuggest(); return; }
+      custSuggestTimer = setTimeout(function() {
+        var seq = ++custSuggestSeq;
+        fetch('/api/customer-search?q=' + encodeURIComponent(q))
+          .then(function(r) { return r.json(); })
+          .then(function(list) {
+            if (seq !== custSuggestSeq) return;
+            custSuggestList = Array.isArray(list) ? list : [];
+            var box = document.getElementById('posCustSuggest');
+            if (!custSuggestList.length) { box.classList.add('hidden'); return; }
+            box.innerHTML = custSuggestList.map(function(c, i) {
+              return '<button type="button" onclick="pickCustomerSuggestion(' + i + ')" class="w-full text-left px-3 py-2 hover:bg-orange-50 border-b border-gray-100 last:border-0 flex justify-between items-center gap-2">' +
+                '<span class="font-bold text-gray-800 text-xs truncate">' + escCartText(c.name || 'Guest') + '</span>' +
+                '<span class="font-mono text-[11px] text-gray-500 shrink-0">' + escCartText(c.phone || '') + (Number(c.due_balance) > 0 ? ' <span class="text-rose-600 font-black">Due ₹' + Number(c.due_balance) + '</span>' : '') + '</span></button>';
+            }).join('');
+            // fixed position under the fields: the customer panel scrolls / clips, so an absolute list would be cut off
+            var anchor = document.getElementById('posCustPhone').parentElement.parentElement.getBoundingClientRect();
+            box.classList.remove('hidden');
+            box.style.left = anchor.left + 'px';
+            box.style.width = anchor.width + 'px';
+            if (anchor.bottom + 230 > window.innerHeight && anchor.top > 240) { box.style.top = 'auto'; box.style.bottom = (window.innerHeight - anchor.top + 4) + 'px'; }
+            else { box.style.bottom = 'auto'; box.style.top = (anchor.bottom + 4) + 'px'; }
+          }).catch(function() {});
+      }, 180);
+    }
+    function pickCustomerSuggestion(i) {
+      var c = custSuggestList[i];
+      if (!c) return;
+      document.getElementById('posCustPhone').value = c.phone || '';
+      document.getElementById('posCustName').value = c.name || '';
+      closeVirtualKeyboards();   // also hides the list and runs the usual phone lookup
+    }
+    document.addEventListener('input', function(e) {
+      if (e.target && (e.target.id === 'posCustPhone' || e.target.id === 'posCustName')) onCustFieldInput(e.target);
+    });
+
     function lookupCustomerPhone() {
       var ph = document.getElementById('posCustPhone').value.trim();
       if (ph.length >= 10) {
@@ -4925,7 +4973,7 @@
       return posUpsells.filter(function(u) { return u.upsell_type === 'upgrade' && u.item_name === item.name && u.suggested_item; })
         .sort(function(a, b) { return (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0) || Number(a.id) - Number(b.id); })
         .map(function(u) { return { u: u, t: allMenuItems.find(function(i) { return i.name === u.suggested_item; }) }; })
-        .filter(function(o) { return o.t && Number(o.t.stock) > 0; });
+        .filter(function(o) { return !!o.t; });
     }
 
     // The plain burger behind a meal item (upsell "upgrade" mapping, else name without "Meal"); null if the item is not a meal

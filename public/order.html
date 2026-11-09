@@ -493,7 +493,7 @@
       return `<span title="${label}" aria-label="${label}" class="inline-flex items-center justify-center w-4 h-4 border-2 rounded-sm shrink-0 align-middle" style="border-color:${c}"><span class="w-2 h-2 rounded-full" style="background:${c}"></span></span>`;
     }
     function isShown(i) { return Number(i.is_visible) !== 0 && !hiddenCategories[String(i.category || '').trim()]; }
-    function isSoldOut(item) { return outCategories[String(item.category || '').trim()] || (Number(item.stock) || 0) <= 0 || item.status === 'Out of Stock'; }
+    function isSoldOut(item) { return outCategories[String(item.category || '').trim()] || item.status === 'Out of Stock'; }
     function saveCart() { try { localStorage.setItem('vf_cart', JSON.stringify(cart)); } catch (e) {} }
 
     let toastTimer = null;
@@ -757,7 +757,7 @@
         const meals = onlineUpsells.filter(u => u.upsell_type === 'upgrade' && u.item_name === item.name && u.suggested_item)
           .sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0) || Number(a.id) - Number(b.id))
           .map(u => ({ u, t: menu.find(i => i.name === u.suggested_item) }))
-          .filter(o => o.t && Number(o.t.stock) > 0);
+          .filter(o => !!o.t);
         if (meals.length) return showOnlineMealChoice(item, meals);
       }
       let variations = [];
@@ -845,7 +845,6 @@
     function addToCart(line) {
       const base = menu.find(m => m.id === line.id);
       const have = cart.filter(c => c.id === line.id).reduce((s, c) => s + c.qty, 0);
-      if (base && have + line.qty > (Number(base.stock) || 0)) return toast('Itna stock available nahi hai', true);
       const same = cart.find(c => c.id === line.id && c.name === line.name && c.price === line.price);
       if (same) same.qty += line.qty; else cart.push(line);
       toast(line.name + ' added');
@@ -1171,7 +1170,6 @@
       if (d > 0) {
         const base = menu.find(m => m.id === line.id);
         const have = cart.filter(c => c.id === line.id).reduce((s, c) => s + c.qty, 0);
-        if (base && have + 1 > (Number(base.stock) || 0)) return toast('Itna stock available nahi hai', true);
       }
       line.qty += d;
       if (line.qty <= 0) cart.splice(idx, 1);

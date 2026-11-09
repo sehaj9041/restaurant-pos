@@ -531,7 +531,7 @@
       });
     }
 
-    const itemUnavailable = i => outCategories[String(i.category || '').trim()] || (Number(i.stock) || 0) <= 0 || i.status === 'Out of Stock';
+    const itemUnavailable = i => outCategories[String(i.category || '').trim()] || i.status === 'Out of Stock';
 
     function renderCategoryItems() {
       $('activeCategoryHeading').innerText = activeCategory || 'Menu';
@@ -562,7 +562,7 @@
       return upsells.filter(u => u.upsell_type === 'upgrade' && u.item_name === item.name && u.suggested_item)
         .sort(upsellRank)
         .map(u => ({ u, t: allKioskItems.find(i => i.name === u.suggested_item) }))
-        .filter(o => o.t && Number(o.t.stock) > 0);
+        .filter(o => !!o.t);
     }
 
     function startKioskItem(itemId) {
@@ -992,7 +992,7 @@
       const inTray = new Set(kioskTray.map(l => l.menu_id));
       return suggestedNames
         .map(n => allKioskItems.find(i => i.name === n))
-        .filter(t => t && Number(t.is_visible) !== 0 && Number(t.stock) > 0 && !inTray.has(t.id) && !suggestDismissed.has(t.id));
+        .filter(t => t && Number(t.is_visible) !== 0 && !inTray.has(t.id) && !suggestDismissed.has(t.id));
     }
 
     // Returns true if the suggestion popup was shown (cart review then opens from "Not Today").

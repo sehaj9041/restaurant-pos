@@ -1468,7 +1468,6 @@ async function validateOnlineItems(items) {
     if (catRow && Number(catRow.out_of_stock)) return { error: 'Item available nahi hai: ' + m.name };
     if (m.status === 'Out of Stock' || m.status === 'unavailable') return { error: m.name + ' sold out hai' };
     qtyById[m.id] = (qtyById[m.id] || 0) + qty;
-    if ((Number(m.stock) || 0) < qtyById[m.id]) return { error: m.name + ' ka itna stock available nahi hai' };
 
     let name = m.name;
     let price = Number(m.price) || 0;
@@ -2070,6 +2069,29 @@ app.post('/api/kot/:id/recall', async (req, res) => {
     console.error('[KDS RECALL ERROR]:', e.message);
     res.status(500).json({ error: e.message });
   }
+});
+// POS cart: every customer we know (saved customers, website / table QR profiles and anyone who ever placed an order) whose phone starts with,
+// or name (or any word of it) starts with, what staff typed. One row per phone (last 10 digits).
+app.get('/api/customer-search', async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim().toLowerCase().slice(0, 30).replace(/[\\%_]/g, c => '\\' + c);
+    if (!q) return res.json([]);
+    const PH = (c) => `RIGHT(REGEXP_REPLACE(COALESCE(${c}, ''), '[^0-9]', '', 'g'), 10)`;
+    const NM = (c) => `CASE WHEN LOWER(TRIM(COALESCE(${c}, ''))) IN ('', 'online guest', 'self kiosk guest', 'valued guest', 'walk-in', 'guest') THEN NULL ELSE TRIM(${c}) END`;
+    const hit = `LENGTH(t.ph) = 10 AND (t.ph LIKE ? OR LOWER(COALESCE(t.name, '')) LIKE ? OR LOWER(COALESCE(t.name, '')) LIKE ?)`;
+    const p = [q + '%', q + '%', '% ' + q + '%'];
+    const rows = await dbAllAsync(`
+      WITH src AS (
+        SELECT * FROM (SELECT ${NM('name')} AS name, ${PH('phone')} AS ph, COALESCE(due_balance, 0) AS due, COALESCE(total_spent, 0) AS spent, 3 AS pr, 0 AS oid FROM customers) t WHERE ${hit}
+        UNION ALL
+        SELECT * FROM (SELECT ${NM('name')} AS name, ${PH('phone')} AS ph, 0 AS due, 0 AS spent, 2 AS pr, 0 AS oid FROM customer_profiles) t WHERE ${hit}
+        UNION ALL
+        SELECT * FROM (SELECT ${NM('customer_name')} AS name, ${PH('customer_phone')} AS ph, 0 AS due, 1 AS spent, 1 AS pr, id AS oid FROM orders WHERE UPPER(COALESCE(status, '')) <> 'VOID') t WHERE ${hit}
+      )
+      SELECT ph AS phone, (ARRAY_AGG(name ORDER BY pr DESC, oid DESC) FILTER (WHERE name IS NOT NULL))[1] AS name, MAX(due) AS due_balance
+      FROM src GROUP BY ph ORDER BY SUM(spent) DESC, MAX(oid) DESC LIMIT 8`, [...p, ...p, ...p]);
+    res.json(rows);
+  } catch (e) { console.error('customer-search error:', e.message); res.json([]); }
 });
 app.get('/api/customers/:phone', (req, res) => {
   db.get("SELECT * FROM customers WHERE phone = ?", [req.params.phone], (err, row) => res.json(row || null));

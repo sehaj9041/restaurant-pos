@@ -126,7 +126,7 @@
   }
 
   var isShown = function (i) { return Number(i.is_visible) !== 0 && !hiddenCats[String(i.category || '').trim()]; };
-  var isSoldOut = function (i) { return outCats[String(i.category || '').trim()] || (Number(i.stock) || 0) <= 0 || i.status === 'Out of Stock' || i.status === 'unavailable'; };
+  var isSoldOut = function (i) { return outCats[String(i.category || '').trim()] || i.status === 'Out of Stock' || i.status === 'unavailable'; };
   function vegIcon(t) {
     var c = { veg: '#16a34a', nonveg: '#dc2626', egg: '#eab308' }[t]; if (!c) return '';
     return '<span class="inline-flex items-center justify-center w-4 h-4 border-2 rounded-sm shrink-0 align-middle mr-1" style="border-color:' + c + '"><span class="w-2 h-2 rounded-full" style="background:' + c + '"></span></span>';
@@ -192,7 +192,7 @@
     var meals = upsells.filter(function (u) { return u.upsell_type === 'upgrade' && u.item_name === item.name && u.suggested_item; })
       .sort(function (a, b) { return (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0) || Number(a.id) - Number(b.id); })
       .map(function (u) { return { u: u, t: menu.filter(function (m) { return m.name === u.suggested_item; })[0] }; })
-      .filter(function (o) { return o.t && Number(o.t.stock) > 0; });
+      .filter(function (o) { return !!o.t; });
     if (meals.length) return mealChoice(item, meals);
     startItem(item, false);
   }
