@@ -281,6 +281,15 @@
       <p class="text-[10px] text-gray-400 uppercase font-black tracking-wider">Pay by UPI</p>
       <p id="upiPayAmt" class="text-2xl font-black text-gray-900">₹0</p>
       <a id="upiPayLink" href="#" class="block w-full bg-emerald-600 text-white font-black rounded-xl py-3 text-sm">📱 Pay from this phone</a>
+      <!-- iPhone has no UPI app chooser (upi:// opens whatever app claimed it, e.g. WhatsApp), so it gets one button per app -->
+      <div id="upiPayApps" class="hidden space-y-2">
+        <p class="text-xs font-black text-gray-700">📱 Pay from this phone: apna UPI app chunein</p>
+        <div class="grid grid-cols-3 gap-2 text-xs font-black">
+          <a id="upiAppGpay" href="#" class="border-2 border-emerald-600 text-emerald-700 rounded-xl py-2.5">GPay</a>
+          <a id="upiAppPhonepe" href="#" class="border-2 border-emerald-600 text-emerald-700 rounded-xl py-2.5">PhonePe</a>
+          <a id="upiAppPaytm" href="#" class="border-2 border-emerald-600 text-emerald-700 rounded-xl py-2.5">Paytm</a>
+        </div>
+      </div>
       <button type="button" onclick="upiPayShowQr()" class="w-full border-2 border-gray-200 text-gray-700 font-black rounded-xl py-3 text-sm">🔳 Pay from another phone (show QR)</button>
       <div id="upiPayQrBox" class="hidden"><img id="upiPayQr" alt="UPI QR" class="mx-auto w-56 h-56"><p class="text-[11px] text-gray-500 mt-1">Doosre phone ke UPI app se ye QR scan karein</p></div>
       <p id="upiPayMsg" class="text-xs font-bold text-amber-700"></p>
@@ -463,6 +472,13 @@
           const ov = document.getElementById('upiPayOverlay');
           document.getElementById('upiPayAmt').innerText = '₹' + d.amount;
           document.getElementById('upiPayLink').href = d.upiLink;
+          const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+          const q = String(d.upiLink).replace(/^upi:\/\/pay/i, '');
+          document.getElementById('upiAppGpay').href = 'gpay://upi/pay' + q;
+          document.getElementById('upiAppPhonepe').href = 'phonepe://pay' + q;
+          document.getElementById('upiAppPaytm').href = 'paytmmp://pay' + q;
+          document.getElementById('upiPayLink').classList.toggle('hidden', ios);
+          document.getElementById('upiPayApps').classList.toggle('hidden', !ios);
           document.getElementById('upiPayQr').src = d.qrImage;
           document.getElementById('upiPayQrBox').classList.add('hidden');
           document.getElementById('upiPayMsg').innerText = 'Payment ka wait kar rahe hain...';
