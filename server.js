@@ -2352,6 +2352,13 @@ async function saveSettingsConfig(patch) {
 }
 engagement = require('./engagement').register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, discountPasswordOk });
 require('./paytmUpi').register(app, { dbAllAsync, createOrderHandler, computeDiscount: (a) => engagement.computeDiscount(a), discountPasswordOk }); require('./razorpayPay').register(app, { dbAllAsync, createOrderHandler, extraMarkPaid: tableQrApi.markBillPaid });
+// Purane link (jaise TadkaTech ki installed home-screen app ka /vishal_foodiez/... ya /menu) par "Cannot GET" ki jagah customer menu kholo.
+// Sirf browser page-navigation: /api, /uploads aur extension wali files (js/css/img) ko nahi chhedta.
+app.use((req, res, next) => {
+  if (req.method !== 'GET' || /^\/(api|uploads)(\/|$)/.test(req.path) || /\.[a-z0-9]{1,8}$/i.test(req.path)) return next();
+  if (!(req.headers.accept || '').includes('text/html')) return next();
+  res.redirect(302, '/');
+});
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, '0.0.0.0', () => {
