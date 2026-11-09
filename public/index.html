@@ -3937,7 +3937,7 @@
       var initialPaid = alreadyPaidAmount;
 
       if (selectedPaymentMode && selectedPaymentMode === 'Split') {
-        readSplitAmounts();
+        if (!upiHook) readSplitAmounts();   // with a UPI part waiting, the UPI row was blanked on purpose: re-reading the inputs would add it as paid
         var splitSum = splitRows.reduce(function(t, r) { return t + (parseFloat(r.amount) || 0); }, 0);
         initialPaid = alreadyPaidAmount + splitSum;
         finalPaymentMode = 'SPLIT';
