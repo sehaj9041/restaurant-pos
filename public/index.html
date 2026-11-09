@@ -2751,7 +2751,7 @@
       }
 
       setPOSOrderType(currentPOSOrderType);
-      document.getElementById('posDisplayTable').innerText = (selectedPOSTableId ? selectedPOSTableId + ' • ' : '') + currentPOSOrderType;
+      document.getElementById('posDisplayTable').innerText = (selectedPOSTableId ? selectedPOSTableId + ' • ' : '') + currentPOSOrderType + posTokenSuffix();
 
       document.getElementById('viewFloorDashboard').classList.add('hidden');
       document.getElementById('viewPOSOrderScreen').classList.remove('hidden');
@@ -3037,7 +3037,7 @@
           <div onclick="openPOSOrderView('Dine-In', '${t.id}')" class="cursor-pointer border-2 rounded-2xl p-3 flex flex-col items-center justify-center transition-all duration-150 transform active:scale-95 shadow-xs ${isBusy ? 'bg-orange-50 border-orange-400 text-orange-950 shadow-orange-100' : 'bg-emerald-50 border-emerald-300 text-emerald-950 hover:border-emerald-500'}">
             <span class="font-black text-sm tracking-wide">${t.label}</span>
             <span class="text-[10px] font-bold opacity-75">${t.seats} seats</span>
-            ${isBusy ? `<span class="text-xs font-black text-orange-700 mt-1">₹${busy.total}</span>${timerStripHTML(busy, true)}
+            ${isBusy ? `<span class="text-[10px] font-black text-orange-900 bg-orange-200/70 rounded px-1.5 mt-1">Token ${tokenLabel(busy)}</span><span class="text-xs font-black text-orange-700 mt-0.5">₹${busy.total}</span>${timerStripHTML(busy, true)}
             <div class="flex gap-1 mt-1.5 w-full">
               <button onclick="event.stopPropagation(); promptMoveTable('${t.id}')" class="flex-1 px-1 py-1 bg-white hover:bg-orange-100 text-orange-700 rounded border border-orange-300 text-[10px] font-black shadow-2xs">⇄ Move</button>
               <button onclick="event.stopPropagation(); printTableReceipt('${t.id}')" class="flex-1 px-1 py-1 bg-white hover:bg-gray-100 text-gray-700 rounded border border-gray-300 text-[10px] font-black shadow-2xs">🖨 Print</button>
@@ -3273,6 +3273,9 @@
       previousViewBeforePOS = (currentViewMode === 'DUE') ? 'DUE' : 'DASHBOARD';
       openPOSOrderView(ord.order_type, ord.table_no || '');
       editingActiveOrderId = ord.id;
+      // Takeaway / Delivery (and Due) orders are not found by table, so label the cart with this order's token here
+      document.getElementById('topPageTitle').innerText = 'Order #ORD-' + ord.id + ' • Token ' + tokenLabel(ord);
+      document.getElementById('posDisplayTable').innerText = (ord.table_no && String(ord.table_no).toLowerCase() !== String(ord.order_type || '').toLowerCase() ? ord.table_no + ' • ' : '') + (ord.order_type || '') + ' • Token ' + tokenLabel(ord);
       
       loadRecordedPayment(ord);
       loadDiscountState(ord);
@@ -3765,6 +3768,12 @@
       }, 150);
     }
 
+    // " • Token 014" for the order open in the cart (empty for a new order)
+    function posTokenSuffix() {
+      if (!editingActiveOrderId) return '';
+      var o = allActiveOrders.find(function(x) { return x.id === editingActiveOrderId; }) || settledHistoryOrders.find(function(x) { return x.id === editingActiveOrderId; }) || dueOrdersList.find(function(x) { return x.id === editingActiveOrderId; });
+      return o ? ' • Token ' + tokenLabel(o) : '';
+    }
     function tokenLabel(o) {
       var t = (o && o.token_no) ? o.token_no : (o && o.id);
       return String(t == null ? '' : t).padStart(3, '0');
@@ -4408,7 +4417,7 @@
 
       if (currentPOSOrderType) {
         setPOSOrderType(currentPOSOrderType);
-        document.getElementById('posDisplayTable').innerText = (selectedPOSTableId ? selectedPOSTableId + ' • ' : '') + currentPOSOrderType;
+        document.getElementById('posDisplayTable').innerText = (selectedPOSTableId ? selectedPOSTableId + ' • ' : '') + currentPOSOrderType + posTokenSuffix();
       } else {
         ['DineIn', 'Takeaway', 'Delivery'].forEach(function(t) {
           var btn = document.getElementById('posBtn' + t);
@@ -4422,7 +4431,7 @@
       document.getElementById('menuManagementView').classList.add('hidden');
       document.getElementById('viewPOSOrderScreen').classList.remove('hidden');
 
-      document.getElementById('topPageTitle').innerText = 'New Order';
+      document.getElementById('topPageTitle').innerText = running ? 'Order #ORD-' + running.id + ' • Token ' + tokenLabel(running) : 'New Order';
       document.getElementById('btnTopBack').classList.remove('hidden');
       document.getElementById('btnCancelOrderView').classList.add('hidden');
       document.getElementById('topOrderActiveBadge').classList.remove('hidden');
@@ -4452,7 +4461,7 @@
     function setPOSTableFromModal(tableId) {
       selectedPOSTableId = tableId;
       closeAssignTableModal();
-      document.getElementById('posDisplayTable').innerText = tableId + ' • ' + currentPOSOrderType;
+      document.getElementById('posDisplayTable').innerText = tableId + ' • ' + currentPOSOrderType + posTokenSuffix();
     }
 
     function closePOSOrderView() {
@@ -4992,7 +5001,7 @@
           }
         }
       });
-      document.getElementById('posDisplayTable').innerText = (selectedPOSTableId ? selectedPOSTableId + ' • ' : '') + currentPOSOrderType;
+      document.getElementById('posDisplayTable').innerText = (selectedPOSTableId ? selectedPOSTableId + ' • ' : '') + currentPOSOrderType + posTokenSuffix();
       if (typeof renderPOSCart === 'function') renderPOSCart();
     }
 
