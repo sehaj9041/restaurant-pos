@@ -917,6 +917,7 @@
             <button onclick="cancelSplitPanel()" class="text-gray-400 hover:text-gray-600 font-black text-sm">✕</button></span>
           </div>
 
+          <div id="splitAlreadyNote" class="hidden border border-emerald-200 bg-emerald-50 text-emerald-800 rounded-lg p-2 text-[10px] font-bold"></div>
           <div id="splitRowsContainer" class="space-y-2"></div>
           <button id="btnSplitAddMethod" onclick="addSplitMethod()" class="w-full border border-dashed border-blue-300 hover:bg-blue-50 text-blue-700 py-1.5 rounded-lg text-[11px] font-black transition">+ Add method</button>
 
@@ -3338,6 +3339,9 @@
         document.getElementById('splitTotalDisplay').innerText = '₹' + payableAmount.toFixed(2);
         
         splitRows = [{ mode: 'Cash', amount: '' }, { mode: 'UPI', amount: '' }];
+        var splitNote = document.getElementById('splitAlreadyNote');
+        if (recordedPaidAmount > 0) { splitNote.innerText = '✓ Pehle se received: ₹' + recordedPaidAmount.toFixed(2) + ' • baaki ₹' + payableAmount.toFixed(2); splitNote.classList.remove('hidden'); }
+        else splitNote.classList.add('hidden');
         renderSplitRows();
         calculateSplitDifference();
         
@@ -3953,7 +3957,8 @@
 
       // Bill sirf tab print hoga jab abhi payment collect karke order settle ho rha ho
       if (posComp.on) { finalPaymentMode = 'COMPLIMENTARY'; initialPaid = 0; }
-      var paymentCollectedNow = !posComp.on && !!selectedPaymentMode && selectedPaymentMode !== 'DUE' && (initialPaid - recordedPaidAmount) > 0;
+      // a split / UPI that is still waiting for its QR payment is not complete yet: the bill is printed only after the UPI part is confirmed (collectDeferredUpi)
+      var paymentCollectedNow = !posComp.on && !upiHook && !!selectedPaymentMode && selectedPaymentMode !== 'DUE' && (initialPaid - recordedPaidAmount) > 0;
       var remainingDue = Math.max(0, calc.grandTotal - initialPaid);
       var isHoldOrder = !selectedPaymentMode && remainingDue > 0 && initialPaid === 0;
 
