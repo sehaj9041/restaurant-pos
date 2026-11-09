@@ -823,6 +823,21 @@ app.post('/api/orders/:id/cancel', async (req, res) => {
   }
 });
 
+// POS split payment with a UPI part: the order is saved unpaid, and once the UPI part is confirmed the POS records the rest (cash / card) here.
+app.post('/api/orders/:id/record-split', async (req, res) => {
+  try {
+    const amount = Math.max(0, Number((req.body || {}).amount) || 0);
+    const rows = await dbAllAsync(`UPDATE orders SET paid_amount = LEAST(total, COALESCE(paid_amount, 0) + ?::numeric), payment_mode = 'SPLIT',
+        status = CASE WHEN UPPER(status) = 'KOT_DONE' AND COALESCE(paid_amount, 0) + ?::numeric >= total THEN 'DISPATCHED' ELSE status END
+      WHERE id = ? AND UPPER(COALESCE(status, '')) NOT IN ('VOID', 'CANCELLED', 'COMPLETED', 'MERGED') RETURNING id`, [amount, amount, Number(req.params.id)]);
+    if (!rows.length) return res.status(404).json({ error: 'Order nahi mila' });
+    res.json({ success: true });
+  } catch (e) {
+    console.error('record-split error:', e.message);
+    res.status(500).json({ error: 'Payment record nahi hui' });
+  }
+});
+
 // Table Assign API Route
 // If the chosen table already has a running dine-in order, this order's items (and any amount already paid)
 // are merged into that bill instead of creating a second order on the same table.
