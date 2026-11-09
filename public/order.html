@@ -249,8 +249,8 @@
           <p class="text-[10px] text-gray-400 uppercase font-black tracking-wider mb-1.5">Payment</p>
           <div id="payChoice2" class="hidden grid grid-cols-2 gap-2 text-xs font-bold">
             <button type="button" id="payBtnCod2" onclick="setPayMode('COD')" class="border-2 rounded-xl py-2.5 px-2 transition">💵 Cash on Delivery</button>
-            <button type="button" id="payBtnOnline2" onclick="setPayMode('ONLINE')" class="border-2 rounded-xl py-2.5 px-2 transition">💳 Pay Online</button>
-            <button type="button" id="payBtnUpi2" onclick="setPayMode('UPI')" class="hidden col-span-2 border-2 rounded-xl py-2.5 px-2 transition">📲 Pay by UPI (this phone or another phone)</button>
+            <button type="button" id="payBtnOnline2" onclick="setPayMode('ONLINE')" class="border-2 rounded-xl py-2.5 px-2 transition">💳 Pay Online (UPI / Card)</button>
+            <button type="button" id="payBtnUpi2" onclick="setPayMode('UPI')" class="hidden col-span-2 border-2 rounded-xl py-2.5 px-2 transition">📲 Paytm UPI QR (scan from another phone)</button>
           </div>
           <div id="payCodOnly" class="border-2 border-emerald-600 bg-emerald-50 text-emerald-700 rounded-xl py-2.5 px-3 text-xs font-bold">💵 Cash on Delivery</div>
         </div>
@@ -280,18 +280,7 @@
     <div class="bg-white rounded-2xl w-full max-w-sm p-4 space-y-3 text-center">
       <p class="text-[10px] text-gray-400 uppercase font-black tracking-wider">Pay by UPI</p>
       <p id="upiPayAmt" class="text-2xl font-black text-gray-900">₹0</p>
-      <a id="upiPayLink" href="#" class="block w-full bg-emerald-600 text-white font-black rounded-xl py-3 text-sm">📱 Pay from this phone</a>
-      <!-- iPhone has no UPI app chooser (upi:// opens whatever app claimed it, e.g. WhatsApp), so it gets one button per app -->
-      <div id="upiPayApps" class="hidden space-y-2">
-        <p class="text-xs font-black text-gray-700">📱 Pay from this phone: apna UPI app chunein</p>
-        <div class="grid grid-cols-3 gap-2 text-xs font-black">
-          <a id="upiAppGpay" href="#" class="border-2 border-emerald-600 text-emerald-700 rounded-xl py-2.5">GPay</a>
-          <a id="upiAppPhonepe" href="#" class="border-2 border-emerald-600 text-emerald-700 rounded-xl py-2.5">PhonePe</a>
-          <a id="upiAppPaytm" href="#" class="border-2 border-emerald-600 text-emerald-700 rounded-xl py-2.5">Paytm</a>
-        </div>
-      </div>
-      <button type="button" onclick="upiPayShowQr()" class="w-full border-2 border-gray-200 text-gray-700 font-black rounded-xl py-3 text-sm">🔳 Pay from another phone (show QR)</button>
-      <div id="upiPayQrBox" class="hidden"><img id="upiPayQr" alt="UPI QR" class="mx-auto w-56 h-56"><p class="text-[11px] text-gray-500 mt-1">Doosre phone ke UPI app se ye QR scan karein</p></div>
+      <div id="upiPayQrBox"><img id="upiPayQr" alt="UPI QR" class="mx-auto w-56 h-56"><p class="text-[11px] text-gray-500 mt-1">Doosre phone ke UPI app se ye QR scan karke pay karein</p></div>
       <p id="upiPayMsg" class="text-xs font-bold text-amber-700"></p>
       <button type="button" onclick="upiPayCancel()" class="text-xs font-bold text-rose-600">Cancel payment</button>
     </div>
@@ -411,7 +400,7 @@
     let pendingVariants = [];
     let placing = false;
     let deliveryLoc = null;
-    let payMode = 'COD';
+    let payMode = 'COD'; // becomes '' (nothing selected) when online options are available
 
     // Razorpay online payment (option appears only if the server has keys configured)
     // The payment mode is chosen on the checkout page (both Takeaway and Delivery).
@@ -428,7 +417,7 @@
       document.getElementById('payChoice2').classList.remove('hidden');
       document.getElementById('payCodOnly').classList.add('hidden');
       document.getElementById('payBtnOnline2').classList.toggle('hidden', !rpEnabled);
-      setPayMode(rpEnabled ? 'ONLINE' : 'UPI');
+      setPayMode(''); // customer must pick a payment method themselves
     }
     fetch('/api/razorpay/config').then(r => r.json()).then(c => {
       if (c && c.enabled) { rpEnabled = true; showPayChoices(); }
@@ -471,16 +460,7 @@
         .then(d => new Promise((resolve, reject) => {
           const ov = document.getElementById('upiPayOverlay');
           document.getElementById('upiPayAmt').innerText = '₹' + d.amount;
-          document.getElementById('upiPayLink').href = d.upiLink;
-          const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-          const q = String(d.upiLink).replace(/^upi:\/\/pay/i, '');
-          document.getElementById('upiAppGpay').href = 'gpay://upi/pay' + q;
-          document.getElementById('upiAppPhonepe').href = 'phonepe://pay' + q;
-          document.getElementById('upiAppPaytm').href = 'paytmmp://pay' + q;
-          document.getElementById('upiPayLink').classList.toggle('hidden', ios);
-          document.getElementById('upiPayApps').classList.toggle('hidden', !ios);
           document.getElementById('upiPayQr').src = d.qrImage;
-          document.getElementById('upiPayQrBox').classList.add('hidden');
           document.getElementById('upiPayMsg').innerText = 'Payment ka wait kar rahe hain...';
           ov.classList.remove('hidden');
           let done = false;
@@ -494,7 +474,6 @@
             fetch('/api/upi/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paytmOrderId: d.paytmOrderId }) }).catch(() => {});
             finish(reject, new Error('Payment time khatam ho gaya. Dobara try karein.'));
           }, 10 * 60 * 1000);
-          window.upiPayShowQr = () => document.getElementById('upiPayQrBox').classList.remove('hidden');
           window.upiPayCancel = () => {
             fetch('/api/upi/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paytmOrderId: d.paytmOrderId }) })
               .then(r => r.json()).then(st => {
@@ -1455,6 +1434,7 @@
       if (mode === 'Delivery' && deliveryQuote.charge == null && /bahar/.test(deliveryQuote.message || '')) return toast(deliveryQuote.message, true);
       const basics = orderBasics();
       if (!basics) return;
+      if (!payMode) return toast('Payment method chunein', true);
       const { phone, loc } = basics;
       const name = document.getElementById('cName').value.trim();
       const isDelivery = mode === 'Delivery';
