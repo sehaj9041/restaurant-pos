@@ -602,7 +602,10 @@
       return addonsList.filter(function(a) { return !/^\s*size\s*:/i.test(String((a && a.name) || '')); });
     }
 
-    function toggleItemReady(orderId, rowIdentifier, itemObj) {
+    function toggleItemReady(orderId, rowIdentifier) {
+      // the item is looked up here (not passed through the onclick attribute) so names with an apostrophe, like "Vishal's ...", still work
+      var ord = liveOrdersData.find(function(o){ return o.id.toString() === orderId.toString(); });
+      var itemObj = (ord && ord.items && ord.items[rowIdentifier.replace('row_', '')]) || {};
       var store = getCheckedItemKeys();
       var key = orderId + '_' + rowIdentifier;
       var newState = !store[key];
@@ -1084,7 +1087,7 @@
 
                 return `
                   <div class="border-b border-slate-100 pb-1.5">
-                    <div onclick='toggleItemReady(${order.id}, "row_${idx}", ${JSON.stringify(item)})' class="flex items-center gap-2.5 cursor-pointer select-none transition ${isDone ? 'opacity-35' : 'hover:bg-slate-50'}">
+                    <div onclick="toggleItemReady(${order.id}, 'row_${idx}')" class="flex items-center gap-2.5 cursor-pointer select-none transition ${isDone ? 'opacity-35' : 'hover:bg-slate-50'}">
                       <div class="kot-check-box rounded-md flex items-center justify-center border shrink-0 transition ${isDone ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-slate-300 bg-white'}">
                         ${isDone ? '✓' : ''}
                       </div>
