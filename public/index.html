@@ -3464,7 +3464,15 @@
       splitRows.forEach(function(r, i) {
         var el = document.getElementById('splitAmount' + i);
         if (el) r.amount = el.value;
+        var rv = document.getElementById('splitRecv' + i);
+        if (rv) r.received = rv.value;
       });
+    }
+
+    // Cash row of a split: change to give back = received - that row's cash amount (only when "Received" was entered)
+    function splitCashChange(r) {
+      var rec = parseFloat(r.received) || 0;
+      return (r.mode === 'Cash' && rec > 0) ? Math.max(0, rec - (parseFloat(r.amount) || 0)) : 0;
     }
 
     function renderSplitRows() {
@@ -3486,6 +3494,10 @@
             '<span class="absolute left-2 top-1.5 text-gray-400 font-bold text-xs">₹</span>' +
             '<input type="text" id="splitAmount' + i + '" readonly onclick="openVirtualKeyboard(this, \'number\', \'right\')" oninput="calculateSplitDifference()" placeholder="0.00" value="' + (r.amount || '') + '" class="w-full pl-5 pr-2 py-1 border border-gray-200 rounded text-xs font-mono font-black outline-none bg-gray-50 focus:bg-white cursor-pointer">' +
           '</div><button onclick="fillSplitRest(' + i + ')" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-[10px] font-bold px-2.5 py-1 rounded border">Fill rest</button></div>' +
+          (r.mode === 'Cash' ? '<div class="flex items-center gap-1.5"><div class="relative flex-1">' +
+            '<span class="absolute left-2 top-1.5 text-gray-400 font-bold text-[10px]">Received ₹</span>' +
+            '<input type="text" id="splitRecv' + i + '" readonly onclick="openVirtualKeyboard(this, \'number\', \'right\')" oninput="calculateSplitDifference()" placeholder="optional" value="' + (r.received || '') + '" class="w-full pl-16 pr-2 py-1 border border-gray-200 rounded text-xs font-mono font-black outline-none bg-gray-50 focus:bg-white cursor-pointer">' +
+          '</div><span id="splitChg' + i + '" class="text-[10px] font-black text-emerald-700 whitespace-nowrap">Change ₹0.00</span></div>' : '') +
         '</div>';
       }).join('');
       var addBtn = document.getElementById('btnSplitAddMethod');
@@ -3548,6 +3560,10 @@
       var calc = calculatePOSBillTotals();
       var total = calc.payableNow;
       readSplitAmounts();
+      splitRows.forEach(function(r, i) {
+        var chg = document.getElementById('splitChg' + i);
+        if (chg) chg.innerText = 'Change ₹' + splitCashChange(r).toFixed(2);
+      });
       var anyEntered = splitRows.some(function(r) { return String(r.amount).trim() !== ''; });
       var sum = splitRows.reduce(function(t, r) { return t + (parseFloat(r.amount) || 0); }, 0);
       var diff = total - sum;
@@ -4045,9 +4061,15 @@
       var remainingDue = Math.max(0, calc.grandTotal - initialPaid);
       var isHoldOrder = !selectedPaymentMode && remainingDue > 0 && initialPaid === 0;
 
-      var splitDetails = null;
+      var splitDetails = null, splitCashReceived = null, splitCashChangeTotal = 0;
       if (selectedPaymentMode === 'Split') {
         splitDetails = splitRows.map(function(r) { return { mode: r.mode, amount: parseFloat(r.amount) || 0 }; });
+        readSplitAmounts();
+        var cashRecRows = splitRows.filter(function(r) { return r.mode === 'Cash' && (parseFloat(r.received) || 0) > 0; });
+        if (cashRecRows.length) {
+          splitCashReceived = cashRecRows.reduce(function(t, r) { return t + (parseFloat(r.received) || 0); }, 0);
+          splitCashChangeTotal = cashRecRows.reduce(function(t, r) { return t + splitCashChange(r); }, 0);
+        }
       }
 
       var payload = {
@@ -4074,8 +4096,8 @@
         previously_paid: recordedPaidAmount,
         guests: currentGuestCount,
         is_hold: isHoldOrder,
-        cash_received: currentCashReceived,
-        cash_change: currentCashChange,
+        cash_received: splitCashReceived !== null ? splitCashReceived : currentCashReceived,
+        cash_change: splitCashReceived !== null ? splitCashChangeTotal : currentCashChange,
         split_details: splitDetails
       };
 
@@ -4175,10 +4197,10 @@
       }
 
       var cashSection = '';
-      if (payload.payment_mode && payload.payment_mode.includes('Cash') && payload.cash_received > 0) {
+      if (/^(cash|split)$/i.test(String(payload.payment_mode || '')) && Number(payload.cash_received) > 0) {
         cashSection = `
-          <div class="row"><span>Cash Tendered:</span><span>₹${payload.cash_received.toFixed(2)}</span></div>
-          <div class="row"><span>Change Returned:</span><span>₹${payload.cash_change.toFixed(2)}</span></div>
+          <div class="row"><span>Cash Tendered:</span><span>₹${Number(payload.cash_received).toFixed(2)}</span></div>
+          <div class="row"><span>Change Returned:</span><span>₹${Number(payload.cash_change || 0).toFixed(2)}</span></div>
         `;
       }
 
