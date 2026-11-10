@@ -124,6 +124,10 @@
             <button type="button" onclick="bulkItemGst()" class="bg-sky-600 hover:bg-sky-700 px-2.5 py-1 rounded-lg font-bold text-white ">Set GST</button>
           </span>
           <span class="flex items-center gap-1">
+            <select id="bulk_food_type" class="border p-1.5 rounded-lg outline-none bg-white"><option value="veg">🟢 Veg</option><option value="egg">🟡 Egg</option><option value="nonveg">🔴 Non-Veg</option><option value="">Not set</option></select>
+            <button type="button" onclick="bulkItemFoodType()" class="bg-green-600 hover:bg-green-700 px-2.5 py-1 rounded-lg font-bold text-white ">Set Type</button>
+          </span>
+          <span class="flex items-center gap-1">
             <button type="button" onclick="bulkItemAvailability(false)" class="bg-rose-600 hover:bg-rose-700 px-2.5 py-1 rounded-lg font-bold text-white " title="Menu me dikhegi, Not Available ke saath">Out of Stock</button>
             <button type="button" onclick="bulkItemAvailability(true)" class="bg-emerald-600 hover:bg-emerald-700 px-2.5 py-1 rounded-lg font-bold text-white ">In Stock</button>
           </span>
@@ -1841,6 +1845,12 @@
     function bulkItemGst() {
       const ex = Number(document.getElementById('bulk_gst').value);
       bulkItems(ex ? 'No GST' : 'GST lagao', () => ({ is_exempt: ex }));
+    }
+
+    function bulkItemFoodType() {
+      const sel = document.getElementById('bulk_food_type');
+      const food_type = sel.value;
+      bulkItems('Type → ' + sel.selectedOptions[0].text, () => ({ food_type }));
     }
 
     function bulkItemAvailability(show) {
