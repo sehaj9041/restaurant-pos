@@ -504,8 +504,20 @@
       }
     }
 
+    // Ticks are shared with every other KDS screen through the server: local changes are pushed, the server copy is pulled on each poll
+    var kdsPushInFlight = 0, kdsLastPushAt = 0;
+    function pushCheckChanges(changes) {
+      kdsPushInFlight++;
+      fetch('/api/kot/checks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ changes: changes }) })
+        .catch(function() {})
+        .then(function() { kdsPushInFlight--; kdsLastPushAt = Date.now(); });
+    }
     function saveCheckedItemKeys(store) {
+      var prev = getCheckedItemKeys(), changes = {}, any = false;
+      Object.keys(store).forEach(function(k) { if (!!store[k] !== !!prev[k]) { changes[k] = !!store[k]; any = true; } });
+      Object.keys(prev).forEach(function(k) { if (prev[k] && !(k in store)) { changes[k] = false; any = true; } });
       localStorage.setItem('kot_checked_items', JSON.stringify(store));
+      if (any) pushCheckChanges(changes);
     }
 
     function getAlertBadges() {
@@ -529,7 +541,11 @@
     }
 
     function saveReadyForDispatchOrders(store) {
+      var prev = getReadyForDispatchOrders(), changes = {}, any = false;
+      Object.keys(store).forEach(function(k) { if (!!store[k] !== !!prev[k]) { changes[k + '_ready'] = !!store[k]; any = true; } });
+      Object.keys(prev).forEach(function(k) { if (prev[k] && !(k in store)) { changes[k + '_ready'] = false; any = true; } });
       localStorage.setItem('kot_ready_dispatch', JSON.stringify(store));
+      if (any) pushCheckChanges(changes);
     }
 
     // Known add-on names (for single-add-on items like "Burger (Spicy Mayo Dip)")
@@ -760,8 +776,22 @@
     }
 
  function fetchKOT() {
+      var fetchStartedAt = Date.now();
+      var checksReq = fetch('/api/kot/checks').then(function(r) { return r.ok ? r.json() : null; }).catch(function() { return null; });
       fetch('/api/kot')
         .then(function(res) { return res.json(); })
+        .then(function(orders) { return checksReq.then(function(serverChecks) {
+          // take over ticks made on other KDS screens (skip if one of our own changes is still on its way / newer than this response)
+          if (serverChecks && kdsPushInFlight === 0 && kdsLastPushAt < fetchStartedAt) {
+            var srvTicks = {}, srvReady = {};
+            Object.keys(serverChecks).forEach(function(k) {
+              if (/_ready$/.test(k)) srvReady[k.slice(0, -6)] = true; else srvTicks[k] = true;
+            });
+            localStorage.setItem('kot_checked_items', JSON.stringify(srvTicks));
+            localStorage.setItem('kot_ready_dispatch', JSON.stringify(srvReady));
+          }
+          return orders;
+        }); })
         .then(function(orders) {
           // AAKHRI FIX: Agar server se empty ya settled list aayi hai, toh local storage ka kachra saaf kar do
           if (!orders || orders.length === 0) {

@@ -1998,6 +1998,34 @@ app.get('/api/kot', (req, res) => {
     }
   });
 });
+// KDS item ticks are shared between every KDS screen: a tick on one screen shows up on the others.
+// Only ticked keys are stored (row_N / row_N_addon_M per order, plus 'ready' = whole order marked ready); unticking deletes the row.
+let kdsChecksReady = null;
+const ensureKdsChecks = () => kdsChecksReady || (kdsChecksReady = dbAllAsync('CREATE TABLE IF NOT EXISTS kds_checks (order_id INTEGER NOT NULL, ck TEXT NOT NULL, PRIMARY KEY (order_id, ck))', []).catch(e => { kdsChecksReady = null; throw e; }));
+app.get('/api/kot/checks', async (req, res) => {
+  try {
+    await ensureKdsChecks();
+    const rows = await dbAllAsync("SELECT k.order_id, k.ck FROM kds_checks k JOIN orders o ON o.id = k.order_id WHERE UPPER(o.status) NOT IN ('BILLED', 'COMPLETED', 'VOID', 'DISPATCHED')", []);
+    const out = {};
+    rows.forEach(r => { out[r.order_id + '_' + r.ck] = true; });
+    res.json(out);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+// body: { changes: { "<orderId>_row_0": true, "<orderId>_row_0_addon_1": false, ... } }
+app.post('/api/kot/checks', async (req, res) => {
+  try {
+    await ensureKdsChecks();
+    const changes = (req.body && req.body.changes) || {};
+    for (const key of Object.keys(changes).slice(0, 500)) {
+      const m = /^(\d+)_(row_\d+(?:_addon_\d+)?|ready)$/.exec(key);
+      if (!m) continue;
+      if (changes[key]) await dbAllAsync('INSERT INTO kds_checks (order_id, ck) VALUES (?, ?) ON CONFLICT DO NOTHING', [Number(m[1]), m[2]]);
+      else await dbAllAsync('DELETE FROM kds_checks WHERE order_id = ? AND ck = ?', [Number(m[1]), m[2]]);
+    }
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/kot/:id/complete', (req, res) => {
   const orderId = req.params.id;
 
