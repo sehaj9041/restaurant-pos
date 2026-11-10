@@ -68,6 +68,9 @@
     .kot-card-box .kot-badge {
       font-size: calc(11px * var(--kot-scale));
     }
+    .kot-card-box .kot-type-badge {
+      font-size: calc(18px * var(--kot-scale));
+    }
     .kot-card-box .kot-notes {
       font-size: calc(12px * var(--kot-scale));
     }
@@ -1044,7 +1047,7 @@
               <div>
                 <div class="flex items-center gap-2">
                   <h3 class="font-black text-slate-900">#${order.token_no || order.id}</h3>
-                  <span class="kot-badge font-black px-2 py-0.5 rounded-md border ${theme.badgeBg} flex items-center gap-1 shadow-2xs">
+                  <span class="kot-type-badge font-black px-2.5 py-1 rounded-md border ${theme.badgeBg} flex items-center gap-1 shadow-2xs">
                     <span>${theme.emoji}</span>
                     <span>${displayLabel}</span>
                     ${tableInfo}
