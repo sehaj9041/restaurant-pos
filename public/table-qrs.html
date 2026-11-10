@@ -25,6 +25,7 @@
       </div>
       <div class="flex items-center gap-2">
         <button onclick="window.print()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 rounded-xl text-xs transition">🖨 Print all</button>
+        <button onclick="downloadAll()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-xs transition">⬇ Download all</button>
         <button onclick="resetQr()" class="bg-white border border-rose-300 text-rose-600 hover:bg-rose-50 font-bold px-4 py-2 rounded-xl text-xs transition">Reset QR codes</button>
         <a href="/" class="bg-gray-900 hover:bg-black text-white px-4 py-2 rounded-xl font-bold text-xs transition">← Back to POS</a>
       </div>
@@ -44,6 +45,48 @@
   var $ = function (id) { return document.getElementById(id); };
   var esc = function (v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
 
+  var qrData = { name: '', tables: [] };
+
+  function drawCard(t) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.onload = function () {
+        var W = 600, H = 760, c = document.createElement('canvas');
+        c.width = W; c.height = H;
+        var g = c.getContext('2d');
+        g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+        g.strokeStyle = '#000'; g.lineWidth = 4; g.strokeRect(2, 2, W - 4, H - 4);
+        g.fillStyle = '#000'; g.textAlign = 'center';
+        g.font = '900 38px sans-serif'; g.fillText(qrData.name, W / 2, 70);
+        g.fillStyle = '#6b7280'; g.font = 'bold 24px sans-serif'; g.fillText('Scan to order from your table', W / 2, 110);
+        g.imageSmoothingEnabled = false;
+        g.drawImage(img, 60, 140, 480, 480);
+        g.fillStyle = '#000'; g.font = '900 64px sans-serif'; g.fillText('Table ' + t.table, W / 2, 700);
+        c.toBlob(function (b) { b ? resolve(b) : reject(new Error('Image banayi nahi ja saki')); }, 'image/png');
+      };
+      img.onerror = function () { reject(new Error('QR load nahi hua')); };
+      img.src = t.qr;
+    });
+  }
+
+  async function downloadQr(i) {
+    var t = qrData.tables[i];
+    if (!t) return;
+    var blob = await drawCard(t);
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'table-' + String(t.table).replace(/[^\w-]+/g, '_') + '-qr.png';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+  }
+
+  async function downloadAll() {
+    for (var i = 0; i < qrData.tables.length; i++) {
+      await downloadQr(i);
+      await new Promise(function (r) { setTimeout(r, 400); });
+    }
+  }
+
   async function load() {
     $('grid').innerHTML = '<p class="col-span-full text-center py-12 text-gray-400 font-bold">Loading...</p>';
     try {
@@ -56,12 +99,14 @@
       var local = /^(https?:\/\/)?(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(d.base.replace(/^https?:\/\//, '')) || /localhost|127\.0\.0\.1|192\.168\.|\/\/10\./.test(d.base);
       $('localWarn').classList.toggle('hidden', !local);
       if (local) $('localWarn').textContent = '⚠ Aap ' + d.base + ' se ye page khol rahe hain. Is address wale QR customer ke phone par nahi khulenge. Print karne se pehle POS ko apne asli domain (jaise menu.vishalfoodiez.in) se kholein.';
-      $('grid').innerHTML = d.tables.length ? d.tables.map(function (t) {
+      qrData = { name: d.restaurant || 'Vishal Foodiez', tables: d.tables };
+      $('grid').innerHTML = d.tables.length ? d.tables.map(function (t, i) {
         return '<div class="qr-card bg-white rounded-2xl border border-gray-200 shadow-sm p-4 text-center">' +
           '<div class="font-black text-sm leading-tight">' + esc(d.restaurant || 'Vishal Foodiez') + '</div>' +
           '<div class="text-[11px] font-bold text-gray-500 mb-1">Scan to order from your table</div>' +
           '<img src="' + t.qr + '" alt="QR for table ' + esc(t.table) + '" class="w-full max-w-[200px] mx-auto">' +
-          '<div class="font-black text-2xl mt-1">Table ' + esc(t.table) + '</div></div>';
+          '<div class="font-black text-2xl mt-1">Table ' + esc(t.table) + '</div>' +
+          '<button onclick="downloadQr(' + i + ')" class="no-print mt-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition">⬇ Download</button></div>';
       }).join('') : '<p class="col-span-full text-center py-12 text-gray-400 font-bold">Koi table nahi mila. Pehle POS me tables banayein.</p>';
     } catch (e) { $('grid').innerHTML = '<p class="col-span-full text-center py-12 text-rose-500 font-bold">' + esc(e.message) + '</p>'; }
   }
