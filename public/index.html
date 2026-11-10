@@ -2966,10 +2966,14 @@
       }
     }
 
-    function fetchMenu() {
+    var lastMenuJson = '';
+    function fetchMenu(onlyIfChanged) {
       fetch('/api/menu')
         .then(function(r) { return r.json(); })
         .then(function(items) {
+          var json = JSON.stringify(items || []);
+          if (onlyIfChanged && json === lastMenuJson) return;
+          lastMenuJson = json;
           allMenuItems = items || [];
           extractCategories();
           renderCategoriesSidebar();
@@ -2979,6 +2983,9 @@
     }
 
     var outCategories = {}, hiddenCategories = {};
+    // menu changes made in admin (out of stock, hide, price...) reach an already open POS screen without a reload
+    setInterval(function() { if (!document.hidden) fetchMenu(true); }, 30000);
+    document.addEventListener('visibilitychange', function() { if (!document.hidden) fetchMenu(true); });
     function isItemUnavailable(i) { return outCategories[String(i.category || '').trim()] || i.status === 'Out of Stock'; }
     var categoryImages = {};
     function loadCategoryImages() {
