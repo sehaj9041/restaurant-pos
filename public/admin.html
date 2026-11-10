@@ -885,7 +885,7 @@
         const grps = parseJson(i.assigned_addon_groups, []);
         const itemImg = resolveImgPath(i.image || i.image_url || i.img || '');
         const stock = Number(i.stock) || 0;
-        const unavailable = stock <= 0;
+        const unavailable = stock <= 0 || i.status === 'Out of Stock';
         const hiddenItem = Number(i.is_visible) === 0;
         return catHeader + `
           <tr class="hover:bg-gray-50 ${unavailable || hiddenItem ? 'opacity-60' : ''}" ${sortRow('items' + gIdx, pos)}>
@@ -970,9 +970,10 @@
     async function toggleAvailability(id) {
       const item = menuItems.find(i => Number(i.id) === id);
       if (!item) return;
-      const makeAvailable = (Number(item.stock) || 0) <= 0;
+      const makeAvailable = (Number(item.stock) || 0) <= 0 || item.status === 'Out of Stock';
       try {
-        await api('/api/menu/' + id, 'PUT', itemPayload(item, { stock: makeAvailable ? 50 : 0 }));
+        // POS / kiosk / website read the status field, so it is set together with the stock
+        await api('/api/menu/' + id, 'PUT', itemPayload(item, { stock: makeAvailable ? ((Number(item.stock) || 0) > 0 ? Number(item.stock) : 50) : 0, status: makeAvailable ? 'Available' : 'Out of Stock' }));
         toast(makeAvailable ? 'Item In Stock (stock 50)' : 'Item Out of Stock - Not Available dikhega');
         loadData();
       } catch (err) { toast(err.message, true); }
@@ -1854,7 +1855,7 @@
     }
 
     function bulkItemAvailability(show) {
-      bulkItems(show ? 'In Stock' : 'Out of Stock', it => ({ stock: show ? ((Number(it.stock) || 0) > 0 ? Number(it.stock) : 50) : 0 }));
+      bulkItems(show ? 'In Stock' : 'Out of Stock', it => ({ stock: show ? ((Number(it.stock) || 0) > 0 ? Number(it.stock) : 50) : 0, status: show ? 'Available' : 'Out of Stock' }));
     }
 
     function bulkItemGroup(add) {
