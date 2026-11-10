@@ -582,7 +582,8 @@
           }).filter(function(a){ return a.name.length > 0; });
         }
       }
-      return addonsList;
+      // size is already shown in the item name as (Small) - it is not an addon
+      return addonsList.filter(function(a) { return !/^\s*size\s*:/i.test(String((a && a.name) || '')); });
     }
 
     function toggleItemReady(orderId, rowIdentifier, itemObj) {
