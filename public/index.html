@@ -712,6 +712,15 @@
               <!-- Dynamically populated categories -->
             </select>
           </div>
+          <div>
+            <label class="block font-black text-gray-500 uppercase text-[10px] mb-1">Food Type</label>
+            <select id="editItemFoodType" class="w-full border border-gray-300 rounded-lg p-2 font-bold text-gray-800 outline-none focus:border-orange-500 bg-white">
+              <option value="">Not set</option>
+              <option value="veg">🟢 Veg</option>
+              <option value="egg">🟡 Egg</option>
+              <option value="nonveg">🔴 Non-Veg</option>
+            </select>
+          </div>
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="block font-black text-gray-500 uppercase text-[10px] mb-1">Base Price (₹) *</label>
@@ -1938,12 +1947,23 @@
           grouped[cat].push(item);
         });
 
-        let html = '';
+        let html = `
+          <div class="sticky top-0 z-10 bg-white border border-gray-200 rounded-xl p-2.5 mb-3 flex flex-wrap items-center gap-2 shadow-2xs">
+            <span class="text-xs font-black text-gray-700">Bulk Food Type:</span>
+            <span id="menuBulkCount" class="text-[11px] font-bold text-gray-400">0 selected</span>
+            <select id="menuBulkFoodType" class="border border-gray-300 rounded-lg px-2 py-1 text-xs font-bold bg-white outline-none">
+              <option value="veg">🟢 Veg</option>
+              <option value="egg">🟡 Egg</option>
+              <option value="nonveg">🔴 Non-Veg</option>
+              <option value="">Not set</option>
+            </select>
+            <button onclick="applyBulkFoodType()" class="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded-lg text-xs font-black transition">Apply to selected</button>
+          </div>`;
         for (const [category, catItems] of Object.entries(grouped)) {
           html += `
             <div class="border border-gray-200 rounded-xl overflow-hidden mb-3">
               <div class="bg-gray-50 p-3 font-black text-gray-800 flex justify-between items-center border-b">
-                <span>📁 ${category} (${catItems.length} items)</span>
+                <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" onchange="toggleBulkCategory(this)" class="w-4 h-4 accent-orange-600"><span>📁 ${category} (${catItems.length} items)</span></label>
               </div>
               <div class="divide-y divide-gray-100">
           `;
@@ -1951,10 +1971,13 @@
             let statusBadge = item.status === 'Out of Stock' ? '<span class="text-rose-600 font-bold">Out of Stock</span>' : '<span class="text-emerald-600 font-bold">Available</span>';
             html += `
               <div class="p-3 flex justify-between items-center hover:bg-orange-50/30 transition">
-                <div>
-                  <div class="font-black text-gray-900">${item.name}</div>
-                  <div class="text-[10px] text-gray-400">Stock: ${item.stock || 50}</div>
-                </div>
+                <label class="flex items-center gap-2.5 cursor-pointer">
+                  <input type="checkbox" class="menu-bulk-cb w-4 h-4 accent-orange-600" value="${item.id}" onchange="updateBulkCount()">
+                  <div>
+                    <div class="font-black text-gray-900">${item.food_type === 'veg' ? '🟢 ' : item.food_type === 'egg' ? '🟡 ' : item.food_type === 'nonveg' ? '🔴 ' : ''}${item.name}</div>
+                    <div class="text-[10px] text-gray-400">Stock: ${item.stock || 50}</div>
+                  </div>
+                </label>
                 <div class="flex items-center gap-4">
                   <span class="font-black text-gray-900">₹${item.price}</span>
                   ${statusBadge}
@@ -1971,6 +1994,32 @@
       }
     }
 
+    function updateBulkCount() {
+      var n = document.querySelectorAll('.menu-bulk-cb:checked').length;
+      var el = document.getElementById('menuBulkCount');
+      if (el) el.innerText = n + ' selected';
+    }
+    function toggleBulkCategory(box) {
+      box.closest('.rounded-xl').querySelectorAll('.menu-bulk-cb').forEach(function(cb) { cb.checked = box.checked; });
+      updateBulkCount();
+    }
+    async function applyBulkFoodType() {
+      var ids = Array.prototype.map.call(document.querySelectorAll('.menu-bulk-cb:checked'), function(cb) { return cb.value; });
+      if (!ids.length) return alert('Pehle items select karein');
+      var type = document.getElementById('menuBulkFoodType').value;
+      var failed = 0;
+      for (var i = 0; i < ids.length; i++) {
+        try {
+          var r = await fetch('/api/menu/' + ids[i], { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ food_type: type }) });
+          var d = await r.json();
+          if (!d.success) failed++;
+        } catch (e) { failed++; }
+      }
+      if (failed) alert(failed + ' item update nahi hue');
+      loadMenuManagementData();
+      fetchMenu();
+    }
+
     function openItemEditModal(item) {
       document.getElementById('editItemId').value = item.id;
       document.getElementById('editItemName').value = item.name;
@@ -1984,6 +2033,7 @@
         catSelect.innerHTML += `<option value="${item.category}" selected>${item.category}</option>`;
       }
 
+      document.getElementById('editItemFoodType').value = item.food_type || '';
       document.getElementById('editItemPrice').value = item.price;
       document.getElementById('editItemStock').value = item.stock || 50;
       if(document.getElementById('editItemStatus')) document.getElementById('editItemStatus').value = item.status || 'Available';
@@ -2012,6 +2062,7 @@
         category: document.getElementById('editItemCategory').value,
         price: Number(document.getElementById('editItemPrice').value),
         stock: Number(document.getElementById('editItemStock').value),
+        food_type: document.getElementById('editItemFoodType').value,
         status: document.getElementById('editItemStatus') ? document.getElementById('editItemStatus').value : 'Available'
       };
 
