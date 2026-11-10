@@ -495,6 +495,28 @@
       if (typeof menuItems !== 'undefined' && menuItems.length) renderCategories();
     }).catch(() => {});
 
+    // Out of stock / hide / price changes made in admin reach an open kiosk without a reload (checked every 30 s, redrawn only when something changed)
+    let lastKioskSig = '';
+    async function refreshKioskMenu() {
+      if (document.hidden) return;
+      try {
+        const [items, rows] = await Promise.all([fetch('/api/menu').then(r => r.json()), fetch('/api/categories').then(r => r.json())]);
+        const sig = JSON.stringify([items, (rows || []).map(c => [c.name, c.out_of_stock, c.is_visible, c.image])]);
+        if (sig === lastKioskSig) return;
+        const first = lastKioskSig === '';
+        lastKioskSig = sig;
+        if (first || !Array.isArray(items)) return;
+        categoryImages = {}; outCategories = {}; hiddenCategories = {};
+        (rows || []).forEach(c => { if (c.image) categoryImages[String(c.name).trim()] = c.image; if (Number(c.out_of_stock)) outCategories[String(c.name).trim()] = true; if (Number(c.is_visible) === 0) hiddenCategories[String(c.name).trim()] = true; });
+        allKioskItems = items;
+        menuItems = items.filter(i => Number(i.is_visible) !== 0);
+        renderCategories();
+      } catch (e) {}
+    }
+    refreshKioskMenu();
+    setInterval(refreshKioskMenu, 30000);
+    document.addEventListener('visibilitychange', refreshKioskMenu);
+
     function renderCategories() {
       categories = [...new Set(menuItems.filter(i => !hiddenCategories[String(i.category || '').trim()]).map(i => i.category))];
       if ((!activeCategory || !categories.includes(activeCategory)) && categories.length) activeCategory = categories[0];
