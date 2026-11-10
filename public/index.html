@@ -4549,7 +4549,7 @@
         var isSelected = (selectedCategory === cat);
         return `
           <button onclick="selectPOSCategory('${cat.replace(/'/g, "\\'")}')" class="w-full text-left px-3 py-2.5 text-xs font-bold transition flex justify-between items-center ${isSelected ? 'bg-orange-50 text-orange-600 font-black border-r-2 border-orange-500' : 'text-gray-600 hover:bg-gray-50'}">
-            <span class="flex items-center gap-2 min-w-0">${categoryImages[cat] ? '<img src="' + String(categoryImages[cat]).replace(/"/g, '&quot;') + '" class="w-7 h-7 rounded-md object-cover shrink-0" alt="">' : ''}<span class="truncate">${cat}</span></span>
+            <span class="flex items-center gap-2 min-w-0">${categoryImages[cat] ? '<img src="' + String(categoryImages[cat]).replace(/"/g, '&quot;') + '" class="w-7 h-7 rounded-md object-cover shrink-0" alt="">' : ''}<span class="break-words leading-tight">${cat}</span></span>
           </button>
         `;
       }).join('');
