@@ -1666,7 +1666,7 @@
 
           // website order accepted: print its bill right away (the later save in POS will not print it a second time)
           // only website orders (order type "Online ...") print on accept; kiosk pay-at-counter orders print when they are settled in the POS
-          if (billCfg.c.auto_print_bill !== false && /online/i.test(String(targetOrder.order_type || ''))) {
+          if (billCfg.c.auto_print_bill !== false && (targetOrder.source === 'ONLINE' || /online/i.test(String(targetOrder.order_type || '')))) {
             var billTotal = (targetOrder.total != null && targetOrder.total !== '') ? Number(targetOrder.total) : 0;
             var billCalc = { subtotal: Number(targetOrder.subtotal) || billTotal, gst: Number(targetOrder.gst) || 0, grandTotal: billTotal, discount: Number(targetOrder.discount) || 0, payableNow: 0 };
             approvalBillPrintedFor = targetOrder.id;

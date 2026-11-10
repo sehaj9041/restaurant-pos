@@ -1850,7 +1850,7 @@ const createOrderHandler = async (req, res) => {
     isComp ? 1 : 0,
     couponCode,
     pointsRedeemed,
-    req.tableQr ? 'TABLE_QR' : null
+    req.tableQr ? 'TABLE_QR' : (isOnlineOrder ? 'ONLINE' : null)
   ];
 
   db.all(insertOrderQuery, orderValues, async (err, result) => {
