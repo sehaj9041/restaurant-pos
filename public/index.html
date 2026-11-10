@@ -1994,6 +1994,13 @@
       }
     }
 
+    function vegIcon(t) {
+      var c = { veg: '#16a34a', nonveg: '#dc2626', egg: '#eab308' }[t];
+      if (!c) return '';
+      var label = { veg: 'Veg', nonveg: 'Non-Veg', egg: 'Egg' }[t];
+      return '<span title="' + label + '" class="inline-flex items-center justify-center w-3.5 h-3.5 border-2 rounded-sm shrink-0 align-middle mr-1" style="border-color:' + c + '"><span class="w-1.5 h-1.5 rounded-full" style="background:' + c + '"></span></span>';
+    }
+
     function updateBulkCount() {
       var n = document.querySelectorAll('.menu-bulk-cb:checked').length;
       var el = document.getElementById('menuBulkCount');
@@ -4661,7 +4668,7 @@
               ${item.image ? `<img src="${item.image}" class="w-12 h-12 rounded-lg object-cover border ${na ? 'opacity-40 grayscale' : ''}">` : `<div class="w-12 h-12 rounded-lg bg-gray-50 ${na ? 'opacity-40' : ''} flex items-center justify-center text-gray-300 text-base">🍔</div>`}
               <div class="${na ? 'opacity-50' : ''}">
                 <div class="text-[9px] font-bold text-gray-400 uppercase tracking-wide">${item.category || ''}</div>
-                <h3 class="text-xs font-bold text-gray-800 line-clamp-1">${item.name}</h3>
+                <h3 class="text-xs font-bold text-gray-800 line-clamp-1">${vegIcon(item.food_type)}${item.name}</h3>
                 <div class="text-xs font-black text-gray-900 mt-0.5">₹${item.price}</div>
               </div>
             </div>

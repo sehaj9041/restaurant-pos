@@ -550,7 +550,7 @@
             <div class="h-28 flex items-center justify-center ${na ? 'opacity-40 grayscale' : ''}">
               ${img ? `<img src="${esc(img)}" class="max-h-full max-w-full object-contain" onerror="this.onerror=null; this.replaceWith(Object.assign(document.createElement('span'),{className:'text-6xl',textContent:'🍔'}));">` : '<span class="text-6xl">🍔</span>'}
             </div>
-            <h3 class="font-bold text-[12px] leading-tight mt-2 break-words ${na ? 'opacity-50' : ''}">${esc(item.name)}</h3>
+            <h3 class="font-bold text-[12px] leading-tight mt-2 break-words ${na ? 'opacity-50' : ''}">${vegIcon(item.food_type)}${esc(item.name)}</h3>
             <span class="font-bold text-[12px] mt-auto pt-1 ${na ? 'opacity-50' : ''}">${priceTag}</span>
           </button>`;
       }).join('') || '<p class="col-span-3 text-neutral-500 text-sm">No items in this category.</p>';
@@ -900,6 +900,13 @@
         cb.closest('label').classList.remove('selected');
       }
       updateCustomizerTotal();
+    }
+
+    function vegIcon(t) {
+      var c = { veg: '#16a34a', nonveg: '#dc2626', egg: '#eab308' }[t];
+      if (!c) return '';
+      var label = { veg: 'Veg', nonveg: 'Non-Veg', egg: 'Egg' }[t];
+      return '<span title="' + label + '" class="inline-flex items-center justify-center w-3.5 h-3.5 border-2 rounded-sm shrink-0 align-middle mr-1" style="border-color:' + c + '"><span class="w-1.5 h-1.5 rounded-full" style="background:' + c + '"></span></span>';
     }
 
     function unitPrice() {
