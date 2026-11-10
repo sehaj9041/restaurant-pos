@@ -945,15 +945,12 @@
         }
       }
 
-      let notes = [];
-      if (selectedVariation) notes.push(`Size: ${selectedVariation.name}`);
-      Object.values(selectedGroupAddons).forEach(list => {
-        list.forEach(a => notes.push(`${a.name} (+₹${Number(a.price)})`));
-      });
-
-      const noteText = notes.join(', ');
+      // size and add-ons go in the item name, "Burger (Large) (Spicy Dip)": that is the format the bill, POS and KDS already read (same as website orders)
+      const addonNames = [];
+      Object.values(selectedGroupAddons).forEach(list => list.forEach(a => addonNames.push(a.name)));
+      const noteText = '';
       const finalPrice = unitPrice();
-      const displayName = selectedVariation ? `${selectedMenuItem.name} (${selectedVariation.name})` : selectedMenuItem.name;
+      const displayName = selectedMenuItem.name + (selectedVariation ? ` (${selectedVariation.name})` : '') + (addonNames.length ? ` (${addonNames.join(', ')})` : '');
 
       let line = kioskTray.find(i => i.menu_id === selectedMenuItem.id && i.name === displayName && i.notes === noteText);
       if (line) line.qty += custQty;
