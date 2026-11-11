@@ -1518,7 +1518,7 @@
 
     // Same layout as the index.html bill. Returns { css, body } so it can be printed through the browser
     // or drawn to an image (for the USB printer) without any layout difference.
-    function kioskBillParts(data, o, logoHtml) {
+    function kioskBillParts(data, o, logoHtml, qrHtml) {
       const s = kioskStoreCfg, c = kioskReceiptCfg;
       const rows = o.items.map(i => `<tr><td class="nm">${esc(i.name)}${i.notes ? `<div style="font-size:10px;font-weight:400">${esc(i.notes)}</div>` : ''}</td><td class="q">${i.qty}</td><td class="r">${Number(i.price).toFixed(2)}</td><td class="a">${(i.price * i.qty).toFixed(2)}</td></tr>`).join('');
       const css = `
@@ -1570,13 +1570,27 @@
         <div class="center" style="font-size:11px">Payment Mode: <b>${esc(o.payment_mode)}</b></div>
         <div class="center" style="font-size:11px;margin-top:4px">${esc(c.thank_you || 'Thanks For Visiting Us!')}</div>
         ${c.footer ? `<div class="center" style="font-size:10px;margin-top:2px">${esc(c.footer)}</div>` : ''}
+        ${qrHtml || ''}
       </div>`;
       return { css, body };
     }
 
+    // Bill QRs, same as the POS bill: feedback (needs the order id) + app download, side by side
+    function kioskQrList(data, o) {
+      if (o.slip) return [];
+      const l = [];
+      if (kioskReceiptCfg.show_feedback_qr !== false && data.orderId) l.push({ path: '/api/feedback/qr/' + encodeURIComponent(data.orderId), cap: 'Scan to rate us' });
+      if (kioskReceiptCfg.show_app_qr !== false) l.push({ path: '/api/app/qr', cap: 'Scan to get our app' });
+      return l;
+    }
+    function kioskQrBlock(list, inner) {
+      if (!list.length) return '';
+      return '<div style="display:flex;justify-content:center;gap:4mm;margin-top:6px;text-align:center">' + list.map((q, i) => '<div>' + inner(q, i) + '<div style="font-size:10px">' + q.cap + '</div></div>').join('') + '</div>';
+    }
+
     function kioskBillHtml(data, o) {
       const logoImg = o.logo && kioskReceiptCfg.logo;
-      const p = kioskBillParts(data, o, logoImg ? `<div class="center"><img src="${esc(logoImg)}" style="max-width:45mm;max-height:22mm;object-fit:contain;filter:grayscale(1) contrast(1.4);"></div>` : '');
+      const p = kioskBillParts(data, o, logoImg ? `<div class="center"><img src="${esc(logoImg)}" style="max-width:45mm;max-height:22mm;object-fit:contain;filter:grayscale(1) contrast(1.4);"></div>` : '', kioskQrBlock(kioskQrList(data, o), q => `<img src="${location.origin}${q.path}" style="width:26mm;height:26mm;">`));
       return `<html><head><style>@page { margin: 0; size: 80mm auto; } body { margin: 0; } .bill { width: 68mm; } ${p.css}</style></head><body>${p.body}</body></html>`;
     }
 
@@ -1653,15 +1667,28 @@
           lw = Math.max(1, Math.round(logoImg.naturalWidth * k)); lh = Math.max(1, Math.round(logoImg.naturalHeight * k));
         } catch (e) { console.warn('logo load failed', e); logoImg = null; kioskNotify('Logo load nahi hua (' + kioskReceiptCfg.logo + '): ' + (e && e.message || e)); }
       }
-      const p = kioskBillParts(data, o, logoImg ? '<div style="height:' + lh + 'px"></div>' : '');
+      // the QRs are drawn straight onto the canvas too (same reason as the logo): the bill only reserves blank squares for them
+      const qrPx = Math.round(cssW * 26 / 68), qrs = [];
+      for (const q of kioskQrList(data, o)) {
+        try {
+          const qd = await urlToDataUrl(q.path);
+          const im = new Image();
+          await new Promise((res, rej) => { im.onload = res; im.onerror = () => rej(new Error('qr decode failed')); im.src = qd; });
+          qrs.push({ path: q.path, cap: q.cap, img: im });
+        } catch (e) { console.warn('qr load failed', q.path, e); }
+      }
+      const p = kioskBillParts(data, o, logoImg ? '<div style="height:' + lh + 'px"></div>' : '', kioskQrBlock(qrs, (q, i) => '<div id="billQrSlot' + i + '" style="width:' + qrPx + 'px;height:' + qrPx + 'px"></div>'));
       const host = document.createElement('div');
       host.style.cssText = 'position:fixed;left:-10000px;top:0;width:' + cssW + 'px;';
       host.innerHTML = '<style>' + p.css + ' .bill{width:' + cssW + 'px;box-sizing:border-box;}</style>' + p.body;
       document.body.appendChild(host);
       let xhtml, cssH;
+      const qrPos = [];
       try {
         await new Promise(r => setTimeout(r, 50));
         cssH = Math.ceil(host.getBoundingClientRect().height);
+        const hr = host.getBoundingClientRect();
+        qrs.forEach((q, i) => { const slot = host.querySelector('#billQrSlot' + i); if (slot) { const sr = slot.getBoundingClientRect(); qrPos[i] = { x: sr.left - hr.left, y: sr.top - hr.top }; } });
         host.style.cssText = 'width:' + cssW + 'px;';   // drop the off-screen positioning before serialising
         xhtml = new XMLSerializer().serializeToString(host);
       } finally { document.body.removeChild(host); }
@@ -1676,6 +1703,11 @@
       if (logoImg) {
         const kk = contentDots / cssW;
         ctx.drawImage(logoImg, offX + Math.round((cssW - lw) / 2 * kk), 0, Math.round(lw * kk), Math.round(lh * kk));
+      }
+      {
+        const kk = contentDots / cssW;
+        ctx.imageSmoothingEnabled = false;                  // keep the QR modules sharp
+        qrs.forEach((q, i) => { if (qrPos[i]) ctx.drawImage(q.img, offX + Math.round(qrPos[i].x * kk), Math.round(qrPos[i].y * kk), Math.round(qrPx * kk), Math.round(qrPx * kk)); });
       }
       return canvasToEscPos(trimBottom(cv));                // throws if the canvas got tainted
     }

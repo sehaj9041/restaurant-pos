@@ -438,6 +438,24 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
     } catch (e) { res.status(500).end(); }
   });
 
+  // Bill QR #2: one QR for both apps. /app sends Android phones to the Play Store link and iPhones to the App Store link
+  // (Settings > Receipt > App Links); anything else (or a missing link) goes to app_url, then the website order page.
+  const okLink = (v) => (/^https?:\/\//i.test(String(v || '').trim()) ? String(v).trim() : '');
+  app.get('/app', async (req, res) => {
+    try {
+      const r = (await getSettingsConfig()).receipt || {};
+      const ua = String(req.get('user-agent') || '');
+      const pick = /android/i.test(ua) ? okLink(r.app_android_url) : /iphone|ipad|ipod/i.test(ua) ? okLink(r.app_ios_url) : '';
+      res.set('Cache-Control', 'no-store').redirect(302, pick || okLink(r.app_url) || '/order.html');
+    } catch (e) { res.redirect(302, '/order.html'); }
+  });
+  app.get('/api/app/qr', async (req, res) => {
+    try {
+      const png = await QRCode.toBuffer(`${baseUrl(req)}/app`, { width: 220, margin: 1 });
+      res.set('Content-Type', 'image/png').set('Cache-Control', 'public, max-age=300').send(png);
+    } catch (e) { res.status(500).end(); }
+  });
+
   // feedback.html asks which order this link is for (token no. + whether it was already answered)
   app.get('/api/feedback/order/:id', async (req, res) => {
     const id = Number(req.params.id);

@@ -432,6 +432,10 @@
           <div class="space-y-5">
             <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><div><div class="text-xs font-bold text-gray-500">Header Text</div><p class="text-[10px] text-gray-400 mt-1">Restaurant name ke neeche print hoti hai. Bharne par bill se address, phone aur GSTIN wali lines hat jati hain (khaali chhodne par wo pehle jaisi aayengi).</p></div><input id="rc_header" type="text" maxlength="160" class="max-w-md w-full border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"></div>
             <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><div><div class="text-xs font-bold text-gray-500">Thank You Message</div><p class="text-[10px] text-gray-400 mt-1">Total ke theek neeche beech me.</p></div><input id="rc_thank" type="text" maxlength="120" placeholder="Thanks For Visiting Us!" class="max-w-md w-full border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"></div>
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><div><div class="text-xs font-bold text-gray-500">App Links (QR)</div><p class="text-[10px] text-gray-400 mt-1">Bill par ek hi QR hai: Android phone Play Store khulega, iPhone App Store. Koi link khaali ho ya computer se scan ho to "Other" link (khaali = website ka order page).</p></div><div class="space-y-2 max-w-md w-full">
+              <input id="rc_app_android" type="url" maxlength="300" placeholder="Android (Play Store) https://..." class="w-full border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400">
+              <input id="rc_app_ios" type="url" maxlength="300" placeholder="iPhone (App Store) https://..." class="w-full border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400">
+              <input id="rc_app_url" type="url" maxlength="300" placeholder="Other / default https://..." class="w-full border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"></div></div>
             <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><div><div class="text-xs font-bold text-gray-500">Footer Text</div><p class="text-[10px] text-gray-400 mt-1">Thank-you ke neeche optional line (jaise website, FSSAI).</p></div><input id="rc_footer" type="text" maxlength="160" class="max-w-md w-full border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"></div>
           </div>
         </div>
@@ -1079,6 +1083,9 @@
       const r = cfg.receipt || {};
       $('rc_thank').value = r.thank_you || '';
       $('rc_header').value = r.header || '';
+      $('rc_app_url').value = r.app_url || '';
+      $('rc_app_android').value = r.app_android_url || '';
+      $('rc_app_ios').value = r.app_ios_url || '';
       $('rc_footer').value = r.footer || '';
       $('rcPrintRows').innerHTML = rowsHTML('rcp', [{ k: 'auto_print_bill', def: true, label: 'Auto-print bill', desc: 'Payment record hote hi bill apne aap print ho. OFF karne par bill sirf "Print Receipt" button se niklega.' }], r);
       $('rc_copies').value = r.copies || 1;
@@ -1100,6 +1107,7 @@
       { k: 'show_address', def: true, label: 'Delivery address' },
       { k: 'show_date', def: true, label: 'Date & time' },
       { k: 'show_feedback_qr', def: true, label: 'Feedback QR (Scan to rate us)' },
+      { k: 'show_app_qr', def: true, label: 'App QR (Scan to get our app)', desc: 'Feedback QR ke bagal me (POS + kiosk bill). Links Receipt tab ke "App Links" se aate hain.' },
       { k: 'show_tax_split', def: true, label: 'CGST / SGST split', desc: 'OFF karne par ek hi "GST" line aayegi.' }
     ];
     function saveBillLayout() {
@@ -1119,7 +1127,7 @@
     }
     function receiptObj(extra) { return Object.assign({}, cfg.receipt || {}, extra); }
     function saveReceipt() {
-      putConfig({ receipt: receiptObj({ header: $('rc_header').value.trim(), thank_you: $('rc_thank').value.trim(), footer: $('rc_footer').value.trim() }) })
+      putConfig({ receipt: receiptObj({ app_url: $('rc_app_url').value.trim(), app_android_url: $('rc_app_android').value.trim(), app_ios_url: $('rc_app_ios').value.trim(), header: $('rc_header').value.trim(), thank_you: $('rc_thank').value.trim(), footer: $('rc_footer').value.trim() }) })
         .then(() => toast('Receipt text save ho gaya ✓')).catch(e => toast(e.message, true));
     }
     function savePrinting() {
