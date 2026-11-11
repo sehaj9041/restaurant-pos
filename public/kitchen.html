@@ -1182,13 +1182,19 @@
       var grid = document.getElementById('kotGrid');
       if (!grid) return;
       var gap = 16 * (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kot-scale')) || 1);
-      // card n goes to column n % columns (oldest first, left to right); the next round stacks under the same column's card, e.g. 8th card under 1st
+      // oldest first: the first row fills left to right, then every next card goes into the currently shortest column (leftmost on a tie),
+      // so a tall card never leaves its neighbours' columns empty while a newer card waits underneath it
       var cols = Math.max(1, getComputedStyle(grid).gridTemplateColumns.split(' ').length);
-      var n = 0;
+      var colH = [];
+      for (var c = 0; c < cols; c++) colH.push(0);
       Array.prototype.forEach.call(grid.children, function(card) {
         if (!card.classList.contains('kot-card-box')) return;
-        card.style.gridColumnStart = (n++ % cols) + 1;
-        card.style.gridRowEnd = 'span ' + Math.ceil(card.getBoundingClientRect().height + gap);
+        var h = Math.ceil(card.getBoundingClientRect().height + gap);
+        var col = 0;
+        for (var k = 1; k < cols; k++) if (colH[k] < colH[col]) col = k;
+        colH[col] += h;
+        card.style.gridColumnStart = col + 1;
+        card.style.gridRowEnd = 'span ' + h;
         if (kotCardObserver && !card._kotObserved) { card._kotObserved = true; kotCardObserver.observe(card); } // cards are re-created on every render, so no cleanup needed
       });
     }
