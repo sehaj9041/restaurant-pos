@@ -16,6 +16,7 @@ const PUBLIC_API = [
   ['GET', /^\/(menu|categories|addon-groups|upsells|kiosk-suggestions|store-status|settings\/config|loyalty-info|my-orders)$/],
   ['GET', /^\/track\/[^/]+$/],
   ['GET', /^\/feedback\/(qr|order)\/[^/]+$/],
+  ['GET', /^\/app\/qr$/],            // bill QR: app download link
   ['POST', /^\/(delivery-charge|orders|coupons\/validate|loyalty\/my|loyalty\/code|otp\/send|otp\/verify|feedback)$/],
   ['ALL', /^\/razorpay\//],
   ['ALL', /^\/table-qr\//],            // table-qr-admin is a different prefix and stays protected
