@@ -441,22 +441,34 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
   // Bill QR #2: one QR for both apps. /app sends Android phones to the Play Store link and iPhones to the App Store link
   // (Settings > Receipt > App Links); anything else (or a missing link) goes to app_url, then the website order page.
   const okLink = (v) => (/^https?:\/\//i.test(String(v || '').trim()) ? String(v).trim() : '');
+  // Android: a plain https://play.google.com link often opens the Play Store *website* (QR scanners / in-app browsers).
+  // The native market:// (via an intent:// URL for Chrome) opens the Play Store app; the https link is the fallback if the app does not take over.
+  const playId = (u) => { try { const x = new URL(u); return /(^|\.)play\.google\.com$/i.test(x.hostname) ? (x.searchParams.get('id') || '') : ''; } catch (e) { return ''; } };
   app.get('/app', async (req, res) => {
     try {
       const r = (await getSettingsConfig()).receipt || {};
       const ua = String(req.get('user-agent') || '');
       const android = okLink(r.app_android_url), ios = okLink(r.app_ios_url), other = okLink(r.app_url) || '/order.html';
       res.set('Cache-Control', 'no-store');
-      if (/android/i.test(ua)) return res.redirect(302, android || other);
-      if (/iphone|ipad|ipod/i.test(ua)) return res.redirect(302, ios || other);
-      // Unknown user-agent (some QR scanners / "Desktop site" mode hide the phone): let the browser itself tell Android from iOS
+      const isIos = /iphone|ipad|ipod/i.test(ua), isAndroid = /android/i.test(ua);
+      if (isIos) return res.redirect(302, ios || other);
+      if (isAndroid && !playId(android)) return res.redirect(302, android || other);
+      // Android with a Play Store link, or a user-agent that does not say what the phone is: a small page decides in the browser
       const J = (v) => JSON.stringify(v).replace(/</g, '\\u003c');
+      const pid = playId(android);
       res.type('html').send(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Vishal Foodiez</title>
-<body style="font-family:sans-serif;text-align:center;padding:40px">Opening...<script>
-var a=${J(android)},i=${J(ios)},o=${J(other)},n=navigator,ua=n.userAgent||'',pl=(n.userAgentData&&n.userAgentData.platform)||n.platform||'',t=n.maxTouchPoints||0,to=o;
-if(/android/i.test(ua)||/android/i.test(pl)||(/linux/i.test(pl)&&t>0)) to=a||o;
-else if(/iphone|ipad|ipod/i.test(ua)||/iphone|ipad/i.test(pl)||(/mac/i.test(pl)&&t>1)) to=i||o;
-location.replace(to);
+<body style="font-family:sans-serif;text-align:center;padding:40px"><p id="m">Opening...</p><p><a id="b" style="display:none;background:#4f46e5;color:#fff;padding:14px 22px;border-radius:12px;text-decoration:none;font-weight:bold">Open Play Store</a></p><script>
+var a=${J(android)},i=${J(ios)},o=${J(other)},pid=${J(pid)},n=navigator,ua=n.userAgent||'',pl=(n.userAgentData&&n.userAgentData.platform)||n.platform||'',t=n.maxTouchPoints||0;
+var isA=/android/i.test(ua)||/android/i.test(pl)||(/linux/i.test(pl)&&t>0);
+var isI=!isA&&(/iphone|ipad|ipod/i.test(ua)||/iphone|ipad/i.test(pl)||(/mac/i.test(pl)&&t>1));
+if(isI) location.replace(i||o);
+else if(isA&&pid){
+  var intent='intent://details?id='+pid+'#Intent;scheme=market;package=com.android.vending;S.browser_fallback_url='+encodeURIComponent(a)+';end';
+  var btn=document.getElementById('b'); btn.href=intent; btn.style.display='inline-block';
+  location.href=intent;
+  setTimeout(function(){ if(!document.hidden) location.replace(a); },2500);
+}
+else location.replace(isA?(a||o):o);
 </script><noscript><meta http-equiv="refresh" content="0;url=${other.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}"></noscript>`);
     } catch (e) { res.redirect(302, '/order.html'); }
   });
