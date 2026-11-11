@@ -51,6 +51,7 @@
           <span><span class="block font-black text-gray-900 text-lg">Takeaway</span><span class="block text-xs text-gray-500 font-semibold">Order karein, restaurant se khud le jayein</span></span>
         </button>
       </div>
+      <button id="viewMenuBtn" onclick="viewMenuOnly()" class="hidden w-full bg-indigo-600 text-white font-black py-3.5 rounded-2xl text-sm shadow-sm">📖 View Menu</button>
       <button id="landingOrdersBtn" onclick="openOrders()" class="hidden w-full border border-gray-300 bg-white text-gray-700 font-black py-3 rounded-2xl text-sm">📦 My Orders &amp; Tracking</button>
     </div>
   </div>
@@ -507,7 +508,7 @@
 
     let lastPlaced = { id: null, phone: '' };
     let storeCfg = {};
-    let storeOpen = true, storeMsg = '';
+    let storeOpen = true, storeMsg = '', viewOnly = false;
     let deliveryQuote = { charge: 0, message: '' }, lastQuoteKey = '';
 
     // Settings > Operating Hours: closed => no ordering (server enforces too)
@@ -516,8 +517,10 @@
         storeOpen = st.open !== false; storeMsg = st.message || '';
         const box = document.getElementById('landingClosed');
         box.innerText = storeMsg; box.classList.toggle('hidden', storeOpen);
+        document.getElementById('viewMenuBtn').classList.toggle('hidden', storeOpen);
+        if (storeOpen && viewOnly) { viewOnly = false; backToLanding(); }
         ['startDelivery', 'startTakeaway'].forEach(id => { const b = document.getElementById(id); b.disabled = !storeOpen; b.style.opacity = storeOpen ? '' : '0.45'; b.style.cursor = storeOpen ? '' : 'not-allowed'; });
-        if (!storeOpen && !document.getElementById('app').classList.contains('hidden')) backToLanding();
+        if (!storeOpen && !viewOnly && !document.getElementById('app').classList.contains('hidden')) backToLanding();
       }).catch(() => {});
     }
     refreshStoreStatus();
@@ -588,8 +591,21 @@
       document.getElementById('payBtnCod2').innerText = cashLabel;
       document.getElementById('payCodOnly').innerText = cashLabel;
     }
+    // Restaurant closed: customers can browse the menu but not order
+    function viewMenuOnly() {
+      if (storeOpen) return;
+      viewOnly = true;
+      document.getElementById('modeChip').innerText = '📖 Menu only • ' + (storeMsg || 'Abhi restaurant band hai');
+      document.getElementById('landing').classList.add('hidden');
+      document.getElementById('app').classList.remove('hidden');
+      document.getElementById('cartBar').classList.add('hidden');
+      renderMenu();
+      window.scrollTo(0, 0);
+      spy();
+    }
     function startOrder(m) {
       if (!storeOpen) return toast(storeMsg || 'Abhi restaurant band hai', true);
+      if (viewOnly) { viewOnly = false; renderMenu(); }
       setMode(m);
       lastQuoteKey = '';
       document.getElementById('landing').classList.add('hidden');
@@ -599,6 +615,7 @@
       quoteIfNeeded();
     }
     function backToLanding() {
+      if (viewOnly) { viewOnly = false; renderMenu(); }
       document.getElementById('app').classList.add('hidden');
       document.getElementById('landing').classList.remove('hidden');
       refreshProfileUI();
@@ -699,8 +716,8 @@
             </div>
           </div>
           <div class="shrink-0 flex flex-col items-end gap-1">
-            ${inCart > 0 ? `<span class="font-black text-[10px] text-indigo-800 bg-indigo-100 rounded-full px-2 py-0.5">${inCart} in cart</span>` : ''}
-            ${soldOut ? `<span class="text-rose-600 font-black text-[11px] bg-rose-50 border border-rose-200 rounded-lg px-2 py-1 whitespace-nowrap">Not Available</span>` : `
+            ${inCart > 0 && !viewOnly ? `<span class="font-black text-[10px] text-indigo-800 bg-indigo-100 rounded-full px-2 py-0.5">${inCart} in cart</span>` : ''}
+            ${viewOnly ? '' : soldOut ? `<span class="text-rose-600 font-black text-[11px] bg-rose-50 border border-rose-200 rounded-lg px-2 py-1 whitespace-nowrap">Not Available</span>` : `
               <button onclick="addItemCheckAddons(${Number(item.id)})" class="bg-indigo-50 hover:bg-indigo-100 active:scale-95 border border-indigo-200 text-indigo-700 font-black text-xs px-4 py-1.5 rounded-xl transition">
                 + ADD
               </button>`}
@@ -1138,7 +1155,7 @@
         aq.className = 'rounded-2xl px-3.5 py-2.5 text-xs font-black ' + (bad ? 'bg-amber-50 border border-amber-200 text-amber-800' : 'bg-emerald-50 border border-emerald-200 text-emerald-800');
         aq.innerText = bad ? (deliveryQuote.message || 'Delivery charge location ke baad dikhega') : (Number(deliveryQuote.charge) > 0 ? `🛵 Delivery charge: ₹${deliveryQuote.charge}` : '🛵 Delivery: FREE');
       } else aq.className = 'hidden';
-      document.getElementById('cartBar').classList.toggle('hidden', count === 0);
+      document.getElementById('cartBar').classList.toggle('hidden', count === 0 || viewOnly);
       document.getElementById('menuFab').classList.toggle('above-cart', count > 0);
       const nb = document.getElementById('navCartBadge');
       nb.innerText = count > 99 ? '99+' : count; nb.classList.toggle('hidden', count === 0);
