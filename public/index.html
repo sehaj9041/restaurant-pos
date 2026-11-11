@@ -3699,16 +3699,7 @@
       document.getElementById('posOfferPw').value = '';
       document.getElementById('posOfferLoyalty').innerText = '';
       document.getElementById('posOfferPointsRow').classList.add('hidden');
-      var phone = (document.getElementById('posCustPhone').value || '').replace(/\D/g, '').slice(-10);
-      if (phone.length === 10) {
-        fetch('/api/loyalty/' + phone).then(function(r) { return r.json(); }).then(function(d) {
-          if (!d || !d.enabled) return;
-          document.getElementById('posOfferPointsRow').classList.remove('hidden');
-          document.getElementById('posOfferLoyalty').innerText = '⭐ ' + d.balance + ' points (1 pt = ₹' + d.point_value + ', min ' + d.min_redeem + ', max ' + d.max_redeem_pct + '% of bill)';
-        }).catch(function() {});
-      } else {
-        document.getElementById('posOfferLoyalty').innerText = 'Points ke liye pehle customer ka phone number daalein';
-      }
+      document.getElementById('posOfferLoyalty').innerText = 'Loyalty points sirf kiosk, website ya table QR order par redeem hote hain';
       document.getElementById('posOfferModal').classList.remove('hidden');
     }
     function closePosOfferModal() { closeVirtualKeyboards(); document.getElementById('posOfferModal').classList.add('hidden'); }

@@ -34,6 +34,7 @@ function inBonusWindow(L, hh, mm, dow) {
 }
 
 // rows: that phone's orders (not void/hold), oldest first, with created_at, hh, mm, dow, total, paid_amount, is_complimentary, points_redeemed
+const EARN_SOURCES = ['KIOSK', 'ONLINE', 'TABLE_QR'];
 function simulateLoyalty(rows, L, nowMs) {
   const DAY = 86400000, lots = [];
   let earned = 0, redeemed = 0, firstSeen = false;
@@ -45,6 +46,7 @@ function simulateLoyalty(rows, L, nowMs) {
     let red = Math.floor(numOr(r.points_redeemed));
     redeemed += red;
     while (red > 0 && lots.length) { const take = Math.min(red, lots[0].qty); lots[0].qty -= take; red -= take; if (lots[0].qty <= 0) lots.shift(); }
+    if (!EARN_SOURCES.includes(String(r.source || '').toUpperCase())) continue; // points are earned only on kiosk / website / table-QR orders, not counter (POS) orders
     const paid = numOr(r.paid_amount) >= numOr(r.total) && numOr(r.total) > 0 && !numOr(r.is_complimentary);
     if (!paid) continue;
     const base = numOr(r.total) * L.earn_per_100 / 100;
@@ -92,6 +94,8 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
   )`, []).catch(e => console.error('feedback table error:', e.message));
   dbAllAsync(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS coupon_code TEXT`, []).catch(() => {});
   dbAllAsync(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS points_redeemed INTEGER DEFAULT 0`, []).catch(() => {});
+  // Kiosk orders used to be saved without a source; they are recognisable by the fixed guest name the kiosk sends
+  dbAllAsync(`UPDATE orders SET source = 'KIOSK' WHERE source IS NULL AND customer_name = 'Self Kiosk Guest'`, []).catch(() => {});
 
   // One short-lived redeem code per phone: the customer shows it on their own phone (needs their profile token), staff types it at the POS.
   dbAllAsync(`CREATE TABLE IF NOT EXISTS loyalty_codes (
@@ -118,7 +122,7 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
   const publicOffers = (L) => ({ expiry_days: L.expiry_days, first_order_bonus: L.first_order_bonus,
     bonus: L.bonus_enabled ? { start: L.bonus_start, end: L.bonus_end, multiplier: L.bonus_multiplier, days: L.bonus_days } : null });
 
-  const ledgerCols = `id, total, paid_amount, is_complimentary, points_redeemed, created_at,
+  const ledgerCols = `id, total, paid_amount, is_complimentary, points_redeemed, source, created_at,
     EXTRACT(HOUR FROM created_at)::int AS hh, EXTRACT(MINUTE FROM created_at)::int AS mm, EXTRACT(DOW FROM created_at)::int AS dow`;
 
   async function loyaltyBalance(phone, L, excludeId = 0) {
@@ -531,6 +535,7 @@ else location.replace(isA?(a||o):o);
   // remember it on the order and let the discount-password check pass (needsAuth looks at req.promoApproved).
   async function applyPromoToOrderEdit(req, res, next) {
     const b = req.body || {};
+    if (Number(b.points_redeem) > 0) return res.status(400).json({ error: 'Points sirf kiosk, website ya table QR se redeem ho sakte hain' });
     const hasPromoFields = !!(b.coupon_code || Number(b.points_redeem) > 0);
     if (b.is_complimentary || !hasPromoFields) {
       // A saved coupon / points redemption only stays while the discount is still the one it created; removing or replacing it releases the points / coupon.

@@ -1757,6 +1757,7 @@ const createOrderHandler = async (req, res) => {
   let discountReason = String(req.body.discount_reason || '').trim().slice(0, 200);
   // Coupon / loyalty points: the rupee discount is recomputed here from the DB, never taken from the client, so no discount password is needed.
   let couponCode = null, pointsRedeemed = 0, promoApplied = false;
+  if (!isOnlineOrder && !req.tableQr && !is_kiosk && !req.autoAccept && Number(req.body.points_redeem) > 0) return res.status(400).json({ error: 'Points sirf kiosk, website ya table QR se redeem ho sakte hain' });
   if (!isOnlineOrder && !req.body.is_complimentary && (req.body.coupon_code || Number(req.body.points_redeem) > 0)) {
     try {
       const promo = await engagement.computeDiscount({ subtotal: calculatedSubtotal, phone: customer_phone, coupon_code: req.body.coupon_code, points_redeem: req.body.points_redeem,
@@ -1850,7 +1851,7 @@ const createOrderHandler = async (req, res) => {
     isComp ? 1 : 0,
     couponCode,
     pointsRedeemed,
-    req.tableQr ? 'TABLE_QR' : (isOnlineOrder ? 'ONLINE' : null)
+    req.tableQr ? 'TABLE_QR' : (isOnlineOrder ? 'ONLINE' : ((is_kiosk || req.autoAccept) ? 'KIOSK' : null))
   ];
 
   db.all(insertOrderQuery, orderValues, async (err, result) => {
