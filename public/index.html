@@ -3836,6 +3836,18 @@
       }
       return false;
     }
+    // PWA window ki last position (secondary screen) yaad rehti hai; POS ko hamesha primary screen par rakhta hai
+    // taaki secondary screen sirf customer display ke liye bachi rahe.
+    (async function keepPosOnPrimaryScreen() {
+      if (!window.getScreenDetails || window.opener) return;
+      try {
+        var d = await window.getScreenDetails();
+        var primary = d.screens.find(function(s) { return s.isPrimary; });
+        if (!primary || d.currentScreen === primary || d.screens.length < 2) return;
+        window.moveTo(primary.availLeft, primary.availTop);
+        window.resizeTo(primary.availWidth, primary.availHeight);
+      } catch (e) {}
+    })();
     (function autoOpenCustomerDisplay() {
       if (sessionStorage.getItem('customerDisplayAutoOpened')) return;
       function once() {
