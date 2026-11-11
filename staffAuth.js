@@ -109,14 +109,14 @@ function register(app, { db, checkOwnerPin }) {
       let decoded = req.path; try { decoded = decodeURIComponent(req.path); } catch (e) { /* keep raw */ }
       if ((req.method === 'GET' || req.method === 'HEAD') && PROTECTED_PAGES.test(decoded)) {
         if (await isAuthed(req)) { await renew(req, res); res.setHeader('Cache-Control', 'no-store'); return next(); }
-        return res.redirect('/login?next=' + encodeURIComponent(req.originalUrl));
+        return res.redirect((/^\/index\.html(\/|$)/i.test(req.path) ? '/index.html/login' : '/login') + '?next=' + encodeURIComponent(req.originalUrl)); // installed POS app scope is /index.html, so login must stay inside it
       }
       next();
     } catch (e) { console.error('[AUTH] gate error:', e.message); res.status(500).json({ error: 'Auth error' }); }
   });
 
   // ---- login / logout / credentials ----
-  app.get('/login', async (req, res) => {
+  app.get(['/login', '/index.html/login'], async (req, res) => {
     const cfg = await loadCfg().catch(() => null);
     res.setHeader('Cache-Control', 'no-store');
     res.type('html').send(loginPage(!cfg, safeNext(req.query.next)));

@@ -9,7 +9,7 @@
     return realFetch(input, init).then(function (res) {
       if (res.status === 401 && !going) {
         res.clone().json().then(function (b) {
-          if (b && b.login && !going) { going = true; location.href = '/login?next=' + encodeURIComponent(location.pathname + location.search); }
+          if (b && b.login && !going) { going = true; location.href = (/^\/index\.html(\/|$)/i.test(location.pathname) ? '/index.html/login' : '/login') + '?next=' + encodeURIComponent(location.pathname + location.search); }
         }).catch(function () {});
       }
       return res;
