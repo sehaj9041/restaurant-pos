@@ -445,8 +445,19 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
     try {
       const r = (await getSettingsConfig()).receipt || {};
       const ua = String(req.get('user-agent') || '');
-      const pick = /android/i.test(ua) ? okLink(r.app_android_url) : /iphone|ipad|ipod/i.test(ua) ? okLink(r.app_ios_url) : '';
-      res.set('Cache-Control', 'no-store').redirect(302, pick || okLink(r.app_url) || '/order.html');
+      const android = okLink(r.app_android_url), ios = okLink(r.app_ios_url), other = okLink(r.app_url) || '/order.html';
+      res.set('Cache-Control', 'no-store');
+      if (/android/i.test(ua)) return res.redirect(302, android || other);
+      if (/iphone|ipad|ipod/i.test(ua)) return res.redirect(302, ios || other);
+      // Unknown user-agent (some QR scanners / "Desktop site" mode hide the phone): let the browser itself tell Android from iOS
+      const J = (v) => JSON.stringify(v).replace(/</g, '\\u003c');
+      res.type('html').send(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Vishal Foodiez</title>
+<body style="font-family:sans-serif;text-align:center;padding:40px">Opening...<script>
+var a=${J(android)},i=${J(ios)},o=${J(other)},n=navigator,ua=n.userAgent||'',pl=(n.userAgentData&&n.userAgentData.platform)||n.platform||'',t=n.maxTouchPoints||0,to=o;
+if(/android/i.test(ua)||/android/i.test(pl)||(/linux/i.test(pl)&&t>0)) to=a||o;
+else if(/iphone|ipad|ipod/i.test(ua)||/iphone|ipad/i.test(pl)||(/mac/i.test(pl)&&t>1)) to=i||o;
+location.replace(to);
+</script><noscript><meta http-equiv="refresh" content="0;url=${other.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}"></noscript>`);
     } catch (e) { res.redirect(302, '/order.html'); }
   });
   app.get('/api/app/qr', async (req, res) => {
