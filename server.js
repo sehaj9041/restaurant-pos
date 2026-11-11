@@ -1105,7 +1105,7 @@ app.post('/api/orders/:id/move-item', async (req, res) => {
 // 7. ACTIVE ORDERS
 app.get('/api/orders/active', (req, res) => {
   const query = `
-    SELECT id, token_no, order_type, table_no, customer_name, customer_phone, rider_name, delivered_at, total, subtotal, discount, discount_reason, is_complimentary, gst, payment_mode, split_details, status, COALESCE(paid_amount, 0) as paid_amount,
+    SELECT id, token_no, order_type, table_no, customer_name, customer_phone, delivery_address, rider_name, delivered_at, total, subtotal, discount, discount_reason, is_complimentary, gst, payment_mode, split_details, status, COALESCE(paid_amount, 0) as paid_amount,
            GREATEST(0, total - COALESCE(paid_amount, 0)) as remaining_balance,
            -- Order timers: kitchen time = accepted (or placed) -> KDS done; still running while the kitchen works on it
            GREATEST(0, EXTRACT(EPOCH FROM ((CASE WHEN ready_at IS NOT NULL AND UPPER(status) = 'KOT_DONE' THEN ready_at ELSE NOW() END) - COALESCE(accepted_at, created_at)))) AS kitchen_sec,
@@ -1186,7 +1186,7 @@ app.get('/api/due/orders', (req, res) => {
   // RUNNING_TABLE ya naye UNPAID orders yahan kabhi nahi aayenge!
   const query = `
     SELECT 
-      id, token_no, order_type, table_no, customer_name, customer_phone, rider_name, delivered_at,
+      id, token_no, order_type, table_no, customer_name, customer_phone, delivery_address, rider_name, delivered_at,
       subtotal, discount, discount_reason, is_complimentary, gst,
       total, COALESCE(paid_amount, 0) as paid_amount,
       GREATEST(0, total - COALESCE(paid_amount, 0)) as due_amount,
@@ -1318,7 +1318,7 @@ app.get('/api/orders/history', (req, res) => {
   const filterDate = date ? date : new Date().toISOString().slice(0, 10);
 
   const query = `
-    SELECT id, token_no, order_type, table_no, customer_name, customer_phone, payment_mode, status, subtotal, discount, gst, total, COALESCE(paid_amount, total) as paid_amount, split_details, created_at
+    SELECT id, token_no, order_type, table_no, customer_name, customer_phone, delivery_address, payment_mode, status, subtotal, discount, gst, total, COALESCE(paid_amount, total) as paid_amount, split_details, created_at
     FROM orders 
     WHERE (status = 'COMPLETED' 
        OR status = 'VOID'

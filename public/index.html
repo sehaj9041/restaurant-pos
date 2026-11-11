@@ -862,6 +862,10 @@
               <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Customer Name</label>
               <input type="text" id="posCustName" readonly onclick="openVirtualKeyboard(this, 'text', 'center')" placeholder="Auto-filled from phone" class="w-full border border-gray-200 rounded-lg p-2 text-xs outline-none focus:border-orange-500 bg-white cursor-pointer">
             </div>
+            <div id="posCustAddrRow" class="hidden col-span-2">
+              <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">📍 Delivery Address</label>
+              <div id="posCustAddr" class="w-full border border-orange-200 bg-orange-50 rounded-lg p-2 text-xs font-bold text-slate-800 break-words"></div>
+            </div>
           </div>
           </div>
         </div>
@@ -1684,6 +1688,7 @@
 
           document.getElementById('posCustPhone').value = targetOrder.customer_phone || '';
           document.getElementById('posCustName').value = targetOrder.customer_name || '';
+          showPOSCustAddr(targetOrder.delivery_address);
 
           posCart = (targetOrder.items || []).map(function(i) {
             return { id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1, user_note: i.user_note || '', pack_flip: Number(i.pack_flip) ? 1 : 0, is_exempt: Number(i.is_exempt) ? 1 : 0, locked: 1, order_status: targetOrder.status || '' };
@@ -2805,6 +2810,7 @@
 
       document.getElementById('posCustPhone').value = ord.customer_phone || '';
       document.getElementById('posCustName').value = ord.customer_name || '';
+      showPOSCustAddr(ord.delivery_address);
 
       if (Array.isArray(ord.items) && ord.items.length > 0) {
         posCart = ord.items.flatMap(function(item) {
@@ -3338,6 +3344,12 @@
     }
 
     // ================= PERSISTENT DIFFERENTIAL DETECTION =================
+    function showPOSCustAddr(addr) {
+      var row = document.getElementById('posCustAddrRow');
+      document.getElementById('posCustAddr').innerText = addr || '';
+      row.classList.toggle('hidden', !addr);
+    }
+
     function actionEditAddItems(orderId) {
       var ord = allActiveOrders.find(function(o) { return o.id === orderId; }) || dueOrdersList.find(function(o) { return o.id === orderId; });
       if (!ord) return;
@@ -3349,6 +3361,10 @@
       document.getElementById('topPageTitle').innerText = 'Order #ORD-' + ord.id + ' • Token ' + tokenLabel(ord);
       document.getElementById('posDisplayTable').innerText = (ord.table_no && String(ord.table_no).toLowerCase() !== String(ord.order_type || '').toLowerCase() ? ord.table_no + ' • ' : '') + (ord.order_type || '') + ' • Token ' + tokenLabel(ord);
       
+      document.getElementById('posCustPhone').value = ord.customer_phone || '';
+      document.getElementById('posCustName').value = ord.customer_name || '';
+      showPOSCustAddr(ord.delivery_address);
+
       loadRecordedPayment(ord);
       loadDiscountState(ord);
 
@@ -4543,6 +4559,7 @@
         editingActiveOrderId = running.id;
         document.getElementById('posCustPhone').value = running.customer_phone || '';
         document.getElementById('posCustName').value = running.customer_name || '';
+        showPOSCustAddr(running.delivery_address);
         posCart = (running.items || []).flatMap(function(i) {
           return splitByKitchenDone({ id: i.id || null, name: i.name, price: Number(i.price) || 0, qty: Number(i.qty) || 1, user_note: i.user_note || '', pack_flip: Number(i.pack_flip) ? 1 : 0, is_exempt: Number(i.is_exempt) ? 1 : 0, locked: 1, order_status: running.status || '' }, i.done_qty);
         });
@@ -4553,6 +4570,7 @@
       } else {
         document.getElementById('posCustPhone').value = '';
         document.getElementById('posCustName').value = '';
+        showPOSCustAddr('');
       }
 
       if (currentPOSOrderType) {
