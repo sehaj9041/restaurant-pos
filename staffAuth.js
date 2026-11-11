@@ -63,8 +63,9 @@ function register(app, { db, checkOwnerPin }) {
   const getCookie = (req, name) => { const m = (req.headers.cookie || '').split(/;\s*/).find((c) => c.startsWith(name + '=')); return m ? decodeURIComponent(m.slice(name.length + 1)) : ''; };
   const isHttps = (req) => req.secure || /https/i.test(req.get('x-forwarded-proto') || '');
   const setSession = (req, res, cfg) => {
-    const exp = Date.now() + SESSION_MS;
-    res.setHeader('Set-Cookie', `${COOKIE}=${encodeURIComponent(sign(cfg, exp))}; Path=/; Max-Age=${SESSION_MS / 1000}; HttpOnly; SameSite=Lax${isHttps(req) ? '; Secure' : ''}`);
+    const exp = Date.now() + SESSION_MS, tok = sign(cfg, exp);
+    res.setHeader('Set-Cookie', `${COOKIE}=${encodeURIComponent(tok)}; Path=/; Max-Age=${SESSION_MS / 1000}; HttpOnly; SameSite=Lax${isHttps(req) ? '; Secure' : ''}`);
+    return tok;
   };
 
   // sliding session: re-issue the cookie once it has less than ~300 days left
@@ -127,9 +128,11 @@ function register(app, { db, checkOwnerPin }) {
     const { username, password } = req.body || {};
     if (!passwordOk(cfg, username, password)) { failed(req); return res.status(401).json({ error: 'Username ya password galat hai.' }); }
     fails.delete(ipOf(req));
-    setSession(req, res, cfg);
-    res.json({ success: true });
+    const token = setSession(req, res, cfg);
+    res.json({ success: true, token, cookie: COOKIE, max_age: SESSION_MS / 1000 });
   });
+  // The login page asks this right after login: if the browser (e.g. an old TV WebView) refused the Set-Cookie header, it falls back to a JS cookie
+  app.get('/api/staff-auth/check', async (req, res) => { res.setHeader('Cache-Control', 'no-store'); res.json({ ok: await isAuthed(req) }); });
   // first-time setup or password change: Owner PIN required
   app.post('/api/staff-auth/credentials', (req, res) => {
     if (blocked(req)) return res.status(429).json({ error: 'Bahut galat koshish. 15 minute baad try karein.' });
@@ -137,7 +140,7 @@ function register(app, { db, checkOwnerPin }) {
     checkOwnerPin(pin, async (ok) => {
       if (!ok) { failed(req); return res.status(401).json({ error: 'Owner PIN galat hai.' }); }
       if (!String(username || '').trim() || String(password || '').length < 8) return res.status(400).json({ error: 'Username daalein aur password kam se kam 8 characters ka rakhein.' });
-      try { const cfg = await saveCreds(username, password); setSession(req, res, cfg); res.json({ success: true }); }
+      try { const cfg = await saveCreds(username, password); const token = setSession(req, res, cfg); res.json({ success: true, token, cookie: COOKIE, max_age: SESSION_MS / 1000 }); }
       catch (e) { console.error('[AUTH] save error:', e.message); res.status(500).json({ error: 'Save nahi hua' }); }
     });
   });
@@ -177,7 +180,17 @@ $('f').onsubmit=function(e){e.preventDefault();$('err').textContent='';
  var url=setup?'/api/staff-auth/credentials':'/api/staff-auth/login';
  var body=setup?{pin:$('pin').value,username:$('u').value,password:$('p').value}:{username:$('u').value,password:$('p').value};
  fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d}})})
- .then(function(x){if(x.ok&&x.d.success){location.href=NEXT}else{$('err').textContent=x.d.error||'Dikkat aayi'}}).catch(function(){$('err').textContent='Server se connect nahi hua'});};
+ .then(function(x){if(!(x.ok&&x.d.success)){$('err').textContent=x.d.error||'Dikkat aayi';return}
+  var go=function(){location.href=NEXT};
+  // some TV WebViews drop the session cookie: if the server does not see it, set it from here (same value) and continue
+  fetch('/api/staff-auth/check',{cache:'no-store',credentials:'same-origin'}).then(function(r){return r.json()}).then(function(c){
+   if(c&&c.ok)return go();
+   document.cookie=x.d.cookie+'='+encodeURIComponent(x.d.token)+'; Path=/; Max-Age='+x.d.max_age+(location.protocol==='https:'?'; Secure':'');
+   fetch('/api/staff-auth/check',{cache:'no-store',credentials:'same-origin'}).then(function(r){return r.json()}).then(function(c2){
+    if(c2&&c2.ok)go();else $('err').textContent='Is device me login cookie save nahi ho rahi (browser/WebView cookies block). TV ki Date & Time check karo.';
+   }).catch(go);
+  }).catch(go);
+ }).catch(function(){$('err').textContent='Server se connect nahi hua'});};
 </script></body></html>`;
 }
 

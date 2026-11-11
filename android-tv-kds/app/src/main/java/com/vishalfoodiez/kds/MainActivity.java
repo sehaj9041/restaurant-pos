@@ -3,10 +3,13 @@ package com.vishalfoodiez.kds;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.SharedPreferences;
+import android.net.http.SslError;
 import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.webkit.CookieManager;
+import android.webkit.SslErrorHandler;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -43,6 +46,11 @@ public class MainActivity extends Activity {
         s.setMediaPlaybackRequiresUserGesture(false);       // new-order sound bina click ke bajegi
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
 
+        // Staff login is a cookie: some TV WebViews do not keep it unless cookies are explicitly enabled and flushed to disk
+        CookieManager cm = CookieManager.getInstance();
+        cm.setAcceptCookie(true);
+        cm.setAcceptThirdPartyCookies(web, true);
+
         web.setWebChromeClient(new WebChromeClient());
         web.setWebViewClient(new WebViewClient() {
             @Override public void onReceivedError(WebView v, WebResourceRequest r, WebResourceError e) {
@@ -51,7 +59,11 @@ public class MainActivity extends Activity {
                     v.postDelayed(() -> { if (offline) reload(); }, 5000);   // net aate hi khud retry
                 }
             }
-            @Override public void onPageFinished(WebView v, String url) { offline = false; }
+            @Override public void onPageFinished(WebView v, String url) { offline = false; CookieManager.getInstance().flush(); }
+            @Override public void onReceivedSslError(WebView v, SslErrorHandler h, SslError e) {
+                h.cancel();   // never bypass; a wrong TV date/time is the usual cause
+                Toast.makeText(MainActivity.this, "Secure connection fail. TV ki Date & Time check karo (auto date/time ON).", Toast.LENGTH_LONG).show();
+            }
         });
 
         web.loadUrl(prefs.getString(KEY_URL, DEFAULT_URL));
@@ -75,6 +87,14 @@ public class MainActivity extends Activity {
                     prefs.edit().putString(KEY_URL, u).apply();
                     web.loadUrl(u);
                     hideBars();
+                })
+                .setNeutralButton("Reset login", (d, w) -> {   // login atak jaye to: purani cookies/cache hatao aur dobara login karo
+                    CookieManager.getInstance().removeAllCookies(null);
+                    CookieManager.getInstance().flush();
+                    web.clearCache(true);
+                    reload();
+                    hideBars();
+                    Toast.makeText(this, "Login reset hua, dobara login karo", Toast.LENGTH_SHORT).show();
                 })
                 .setNegativeButton("Cancel", (d, w) -> hideBars())
                 .show();
@@ -114,5 +134,5 @@ public class MainActivity extends Activity {
     }
 
     @Override protected void onResume() { super.onResume(); web.onResume(); }
-    @Override protected void onPause() { web.onPause(); super.onPause(); }
+    @Override protected void onPause() { CookieManager.getInstance().flush(); web.onPause(); super.onPause(); }
 }
