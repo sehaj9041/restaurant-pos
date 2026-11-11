@@ -1489,6 +1489,7 @@
       if (s.address) out.push(center(s.address));
       if (s.phone) out.push(center('Ph: ' + s.phone));
       if (s.gstin) out.push(center('GSTIN: ' + s.gstin));
+      if (c.header) out.push(center(c.header));
       out.push(line);
       out.push(center('TOKEN #' + (data.token_no || data.orderId)));
       out.push(line);
@@ -1552,6 +1553,7 @@
         <div class="center" style="font-size:11px">${esc(s.address || 'Railway Road, Budhlada')}</div>
         ${s.phone ? `<div class="center" style="font-size:11px">Ph: ${esc(s.phone)}</div>` : ''}
         ${s.gstin ? `<div class="center" style="font-size:11px">GSTIN: ${esc(s.gstin)}</div>` : ''}
+        ${c.header ? `<div class="center" style="font-size:11px;margin-top:2px">${esc(c.header)}</div>` : ''}
         <div class="token">TOKEN #${esc(data.token_no || data.orderId)}</div>
         <div class="row"><span>Order: #${esc(data.orderId)}</span><span>(${esc(String(o.order_type).toUpperCase())})</span></div>
         <div>Date: ${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>

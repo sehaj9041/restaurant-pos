@@ -4260,6 +4260,7 @@
           <div class="center" style="font-size:11px;">${billEsc(billCfg.s.address || 'Railway Road, Budhlada')}</div>
           ${billCfg.s.phone && bOn('show_store_phone') ? `<div class="center" style="font-size:11px;">Ph: ${billEsc(billCfg.s.phone)}</div>` : ''}
           ${billCfg.s.gstin && bOn('show_gstin') ? `<div class="center" style="font-size:11px;">GSTIN: ${billEsc(billCfg.s.gstin)}</div>` : ''}
+          ${billCfg.c.header ? `<div class="center" style="font-size:11px; margin-top:2px;">${billEsc(billCfg.c.header)}</div>` : ''}
           ${bOn('show_token') ? `<div class="token">TOKEN #${payload.token_no || orderId || '---'}</div>` : ''}
           <div class="row"><span>Order: #${orderId}</span><span>(${payload.order_type.toUpperCase()})</span></div>
           ${payload.table_no ? `<div style="font-weight:700;">Table: ${payload.table_no}</div>` : ''}

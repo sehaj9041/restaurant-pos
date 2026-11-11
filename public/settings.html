@@ -428,8 +428,9 @@
       <section id="tab-receipt" class="hidden space-y-5">
         <div class="bg-white border rounded-2xl p-5">
           <div class="flex justify-between items-center mb-2"><h2 class="font-black text-base">Receipt</h2><button onclick="saveReceipt()" class="bg-orange-600 hover:bg-orange-700 text-white font-black text-xs px-4 py-2 rounded-lg">Save</button></div>
-          <p class="text-[11px] text-gray-500 mb-4">Ye lines har customer bill ke neeche print hoti hain. Bill ke upar ka naam, address, phone aur GSTIN <b>General</b> tab se aate hain.</p>
+          <p class="text-[11px] text-gray-500 mb-4">Header line bill ke upar aur baaki lines bill ke neeche print hoti hain. Bill ke upar ka naam, address, phone aur GSTIN <b>General</b> tab se aate hain.</p>
           <div class="space-y-5">
+            <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><div><div class="text-xs font-bold text-gray-500">Header Text</div><p class="text-[10px] text-gray-400 mt-1">GSTIN ke neeche, token se pehle optional line (jaise tagline, FSSAI).</p></div><input id="rc_header" type="text" maxlength="160" class="max-w-md w-full border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"></div>
             <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><div><div class="text-xs font-bold text-gray-500">Thank You Message</div><p class="text-[10px] text-gray-400 mt-1">Total ke theek neeche beech me.</p></div><input id="rc_thank" type="text" maxlength="120" placeholder="Thanks For Visiting Us!" class="max-w-md w-full border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"></div>
             <div class="grid md:grid-cols-[200px_1fr] gap-2 items-start"><div><div class="text-xs font-bold text-gray-500">Footer Text</div><p class="text-[10px] text-gray-400 mt-1">Thank-you ke neeche optional line (jaise website, FSSAI).</p></div><input id="rc_footer" type="text" maxlength="160" class="max-w-md w-full border p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-400"></div>
           </div>
@@ -1077,6 +1078,7 @@
     function initReceipt() {
       const r = cfg.receipt || {};
       $('rc_thank').value = r.thank_you || '';
+      $('rc_header').value = r.header || '';
       $('rc_footer').value = r.footer || '';
       $('rcPrintRows').innerHTML = rowsHTML('rcp', [{ k: 'auto_print_bill', def: true, label: 'Auto-print bill', desc: 'Payment record hote hi bill apne aap print ho. OFF karne par bill sirf "Print Receipt" button se niklega.' }], r);
       $('rc_copies').value = r.copies || 1;
@@ -1117,7 +1119,7 @@
     }
     function receiptObj(extra) { return Object.assign({}, cfg.receipt || {}, extra); }
     function saveReceipt() {
-      putConfig({ receipt: receiptObj({ thank_you: $('rc_thank').value.trim(), footer: $('rc_footer').value.trim() }) })
+      putConfig({ receipt: receiptObj({ header: $('rc_header').value.trim(), thank_you: $('rc_thank').value.trim(), footer: $('rc_footer').value.trim() }) })
         .then(() => toast('Receipt text save ho gaya ✓')).catch(e => toast(e.message, true));
     }
     function savePrinting() {
