@@ -179,7 +179,7 @@ var sw=$('sw');if(sw)sw.onclick=function(){setup=true;$('pinRow').style.display=
 $('f').onsubmit=function(e){e.preventDefault();$('err').textContent='';
  var url=setup?'/api/staff-auth/credentials':'/api/staff-auth/login';
  var body=setup?{pin:$('pin').value,username:$('u').value,password:$('p').value}:{username:$('u').value,password:$('p').value};
- fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d}})})
+ fetch(url,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d}})})
  .then(function(x){if(!(x.ok&&x.d.success)){$('err').textContent=x.d.error||'Dikkat aayi';return}
   var go=function(){location.href=NEXT};
   // some TV WebViews drop the session cookie: if the server does not see it, set it from here (same value) and continue

@@ -3,6 +3,9 @@
   var realFetch = window.fetch.bind(window);
   var going = false;
   window.fetch = function (input, init) {
+    // Old WebViews (some Android TVs) default to credentials:'omit', so the login cookie is never sent and every API call gets 401.
+    // Same-origin cookies are always wanted here, so make that the default.
+    if (typeof input === 'string' && !(init && init.credentials)) init = Object.assign({}, init, { credentials: 'same-origin' });
     return realFetch(input, init).then(function (res) {
       if (res.status === 401 && !going) {
         res.clone().json().then(function (b) {
