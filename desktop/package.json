@@ -1,0 +1,25 @@
+{
+  "name": "vishal-foodiez-pos",
+  "productName": "Vishal Foodiez POS",
+  "version": "1.0.0",
+  "description": "POS desktop app: opens the POS site, prints bills silently and kicks the cash drawer (replaces the printer agent)",
+  "main": "main.js",
+  "author": "Vishal Foodiez",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis --x64"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "in.vishalfoodiez.pos",
+    "productName": "Vishal Foodiez POS",
+    "directories": { "output": "dist" },
+    "files": ["main.js", "preload.js", "offline.html"],
+    "extraResources": [{ "from": "raw.ps1", "to": "raw.ps1" }],
+    "win": { "target": "nsis", "signAndEditExecutable": false },
+    "nsis": { "oneClick": true, "perMachine": false, "runAfterFinish": true, "createDesktopShortcut": true }
+  }
+}

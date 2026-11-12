@@ -4369,6 +4369,13 @@
       var fallback = function() { printDialogFallback(fallbackHtml); };
             // Default: the printer agent opens the bill in its own Chrome window started with --kiosk-printing, so it prints silently
       // through the normal Windows printer driver (same layout as the print dialog). If the agent is not reachable, the usual print dialog opens.
+      // Desktop app (exe): print through the app itself, no local agent / browser permission involved
+      if (window.vfDesktop && localStorage.getItem('vf_agent_print') !== '1') {
+        window.vfDesktop.printHtml(String(fallbackHtml).replace(/(src=")\//g, '$1' + location.origin + '/'))
+          .then(function(d) { if (!d || !d.success) throw new Error('desktop print failed'); })
+          .catch(function(e) { console.warn('Desktop print failed, using print dialog:', e); fallback(); });
+        return;
+      }
       if (localStorage.getItem('vf_agent_print') !== '1') {
         var pageHtml = String(fallbackHtml).replace(/(src=")\//g, '$1' + location.origin + '/')
           .replace('</body>', '<scr' + 'ipt>window.onload=function(){setTimeout(function(){window.print();setTimeout(function(){window.close();},1500);},50);};</scr' + 'ipt></body>');
@@ -4411,6 +4418,10 @@
             H = Math.min(H, lastRow + 6); bytes = bytes.subarray(0, rowBytes * H);
             var bin = '', CH = 0x8000;
             for (var k = 0; k < bytes.length; k += CH) bin += String.fromCharCode.apply(null, bytes.subarray(k, k + CH));
+            if (window.vfDesktop) {
+              return window.vfDesktop.printImage({ width: W, height: H, copies: copies, data: btoa(bin) })
+                .then(function(d) { if (!d || !d.success) throw new Error('desktop print failed'); });
+            }
             var ctl = new AbortController(), timer = setTimeout(function() { ctl.abort(); }, 8000);
             return fetch('http://127.0.0.1:4567/print-image', {
               method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ctl.signal,
@@ -4424,6 +4435,7 @@
     }
 
     function openCashDrawer() {
+      if (window.vfDesktop) { window.vfDesktop.kickDrawer().catch(function(err) { console.error('Drawer error', err); }); return; }
       fetch('http://127.0.0.1:4567/kick-drawer', { method: 'POST' })
       .catch(function(err) { console.error('Agent offline!', err); });
     }
