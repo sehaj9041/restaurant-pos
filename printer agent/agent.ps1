@@ -6,6 +6,8 @@ $CloudHost = "menu.vishalfoodiez.in"
 $KitchenPrinterIP = "192.168.1.87"
 $KitchenPrinterPort = 9100
 $LocalPOSPrinterName = "Posiflex PP8803 Printerrr"
+# If that printer name does not exist on this PC, fall back to the Windows default printer (a renamed / reinstalled printer used to break print + drawer)
+try { $installedPrinters = @(Get-CimInstance Win32_Printer); if ($installedPrinters.Count -gt 0 -and -not ($installedPrinters | Where-Object { $_.Name -eq $LocalPOSPrinterName })) { $defPrinter = $installedPrinters | Where-Object { $_.Default } | Select-Object -First 1; if (-not $defPrinter) { $defPrinter = $installedPrinters[0] }; $LocalPOSPrinterName = $defPrinter.Name } } catch {}
 $historyFile = "$PSScriptRoot\processed.txt"
 $BrowserPath = ""   # leave empty to auto-detect Chrome (then Edge); or set the full path to chrome.exe
 
