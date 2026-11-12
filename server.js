@@ -1438,7 +1438,7 @@ app.put('/api/orders/:id', (req, res, next) => engagement.applyPromoToOrderEdit(
         if (err) return res.status(500).json({ error: err.message });
 
         // Items are rewritten on every edit: carry over how many units of each line the kitchen already finished
-        const lineKey = (n, pr, un, pf) => [n, Number(pr) || 0, String(un || ''), pf ? 1 : 0].join('|');
+        const lineKey = (n, pr, un) => [n, Number(pr) || 0, String(un || '')].join('|'); // pack_flip is not part of the key: flipping Pack must not make a ready item pending again
         const doneLeft = {};
         (existingItems || []).forEach(e => { const k = lineKey(e.name, e.price, e.user_note, Number(e.pack_flip)); doneLeft[k] = (doneLeft[k] || 0) + (Number(e.done_qty) || 0); });
         db.run("DELETE FROM order_items WHERE order_id = ?", [orderId], async () => {

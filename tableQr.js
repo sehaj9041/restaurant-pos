@@ -155,7 +155,8 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, stor
   q(`CREATE TABLE IF NOT EXISTS table_bill_payments (
     id SERIAL PRIMARY KEY, rp_order_id TEXT UNIQUE, table_no TEXT, orders TEXT, amount NUMERIC,
     status TEXT DEFAULT 'CREATED', payment_id TEXT, created_ms BIGINT)`)
-    .then(() => q('ALTER TABLE table_bill_payments ADD COLUMN IF NOT EXISTS points_plan TEXT')).catch(e => console.error('table_bill_payments error:', e.message));
+    .then(() => q('ALTER TABLE table_bill_payments ADD COLUMN IF NOT EXISTS points_plan TEXT'))
+    .then(() => q('ALTER TABLE table_bill_payments ADD COLUMN IF NOT EXISTS paid_ms BIGINT')).catch(e => console.error('table_bill_payments error:', e.message));
   const rzConfigured = () => !!(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET);
   const rzHmac = (data) => crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET || '').update(data).digest('hex');
   const money = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -270,7 +271,7 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, stor
   // Credits the payment once (verify endpoint and Razorpay webhook may both arrive). A fully paid bill that the kitchen already
   // finished is closed like the POS "Settle" does; one still being cooked stays on the KDS and closes when the kitchen dispatches it.
   async function markBillPaid(rpOrderId, paymentId) {
-    const claimed = await q("UPDATE table_bill_payments SET status = 'PAID', payment_id = ? WHERE rp_order_id = ? AND status <> 'PAID' RETURNING *", [paymentId || '', rpOrderId]);
+    const claimed = await q("UPDATE table_bill_payments SET status = 'PAID', payment_id = ?, paid_ms = ? WHERE rp_order_id = ? AND status <> 'PAID' RETURNING *", [paymentId || '', Date.now(), rpOrderId]);
     if (!claimed.length) return false;
     let parts = []; try { parts = JSON.parse(claimed[0].orders || '[]'); } catch (e) { parts = []; }
     // points used on this payment: now that it is paid, put the discount on the order (this also spends the points in the ledger)
@@ -313,6 +314,22 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, stor
       console.error('[TABLE QR PAY] verify error:', e.message);
       res.status(500).json({ error: 'Verify me dikkat aayi. Agar paisa kata hai to staff ko bataiye, payment mil jayegi.' });
     }
+  });
+
+  // POS: bills that guests paid from their phone (table QR), polled for its notification + sound. First call (no `since`) only returns the server clock.
+  app.get('/api/table-qr/paid-feed', async (req, res) => {
+    try {
+      const since = Number(req.query.since);
+      if (!(since > 0)) return res.json({ now: Date.now(), items: [] });
+      const rows = await q("SELECT rp_order_id, table_no, orders, amount, paid_ms FROM table_bill_payments WHERE status = 'PAID' AND paid_ms > ? ORDER BY paid_ms LIMIT 20", [since]);
+      const items = [];
+      for (const r of rows) {
+        let ids = []; try { ids = JSON.parse(r.orders || '[]').map(p => Number(p.id)).filter(n => n > 0); } catch (e) { /* none */ }
+        const o = ids.length ? (await q('SELECT token_no, customer_name, payment_mode FROM orders WHERE id = ?', [ids[0]]))[0] : null;
+        items.push({ id: r.rp_order_id, table: r.table_no, amount: Number(r.amount), paid_ms: Number(r.paid_ms), token_no: o ? o.token_no : null, customer: o ? o.customer_name : '', mode: o ? o.payment_mode : '' });
+      }
+      res.json({ now: Math.max(Date.now(), ...items.map(i => i.paid_ms)), items });
+    } catch (e) { res.json({ now: Date.now(), items: [] }); }
   });
 
   // Customer closed the payment window without paying

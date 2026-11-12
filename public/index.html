@@ -1374,12 +1374,14 @@
       loadDueOrdersData();
       fetchNeedsApprovalOrders();
       pollRiderUpi();
+      pollTableQrPaid();
 
       setInterval(function() {
         fetchActiveOrders();
         loadDueOrdersData();
         fetchNeedsApprovalOrders();
         pollRiderUpi();
+        pollTableQrPaid();
       }, 3000);
 
       var today = new Date().toISOString().slice(0, 10);
@@ -1489,6 +1491,30 @@
           el.innerHTML = '<div class="text-[11px] font-black uppercase tracking-wide opacity-90">🛵 Rider ne UPI se collect kiya</div>' +
             '<div class="text-lg font-black leading-tight">₹' + n.amount + (n.token_no ? ' • Token ' + wizEsc(String(n.token_no).padStart(3, '0')) : '') + '</div>' +
             '<div class="text-xs font-bold opacity-90">' + wizEsc(n.rider ? n.rider + ' ne ' : '') + 'is order ki amount UPI se collect kar li' + (n.customer ? ' • ' + wizEsc(n.customer) : '') + '</div>' +
+            '<button class="mt-2 w-full bg-white text-emerald-700 font-black text-xs py-1.5 rounded-lg">OK</button>';
+          el.querySelector('button').onclick = function() { el.remove(); };
+          box.appendChild(el);
+          playRiderUpiChime();
+          fetchActiveOrders(); loadDueOrdersData();
+        });
+      }).catch(function() {});
+    }
+
+    // ================= TABLE QR BILL PAID FROM THE GUEST'S PHONE: notification + sound =================
+    var tableQrPaidSince = 0, tableQrPaidSeen = {};
+    function pollTableQrPaid() {
+      fetch('/api/table-qr/paid-feed' + (tableQrPaidSince ? '?since=' + tableQrPaidSince : '')).then(function(r) { return r.ok ? r.json() : null; }).then(function(d) {
+        if (!d) return;
+        tableQrPaidSince = d.now || tableQrPaidSince;
+        var box = document.getElementById('riderUpiNotices');
+        (d.items || []).forEach(function(n) {
+          if (tableQrPaidSeen[n.id]) return;
+          tableQrPaidSeen[n.id] = true;
+          var el = document.createElement('div');
+          el.className = 'bg-emerald-600 text-white rounded-xl shadow-2xl p-3 border-2 border-emerald-300';
+          el.innerHTML = '<div class="text-[11px] font-black uppercase tracking-wide opacity-90">📱 Table ' + wizEsc(String(n.table || '')) + ' ne phone se bill pay kiya</div>' +
+            '<div class="text-lg font-black leading-tight">₹' + n.amount + (n.token_no ? ' • Token ' + wizEsc(String(n.token_no).padStart(3, '0')) : '') + '</div>' +
+            '<div class="text-xs font-bold opacity-90">' + (n.mode ? wizEsc(String(n.mode)) + ' se ' : '') + 'payment mil gaya' + (n.customer ? ' • ' + wizEsc(n.customer) : '') + '</div>' +
             '<button class="mt-2 w-full bg-white text-emerald-700 font-black text-xs py-1.5 rounded-lg">OK</button>';
           el.querySelector('button').onclick = function() { el.remove(); };
           box.appendChild(el);
