@@ -22,7 +22,7 @@ const PUBLIC_API = [
   ['ALL', /^\/table-qr\//],            // table-qr-admin is a different prefix and stays protected
   ['ALL', /^\/rider\/[^/]+\//],        // rider links carry their own token
   ['ALL', /^\/(upi\/(collect|status\/[^/]+|cancel|rider-paid|web-config|web-create)|paytm\/callback)$/],
-  ['ALL', /^\/print\/(pending-queue|acknowledge)$/], // printer agent on the kitchen PC has no login (add one later if needed)
+  ['ALL', /^\/print\/(pending-queue|acknowledge|local-queue|local-job\/[0-9a-f]+)$/], // printer agent on the kitchen PC has no login (add one later if needed)
   ['ALL', /^\/staff-auth\//]
 ];
 

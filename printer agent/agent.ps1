@@ -127,6 +127,20 @@ try {
     }
 } catch {}
 
+
+# Bill html -> silent print window (shared by the local HTTP route and the cloud queue below)
+function Start-BillPrint([string]$html) {
+    $browser = Find-Browser
+    if (-not $browser) { throw "Chrome/Edge not found - set `$BrowserPath at the top of agent.ps1" }
+    $dir = Join-Path $env:TEMP "vf-print"
+    New-Item -ItemType Directory -Force -Path $dir | Out-Null
+    $file = Join-Path $dir ("bill-" + [guid]::NewGuid().ToString("N") + ".html")
+    [System.IO.File]::WriteAllText($file, $html, (New-Object System.Text.UTF8Encoding($false)))
+    New-Item -ItemType Directory -Force -Path $printProfile | Out-Null
+    Start-Process -FilePath $browser -ArgumentList (Get-PrintArgs ([System.Uri]$file).AbsoluteUri) | Out-Null
+    [void]$printWindows.Add(@{ at = (Get-Date).AddSeconds(60); file = $file })
+}
+
 # 1. Start Local HTTP Server for Cash Drawer + silent bill printing on Port 4567
 $listener = New-Object System.Net.HttpListener
 $listener.Prefixes.Add("http://127.0.0.1:4567/")
@@ -138,6 +152,7 @@ try {
 }
 
 $jobTimer = [System.Diagnostics.Stopwatch]::StartNew()
+$localTimer = [System.Diagnostics.Stopwatch]::StartNew()
 $asyncContext = $listener.BeginGetContext($null, $null)
 
 while ($true) {
@@ -245,6 +260,27 @@ while ($true) {
                 $printWindows.Remove($w)
             }
         }
+    }
+
+
+    # Poll the cloud for cash-drawer / bill jobs posted by the POS page (works even when Chrome blocks http://127.0.0.1)
+    if ($localTimer.ElapsedMilliseconds -ge 1000) {
+        $localTimer.Restart()
+        try {
+            $lq = Invoke-RestMethod -Uri "https://$CloudHost/api/print/local-queue" -Method Get -TimeoutSec 5 -ErrorAction Stop
+            foreach ($lj in @($lq.jobs)) {
+                if (-not $lj) { continue }
+                if ($lj.type -eq "drawer") {
+                    [Win32RawPrinter]::SendBytes($LocalPOSPrinterName, [byte[]](0x1B, 0x70, 0x01, 0x19, 0xFA)) | Out-Null
+                    Write-Host ">> Cash Drawer Kicked (cloud request)" -ForegroundColor Green
+                } elseif ($lj.type -eq "bill") {
+                    try {
+                        $bj = Invoke-RestMethod -Uri "https://$CloudHost/api/print/local-job/$($lj.id)" -Method Get -TimeoutSec 8 -ErrorAction Stop
+                        if ($bj.success -and $bj.html) { Start-BillPrint ([string]$bj.html); Write-Host ">> Bill sent to silent print window (cloud request)" -ForegroundColor Green }
+                    } catch { Write-Host "[PRINT ERROR] $_" -ForegroundColor Red }
+                }
+            }
+        } catch { }
     }
 
     # Poll Cloud Print Queue every 2 seconds (Targets Kitchen IP Printer)

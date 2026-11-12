@@ -296,6 +296,32 @@ app.get('/api/print/pending-queue', (req, res) => {
   res.json({ success: true, jobs: cloudPrintQueue });
 });
 
+// Local printer jobs (cash drawer kick / bill print): the POS page posts here (staff login required) and the printer agent on the billing PC
+// polls /local-queue, so nothing depends on the browser being allowed to reach http://127.0.0.1 (Chrome blocks that unless the user grants "local network access").
+let localPrintJobs = [], localPrintSeq = 0;
+const pruneLocalJobs = () => { const old = Date.now() - 120000; localPrintJobs = localPrintJobs.filter(j => j.at > old).slice(-30); };
+app.post('/api/print/local', (req, res) => {
+  const type = String((req.body || {}).type || '');
+  if (type !== 'drawer' && type !== 'bill') return res.status(400).json({ success: false });
+  const html = type === 'bill' ? String(req.body.html || '') : '';
+  if (type === 'bill' && (!html || html.length > 1500000)) return res.status(400).json({ success: false });
+  pruneLocalJobs();
+  const id = crypto.randomBytes(12).toString('hex') + (++localPrintSeq); // unguessable: the agent fetches the bill html by this id without a login
+  localPrintJobs.push({ id, type, html, at: Date.now() });
+  res.json({ success: true });
+});
+app.get('/api/print/local-queue', (req, res) => {
+  pruneLocalJobs();
+  res.json({ success: true, jobs: localPrintJobs.map(j => ({ id: j.id, type: j.type })) });
+  localPrintJobs = localPrintJobs.filter(j => j.type === 'bill'); // drawer kicks are handed out once; bills stay until fetched (see local-job)
+});
+app.get('/api/print/local-job/:id', (req, res) => {
+  const job = localPrintJobs.find(j => j.id === req.params.id && j.type === 'bill');
+  if (!job) return res.status(404).json({ success: false });
+  localPrintJobs = localPrintJobs.filter(j => j !== job);
+  res.json({ success: true, html: job.html });
+});
+
 app.post('/api/print/acknowledge', (req, res) => {
   const { jobId } = req.body;
   cloudPrintQueue = cloudPrintQueue.filter(job => job.id !== jobId);

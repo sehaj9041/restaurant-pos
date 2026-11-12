@@ -4379,13 +4379,20 @@
       if (localStorage.getItem('vf_agent_print') !== '1') {
         var pageHtml = String(fallbackHtml).replace(/(src=")\//g, '$1' + location.origin + '/')
           .replace('</body>', '<scr' + 'ipt>window.onload=function(){setTimeout(function(){window.print();setTimeout(function(){window.close();},1500);},50);};</scr' + 'ipt></body>');
-        var ctl0 = new AbortController(), t0 = setTimeout(function() { ctl0.abort(); }, 5000);
-        fetch('http://127.0.0.1:4567/print-html', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ctl0.signal,
-          body: JSON.stringify({ html: pageHtml })
-        }).then(function(r) { clearTimeout(t0); return r.json(); })
-          .then(function(d) { if (!d || !d.success) throw new Error('agent print failed'); })
-          .catch(function(e) { clearTimeout(t0); console.warn('Agent print failed, using print dialog:', e); fallback(); });
+        // 1st choice: hand the bill to the server, the printer agent picks it up (Chrome cannot block that). 2nd: talk to the agent directly. Last: print dialog.
+        var direct = function() {
+          var ctl0 = new AbortController(), t0 = setTimeout(function() { ctl0.abort(); }, 5000);
+          fetch('http://127.0.0.1:4567/print-html', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ctl0.signal,
+            body: JSON.stringify({ html: pageHtml })
+          }).then(function(r) { clearTimeout(t0); return r.json(); })
+            .then(function(d) { if (!d || !d.success) throw new Error('agent print failed'); })
+            .catch(function(e) { clearTimeout(t0); console.warn('Agent print failed, using print dialog:', e); fallback(); });
+        };
+        fetch('/api/print/local', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'bill', html: pageHtml }) })
+          .then(function(r) { return r.json(); })
+          .then(function(d) { if (!d || !d.success) throw new Error('cloud print queue failed'); })
+          .catch(function(e) { console.warn('Cloud print queue failed, trying the agent directly:', e); direct(); });
         return;
       }
       if (!window.html2canvas) return fallback();
@@ -4436,8 +4443,13 @@
 
     function openCashDrawer() {
       if (window.vfDesktop) { window.vfDesktop.kickDrawer().catch(function(err) { console.error('Drawer error', err); }); return; }
-      fetch('http://127.0.0.1:4567/kick-drawer', { method: 'POST' })
-      .catch(function(err) { console.error('Agent offline!', err); });
+      // The server relays the kick to the printer agent (works even if Chrome blocks http://127.0.0.1); direct call is the fallback
+      fetch('/api/print/local', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'drawer' }) })
+        .then(function(r) { return r.json(); })
+        .then(function(d) { if (!d || !d.success) throw new Error('cloud drawer failed'); })
+        .catch(function() {
+          fetch('http://127.0.0.1:4567/kick-drawer', { method: 'POST' }).catch(function(err) { console.error('Agent offline!', err); });
+        });
     }
 
     function settleActiveOrder(orderId, mode) {
