@@ -8,7 +8,7 @@ const net = require('net');
 const { spawn } = require('child_process');
 
 const DEFAULTS = {
-  url: 'https://menu.vishalfoodiez.in/',
+  url: 'https://menu.vishalfoodiez.in/index.html',   // the POS ("/" is the customer ordering page)
   printerName: '',                 // empty = the Windows default printer (the billing printer)
   kitchenQueue: true,              // poll the cloud for "item ready" tokens and send them to the kitchen network printer
   kitchenPrinterIP: '192.168.1.87',
@@ -19,6 +19,8 @@ const cfgFile = () => path.join(app.getPath('userData'), 'config.json');
 function loadConfig() {
   try { cfg = Object.assign({}, DEFAULTS, JSON.parse(fs.readFileSync(cfgFile(), 'utf8'))); }
   catch (e) { try { fs.writeFileSync(cfgFile(), JSON.stringify(DEFAULTS, null, 2)); } catch (e2) {} }
+  // v1.0.0 saved "/" (customer page) as the url: fix it
+  if (/^https:\/\/menu\.vishalfoodiez\.in\/?$/.test(cfg.url)) { cfg.url = DEFAULTS.url; try { fs.writeFileSync(cfgFile(), JSON.stringify(cfg, null, 2)); } catch (e) {} }
 }
 const log = (...a) => { try { fs.appendFileSync(path.join(app.getPath('userData'), 'app.log'), new Date().toISOString() + ' ' + a.join(' ') + os.EOL); } catch (e) {} console.log(...a); };
 
