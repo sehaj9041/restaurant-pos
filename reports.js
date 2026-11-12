@@ -34,13 +34,19 @@ function register(app, { dbAllAsync }) {
       SUM(CASE WHEN pm = 'SPLIT' THEN total ELSE 0 END) AS split, SUM(CASE WHEN pm = 'DUE' THEN total ELSE 0 END) AS due
       FROM s GROUP BY 1 ORDER BY 1 DESC`, [a, b]);
     const modes = await q(`${SALES} SELECT pm AS mode, COUNT(*) AS orders, SUM(total) AS total FROM s GROUP BY pm ORDER BY SUM(total) DESC`, [a, b]);
+    // Money that came through the online gateways (a part of the UPI / Card sales above), by the day it was paid (IST)
+    const gw = await q(`SELECT 'Razorpay' AS gateway, COUNT(*) AS payments, COALESCE(SUM(amount), 0) AS total FROM razorpay_payments
+        WHERE status = 'PAID' AND (to_timestamp(created_ms / 1000.0) AT TIME ZONE 'Asia/Kolkata')::date BETWEEN ?::date AND ?::date
+      UNION ALL
+      SELECT 'Paytm QR', COUNT(*), COALESCE(SUM(amount), 0) FROM upi_payments
+        WHERE status = 'PAID' AND (to_timestamp(COALESCE(NULLIF(paid_ms, 0), created_ms) / 1000.0) AT TIME ZONE 'Asia/Kolkata')::date BETWEEN ?::date AND ?::date`, [a, b, a, b]).catch(() => []);
     const exp = await q(`SELECT COALESCE(SUM(amount), 0) AS total, COALESCE(SUM(CASE WHEN UPPER(payment_mode) = 'CASH' THEN amount ELSE 0 END), 0) AS cash
       FROM expenses WHERE created_at::date BETWEEN ?::date AND ?::date`, [a, b]);
     const rows = days.map(d => ({ ...d, orders: num(d.orders), subtotal: r2(d.subtotal), discount: r2(d.discount), gst: r2(d.gst), total: r2(d.total),
       cash: r2(d.cash), upi: r2(d.upi), card: r2(d.card), split: r2(d.split), due: r2(d.due) }));
     const sum = (k) => r2(rows.reduce((t, r) => t + r[k], 0));
     return { rows, totals: { orders: sum('orders'), subtotal: sum('subtotal'), discount: sum('discount'), gst: sum('gst'), total: sum('total'), cash: sum('cash'), upi: sum('upi'), card: sum('card'), split: sum('split'), due: sum('due') },
-      modes: modes.map(m => ({ mode: m.mode, orders: num(m.orders), total: r2(m.total) })), expenses: { total: r2(exp[0].total), cash: r2(exp[0].cash) } };
+      modes: modes.map(m => ({ mode: m.mode, orders: num(m.orders), total: r2(m.total) })), gateways: gw.map(g => ({ gateway: g.gateway, payments: num(g.payments), total: r2(g.total) })), expenses: { total: r2(exp[0].total), cash: r2(exp[0].cash) } };
   };
 
   reports.ordertype = async (a, b) => {
