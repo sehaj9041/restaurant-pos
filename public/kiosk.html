@@ -1677,7 +1677,7 @@
           qrs.push({ path: q.path, cap: q.cap, img: im });
         } catch (e) { console.warn('qr load failed', q.path, e); }
       }
-      const p = kioskBillParts(data, o, logoImg ? '<div style="height:' + lh + 'px"></div>' : '', kioskQrBlock(qrs, (q, i) => '<div id="billQrSlot' + i + '" style="width:' + qrPx + 'px;height:' + qrPx + 'px"></div>'));
+      const p = kioskBillParts(data, o, logoImg ? '<div style="height:' + lh + 'px"></div>' : '', kioskQrBlock(qrs, (q, i) => '<div id="billQrSlot' + i + '" style="width:' + qrPx + 'px;height:' + qrPx + 'px;background:#ff0000"></div>'));
       const host = document.createElement('div');
       host.style.cssText = 'position:fixed;left:-10000px;top:0;width:' + cssW + 'px;';
       host.innerHTML = '<style>' + p.css + ' .bill{width:' + cssW + 'px;box-sizing:border-box;}</style>' + p.body;
@@ -1705,9 +1705,30 @@
         ctx.drawImage(logoImg, offX + Math.round((cssW - lw) / 2 * kk), 0, Math.round(lw * kk), Math.round(lh * kk));
       }
       {
-        const kk = contentDots / cssW;
+        // The QR slots are red boxes inside the bill image. Where they really landed is read back from the drawn pixels, because the text
+        // layout inside the SVG can differ from the page layout (more so on the narrow printer) and a measured position then overlaps the caption or leaves a gap.
+        const kk = contentDots / cssW, W = cv.width, Hh = cv.height, d = ctx.getImageData(0, 0, W, Hh).data;
+        const colHas = new Uint8Array(W), minY = new Int32Array(W).fill(Hh), maxY = new Int32Array(W).fill(-1);
+        for (let y = 0; y < Hh; y++) for (let x = 0; x < W; x++) {
+          const i = (y * W + x) * 4;
+          if (d[i] > 200 && d[i + 1] < 90 && d[i + 2] < 90 && d[i + 3] > 200) { colHas[x] = 1; if (y < minY[x]) minY[x] = y; if (y > maxY[x]) maxY[x] = y; }
+        }
+        const boxes = [];
+        for (let x = 0; x < W; x++) {
+          if (!colHas[x]) continue;
+          let x2 = x, y1 = minY[x], y2 = maxY[x];
+          while (x2 + 1 < W && colHas[x2 + 1]) { x2++; y1 = Math.min(y1, minY[x2]); y2 = Math.max(y2, maxY[x2]); }
+          if (x2 - x >= 8) boxes.push({ x, y: y1, w: x2 - x + 1, h: y2 - y1 + 1 });
+          x = x2;
+        }
         ctx.imageSmoothingEnabled = false;                  // keep the QR modules sharp
-        qrs.forEach((q, i) => { if (qrPos[i]) ctx.drawImage(q.img, offX + Math.round(qrPos[i].x * kk), Math.round(qrPos[i].y * kk), Math.round(qrPx * kk), Math.round(qrPx * kk)); });
+        qrs.forEach((q, i) => {
+          const bx = boxes.length === qrs.length ? boxes[i] : (qrPos[i] ? { x: offX + Math.round(qrPos[i].x * kk), y: Math.round(qrPos[i].y * kk), w: Math.round(qrPx * kk), h: Math.round(qrPx * kk) } : null);
+          if (!bx) return;
+          const side = Math.min(bx.w, bx.h);
+          ctx.fillStyle = '#fff'; ctx.fillRect(bx.x - 1, bx.y - 1, bx.w + 2, bx.h + 2);   // wipe the red box
+          ctx.drawImage(q.img, bx.x, bx.y, side, side);
+        });
       }
       return canvasToEscPos(trimBottom(cv));                // throws if the canvas got tainted
     }
