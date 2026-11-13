@@ -1686,7 +1686,7 @@
       const qrPos = [];
       try {
         await new Promise(r => setTimeout(r, 50));
-        cssH = Math.ceil(host.getBoundingClientRect().height);
+        cssH = Math.ceil(host.getBoundingClientRect().height) + 16;   // spare room: the bill laid out inside the SVG can be a few px taller than here, which clipped the caption under the QRs
         const hr = host.getBoundingClientRect();
         qrs.forEach((q, i) => { const slot = host.querySelector('#billQrSlot' + i); if (slot) { const sr = slot.getBoundingClientRect(); qrPos[i] = { x: sr.left - hr.left, y: sr.top - hr.top }; } });
         host.style.cssText = 'width:' + cssW + 'px;';   // drop the off-screen positioning before serialising
