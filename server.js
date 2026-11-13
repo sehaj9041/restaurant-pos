@@ -293,7 +293,10 @@ app.post('/api/print-ip', (req, res) => {
 });
 
 app.get('/api/print/pending-queue', (req, res) => {
-  res.json({ success: true, jobs: cloudPrintQueue });
+  // A job goes to ONE poller (the POS exe or the old printer agent, whichever asks first); if it is not acknowledged within 60s it is offered again (print failed)
+  const now = Date.now(), jobs = cloudPrintQueue.filter(j => !j.claimedAt || now - j.claimedAt > 60000);
+  jobs.forEach(j => { j.claimedAt = now; });
+  res.json({ success: true, jobs });
 });
 
 // Local printer jobs (cash drawer kick / bill print): the POS page posts here (staff login required) and the printer agent on the billing PC
