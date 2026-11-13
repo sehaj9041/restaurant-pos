@@ -4427,7 +4427,8 @@
       // off-screen but laid out, so html2canvas can measure it
       frame.style.cssText = 'position:fixed;left:-2000px;top:0;width:330px;height:1200px;border:0;';
       var doc = frame.contentWindow.document;
-      doc.open(); doc.write(htmlOne); doc.close();
+      // html2canvas mis-measures text under CSS zoom (words run together, lines drift up/down), so render without it: the body is stretched to the full paper width below anyway, so the size is the same
+      doc.open(); doc.write(String(htmlOne).replace(/zoom:\s*[\d.]+\s*;?/, '')); doc.close();
       var waitImgs = function(tries) {
         var pending = Array.prototype.some.call(doc.images, function(i) { return !i.complete; });
         if (pending && tries < 20) return setTimeout(function() { waitImgs(tries + 1); }, 100);
