@@ -405,7 +405,7 @@
     }
 
     // Secret tap sequence: note cards ke data-note index. Galat tap ya 3s ki der par reset.
-    const SECRET_TAPS = [0, 0, 2, 3, 1, 1, 3, 0, 2, 2];
+    const SECRET_TAPS = [0, 1, 2, 3, 3, 2, 1, 0];
     let tapPos = 0, tapTimer = null;
     document.querySelectorAll('.note-card').forEach(card => {
       card.addEventListener('click', () => {
