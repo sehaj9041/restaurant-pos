@@ -1585,7 +1585,7 @@
     }
     function kioskQrBlock(list, inner) {
       if (!list.length) return '';
-      return '<div style="display:flex;justify-content:center;gap:4mm;margin-top:6px;text-align:center">' + list.map((q, i) => '<div>' + inner(q, i) + '<div style="font-size:10px">' + q.cap + '</div></div>').join('') + '</div>';
+      return '<div style="display:flex;justify-content:center;gap:4mm;margin-top:6px;text-align:center">' + list.map((q, i) => '<div>' + inner(q, i) + '<div style="font-size:12px">' + q.cap + '</div></div>').join('') + '</div>';
     }
 
     function kioskBillHtml(data, o) {

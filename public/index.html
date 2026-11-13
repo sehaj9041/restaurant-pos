@@ -4319,7 +4319,7 @@
           <div class="center" style="font-size:11px;">Payment Mode: <b>${payModeText(payload, '')}</b></div>
           <div class="center" style="font-size:11px; margin-top:4px;">${billEsc(billCfg.c.thank_you || 'Thanks For Visiting Us!')}</div>
           ${billCfg.c.footer ? `<div class="center" style="font-size:10px; margin-top:2px;">${billEsc(billCfg.c.footer)}</div>` : ''}
-          ${(bOn('show_feedback_qr') && orderId) || bOn('show_app_qr') ? `<div style="display:flex; justify-content:center; gap:4mm; margin-top:6px; text-align:center;">${bOn('show_feedback_qr') && orderId ? `<div><img src="/api/feedback/qr/${encodeURIComponent(orderId)}" style="width:26mm;height:26mm;"><div style="font-size:10px;">Scan to rate us</div></div>` : ''}${bOn('show_app_qr') ? `<div><img src="/api/app/qr" style="width:26mm;height:26mm;"><div style="font-size:10px;">Scan to get our app</div></div>` : ''}</div>` : ''}
+          ${(bOn('show_feedback_qr') && orderId) || bOn('show_app_qr') ? `<div style="display:flex; justify-content:center; gap:4mm; margin-top:6px; text-align:center;">${bOn('show_feedback_qr') && orderId ? `<div><img src="/api/feedback/qr/${encodeURIComponent(orderId)}" style="width:26mm;height:26mm;"><div style="font-size:12px;">Scan to rate us</div></div>` : ''}${bOn('show_app_qr') ? `<div><img src="/api/app/qr" style="width:26mm;height:26mm;"><div style="font-size:12px;">Scan to get our app</div></div>` : ''}</div>` : ''}
         </body>
         </html>
       `;
