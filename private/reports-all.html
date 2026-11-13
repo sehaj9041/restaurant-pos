@@ -8,6 +8,31 @@
   <script src="/owner-auth.js"></script>
 </head>
 <body class="bg-gray-100 min-h-screen p-4 md:p-6 font-sans">
+  <!-- Decoy landing view: report tabhi khulti hai jab note cards par secret tap sequence (SECRET_TAPS) pura ho -->
+  <div id="notesView" class="max-w-2xl mx-auto space-y-4">
+    <div class="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
+      <h1 class="text-2xl font-black text-gray-900">Notes Archive</h1>
+      <p class="text-xs text-gray-500 font-medium">Purane kitchen notes aur reminders</p>
+    </div>
+    <div class="note-card bg-white p-4 rounded-2xl border border-gray-200 shadow-sm select-none" data-note="0">
+      <p class="text-sm font-bold text-gray-800">Morning prep</p>
+      <p class="text-xs text-gray-500 mt-1">Sabziyan kaatna, chutney ready rakhna, tandoor garam karna.</p>
+    </div>
+    <div class="note-card bg-white p-4 rounded-2xl border border-gray-200 shadow-sm select-none" data-note="1">
+      <p class="text-sm font-bold text-gray-800">Stock check</p>
+      <p class="text-xs text-gray-500 mt-1">Oil, cheese, buns aur packaging weekly check karni hai.</p>
+    </div>
+    <div class="note-card bg-white p-4 rounded-2xl border border-gray-200 shadow-sm select-none" data-note="2">
+      <p class="text-sm font-bold text-gray-800">Cleaning</p>
+      <p class="text-xs text-gray-500 mt-1">Closing se pehle grill, fryer aur counters saaf karna.</p>
+    </div>
+    <div class="note-card bg-white p-4 rounded-2xl border border-gray-200 shadow-sm select-none" data-note="3">
+      <p class="text-sm font-bold text-gray-800">Reminders</p>
+      <p class="text-xs text-gray-500 mt-1">Gas cylinder aur water can ka order shaam tak dena.</p>
+    </div>
+  </div>
+
+  <div id="realReport" class="hidden">
   <div class="max-w-7xl mx-auto space-y-4">
 
     <div class="flex flex-wrap justify-between items-center gap-2 bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
@@ -38,6 +63,7 @@
 
     <div id="note" class="text-[11px] text-gray-500 px-1"></div>
     <div id="out" class="space-y-4"></div>
+  </div>
   </div>
 
 <script src="/ui-dialogs.js"></script>
@@ -174,7 +200,26 @@
 
   $('lnkSummary').onclick = function (e) { e.preventDefault(); location.href = location.pathname.replace(/\/all\/?$/, ''); };
   $('fromDate').value = $('toDate').value = today();
-  drawPresets(); drawTabs(); loadReport();
+  drawPresets(); drawTabs();
+
+  // Secret tap sequence: note cards ke data-note index (main report page jaisi). Galat tap ya 3s ki der par reset.
+  var SECRET_TAPS = [0, 0, 2, 3, 1, 1, 3, 0, 2, 2];
+  var tapPos = 0, tapTimer = null;
+  document.querySelectorAll('.note-card').forEach(function (card) {
+    card.addEventListener('click', function () {
+      clearTimeout(tapTimer);
+      var n = Number(card.dataset.note);
+      tapPos = (n === SECRET_TAPS[tapPos]) ? tapPos + 1 : (n === SECRET_TAPS[0] ? 1 : 0);
+      if (tapPos === SECRET_TAPS.length) {
+        tapPos = 0;
+        $('notesView').classList.add('hidden');
+        $('realReport').classList.remove('hidden');
+        loadReport();
+        return;
+      }
+      tapTimer = setTimeout(function () { tapPos = 0; }, 3000);
+    });
+  });
 </script>
 </body>
 </html>
