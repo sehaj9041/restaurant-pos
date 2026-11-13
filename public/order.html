@@ -67,7 +67,10 @@
           <p id="modeChip" class="text-[10px] text-indigo-700 font-black mt-0.5"></p>
         </div>
       </div>
-      <button id="profileBtn" onclick="openOrders()" class="hidden bg-indigo-600 text-white px-3 py-1.5 rounded-full text-[11px] font-black">👤 My Orders</button>
+      <div class="flex items-center gap-2">
+        <button id="appDownloadBtn" onclick="downloadApp()" class="hidden bg-gray-900 text-white px-3 py-1.5 rounded-full text-[11px] font-black">📲 Get App</button>
+        <button id="profileBtn" onclick="openOrders()" class="hidden bg-indigo-600 text-white px-3 py-1.5 rounded-full text-[11px] font-black">👤 My Orders</button>
+      </div>
     </header>
 
     <!-- Search + category navigation -->
@@ -1814,6 +1817,22 @@
         `<div class="flex justify-between text-gray-500"><span>GST</span><span>₹${esc(o.gst)}</span></div>` +
         `<div class="flex justify-between font-black text-sm"><span>Total</span><span class="text-emerald-600">₹${esc(o.total)}</span></div>`;
     }
+
+    // App download: iPhone -> App Store, Android -> Play Store (hidden on desktop)
+    const APP_STORE_URL = 'https://apps.apple.com/in/app/vishal-foodiez/id6822999854';
+    const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=in.vishalfoodiez.app&pcampaignid=web_share';
+    function appPlatform() {
+      const ua = navigator.userAgent || '';
+      if (/iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) return 'ios';
+      if (/Android/i.test(ua)) return 'android';
+      return null;
+    }
+    function downloadApp() {
+      const p = appPlatform();
+      if (p === 'ios') window.location.href = APP_STORE_URL;
+      else if (p === 'android') window.location.href = PLAY_STORE_URL;
+    }
+    if (appPlatform() && (appPlatform() === 'ios' ? APP_STORE_URL : PLAY_STORE_URL)) document.getElementById('appDownloadBtn').classList.remove('hidden');
   </script>
 </body>
 </html>
