@@ -1,0 +1,38 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Printer Settings</title>
+<style>
+body{font-family:Segoe UI,Arial,sans-serif;margin:0;padding:18px;background:#f4f5f7;color:#111}
+h1{font-size:18px;margin:0 0 12px}label{display:block;font-weight:700;font-size:13px;margin:12px 0 3px}
+small{display:block;color:#666;font-size:11px;font-weight:400;margin-top:2px}
+select,input[type=number]{width:100%;padding:8px;font-size:14px;border:1px solid #bbb;border-radius:6px;box-sizing:border-box}
+.row{display:flex;gap:10px}.row>div{flex:1}.btns{display:flex;gap:8px;margin-top:18px;flex-wrap:wrap}
+button{padding:10px 14px;font-size:14px;font-weight:700;border:0;border-radius:8px;cursor:pointer}
+.p{background:#059669;color:#fff}.s{background:#4f46e5;color:#fff}.g{background:#e5e7eb}
+#msg{margin-top:12px;font-weight:700;font-size:13px;min-height:18px}
+</style></head><body>
+<h1>🖨 Bill Printer Settings</h1>
+<label>Printer</label><select id="printer"></select>
+<label>Paper width<small>80mm paper: 576 (poori chaudai) ya 544. 58mm paper: 384. Bill right se kat raha ho to kam karein.</small></label>
+<select id="dots"><option value="384">384 dots (58mm)</option><option value="448">448</option><option value="480">480</option><option value="512">512 (80mm, margin ke saath)</option><option value="544">544 (80mm)</option><option value="576">576 (80mm poora)</option></select>
+<div class="row">
+<div><label>Bill size % <small>chhota karne ke liye (30-100)</small></label><input type="number" id="scale" min="30" max="100"></div>
+<div><label>Left se shift (dots) <small>bill ko right khisakne ke liye</small></label><input type="number" id="left" min="0" max="200"></div>
+<div><label>Neeche khali (dots)</label><input type="number" id="bottom" min="0" max="200"></div>
+</div>
+<label><input type="checkbox" id="cut" style="vertical-align:middle"> Bill ke baad paper cut karo</label>
+<div class="btns"><button class="p" id="save">Save</button><button class="s" id="test">Save + Test print</button><button class="g" id="drawer">Open drawer</button></div>
+<div id="msg"></div>
+<script>
+var $=function(i){return document.getElementById(i)};
+function read(){return {printerName:$('printer').value,billDots:+$('dots').value,billScale:+$('scale').value||100,billLeft:+$('left').value||0,billBottom:+$('bottom').value||0,billCut:$('cut').checked}}
+function say(t,ok){$('msg').textContent=t;$('msg').style.color=ok?'#047857':'#b91c1c'}
+vfDesktop.getSettings().then(function(d){
+  var s=d.settings,sel=$('printer');
+  sel.innerHTML='<option value="">Windows default printer</option>'+d.printers.map(function(p){return '<option>'+p.name.replace(/</g,'&lt;')+(p.isDefault?'':'')+'</option>'}).join('');
+  sel.value=s.printerName||'';
+  if(![].some.call($('dots').options,function(o){return +o.value===+s.billDots})){var o=document.createElement('option');o.value=s.billDots;o.textContent=s.billDots+' dots';$('dots').appendChild(o)}
+  $('dots').value=s.billDots;$('scale').value=s.billScale;$('left').value=s.billLeft;$('bottom').value=s.billBottom;$('cut').checked=s.billCut!==false;
+});
+$('save').onclick=function(){vfDesktop.saveSettings(read()).then(function(ok){say(ok?'Save ho gaya ✓':'Save nahi hua',ok)})};
+$('test').onclick=function(){say('Print ho raha hai...',true);vfDesktop.saveSettings(read()).then(function(){return vfDesktop.testPrint()}).then(function(d){say(d&&d.success?'Test slip nikal gayi ✓ (left/right edge dekhiye)':'Print nahi hua - printer check karein',d&&d.success)})};
+$('drawer').onclick=function(){vfDesktop.kickDrawer().then(function(d){say(d&&d.success?'Drawer open ✓':'Drawer nahi khula',d&&d.success)})};
+</script></body></html>

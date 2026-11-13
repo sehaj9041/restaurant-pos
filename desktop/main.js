@@ -12,7 +12,13 @@ const DEFAULTS = {
   printerName: '',                 // empty = the Windows default printer (the billing printer)
   kitchenQueue: true,              // poll the cloud for "item ready" tokens and send them to the kitchen network printer
   kitchenPrinterIP: '192.168.1.87',
-  kitchenPrinterPort: 9100
+  kitchenPrinterPort: 9100,
+  // bill print settings (Ctrl+Shift+P opens the settings window)
+  billDots: 544,                   // printable width in dots: 384 = 58mm paper, 576 = 80mm paper full width, 544 = 80mm with small side margins
+  billScale: 100,                  // bill size in % of the paper width (lower = smaller text, more margin)
+  billLeft: 0,                     // shift to the right, in dots
+  billBottom: 6,                   // blank rows added under the bill, in dots
+  billCut: true                    // cut the paper after the bill
 };
 let cfg = Object.assign({}, DEFAULTS);
 const cfgFile = () => path.join(app.getPath('userData'), 'config.json');
@@ -85,7 +91,8 @@ function buildEscPosImage(job) {
       parts.push(Buffer.from([0x1D, 0x76, 0x30, 0x00, rowBytes & 0xFF, rowBytes >> 8, band & 0xFF, band >> 8]));
       parts.push(img.subarray(y * rowBytes, (y + band) * rowBytes));
     }
-    parts.push(Buffer.from([0x1D, 0x56, 0x41, 0x03]));
+    if (job.cut !== false) parts.push(Buffer.from([0x1D, 0x56, 0x41, 0x03]));
+    else parts.push(Buffer.from([0x1B, 0x64, 0x04])); // no cutter: feed 4 lines so the slip can be torn off
   }
   return Buffer.concat(parts);
 }
@@ -111,35 +118,79 @@ async function printHtml(html) {
 }
 
 // ---------- bill as ESC/POS bitmap, rendered by Chromium itself (html2canvas dropped spaces / drifted lines on the Windows PCs) ----------
-const BILL_DOTS = 544;
 async function printBillBitmap(html, copies) {
   html = String(html).replace(/<script>[^]*?window\.print\(\)[^]*?<\/script>/gi, '');
   const dir = path.join(os.tmpdir(), 'vf-print'); fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, 'bill-' + Date.now() + '.html'); fs.writeFileSync(file, html, 'utf8');
-  const pw = new BrowserWindow({ show: false, width: 420, height: 900, useContentSize: true, webPreferences: { sandbox: true, backgroundThrottling: false } });
+  // frameless + enableLargerThanScreen: a long bill must not be shrunk to the screen height (that cut off the bottom / right of the slip)
+  const pw = new BrowserWindow({ show: false, frame: false, enableLargerThanScreen: true, width: 420, height: 900, useContentSize: true, webPreferences: { sandbox: true, backgroundThrottling: false } });
   try {
     await pw.loadFile(file);
+    await pw.webContents.insertCSS('html,body{overflow:hidden !important}'); // no scrollbar eating the right edge
     await new Promise((r) => setTimeout(r, 500)); // let images (logo, QR) finish
     const box = await pw.webContents.executeJavaScript('(function(){var b=document.body.getBoundingClientRect(),l=document.body.lastElementChild,e=l?l.getBoundingClientRect().bottom:b.bottom;return [b.left,b.width,Math.ceil(e+8)];})()');
     const x = Math.floor(box[0]), w = Math.ceil(box[1]), h = box[2];
     pw.setContentSize(x + w + 10, h + 10);
     await new Promise((r) => setTimeout(r, 200));
     let img = await pw.webContents.capturePage({ x, y: 0, width: w, height: h });
-    const H = Math.max(1, Math.round(img.getSize().height * BILL_DOTS / img.getSize().width));
-    img = img.resize({ width: BILL_DOTS, height: H, quality: 'best' });
-    const px = img.toBitmap(), rowBytes = BILL_DOTS / 8, bytes = Buffer.alloc(rowBytes * H); // BGRA
-    for (let y = 0; y < H; y++) for (let xx = 0; xx < BILL_DOTS; xx++) {
-      const i = (y * BILL_DOTS + xx) * 4;
-      if (px[i + 3] > 40 && (px[i + 2] * 0.3 + px[i + 1] * 0.59 + px[i] * 0.11) < 170) bytes[y * rowBytes + (xx >> 3)] |= (0x80 >> (xx & 7));
+    const DOTS = Math.max(8, (Math.round(Number(cfg.billDots) || 544) >> 3) << 3);   // paper width, multiple of 8
+    const scale = Math.max(30, Math.min(100, Number(cfg.billScale) || 100)) / 100;
+    const left = Math.max(0, Math.round(Number(cfg.billLeft) || 0));
+    const bottom = Math.max(0, Math.round(Number(cfg.billBottom) || 0));
+    const CW = Math.max(8, Math.round(DOTS * scale));                                 // bill width inside the paper
+    const H = Math.max(1, Math.round(img.getSize().height * CW / img.getSize().width));
+    img = img.resize({ width: CW, height: H, quality: 'best' });
+    const px = img.toBitmap(), rowBytes = DOTS / 8, bytes = Buffer.alloc(rowBytes * H); // BGRA in, 1 bit out
+    const off = Math.min(left + (cfg.billScale < 100 ? Math.round((DOTS - CW) / 2) : 0), DOTS - 1); // a scaled-down bill is centred, then shifted by "left"
+    for (let y = 0; y < H; y++) for (let xx = 0; xx < CW; xx++) {
+      const ox = xx + off; if (ox >= DOTS) break;
+      const i = (y * CW + xx) * 4;
+      if (px[i + 3] > 40 && (px[i + 2] * 0.3 + px[i + 1] * 0.59 + px[i] * 0.11) < 170) bytes[y * rowBytes + (ox >> 3)] |= (0x80 >> (ox & 7));
     }
     let last = 0;
     for (let y = H - 1; y >= 0 && !last; y--) for (let q = 0; q < rowBytes; q++) if (bytes[y * rowBytes + q]) { last = y; break; }
-    const outH = Math.min(H, last + 6);
-    return await sendRaw(buildEscPosImage({ width: BILL_DOTS, height: outH, copies, data: bytes.subarray(0, rowBytes * outH).toString('base64') }));
+    const outH = Math.min(H, last + 1) + bottom, full = Buffer.concat([bytes.subarray(0, Math.min(H, last + 1) * rowBytes), Buffer.alloc(bottom * rowBytes)]);
+    return await sendRaw(buildEscPosImage({ width: DOTS, height: outH, copies, cut: cfg.billCut !== false, data: full.toString('base64') }));
   } catch (e) { log('printBillBitmap error', e.message); return false; }
   finally { try { pw.destroy(); } catch (e) {} setTimeout(() => fs.unlink(file, () => {}), 60000); }
 }
 ipcMain.handle('print-bill', async (e, html, copies) => ({ success: await printBillBitmap(html, Math.max(1, Math.min(5, copies | 0 || 1))) }));
+// ---------- printer settings window (Ctrl+Shift+P) ----------
+const SETTING_KEYS = ['printerName', 'billDots', 'billScale', 'billLeft', 'billBottom', 'billCut'];
+let settingsWin = null;
+function openSettings() {
+  if (settingsWin) { settingsWin.focus(); return; }
+  settingsWin = new BrowserWindow({ width: 520, height: 640, parent: win || undefined, title: 'Printer Settings', autoHideMenuBar: true,
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false } });
+  settingsWin.loadFile(path.join(__dirname, 'settings.html'));
+  settingsWin.on('closed', () => { settingsWin = null; });
+}
+ipcMain.handle('open-settings', () => { openSettings(); return true; });
+ipcMain.handle('get-settings', async () => {
+  let printers = []; try { printers = (await win.webContents.getPrintersAsync()).map((p) => ({ name: p.name, isDefault: !!p.isDefault })); } catch (e) {}
+  const s = {}; SETTING_KEYS.forEach((k) => { s[k] = cfg[k]; });
+  return { settings: s, printers };
+});
+ipcMain.handle('save-settings', (e, s) => {
+  const num = (v, lo, hi, d) => { v = Number(v); return isFinite(v) ? Math.max(lo, Math.min(hi, Math.round(v))) : d; };
+  cfg.printerName = String((s && s.printerName) || '');
+  cfg.billDots = num(s && s.billDots, 64, 832, DEFAULTS.billDots);
+  cfg.billScale = num(s && s.billScale, 30, 100, DEFAULTS.billScale);
+  cfg.billLeft = num(s && s.billLeft, 0, 200, DEFAULTS.billLeft);
+  cfg.billBottom = num(s && s.billBottom, 0, 200, DEFAULTS.billBottom);
+  cfg.billCut = !(s && s.billCut === false);
+  printerNameCache = '';
+  try { fs.writeFileSync(cfgFile(), JSON.stringify(cfg, null, 2)); } catch (err) { log('save settings', err.message); return false; }
+  return true;
+});
+ipcMain.handle('test-print', async () => {
+  const row = (a, b, c, d) => '<tr><td class="nm">' + a + '</td><td class="q">' + b + '</td><td class="r">' + c + '</td><td class="a">' + d + '</td></tr>';
+  const html = '<html><head><style>body{font-family:Arial,sans-serif;font-size:13px;color:#000;margin:0;padding:2px 6px 0;width:68mm}.c{text-align:center}.t{border:2.5px solid #000;font-size:26px;font-weight:900;text-align:center;padding:4px 0;margin:6px 0}.d{border-top:1.5px dashed #000;margin:6px 0}table{width:100%;border-collapse:collapse;table-layout:fixed}th{border-bottom:1.5px solid #000;font-size:12px}td{padding:3px 0}.nm{font-weight:700;text-align:left}.q{width:8mm;text-align:center}.r{width:13mm;text-align:right}.a{width:16mm;text-align:right}</style></head><body>' +
+    '<div class="c" style="font-size:18px;font-weight:900">VISHAL FOODIEZ</div><div class="c" style="font-size:11px">TEST PRINT - left / right edge check</div><div class="t">TOKEN #1</div><div>&#9664; left edge ........ right edge &#9654;</div><div class="d"></div>' +
+    '<table><thead><tr><th class="nm">Item</th><th class="q">Qty</th><th class="r">Rate</th><th class="a">Amount</th></tr></thead><tbody>' + row('Spicy Paneer Burger', 2, '89.00', '178.00') + row('Oreo Shake', 1, '99.00', '99.00') + '</tbody></table>' +
+    '<div class="d"></div><div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900"><span>TOTAL BILL:</span><span>&#8377;277.00</span></div><div class="c" style="font-size:11px;margin-top:4px">Thanks For Visiting Us!</div></body></html>';
+  return { success: await printBillBitmap(html, 1) };
+});
 ipcMain.handle('print-html', async (e, html) => ({ success: await printHtml(html) }));
 ipcMain.handle('print-image', async (e, job) => { try { return { success: await sendRaw(buildEscPosImage(job)) }; } catch (err) { log('print-image', err.message); return { success: false }; } });
 ipcMain.handle('kick-drawer', async () => ({ success: await sendRaw([0x1B, 0x70, 0x01, 0x19, 0xFA]) }));
@@ -191,6 +242,7 @@ async function pollKitchen() {
 function createWindow() {
   win = new BrowserWindow({ width: 1366, height: 768, show: false, autoHideMenuBar: true, title: 'Vishal Foodiez POS',
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false } });
+  win.webContents.on('before-input-event', (e, input) => { if (input.type === 'keyDown' && input.control && input.shift && String(input.key).toLowerCase() === 'p') { e.preventDefault(); openSettings(); } });
   win.maximize(); win.show();
   win.loadURL(cfg.url);
   win.webContents.on('did-fail-load', (e, code, desc, url, isMain) => {

@@ -209,6 +209,11 @@
         <span>💵</span> Open Drawer
       </button>
 
+      <button id="btnPrinterSettings" onclick="window.vfDesktop.openSettings()" class="hidden text-xs font-bold px-2.5 py-1.5 rounded-lg border border-slate-300 bg-slate-50 hover:bg-slate-100 flex items-center gap-1 text-slate-800 transition shadow-2xs">
+        <span>🖨</span> Printer Settings
+      </button>
+      <script>if (window.vfDesktop && window.vfDesktop.openSettings) { var pb = document.getElementById('btnPrinterSettings'); pb.classList.remove('hidden'); }</script>
+
       <button onclick="openPOSOrderView('', '')" class="bg-orange-500 hover:bg-orange-600 text-white px-3.5 py-1.5 rounded-lg text-xs font-black shadow-sm flex items-center gap-1 transition">
         <span>+</span> New Order
       </button>
