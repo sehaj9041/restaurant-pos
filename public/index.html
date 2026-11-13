@@ -4396,13 +4396,14 @@
             // Default: the printer agent opens the bill in its own Chrome window started with --kiosk-printing, so it prints silently
       // through the normal Windows printer driver (same layout as the print dialog). If the agent is not reachable, the usual print dialog opens.
       // Desktop app (exe): print through the app itself, no local agent / browser permission involved
-      if (window.vfDesktop && localStorage.getItem('vf_agent_print') !== '1') {
+      // (the exe prints the bill as an ESC/POS bitmap below, like the old agent: the Windows driver route gave a short blank slip + cut on the thermal printer. localStorage vf_desktop_html_print=1 brings the driver route back)
+      if (window.vfDesktop && (localStorage.getItem('vf_desktop_html_print') === '1' || !window.html2canvas)) {
         window.vfDesktop.printHtml(String(fallbackHtml).replace(/(src=")\//g, '$1' + location.origin + '/'))
           .then(function(d) { if (!d || !d.success) throw new Error('desktop print failed'); })
           .catch(function(e) { console.warn('Desktop print failed, using print dialog:', e); fallback(); });
         return;
       }
-      if (localStorage.getItem('vf_agent_print') !== '1') {
+      if (!window.vfDesktop && localStorage.getItem('vf_agent_print') !== '1') {
         var pageHtml = String(fallbackHtml).replace(/(src=")\//g, '$1' + location.origin + '/')
           .replace('</body>', '<scr' + 'ipt>window.onload=function(){setTimeout(function(){window.print();setTimeout(function(){window.close();},1500);},50);};</scr' + 'ipt></body>');
         // 1st choice: hand the bill to the server, the printer agent picks it up (Chrome cannot block that). 2nd: talk to the agent directly. Last: print dialog.
