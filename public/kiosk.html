@@ -1522,7 +1522,7 @@
       const s = kioskStoreCfg, c = kioskReceiptCfg;
       const rows = o.items.map(i => `<tr><td class="nm">${esc(i.name)}${i.notes ? `<div style="font-size:10px;font-weight:400">${esc(i.notes)}</div>` : ''}</td><td class="q">${i.qty}</td><td class="r">${Number(i.price).toFixed(2)}</td><td class="a">${(i.price * i.qty).toFixed(2)}</td></tr>`).join('');
       const css = `
-        .bill { font-family: Arial, Helvetica, sans-serif; font-size: 13px; font-weight: 500; color: #000; background: #fff; padding: 0 6px 4px; }
+        .bill { font-family: Arial, Helvetica, sans-serif; font-size: 13px; font-weight: 500; line-height: normal; color: #000; background: #fff; padding: 0 6px 4px; }
         .bill .center { text-align: center; }
         .bill .token { border: 2.5px solid #000; font-size: 26px; font-weight: 900; text-align: center; padding: 4px 0; margin: 6px 0; }
         .bill .divider { border-top: 1.5px dashed #000; margin: 6px 0; }
