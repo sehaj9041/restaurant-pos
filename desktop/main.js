@@ -110,6 +110,36 @@ async function printHtml(html) {
   finally { try { pw.destroy(); } catch (e) {} setTimeout(() => fs.unlink(file, () => {}), 60000); }
 }
 
+// ---------- bill as ESC/POS bitmap, rendered by Chromium itself (html2canvas dropped spaces / drifted lines on the Windows PCs) ----------
+const BILL_DOTS = 544;
+async function printBillBitmap(html, copies) {
+  html = String(html).replace(/<script>[^]*?window\.print\(\)[^]*?<\/script>/gi, '');
+  const dir = path.join(os.tmpdir(), 'vf-print'); fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, 'bill-' + Date.now() + '.html'); fs.writeFileSync(file, html, 'utf8');
+  const pw = new BrowserWindow({ show: false, width: 420, height: 900, useContentSize: true, webPreferences: { sandbox: true, backgroundThrottling: false } });
+  try {
+    await pw.loadFile(file);
+    await new Promise((r) => setTimeout(r, 500)); // let images (logo, QR) finish
+    const box = await pw.webContents.executeJavaScript('(function(){var b=document.body.getBoundingClientRect(),l=document.body.lastElementChild,e=l?l.getBoundingClientRect().bottom:b.bottom;return [b.left,b.width,Math.ceil(e+8)];})()');
+    const x = Math.floor(box[0]), w = Math.ceil(box[1]), h = box[2];
+    pw.setContentSize(x + w + 10, h + 10);
+    await new Promise((r) => setTimeout(r, 200));
+    let img = await pw.webContents.capturePage({ x, y: 0, width: w, height: h });
+    const H = Math.max(1, Math.round(img.getSize().height * BILL_DOTS / img.getSize().width));
+    img = img.resize({ width: BILL_DOTS, height: H, quality: 'best' });
+    const px = img.toBitmap(), rowBytes = BILL_DOTS / 8, bytes = Buffer.alloc(rowBytes * H); // BGRA
+    for (let y = 0; y < H; y++) for (let xx = 0; xx < BILL_DOTS; xx++) {
+      const i = (y * BILL_DOTS + xx) * 4;
+      if (px[i + 3] > 40 && (px[i + 2] * 0.3 + px[i + 1] * 0.59 + px[i] * 0.11) < 170) bytes[y * rowBytes + (xx >> 3)] |= (0x80 >> (xx & 7));
+    }
+    let last = 0;
+    for (let y = H - 1; y >= 0 && !last; y--) for (let q = 0; q < rowBytes; q++) if (bytes[y * rowBytes + q]) { last = y; break; }
+    const outH = Math.min(H, last + 6);
+    return await sendRaw(buildEscPosImage({ width: BILL_DOTS, height: outH, copies, data: bytes.subarray(0, rowBytes * outH).toString('base64') }));
+  } catch (e) { log('printBillBitmap error', e.message); return false; }
+  finally { try { pw.destroy(); } catch (e) {} setTimeout(() => fs.unlink(file, () => {}), 60000); }
+}
+ipcMain.handle('print-bill', async (e, html, copies) => ({ success: await printBillBitmap(html, Math.max(1, Math.min(5, copies | 0 || 1))) }));
 ipcMain.handle('print-html', async (e, html) => ({ success: await printHtml(html) }));
 ipcMain.handle('print-image', async (e, job) => { try { return { success: await sendRaw(buildEscPosImage(job)) }; } catch (err) { log('print-image', err.message); return { success: false }; } });
 ipcMain.handle('kick-drawer', async () => ({ success: await sendRaw([0x1B, 0x70, 0x01, 0x19, 0xFA]) }));

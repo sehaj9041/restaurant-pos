@@ -4393,10 +4393,20 @@
     }
     function printHtmlSilent(htmlOne, copies, fallbackHtml) {
       var fallback = function() { printDialogFallback(fallbackHtml); };
+      // the installed exe has no DevTools: its config.json url can end with ?print=driver (or ?print=bitmap) to pick the Windows-driver / bitmap bill print
+      var pm = (location.search.match(/[?&]print=(driver|bitmap)/) || [])[1];
+      if (pm) { try { pm === 'driver' ? localStorage.setItem('vf_desktop_html_print', '1') : localStorage.removeItem('vf_desktop_html_print'); } catch (e) {} }
             // Default: the printer agent opens the bill in its own Chrome window started with --kiosk-printing, so it prints silently
       // through the normal Windows printer driver (same layout as the print dialog). If the agent is not reachable, the usual print dialog opens.
       // Desktop app (exe): print through the app itself, no local agent / browser permission involved
       // (the exe prints the bill as an ESC/POS bitmap below, like the old agent: the Windows driver route gave a short blank slip + cut on the thermal printer. localStorage vf_desktop_html_print=1 brings the driver route back)
+      // newer exe: the app renders the bill itself (real Chromium text) and sends it as a bitmap; older exe falls through to html2canvas below
+      if (window.vfDesktop && window.vfDesktop.printBill && localStorage.getItem('vf_desktop_html_print') !== '1') {
+        window.vfDesktop.printBill(String(htmlOne).replace(/(src=")\//g, '$1' + location.origin + '/'), copies)
+          .then(function(d) { if (!d || !d.success) throw new Error('desktop bill print failed'); })
+          .catch(function(e) { console.warn('Desktop bill print failed, using print dialog:', e); fallback(); });
+        return;
+      }
       if (window.vfDesktop && (localStorage.getItem('vf_desktop_html_print') === '1' || !window.html2canvas)) {
         window.vfDesktop.printHtml(String(fallbackHtml).replace(/(src=")\//g, '$1' + location.origin + '/'))
           .then(function(d) { if (!d || !d.success) throw new Error('desktop print failed'); })

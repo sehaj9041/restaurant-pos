@@ -1,7 +1,7 @@
 {
   "name": "vishal-foodiez-pos",
   "productName": "Vishal Foodiez POS",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "POS desktop app: opens the POS site, prints bills silently and kicks the cash drawer (replaces the printer agent)",
   "main": "main.js",
   "author": "Vishal Foodiez",
