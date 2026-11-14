@@ -1139,6 +1139,10 @@
       renderTempGroupItems();
     }
 
+    function moveGroupItem(idx, dir) {
+      if (moveItem(tempGroupItems, idx, idx + dir)) renderTempGroupItems();
+    }
+
     async function editGroupItem(idx) {
       const item = tempGroupItems[idx];
       if (!item) return;
@@ -1161,6 +1165,8 @@
           ${item.image ? `<img src="${esc(resolveImgPath(item.image))}" class="w-4 h-4 rounded object-cover">` : ''}
           <span class="font-bold text-gray-700">${esc(item.name)} (+₹${esc(item.price)})</span>
           <label class="text-indigo-600 font-bold ml-1 cursor-pointer hover:underline" title="Image change karein">📷<input type="file" accept="image/*" class="hidden" onchange="changeGroupItemImage(${idx}, this)"></label>
+          <button type="button" ${idx === 0 ? 'disabled style="opacity:.3"' : ''} onclick="moveGroupItem(${idx}, -1)" class="text-gray-500 font-bold ml-1" title="Pehle le jaayein">◀</button>
+          <button type="button" ${idx === tempGroupItems.length - 1 ? 'disabled style="opacity:.3"' : ''} onclick="moveGroupItem(${idx}, 1)" class="text-gray-500 font-bold" title="Baad me le jaayein">▶</button>
           <button type="button" onclick="editGroupItem(${idx})" class="text-indigo-600 font-bold ml-1" title="Name / price edit karein">✏️</button>
           <button type="button" onclick="tempGroupItems.splice(${idx}, 1); renderTempGroupItems();" class="text-red-500 font-bold ml-1">✕</button>
         </span>
