@@ -16,6 +16,19 @@ const app = express();
 app.use(cors());
 app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
 
+// /api/menu cache: POS/kiosk/QR pages re-fetch the whole menu every 30s, and each fetch pulls it from Neon (network transfer is billed).
+// Any write request (POST/PUT/PATCH/DELETE) drops the cache, before and after it runs; the short TTL covers writes from outside this process.
+const MENU_CACHE_TTL_MS = 15000;
+const menuCache = { version: 0, entries: {} };
+function clearMenuCache() { menuCache.version++; menuCache.entries = {}; }
+app.use((req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS') {
+    clearMenuCache();
+    res.on('finish', clearMenuCache);
+  }
+  next();
+});
+
 // Auto-migrate paid_amount column in orders table if not present
 db.run("ALTER TABLE orders ADD COLUMN paid_amount REAL DEFAULT 0", (err) => {});
 
@@ -519,11 +532,15 @@ app.post('/api/menu/assign-variations-category', (req, res) => {
 
 // 6. MENU APIS
 app.get('/api/menu', (req, res) => {
+  const key = req.query.admin === '1' ? 'admin' : 'public';
+  const hit = menuCache.entries[key];
+  if (hit && Date.now() - hit.at < MENU_CACHE_TTL_MS) return res.type('json').send(hit.body);
+  const version = menuCache.version;
   db.all(`SELECT m.* FROM menu m LEFT JOIN categories c ON c.name = m.category
           ORDER BY COALESCE(c.sort_order, 9999), m.category, COALESCE(m.sort_order, 0), m.name`, [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     // Inactive ("Off") variants are hidden from POS/kiosk/QR; admin asks for everything with ?admin=1.
-    if (req.query.admin !== '1') {
+    if (key !== 'admin') {
       (rows || []).forEach(r => {
         try {
           const vars = JSON.parse(r.variations || '[]');
@@ -531,7 +548,9 @@ app.get('/api/menu', (req, res) => {
         } catch (e) {}
       });
     }
-    res.json(rows || []);
+    const body = JSON.stringify(rows || []);
+    if (version === menuCache.version) menuCache.entries[key] = { at: Date.now(), body };
+    res.type('json').send(body);
   });
 });
 

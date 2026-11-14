@@ -1824,8 +1824,11 @@
 
     // ---------- Navigation ----------
     function showModeSelection() {
-      $('idleScreensaver').classList.add('hidden');
+      // show the next screen first, then stop the welcome video so it stops competing for the decoder/GPU
       $('modeSelectionScreen').classList.remove('hidden');
+      $('idleScreensaver').classList.add('hidden');
+      const v = $('idleMedia').querySelector('video');
+      if (v) v.pause();
     }
 
     function startKioskOrderWithMode(mode) {
@@ -1856,6 +1859,8 @@
       ['tokenSuccessModal', 'trayReviewModal', 'phoneModal', 'pointsModal', 'paymentModal', 'upiQrModal', 'customizerModal', 'modeSelectionScreen', 'addedModal', 'upsellModal', 'mealChoiceModal', 'thinkingModal']
         .forEach(id => $(id).classList.add('hidden'));
       $('idleScreensaver').classList.remove('hidden');
+      const idleVideo = $('idleMedia').querySelector('video');
+      if (idleVideo) idleVideo.play().catch(() => {});
       if (categories.length) { activeCategory = categories[0]; renderCategories(); }
       clearTimeout(idleTimer);
       clearInterval(countdownTimer);

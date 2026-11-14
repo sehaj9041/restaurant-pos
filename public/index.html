@@ -1541,6 +1541,7 @@
         if (approvalAudioCtx.state === 'suspended') approvalAudioCtx.resume();
       } catch (e) {}
     }
+    if (window.vfDesktop) unlockApprovalAudio();   // POS exe: autoplay needs no click, so start the audio engine right away
     document.addEventListener('click', unlockApprovalAudio);
     document.addEventListener('touchstart', unlockApprovalAudio);
     document.addEventListener('keydown', unlockApprovalAudio);
@@ -3872,6 +3873,11 @@
     })();
     (function autoOpenCustomerDisplay() {
       if (sessionStorage.getItem('customerDisplayAutoOpened')) return;
+      if (window.vfDesktop) {   // POS exe: popups need no click, so open the display on startup
+        sessionStorage.setItem('customerDisplayAutoOpened', '1');
+        setTimeout(openCustomerDisplay, 1500);
+        return;
+      }
       function once() {
         document.removeEventListener('click', once, true);
         document.removeEventListener('keydown', once, true);

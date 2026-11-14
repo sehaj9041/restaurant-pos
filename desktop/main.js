@@ -1,6 +1,6 @@
 // Vishal Foodiez POS desktop app: shows the POS site and does what the printer agent did
 // (silent bill print, ESC/POS image print, cash drawer kick, kitchen network-printer queue).
-const { app, BrowserWindow, ipcMain, shell, session } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, session, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -250,13 +250,23 @@ function createWindow() {
   });
   // popups on the same site (customer display, reports) open inside the app; everything else (wa.me etc.) opens in the normal browser
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith(new URL(cfg.url).origin)) return { action: 'allow' };
+    if (url.startsWith(new URL(cfg.url).origin)) {
+      // customer display: open straight fullscreen on the 2nd monitor (no click needed; requestFullscreen from the page would need one)
+      if (/\/customer(\?|$)/.test(url)) {
+        const primary = screen.getPrimaryDisplay();
+        const second = screen.getAllDisplays().find(d => d.id !== primary.id);
+        if (second) return { action: 'allow', overrideBrowserWindowOptions: { x: second.bounds.x, y: second.bounds.y, width: second.bounds.width, height: second.bounds.height, fullscreen: true, autoHideMenuBar: true } };
+      }
+      return { action: 'allow' };
+    }
     shell.openExternal(url); return { action: 'deny' };
   });
   win.on('closed', () => { win = null; });
 }
 
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
+// notification beeps (Web Audio) must start without the staff clicking anything first
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 app.whenReady().then(() => {
   loadConfig();
   try { processed = new Set(fs.readFileSync(historyFile(), 'utf8').split(/\r?\n/).filter(Boolean)); } catch (e) {}
