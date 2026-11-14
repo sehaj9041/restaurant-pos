@@ -1139,12 +1139,29 @@
       renderTempGroupItems();
     }
 
+    async function editGroupItem(idx) {
+      const item = tempGroupItems[idx];
+      if (!item) return;
+      const name = await uiPrompt('Addon ka naam:', item.name, { title: 'Edit addon', okText: 'Next' });
+      if (name === null || name === undefined) return;
+      if (!String(name).trim()) return toast('Addon name khaali nahi ho sakta', true);
+      const priceRaw = await uiPrompt('Addon ka price (₹):', String(item.price), { title: 'Edit addon', okText: 'OK' });
+      if (priceRaw === null || priceRaw === undefined) return;
+      const price = Number(priceRaw);
+      if (String(priceRaw).trim() === '' || isNaN(price) || price < 0) return toast('Valid price daalein!', true);
+      item.name = String(name).trim();
+      item.price = price;
+      toast('Addon badal gaya, ab Update Group dabayein');
+      renderTempGroupItems();
+    }
+
     function renderTempGroupItems() {
       document.getElementById('tempGroupItemsList').innerHTML = tempGroupItems.map((item, idx) => `
         <span class="inline-flex items-center gap-1.5 bg-white border border-indigo-200 px-2.5 py-1 rounded-lg text-xs shadow-sm">
           ${item.image ? `<img src="${esc(resolveImgPath(item.image))}" class="w-4 h-4 rounded object-cover">` : ''}
           <span class="font-bold text-gray-700">${esc(item.name)} (+₹${esc(item.price)})</span>
           <label class="text-indigo-600 font-bold ml-1 cursor-pointer hover:underline" title="Image change karein">📷<input type="file" accept="image/*" class="hidden" onchange="changeGroupItemImage(${idx}, this)"></label>
+          <button type="button" onclick="editGroupItem(${idx})" class="text-indigo-600 font-bold ml-1" title="Name / price edit karein">✏️</button>
           <button type="button" onclick="tempGroupItems.splice(${idx}, 1); renderTempGroupItems();" class="text-red-500 font-bold ml-1">✕</button>
         </span>
       `).join('');
