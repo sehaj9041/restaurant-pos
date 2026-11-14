@@ -198,7 +198,7 @@
   }
   function mealChoice(item, meals) {
     var row = function (t, badge, hide) {
-      var vars = variationsOf(t), price = vars.length ? 'From ' + rs(vars[0].price) : rs(t.price);
+      var vars = variationsOf(t), price = vars.length ? 'From ' + rs(Math.min.apply(null, vars.map(function (v) { return Number(v.price) || 0; }))) : rs(t.price);
       return '<button onclick="chooseMeal(' + t.id + ',' + (hide ? 1 : 0) + ')" class="w-full text-left p-3 rounded-xl border-2 border-gray-200 active:border-indigo-500 flex justify-between items-center gap-3">' +
         '<span class="flex items-center gap-3 min-w-0">' + thumb(t.image || t.image_url, 56) + '<span class="min-w-0"><span class="block font-black text-sm leading-tight">' + esc(t.name) + '</span><span class="block text-[11px] font-black text-indigo-600 uppercase">' + esc(badge) + '</span></span></span>' +
         (hide ? '' : '<span class="font-black text-sm text-emerald-700 shrink-0">' + price + '</span>') + '</button>';
@@ -380,7 +380,7 @@
     list.forEach(function (t) { suggestShown[t.id] = true; });
     openSheet('<div class="flex justify-between items-start mb-3"><div class="font-black text-base">Can we suggest?</div><button onclick="closeSheet()" class="text-gray-400 text-xl font-black px-2">✕</button></div>' +
       '<div class="grid grid-cols-2 gap-2 mb-4">' + list.map(function (t) {
-        var vars = variationsOf(t), price = vars.length ? 'From ' + rs(vars[0].price) : rs(t.price), im = t.image || t.image_url;
+        var vars = variationsOf(t), price = vars.length ? 'From ' + rs(Math.min.apply(null, vars.map(function (v) { return Number(v.price) || 0; }))) : rs(t.price), im = t.image || t.image_url;
         return '<button onclick="pickSuggest(' + t.id + ')" class="text-left p-2.5 rounded-xl border-2 border-gray-200 active:border-indigo-500">' +
           '<div class="h-24 flex items-center justify-center">' + (im ? '<img src="' + esc(imgSrc(im)) + '" class="max-h-full max-w-full object-contain" onerror="this.style.display=\'none\'">' : '<span class="text-3xl">🍽️</span>') + '</div>' +
           '<div class="font-bold text-sm leading-tight mt-1 line-clamp-2">' + vegIcon(t.food_type) + esc(t.name) + '</div><div class="font-black text-emerald-700 text-sm mt-0.5">' + price + '</div></button>';

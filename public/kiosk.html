@@ -562,7 +562,7 @@
       $('itemsGrid').innerHTML = filtered.map(item => {
         let vars = [];
         try { vars = JSON.parse(item.variations || '[]'); } catch (e) {}
-        const priceTag = vars.length ? `From ${money(vars[0].price)}` : money(item.price);
+        const priceTag = vars.length ? `From ${money(Math.min(...vars.map(v => Number(v.price) || 0)))}` : money(item.price);
         const img = itemImgOf(item);
 
         const na = itemUnavailable(item);
@@ -596,7 +596,7 @@
       const tile = (t, badge, hidePrice) => {
         let vars = [];
         try { vars = JSON.parse(t.variations || '[]'); } catch (e) {}
-        const price = vars.length ? `From ${money(vars[0].price)}` : money(t.price);
+        const price = vars.length ? `From ${money(Math.min(...vars.map(v => Number(v.price) || 0)))}` : money(t.price);
         const img = itemImgOf(t);
         return `
           <button onclick="pickMealChoice(${t.id})" class="tile p-2.5 flex flex-col text-left">
@@ -1028,7 +1028,7 @@
       $('upsellList').innerHTML = `<div class="flex flex-wrap justify-center gap-3">${list.map(t => {
         let vars = [];
         try { vars = JSON.parse(t.variations || '[]'); } catch (e) {}
-        const price = vars.length ? `From ${money(vars[0].price)}` : money(t.price);
+        const price = vars.length ? `From ${money(Math.min(...vars.map(v => Number(v.price) || 0)))}` : money(t.price);
         const img = itemImgOf(t);
         return `
           <button onclick="pickUpsell(${t.id})" class="tile p-2.5 flex flex-col text-left w-[calc(33.333%-0.5rem)]">

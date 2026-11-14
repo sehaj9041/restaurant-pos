@@ -4776,6 +4776,11 @@
       }
 
       grid.innerHTML = filtered.map(function(item) {
+        var startPrice = item.price, hasVarPrice = false;
+        try {
+          var vs = JSON.parse(item.variations || '[]');
+          if (vs.length) { hasVarPrice = true; startPrice = Math.min.apply(null, vs.map(function(v) { return Number(v.price) || 0; })); }
+        } catch (e) {}
         var totalQty = posCart.filter(function(c) { return c.name === item.name; }).reduce(function(s, c){ return s + c.qty; }, 0);
 
         var na = isItemUnavailable(item);
@@ -4786,7 +4791,7 @@
               <div class="${na ? 'opacity-50' : ''}">
                 <div class="text-[9px] font-bold text-gray-400 uppercase tracking-wide">${item.category || ''}</div>
                 <h3 class="text-xs font-bold text-gray-800 line-clamp-1">${vegIcon(item.food_type)}${item.name}</h3>
-                <div class="text-xs font-black text-gray-900 mt-0.5">₹${item.price}</div>
+                <div class="text-xs font-black text-gray-900 mt-0.5">${hasVarPrice ? 'From ' : ''}₹${startPrice}</div>
               </div>
             </div>
 
@@ -5174,7 +5179,7 @@
       var tile = function(t, badge) {
         var vars = [];
         try { vars = JSON.parse(t.variations || '[]'); } catch (e) {}
-        var price = vars.length ? 'From ₹' + vars[0].price : '₹' + t.price;
+        var price = vars.length ? 'From ₹' + Math.min.apply(null, vars.map(function(v) { return Number(v.price) || 0; })) : '₹' + t.price;
         var im = t.image || t.image_url || t.img || '';
         var src = im ? (/^(https?:)?\//.test(im) ? im : '/uploads/' + im) : '';
         return '<button onclick="pickPOSMealChoice(' + t.id + ')" class="text-left p-3 rounded-xl border border-gray-200 hover:border-orange-500 hover:bg-orange-50/50">' +
