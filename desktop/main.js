@@ -255,11 +255,17 @@ function createWindow() {
       if (/\/customer(\?|$)/.test(url)) {
         const primary = screen.getPrimaryDisplay();
         const second = screen.getAllDisplays().find(d => d.id !== primary.id);
-        if (second) return { action: 'allow', overrideBrowserWindowOptions: { x: second.bounds.x, y: second.bounds.y, width: second.bounds.width, height: second.bounds.height, fullscreen: true, autoHideMenuBar: true } };
+        if (second) return { action: 'allow', overrideBrowserWindowOptions: { x: second.bounds.x, y: second.bounds.y, width: second.bounds.width, height: second.bounds.height, fullscreen: true, autoHideMenuBar: true, webPreferences: { backgroundThrottling: false } } };
       }
       return { action: 'allow' };
     }
     shell.openExternal(url); return { action: 'deny' };
+  });
+  // customer display: never throttle it while it is not the focused window, and bring it to the front on its own
+  win.webContents.on('did-create-window', (child, details) => {
+    if (!/\/customer(\?|$)/.test(details.url)) return;
+    try { child.webContents.setBackgroundThrottling(false); } catch (e) {}
+    child.once('ready-to-show', () => { try { child.showInactive(); } catch (e) {} });
   });
   win.on('closed', () => { win = null; });
 }

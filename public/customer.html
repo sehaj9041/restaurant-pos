@@ -74,6 +74,10 @@
 
     function imgSrc(im) { return /^(https?:)?\//.test(im) ? im : '/uploads/' + im; }
 
+    // The list used to be rebuilt every second, which re-created every <img> and made photos blink/disappear.
+    // Now it is only rebuilt when the items actually change.
+    var lastListSig = null;
+
     function pollCart() {
       fetch('/api/display/current')
         .then(res => res.json())
@@ -101,6 +105,9 @@
           document.getElementById('totalVal').innerText = '₹' + (data.total || 0);
 
           const list = document.getElementById('cartList');
+          const listSig = JSON.stringify(data.items || []);
+          if (listSig === lastListSig) return;
+          lastListSig = listSig;
           if (!data.items || !data.items.length) {
             list.innerHTML = `
               <div class="flex flex-col items-center justify-center h-full text-slate-500">
@@ -122,7 +129,7 @@
             <div class="flex-1 min-h-[30px] max-h-[88px] shrink-0 basis-0 flex justify-between items-center bg-slate-800/80 ${t.pad} py-1 rounded-2xl border border-slate-700">
               <div class="flex items-center ${t.gap} h-full min-w-0">
                 ${item.image
-                  ? `<img src="${imgSrc(item.image)}" class="h-[85%] aspect-square rounded-lg object-cover border border-slate-600">`
+                  ? `<img src="${imgSrc(item.image)}" class="h-[85%] aspect-square rounded-lg object-cover border border-slate-600" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'h-[85%] aspect-square rounded-lg bg-slate-700 flex items-center justify-center text-2xl',textContent:'🍔'}))">`
                   : `<div class="h-[85%] aspect-square rounded-lg bg-slate-700 flex items-center justify-center ${t.emoji}">🍔</div>`}
                 <div class="min-w-0">
                   <h3 class="font-bold ${t.name} text-white leading-tight truncate">${item.name}</h3>
