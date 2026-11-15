@@ -1712,8 +1712,36 @@
             <div class="text-3xl font-black text-amber-600">${d.balance}</div><div class="text-[11px] font-semibold text-gray-500">1 point = ₹${d.point_value} • min ${d.min_redeem} points</div></div>
             <button onclick="showRedeemCode()" class="bg-amber-500 text-white font-black px-4 py-2.5 rounded-xl text-xs">Show redeem code</button></div>
             ${loyaltyProgress(d)}
-            ${offerLines(d).map(l => `<div class="text-[11px] font-bold text-gray-600">${l}</div>`).join('')}<div id="loyCode"></div>`;
+            ${offerLines(d).map(l => `<div class="text-[11px] font-bold text-gray-600">${l}</div>`).join('')}<div id="loyCode"></div>
+            <button onclick="togglePointsStatement()" id="loyStmtBtn" class="w-full mt-2 border border-amber-300 text-amber-700 font-black text-xs py-2 rounded-xl">📜 Points history dekhein</button>
+            <div id="loyStmt" class="hidden"></div>`;
         }).catch(() => {});
+    }
+
+    // Date-wise points history (earned / redeemed / expired)
+    function togglePointsStatement() {
+      const out = document.getElementById('loyStmt'), btn = document.getElementById('loyStmtBtn'), p = getProfile();
+      if (!out || !p) return;
+      if (!out.classList.contains('hidden')) { out.classList.add('hidden'); btn.textContent = '📜 Points history dekhein'; return; }
+      out.classList.remove('hidden'); out.innerHTML = '<p class="text-xs text-gray-400 py-2 text-center">Loading...</p>'; btn.textContent = 'Points history chhupayein';
+      fetch('/api/loyalty/statement', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: p.phone, token: p.token }) })
+        .then(r => r.json().then(d => { if (!r.ok) throw new Error(d.error || 'Load nahi hua'); return d; }))
+        .then(d => {
+          if (!d.events.length) { out.innerHTML = '<p class="text-xs text-gray-400 py-3 text-center">Abhi koi points history nahi hai</p>'; return; }
+          const when = iso => new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
+          out.innerHTML = `<div class="mt-2 grid grid-cols-3 gap-2 text-center text-[11px]">
+              <div class="bg-emerald-50 rounded-xl py-1.5"><div class="font-black text-emerald-700 text-base">${d.earned}</div>Earned</div>
+              <div class="bg-indigo-50 rounded-xl py-1.5"><div class="font-black text-indigo-700 text-base">${d.redeemed}</div>Redeemed</div>
+              <div class="bg-rose-50 rounded-xl py-1.5"><div class="font-black text-rose-700 text-base">${d.expired}</div>Expired</div></div>
+            <div class="mt-2 divide-y">${d.events.slice(0, 60).map(e => {
+              const earn = e.type === 'earn', label = earn ? 'Earned' : e.type === 'redeem' ? 'Redeemed' : 'Expired';
+              const color = earn ? 'text-emerald-600' : e.type === 'redeem' ? 'text-indigo-600' : 'text-rose-600';
+              return `<div class="flex items-center justify-between py-2"><div><div class="text-xs font-black ${color}">${label}${e.token_no != null ? ' • Order #' + esc(e.token_no) : ''}</div>
+                <div class="text-[10px] text-gray-400">${when(e.date)}</div></div>
+                <div class="text-right"><div class="text-sm font-black ${color}">${earn ? '+' : '-'}${e.points}</div><div class="text-[10px] text-gray-400">Balance ${e.balance}</div></div></div>`;
+            }).join('')}</div>
+            <p class="text-[10px] text-gray-400 mt-1">Points sirf website, kiosk aur table-QR orders par milte hain.</p>`;
+        }).catch(e => { out.innerHTML = `<p class="mt-2 text-xs font-bold text-rose-600">${esc(e.message)}</p>`; });
     }
 
     function showRedeemCode() {

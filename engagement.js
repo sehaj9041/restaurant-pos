@@ -35,25 +35,27 @@ function inBonusWindow(L, hh, mm, dow) {
 
 // rows: that phone's orders (not void/hold), oldest first, with created_at, hh, mm, dow, total, paid_amount, is_complimentary, points_redeemed
 const EARN_SOURCES = ['KIOSK', 'ONLINE', 'TABLE_QR'];
-function simulateLoyalty(rows, L, nowMs) {
+// events (optional array) is filled with { at, type: 'earn' | 'redeem' | 'expire', pts, order_id, note } for the statement screens
+function simulateLoyalty(rows, L, nowMs, events) {
   const DAY = 86400000, lots = [];
   let earned = 0, redeemed = 0, firstSeen = false;
-  const expire = (at) => { if (L.expiry_days > 0) for (let i = lots.length - 1; i >= 0; i--) if (lots[i].anchor + L.expiry_days * DAY <= at) lots.splice(i, 1); };
+  const expire = (at) => { if (L.expiry_days > 0) for (let i = lots.length - 1; i >= 0; i--) if (lots[i].anchor + L.expiry_days * DAY <= at) { if (events && lots[i].qty > 0) events.push({ at: lots[i].anchor + L.expiry_days * DAY, type: 'expire', pts: lots[i].qty, order_id: null, note: 'Points expire ho gaye' }); lots.splice(i, 1); } };
   for (const r of rows) {
     const at = new Date(r.created_at).getTime();
     expire(at);
     // points spent on this order come from the oldest lots; the points this order earns are added afterwards
     let red = Math.floor(numOr(r.points_redeemed));
     redeemed += red;
+    if (events && red > 0) events.push({ at, type: 'redeem', pts: red, order_id: r.id, note: 'Order par redeem kiye' });
     while (red > 0 && lots.length) { const take = Math.min(red, lots[0].qty); lots[0].qty -= take; red -= take; if (lots[0].qty <= 0) lots.shift(); }
     if (!EARN_SOURCES.includes(String(r.source || '').toUpperCase())) continue; // points are earned only on kiosk / website / table-QR orders, not counter (POS) orders
     const paid = numOr(r.paid_amount) >= numOr(r.total) && numOr(r.total) > 0 && !numOr(r.is_complimentary);
     if (!paid) continue;
     const base = numOr(r.total) * L.earn_per_100 / 100;
-    let pts = Math.floor(base);
-    if (pts > 0 && at >= L.bonus_since && inBonusWindow(L, numOr(r.hh), numOr(r.mm), numOr(r.dow))) pts = Math.floor(base * L.bonus_multiplier);
-    if (!firstSeen) { firstSeen = true; if (L.first_order_bonus > 0 && at >= L.first_bonus_since) pts += L.first_order_bonus; }
-    if (pts > 0) { lots.push({ anchor: Math.max(at, L.expiry_since || 0), qty: pts }); earned += pts; }
+    let pts = Math.floor(base), note = 'Order par points mile';
+    if (pts > 0 && at >= L.bonus_since && inBonusWindow(L, numOr(r.hh), numOr(r.mm), numOr(r.dow))) { pts = Math.floor(base * L.bonus_multiplier); note = 'Bonus ghante ka multiplier laga'; }
+    if (!firstSeen) { firstSeen = true; if (L.first_order_bonus > 0 && at >= L.first_bonus_since) { pts += L.first_order_bonus; note += ' + pehle order ka bonus'; } }
+    if (pts > 0) { lots.push({ anchor: Math.max(at, L.expiry_since || 0), qty: pts }); earned += pts; if (events) events.push({ at, type: 'earn', pts, order_id: r.id, note }); }
   }
   expire(nowMs);
   const balance = lots.reduce((t, l) => t + l.qty, 0);
@@ -130,6 +132,25 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
     if (!phone) return { phone: '', earned: 0, redeemed: 0, balance: 0, expiring: null };
     const rows = await dbAllAsync(`SELECT ${ledgerCols} FROM orders WHERE RIGHT(customer_phone, 10) = ? AND id <> ? AND UPPER(COALESCE(status, '')) NOT IN ${DEAD_STATUS} ORDER BY created_at, id`, [phone, excludeId]);
     return Object.assign({ phone }, simulateLoyalty(rows, L, Date.now()));
+  }
+
+  // Date-wise statement: every earn / redeem / expiry of one phone with the running balance (newest first). Built by replaying the orders.
+  async function loyaltyStatement(phone, L) {
+    phone = cleanPhone(phone);
+    const rows = await dbAllAsync(`SELECT ${ledgerCols}, customer_name, token_no FROM orders WHERE RIGHT(customer_phone, 10) = ? AND UPPER(COALESCE(status, '')) NOT IN ${DEAD_STATUS} ORDER BY created_at, id`, [phone]);
+    const events = [];
+    const sim = simulateLoyalty(rows, L, Date.now(), events);
+    const byId = new Map(rows.map(r => [r.id, r]));
+    events.sort((a, b) => a.at - b.at);
+    let bal = 0, expired = 0;
+    const list = events.map(e => {
+      bal = Math.max(0, bal + (e.type === 'earn' ? e.pts : -e.pts));
+      if (e.type === 'expire') expired += e.pts;
+      const o = e.order_id != null ? byId.get(e.order_id) : null;
+      return { date: new Date(e.at).toISOString(), type: e.type, points: e.pts, balance: bal, order_id: e.order_id, token_no: o ? o.token_no : null, amount: o ? num(o.total) : null, note: e.note };
+    }).reverse();
+    const name = rows.map(r => r.customer_name).filter(n => n && n !== 'Self Kiosk Guest').pop() || '';
+    return { phone, name, balance: sim.balance, earned: sim.earned, redeemed: sim.redeemed, expired, expiring: sim.expiring, events: list };
   }
 
   // ---- redeem codes ----
@@ -328,7 +349,28 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 
+  // customer's own statement (profile token proves the phone is theirs)
+  app.post('/api/loyalty/statement', async (req, res) => {
+    try {
+      const { phone, token } = req.body || {};
+      if (!(await profileOk(phone, token))) return res.status(401).json({ error: 'Profile verify nahi hui' });
+      const L = await loyaltyConfig();
+      if (!L.enabled) return res.json({ enabled: false, events: [] });
+      const s = await loyaltyStatement(phone, L);
+      res.json(Object.assign({ enabled: true, point_value: L.point_value }, s));
+    } catch (e) { res.status(500).json({ error: 'Load nahi hua' }); }
+  });
+
   // ---- owner routes (guarded by /coupon-admin and /loyalty-admin in OWNER_RULES) ----
+  app.get('/api/loyalty-admin/statement/:phone', async (req, res) => {
+    try {
+      const phone = cleanPhone(req.params.phone);
+      if (phone.length !== 10) return res.status(400).json({ error: '10 digit ka phone number daalein' });
+      const L = await loyaltyConfig();
+      res.json(Object.assign({ enabled: L.enabled, point_value: L.point_value }, await loyaltyStatement(phone, L)));
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
   app.get('/api/coupon-admin', async (req, res) => {
     try {
       const rows = await dbAllAsync(`SELECT c.*, (SELECT COUNT(*) FROM orders o WHERE o.coupon_code = c.code AND UPPER(COALESCE(o.status, '')) NOT IN ${DEAD_STATUS}) AS used

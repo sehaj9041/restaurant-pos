@@ -91,9 +91,15 @@
         <p class="text-[11px] text-gray-400">Points sirf poori paid bills par milte hain (due / complimentary par nahi). Earn rate badalne par purane orders ke points bhi naye rate se count honge. Expiry, double-points ghante aur pehle-order bonus sirf save karne ke din se aage lagte hain: purane customers ke points nahi katte (unhe poora expiry time milta hai) aur purane orders ke points dobara nahi badalte.</p>
       </div>
       <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-x-auto">
-        <div class="p-3 font-black text-gray-800 border-b">Top customers</div>
+        <div class="p-3 border-b flex flex-wrap items-center justify-between gap-2">
+          <span class="font-black text-gray-800">Top customers</span>
+          <span class="flex items-center gap-2">
+            <input id="stmtPhone" type="tel" inputmode="numeric" maxlength="10" placeholder="Customer phone (10 digit)" class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-52" onkeydown="if(event.key==='Enter')openStatement($('stmtPhone').value)">
+            <button onclick="openStatement($('stmtPhone').value)" class="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg text-xs font-black">Points statement</button>
+          </span>
+        </div>
         <table class="w-full text-sm">
-          <thead class="bg-gray-50 text-xs uppercase text-gray-500"><tr><th class="text-left p-3">Customer</th><th class="text-left p-3">Phone</th><th class="text-right p-3">Orders</th><th class="text-right p-3">Spent</th><th class="text-right p-3">Points</th><th class="text-right p-3">Expiring soon</th></tr></thead>
+          <thead class="bg-gray-50 text-xs uppercase text-gray-500"><tr><th class="text-left p-3">Customer</th><th class="text-left p-3">Phone</th><th class="text-right p-3">Orders</th><th class="text-right p-3">Spent</th><th class="text-right p-3">Points</th><th class="text-right p-3">Expiring soon</th><th class="p-3"></th></tr></thead>
           <tbody id="topRows"></tbody>
         </table>
       </div>
@@ -125,6 +131,19 @@
     </section>
   </div>
 
+
+  <!-- Loyalty points statement (date-wise earned / redeemed / expired) -->
+  <div id="stmtModal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onclick="if(event.target===this)closeStatement()">
+    <div class="bg-white rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl">
+      <div class="p-4 border-b flex items-start justify-between gap-3">
+        <div><div id="stmtTitle" class="font-black text-gray-900 text-lg">Points statement</div><div id="stmtSub" class="text-xs text-gray-500 font-semibold"></div></div>
+        <button onclick="closeStatement()" class="text-gray-400 hover:text-gray-700 text-xl font-black leading-none">&times;</button>
+      </div>
+      <div id="stmtTotals" class="grid grid-cols-4 gap-2 p-4 text-center text-xs"></div>
+      <div class="overflow-y-auto px-4 pb-4"><table class="w-full text-sm"><thead class="text-[11px] uppercase text-gray-500 text-left"><tr><th class="py-2">Date</th><th class="py-2">Detail</th><th class="py-2 text-right">Points</th><th class="py-2 text-right">Balance</th></tr></thead><tbody id="stmtRows"></tbody></table></div>
+    </div>
+  </div>
+
   <script>
     var $ = function(id) { return document.getElementById(id); };
     var esc = function(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
@@ -135,6 +154,27 @@
         .then(function(r) { return r.json().then(function(d) { if (!r.ok) throw new Error(d.error || 'Failed'); return d; }); });
     }
     function fail(e) { (window.uiAlert || window.alert)(e.message || String(e)); }
+
+    // ---- loyalty statement ----
+    function stmtDate(iso) { return new Date(iso).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' }); }
+    function closeStatement() { $('stmtModal').classList.add('hidden'); }
+    function openStatement(phone) {
+      phone = String(phone || '').replace(/\D/g, '').slice(-10);
+      if (phone.length !== 10) return fail(new Error('10 digit ka phone number daalein'));
+      api('/api/loyalty-admin/statement/' + phone).then(function(d) {
+        $('stmtTitle').textContent = 'Points statement' + (d.name ? ' • ' + d.name : '');
+        $('stmtSub').textContent = d.phone + (d.enabled ? '' : ' • Loyalty abhi band hai');
+        var tot = [['Balance', d.balance, 'text-amber-600'], ['Earned', d.earned, 'text-emerald-600'], ['Redeemed', d.redeemed, 'text-indigo-600'], ['Expired', d.expired, 'text-rose-600']];
+        $('stmtTotals').innerHTML = tot.map(function(t) { return '<div class="bg-gray-50 rounded-xl p-2.5"><div class="text-[10px] font-black uppercase text-gray-400">' + t[0] + '</div><div class="text-xl font-black ' + t[2] + '">' + t[1] + '</div></div>'; }).join('');
+        $('stmtRows').innerHTML = d.events.length ? d.events.map(function(e) {
+          var sign = e.type === 'earn' ? '+' : '-', color = e.type === 'earn' ? 'text-emerald-600' : e.type === 'redeem' ? 'text-indigo-600' : 'text-rose-600';
+          var label = e.type === 'earn' ? 'Earned' : e.type === 'redeem' ? 'Redeemed' : 'Expired';
+          var ord = e.order_id != null ? ' • Order #' + esc(e.token_no != null ? e.token_no : e.order_id) + (e.amount != null ? ' (₹' + Math.round(e.amount) + ')' : '') : '';
+          return '<tr class="border-t"><td class="py-2 text-xs text-gray-600 whitespace-nowrap">' + stmtDate(e.date) + '</td><td class="py-2"><span class="font-bold ' + color + '">' + label + '</span><span class="text-xs text-gray-500">' + ord + '</span><div class="text-[11px] text-gray-400">' + esc(e.note) + '</div></td><td class="py-2 text-right font-black ' + color + '">' + sign + e.points + '</td><td class="py-2 text-right font-bold text-gray-700">' + e.balance + '</td></tr>';
+        }).join('') : '<tr><td colspan="4" class="py-6 text-center text-gray-400">Is number ke koi points nahi hain</td></tr>';
+        $('stmtModal').classList.remove('hidden');
+      }).catch(fail);
+    }
 
     function showTab(name) {
       ['coupons', 'loyalty', 'feedback'].forEach(function(t) { $('tab-' + t).classList.toggle('hidden', t !== name); });
@@ -216,8 +256,8 @@
       }).catch(fail);
       api('/api/loyalty-admin/top').then(function(rows) {
         $('topRows').innerHTML = rows.length ? rows.map(function(r) {
-          return '<tr class="border-t"><td class="p-3 font-bold">' + esc(r.name || 'Guest') + '</td><td class="p-3 font-mono">' + esc(r.phone) + '</td><td class="p-3 text-right">' + r.orders + '</td><td class="p-3 text-right">₹' + Math.round(r.spent) + '</td><td class="p-3 text-right font-black text-amber-600">' + r.points + '</td><td class="p-3 text-right text-xs text-rose-600 font-bold">' + (r.expiring ? r.expiring.points + ' pts • ' + esc(r.expiring.on) : '') + '</td></tr>';
-        }).join('') : '<tr><td colspan="6" class="p-6 text-center text-gray-400">Abhi phone wale orders nahi hain</td></tr>';
+          return '<tr class="border-t"><td class="p-3 font-bold">' + esc(r.name || 'Guest') + '</td><td class="p-3 font-mono">' + esc(r.phone) + '</td><td class="p-3 text-right">' + r.orders + '</td><td class="p-3 text-right">₹' + Math.round(r.spent) + '</td><td class="p-3 text-right font-black text-amber-600">' + r.points + '</td><td class="p-3 text-right text-xs text-rose-600 font-bold">' + (r.expiring ? r.expiring.points + ' pts • ' + esc(r.expiring.on) : '') + '</td><td class="p-3 text-right"><button onclick="openStatement(\'' + esc(r.phone) + '\')" class="text-orange-600 font-black text-xs hover:underline">Statement</button></td></tr>';
+        }).join('') : '<tr><td colspan="7" class="p-6 text-center text-gray-400">Abhi phone wale orders nahi hain</td></tr>';
       }).catch(fail);
     }
     function saveLoyalty() {
