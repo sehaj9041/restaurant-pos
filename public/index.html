@@ -184,6 +184,10 @@
         <span>📋</span> All Orders
       </button>
 
+      <button onclick="openHeldOrders()" class="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-sky-200 bg-sky-50 hover:bg-sky-100 flex items-center gap-1 text-sky-800 transition">
+        <span>⏸</span> Held <span id="heldCount" class="hidden bg-sky-600 text-white rounded-full px-1.5 text-[10px] font-black leading-4">0</span>
+      </button>
+
       <button onclick="openCashDrawer()" class="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 flex items-center gap-1 text-amber-900 transition shadow-2xs">
         <span>💵</span> Open Drawer
       </button>
@@ -938,9 +942,21 @@
           <button id="btnPOSPlaceOrder" onclick="executePlaceOrder()" class="flex-1 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5">
             <span>✓ Place Order</span>
           </button>
+          <button onclick="holdCurrentOrder()" title="Hold this order (not placed)" class="bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 px-3 rounded-xl font-black text-xs">⏸ Hold</button>
           <button onclick="triggerManualKOTDirect()" title="Print KOT Slip" class="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3 rounded-xl font-black text-xs">🍳</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- ================= HELD ORDERS MODAL ================= -->
+  <div id="heldOrdersModal" class="hidden fixed inset-0 bg-black/60 z-[110] flex items-center justify-center p-4" onclick="if(event.target===this)closeHeldOrders()">
+    <div class="bg-white rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col shadow-2xl">
+      <div class="p-4 border-b flex items-center justify-between">
+        <div><div class="font-black text-gray-900">⏸ Held orders</div><div class="text-[11px] text-gray-500 font-semibold">Ye orders place nahi hue, kitchen ko nahi gaye</div></div>
+        <button onclick="closeHeldOrders()" class="text-gray-400 hover:text-gray-700 text-xl font-black leading-none">&times;</button>
+      </div>
+      <div id="heldOrdersList" class="overflow-y-auto p-3 space-y-2"></div>
     </div>
   </div>
 
@@ -4676,6 +4692,74 @@
       closeAssignTableModal();
       document.getElementById('posDisplayTable').innerText = tableId + ' • ' + currentPOSOrderType + posTokenSuffix();
     }
+
+    // ---- Hold: park the cart without placing the order (nothing goes to the kitchen); resume it later from "Held". Saved on this device (localStorage). ----
+    var HELD_KEY = 'pos_held_orders';
+    function getHeldOrders() { try { return JSON.parse(localStorage.getItem(HELD_KEY) || '[]') || []; } catch (e) { return []; } }
+    function saveHeldOrders(list) {
+      try { localStorage.setItem(HELD_KEY, JSON.stringify(list)); } catch (e) {}
+      updateHeldBadge();
+    }
+    function updateHeldBadge() {
+      var b = document.getElementById('heldCount'), n = getHeldOrders().length;
+      if (!b) return;
+      b.innerText = n; b.classList.toggle('hidden', !n);
+    }
+    function holdCurrentOrder() {
+      if (editingActiveOrderId) return uiAlert('Chal rahe order ko hold nahi kar sakte. Hold sirf naye order ke liye hai.');
+      if (!posCart.length) return uiAlert('Cart khaali hai. Hold karne ke liye pehle items add karein.');
+      var list = getHeldOrders();
+      list.unshift({
+        id: Date.now(), at: Date.now(), type: currentPOSOrderType, table: selectedPOSTableId, guests: currentGuestCount,
+        phone: document.getElementById('posCustPhone').value, name: document.getElementById('posCustName').value,
+        addr: document.getElementById('posCustAddr').innerText, cart: JSON.parse(JSON.stringify(posCart))
+      });
+      saveHeldOrders(list.slice(0, 30));
+      posCart = [];
+      closePOSOrderView();
+    }
+    function heldTotal(h) { return (h.cart || []).reduce(function(t, i) { return t + (Number(i.price) || 0) * (Number(i.qty) || 1); }, 0); }
+    function openHeldOrders() {
+      var list = getHeldOrders(), box = document.getElementById('heldOrdersList');
+      box.innerHTML = list.length ? list.map(function(h) {
+        var qty = (h.cart || []).reduce(function(t, i) { return t + (Number(i.qty) || 1); }, 0);
+        var names = (h.cart || []).slice(0, 3).map(function(i) { return escCartText(i.name) + ' x' + (Number(i.qty) || 1); }).join(', ') + ((h.cart || []).length > 3 ? ' ...' : '');
+        var when = new Date(h.at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+        var who = [h.table, h.type, h.name || h.phone].filter(Boolean).map(escCartText).join(' • ') || 'New order';
+        return '<div class="border border-gray-200 rounded-xl p-3 flex items-center justify-between gap-3"><div class="min-w-0"><div class="text-xs font-black text-gray-800">' + who + '</div>' +
+          '<div class="text-[11px] text-gray-500 truncate">' + names + '</div><div class="text-[11px] font-bold text-gray-400">' + qty + ' items • ₹' + heldTotal(h) + ' • ' + when + '</div></div>' +
+          '<div class="shrink-0 flex gap-1.5"><button onclick="resumeHeldOrder(' + h.id + ')" class="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg text-xs font-black">Resume</button>' +
+          '<button onclick="deleteHeldOrder(' + h.id + ')" class="border border-rose-200 text-rose-600 hover:bg-rose-50 px-2.5 py-1.5 rounded-lg text-xs font-black">✕</button></div></div>';
+      }).join('') : '<p class="text-center text-gray-400 text-xs py-8">Koi held order nahi hai</p>';
+      document.getElementById('heldOrdersModal').classList.remove('hidden');
+    }
+    function closeHeldOrders() { document.getElementById('heldOrdersModal').classList.add('hidden'); }
+    async function deleteHeldOrder(id) {
+      if (!await uiConfirm('Is held order ko delete karein?')) return;
+      saveHeldOrders(getHeldOrders().filter(function(x) { return x.id !== id; }));
+      openHeldOrders();
+    }
+    async function resumeHeldOrder(id) {
+      var list = getHeldOrders(), h = list.find(function(x) { return x.id === id; });
+      if (!h) return;
+      var inPOS = !document.getElementById('viewPOSOrderScreen').classList.contains('hidden');
+      if (inPOS && posCart.length && !await uiConfirm('Abhi ka cart hat jayega. Held order resume karein?', { title: 'Resume held order', okText: 'Resume' })) return;
+      closeHeldOrders();
+      openPOSOrderView(h.type || '', h.table || '');
+      if (editingActiveOrderId) { // that table already has a running order: open a fresh cart instead of mixing the two
+        openPOSOrderView(h.type || '', '');
+        uiAlert('Table ' + h.table + ' par abhi order chal raha hai. Held cart wapas aa gaya hai, table badal lein.');
+      }
+      posCart = JSON.parse(JSON.stringify(h.cart || []));
+      currentGuestCount = h.guests || 1;
+      document.getElementById('guestCountLabel').innerText = currentGuestCount;
+      document.getElementById('posCustPhone').value = h.phone || '';
+      document.getElementById('posCustName').value = h.name || '';
+      showPOSCustAddr(h.addr || '');
+      renderPOSCart();
+      saveHeldOrders(list.filter(function(x) { return x.id !== id; }));
+    }
+    updateHeldBadge();
 
     function closePOSOrderView() {
       closeVirtualKeyboards();

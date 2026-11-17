@@ -58,12 +58,24 @@
     var t = document.createElement('h3'); t.className = 'ud-title'; t.textContent = o.title; box.appendChild(t);
     var p = document.createElement('p'); p.className = 'ud-msg'; p.textContent = o.message; box.appendChild(p);
 
-    var input = null;
+    var input = null, vkbUsed = false;
     if (o.mode === 'prompt') {
       input = document.createElement('input'); input.className = 'ud-input'; input.type = o.type || 'text';
       input.value = o.value || ''; input.autocomplete = 'off';
       if (o.placeholder) input.placeholder = o.placeholder;
       box.appendChild(input);
+      // POS (index.html) has its own on-screen keyboard; show it for this input too. The dialog sits above it by z-index, so lift the keyboard over the dialog.
+      if (typeof window.openVirtualKeyboard === 'function') {
+        vkbUsed = true;
+        var showVkb = function () {
+          try {
+            window.openVirtualKeyboard(input, o.type === 'number' ? 'number' : 'text');
+            ['vKeypadNum', 'vKeypadText'].forEach(function (id) { var k = document.getElementById(id); if (k) k.style.zIndex = '2147483001'; });
+          } catch (e) {}
+        };
+        input.addEventListener('focus', showVkb);
+        input.addEventListener('click', showVkb);
+      }
     }
 
     var act = document.createElement('div'); act.className = 'ud-actions';
@@ -79,6 +91,10 @@
     function close(result) {
       document.removeEventListener('keydown', onKey, true);
       ov.remove(); busy = false;
+      if (vkbUsed) {
+        try { window.closeVirtualKeyboards(); } catch (e) {}
+        ['vKeypadNum', 'vKeypadText'].forEach(function (id) { var k = document.getElementById(id); if (k) k.style.zIndex = ''; });
+      }
       try { if (prevFocus && prevFocus.focus) prevFocus.focus(); } catch (e) {}
       job.resolve(result); next();
     }
