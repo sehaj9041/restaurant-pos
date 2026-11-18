@@ -885,7 +885,7 @@
         const grps = parseJson(i.assigned_addon_groups, []);
         const itemImg = resolveImgPath(i.image || i.image_url || i.img || '');
         const stock = Number(i.stock) || 0;
-        const unavailable = stock <= 0 || i.status === 'Out of Stock';
+        const unavailable = i.status === 'Out of Stock';   // stock number alone (even 0) does not make an item unavailable
         const hiddenItem = Number(i.is_visible) === 0;
         return catHeader + `
           <tr class="hover:bg-gray-50 ${unavailable || hiddenItem ? 'opacity-60' : ''}" ${sortRow('items' + gIdx, pos)}>
@@ -901,7 +901,7 @@
             </td>
             <td class="p-3 text-gray-500">${esc(i.category)}</td>
             <td class="p-3 font-black text-gray-900">₹${esc(i.price)}</td>
-            <td class="p-3 font-bold ${unavailable ? 'text-red-600' : 'text-gray-700'}">${stock}</td>
+            <td class="p-3 font-bold text-gray-700">${stock}</td>
             <td class="p-3"><span class="bg-amber-50 text-amber-800 px-2 py-0.5 rounded text-[11px] font-bold">${vars.length} Sizes</span></td>
             <td class="p-3"><span class="bg-indigo-50 text-indigo-800 px-2 py-0.5 rounded text-[11px] font-bold">${grps.length} Groups Linked</span></td>
             <td class="p-3 text-right space-x-2 whitespace-nowrap">
@@ -970,11 +970,11 @@
     async function toggleAvailability(id) {
       const item = menuItems.find(i => Number(i.id) === id);
       if (!item) return;
-      const makeAvailable = (Number(item.stock) || 0) <= 0 || item.status === 'Out of Stock';
+      const makeAvailable = item.status === 'Out of Stock';
       try {
-        // POS / kiosk / website read the status field, so it is set together with the stock
-        await api('/api/menu/' + id, 'PUT', itemPayload(item, { stock: makeAvailable ? ((Number(item.stock) || 0) > 0 ? Number(item.stock) : 50) : 0, status: makeAvailable ? 'Available' : 'Out of Stock' }));
-        toast(makeAvailable ? 'Item In Stock (stock 50)' : 'Item Out of Stock - Not Available dikhega');
+        // POS / kiosk / website read the status field; the stock number is left as it is
+        await api('/api/menu/' + id, 'PUT', itemPayload(item, { status: makeAvailable ? 'Available' : 'Out of Stock' }));
+        toast(makeAvailable ? 'Item In Stock' : 'Item Out of Stock - Not Available dikhega');
         loadData();
       } catch (err) { toast(err.message, true); }
     }
@@ -1878,7 +1878,7 @@
     }
 
     function bulkItemAvailability(show) {
-      bulkItems(show ? 'In Stock' : 'Out of Stock', it => ({ stock: show ? ((Number(it.stock) || 0) > 0 ? Number(it.stock) : 50) : 0, status: show ? 'Available' : 'Out of Stock' }));
+      bulkItems(show ? 'In Stock' : 'Out of Stock', it => ({ status: show ? 'Available' : 'Out of Stock' }));
     }
 
     function bulkItemGroup(add) {
