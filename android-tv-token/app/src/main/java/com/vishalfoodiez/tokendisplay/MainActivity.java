@@ -39,6 +39,7 @@ public class MainActivity extends Activity {
         @JavascriptInterface public void speak(String text) {
             if (ttsReady) tts.speak(text, TextToSpeech.QUEUE_ADD, null, "token");
         }
+        @JavascriptInterface public boolean isReady() { return ttsReady; }
     }
 
     @Override
@@ -53,6 +54,8 @@ public class MainActivity extends Activity {
                 if (r == TextToSpeech.LANG_MISSING_DATA || r == TextToSpeech.LANG_NOT_SUPPORTED) tts.setLanguage(Locale.US);
                 tts.setSpeechRate(0.9f);
                 ttsReady = true;
+            } else {
+                Toast.makeText(this, "TV me Text-to-Speech engine nahi mila: awaaz nahi aayegi (Settings > Accessibility > Text-to-speech)", Toast.LENGTH_LONG).show();
             }
         });
 

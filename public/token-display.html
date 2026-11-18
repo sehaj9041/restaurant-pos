@@ -87,7 +87,7 @@
   function speak(text) {
     return new Promise(function (done) {
       try {
-        if (window.TokenTV && window.TokenTV.speak) { window.TokenTV.speak(text); setTimeout(done, 2800); return; }
+        if (window.TokenTV && window.TokenTV.isReady && window.TokenTV.isReady()) { window.TokenTV.speak(text); setTimeout(done, 2800); return; }
         if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) return done();
         var u = new SpeechSynthesisUtterance(text);
         u.lang = 'en-IN'; u.rate = 0.9;
