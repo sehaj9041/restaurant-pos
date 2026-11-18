@@ -66,7 +66,6 @@
   function enableSound() {
     soundOn = true;
     try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
-    try { window.speechSynthesis.getVoices(); } catch (e) {}
     $('gate').style.display = 'none';
   }
 
@@ -83,20 +82,33 @@
     return wait(650);
   }
 
-  // The Android TV app exposes TokenTV.speak() (native text-to-speech): old TV WebViews often have no speechSynthesis
-  function speak(text) {
+  // Voice = pre-recorded clips ("Token number" + each digit + "is ready"), played one after another.
+  // Old TV WebViews often have no speechSynthesis and the TV may have no text-to-speech engine, but plain audio always plays.
+  var clips = {};
+  function clip(name) {
+    if (!clips[name]) { var a = new Audio('/token-voice/' + name + '.m4a'); a.preload = 'auto'; clips[name] = a; }
+    return clips[name];
+  }
+  function playClip(name) {
     return new Promise(function (done) {
       try {
-        if (window.TokenTV && window.TokenTV.isReady && window.TokenTV.isReady()) { window.TokenTV.speak(text); setTimeout(done, 2800); return; }
-        if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) return done();
-        var u = new SpeechSynthesisUtterance(text);
-        u.lang = 'en-IN'; u.rate = 0.9;
-        u.onend = u.onerror = done;
-        window.speechSynthesis.speak(u);
-        setTimeout(done, 6000);   // never get stuck if the voice does not fire onend
+        var a = clip(name), finished = false;
+        var end = function () { if (!finished) { finished = true; done(); } };
+        a.onended = end; a.onerror = end;
+        try { a.currentTime = 0; } catch (e) {}
+        var pr = a.play();
+        if (pr && pr.catch) pr.catch(end);
+        setTimeout(end, 1500);   // never get stuck on one clip
       } catch (e) { done(); }
     });
   }
+  function speakToken(t) {
+    var names = ['token'].concat(String(Number(t)).split(''), ['ready']), i = 0;
+    return new Promise(function (done) {
+      (function next() { if (i >= names.length) return done(); playClip(names[i++]).then(function () { setTimeout(next, 60); }); })();
+    });
+  }
+  (function preload() { var n = ['token', 'ready', 0, 1, 2, 3, 4, 5, 6, 7, 8, 9]; for (var i = 0; i < n.length; i++) clip(n[i]); })();
 
   // one token at a time: chime, banner, then voice
   function runQueue() {
@@ -106,7 +118,7 @@
     var t = queue.shift();
     $('bannerNo').innerText = fmt(t);
     $('banner').style.display = 'block';
-    var p = soundOn ? chime().then(function () { return speak('Token number ' + Number(t) + ' is ready.'); }) : wait(3500);
+    var p = soundOn ? chime().then(function () { return speakToken(t); }) : wait(3500);
     p.then(function () { return wait(300); }).then(function () {
       $('banner').style.display = 'none';
       speaking = false;
