@@ -939,8 +939,11 @@
         </div>
 
         <div class="flex gap-1.5 pt-1">
-          <button id="btnPOSPlaceOrder" onclick="executePlaceOrder()" class="flex-1 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5">
-            <span>✓ Place Order</span>
+          <button id="btnPOSPlaceOrder" onclick="executePlaceOrder(true)" class="flex-1 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5">
+            <span>🖨 Place Order + Print</span>
+          </button>
+          <button id="btnPOSPlaceOrderNoPrint" onclick="executePlaceOrder(false)" class="flex-1 bg-gray-800 hover:bg-gray-900 active:bg-black text-white py-2.5 rounded-xl font-black text-xs transition shadow-sm flex items-center justify-center gap-1.5">
+            <span>✓ Place Order (No Print)</span>
           </button>
           <button onclick="holdCurrentOrder()" title="Hold this order (not placed)" class="bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 px-3 rounded-xl font-black text-xs">⏸ Hold</button>
           <button onclick="triggerManualKOTDirect()" title="Print KOT Slip" class="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3 rounded-xl font-black text-xs">🍳</button>
@@ -4047,7 +4050,11 @@
     // UPI (single or a split part): the order is saved first with that part still unpaid, then the QR is shown for that saved order. Paytm's callback
     // adds the money to the same order on the server, so it lands there even if this popup is closed before the payment arrives.
     var upiDeferred = null;
-    async function executePlaceOrder() {
+    var placeOrderPrintBill = true;
+    async function executePlaceOrder(printBill) {
+      var pb = document.getElementById('btnPOSPlaceOrder');
+      if (pb && pb.disabled) return;   // split amounts not matched yet
+      placeOrderPrintBill = printBill !== false;
       if (!posCart.length || !currentPOSOrderType) return executePlaceOrderNow();   // it shows its own message
       var parts = [], savedMode = selectedPaymentMode, savedRows = null, full = null;
       if (!posComp.on) {
@@ -4071,6 +4078,7 @@
       finally { selectedPaymentMode = savedMode; alreadyPaidAmount = savedAlready.amount; alreadyPaidMode = savedAlready.mode; if (savedRows) splitRows.forEach(function(r, i) { r.amount = savedRows[i]; }); }
     }
     function executePlaceOrderNow() {
+      var printBill = placeOrderPrintBill; placeOrderPrintBill = true;
       var upiHook = upiDeferred; upiDeferred = null;   // consumed here so a message-and-return below can never leave it behind for the next order
       if (!posCart.length) return alert('Kripya cart mein item add karein!');
       if (!currentPOSOrderType) return alert('Kripya pehle Order Type (Dine-In, Takeaway, Delivery) select karein!');
@@ -4166,7 +4174,7 @@
         }).then(function(r){ return r.json().catch(function(){ return {}; }); }).then(function(d){
           payload.token_no = d && d.token_no;
           saveSplitBreakdown(saveOrderId, upiHook ? upiHook.full : null, payload);
-          if (paymentCollectedNow && billCfg.c.auto_print_bill !== false && approvalBillPrintedFor !== saveOrderId) dispatchDirectPrintReceipt(saveOrderId, payload, calc);
+          if (paymentCollectedNow && printBill && approvalBillPrintedFor !== saveOrderId) dispatchDirectPrintReceipt(saveOrderId, payload, calc);
           if (!mergeTable) return;
           return fetch('/api/orders/' + saveOrderId + '/assign-table', {
             method: 'POST',
@@ -4174,7 +4182,7 @@
             body: JSON.stringify({ table_no: mergeTable })
           }).then(function(r) { return r.json().then(function(x) { if (!r.ok) throw new Error(x.error || 'Table merge failed'); }); });
         }).catch(function(err) { alert('Table assign nahi hua: ' + err.message); })
-        .then(function() { return collectDeferredUpi(upiHook, saveOrderId, payload, calc); })
+        .then(function() { return collectDeferredUpi(upiHook, saveOrderId, payload, calc, printBill); })
         .then(function() { fetchActiveOrders(); closePOSOrderView(); });
       } else {
         fetch('/api/orders', {
@@ -4186,8 +4194,8 @@
         .then(function(data) {
           payload.token_no = data.token_no;
           saveSplitBreakdown(data.orderId, upiHook ? upiHook.full : null, payload);
-          if (paymentCollectedNow && billCfg.c.auto_print_bill !== false) dispatchDirectPrintReceipt(data.orderId, payload, calc);
-          return collectDeferredUpi(upiHook, data.orderId, payload, calc);
+          if (paymentCollectedNow && printBill) dispatchDirectPrintReceipt(data.orderId, payload, calc);
+          return collectDeferredUpi(upiHook, data.orderId, payload, calc, printBill);
         })
         .then(function() { fetchActiveOrders(); closePOSOrderView(); });
       }
@@ -4199,13 +4207,13 @@
       if (!orderId || !Array.isArray(split) || !split.length) return;
       fetch('/api/orders/' + orderId + '/split-details', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ split: split }) }).catch(function() {});
     }
-    async function collectDeferredUpi(hook, orderId, payload, calc) {
+    async function collectDeferredUpi(hook, orderId, payload, calc, printBill) {
       if (!hook || !orderId) return;
       var allPaid = true;
       for (var i = 0; i < hook.parts.length; i++) {
         if (!(await collectUpi(hook.parts[i].amount, hook.parts[i].label + ' • #' + orderId, { order_id: orderId }))) { allPaid = false; break; }
       }
-      if (allPaid && billCfg.c.auto_print_bill !== false) {
+      if (allPaid && printBill) {
         dispatchDirectPrintReceipt(orderId, Object.assign({}, payload, { payment_mode: hook.full.mode, split_details: hook.full.split }), calc);
       }
     }
