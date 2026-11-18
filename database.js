@@ -170,6 +170,7 @@ pool.query(`
   await pool.query(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS config TEXT;`).catch(() => {});
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMP;`).catch(() => {});
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS ready_at TIMESTAMP;`).catch(() => {});
+  await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS dispatched_at TIMESTAMP;`).catch(() => {});
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_address TEXT;`).catch(() => {});
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_lat NUMERIC;`).catch(() => {});
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS rider_name TEXT;`).catch(() => {});

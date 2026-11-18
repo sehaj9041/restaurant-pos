@@ -2001,6 +2001,24 @@ app.post('/api/tables/:id/settle', (req, res) => {
     );
   });
 });
+// ================= TOKEN DISPLAY (counter TV) =================
+// Only token numbers go out (no customer data). Ready = marked "Ready" on the KDS (kds_checks 'ready', even before dispatch); it stays 10 seconds after the KDS dispatch and then leaves the display. Preparing = the rest still on the KDS.
+app.get('/api/token-display', async (req, res) => {
+  try {
+    await ensureKdsChecks();
+    const notDelivery = "UPPER(COALESCE(o.order_type, '')) NOT LIKE '%DELIVERY%' AND o.token_no IS NOT NULL";
+    const isReadyStage = "EXISTS (SELECT 1 FROM kds_checks k WHERE k.order_id = o.id AND k.ck = 'ready')";
+    const preparing = await dbAllAsync(`SELECT o.token_no FROM orders o WHERE UPPER(o.status) = 'RUNNING_TABLE' AND NOT ${isReadyStage} AND o.created_at::date = CURRENT_DATE AND ${notDelivery} ORDER BY o.id ASC`, []);
+    const ready = await dbAllAsync(`SELECT o.token_no FROM orders o
+      WHERE ((UPPER(o.status) = 'RUNNING_TABLE' AND ${isReadyStage} AND o.created_at::date = CURRENT_DATE)
+         OR (UPPER(o.status) IN ('KOT_DONE', 'DISPATCHED', 'DUE_PENDING', 'COMPLETED') AND o.dispatched_at >= NOW() - INTERVAL '10 seconds'))
+        AND ${notDelivery}
+      ORDER BY COALESCE(o.dispatched_at, NOW()) DESC, o.id DESC LIMIT 12`, []);
+    res.json({ preparing: preparing.map(o => o.token_no), ready: ready.map(o => o.token_no) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/token-display', (req, res) => res.sendFile(path.join(__dirname, 'public', 'token-display.html')));
+
 // ================= KDS API ROUTE (STRICT FILTER) =================
 app.get('/api/kot', (req, res) => {
   const query = `
@@ -2103,7 +2121,8 @@ app.post('/api/kot/:id/dispatch', (req, res) => {
               OR COALESCE(paid_amount, 0) < total THEN 'KOT_DONE'
             ELSE 'DISPATCHED'
           END,
-          ready_at = COALESCE(ready_at, CURRENT_TIMESTAMP)
+          ready_at = COALESCE(ready_at, CURRENT_TIMESTAMP),
+          dispatched_at = CURRENT_TIMESTAMP
           WHERE id = ?`, [orderId], (err) => {
     if (err) {
       console.error('[KDS DISPATCH ERROR]:', err.message);

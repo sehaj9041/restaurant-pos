@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Token Display</title>
+  <script src="/login-guard.js"></script>
+  <!-- Old Android TV WebViews: no Tailwind CDN, plain CSS (flex + margins, no gap/inset), ES5 JS only (same approach as kitchen.html) -->
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body { background: #0f172a; color: #fff; font-family: Arial, Helvetica, sans-serif; overflow: hidden; display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column; -webkit-user-select: none; user-select: none; }
+    .top { background: #1e293b; padding: 14px 32px; border-bottom: 1px solid #334155; display: -webkit-flex; display: flex; -webkit-justify-content: space-between; justify-content: space-between; -webkit-align-items: center; align-items: center; }
+    .top h1 { font-size: 30px; font-weight: 900; letter-spacing: 1px; }
+    .top span { font-size: 22px; font-weight: bold; color: #cbd5e1; }
+    .cols { -webkit-flex: 1; flex: 1; min-height: 0; display: -webkit-flex; display: flex; padding: 20px; }
+    .col { -webkit-flex: 1; flex: 1; min-width: 0; border-radius: 24px; padding: 22px; display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column; margin: 0 10px; }
+    .col.prep { background: rgba(30,41,59,.6); border: 1px solid rgba(245,158,11,.35); }
+    .col.rdy { background: rgba(6,78,59,.35); border: 1px solid rgba(16,185,129,.45); }
+    .col h2 { font-size: 30px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; }
+    .prep h2 { color: #fbbf24; } .rdy h2 { color: #34d399; }
+    .col p.sub { color: #94a3b8; font-size: 14px; margin: 4px 0 16px; }
+    .list { -webkit-flex: 1; flex: 1; min-height: 0; overflow: hidden; display: -webkit-flex; display: flex; -webkit-flex-wrap: wrap; flex-wrap: wrap; -webkit-align-content: flex-start; align-content: flex-start; }
+    .tok { font-weight: 900; margin: 0 12px 12px 0; text-align: center; }
+    .tok.p { font-size: 48px; padding: 10px 24px; border-radius: 16px; color: #fcd34d; background: rgba(245,158,11,.15); border: 1px solid rgba(251,191,36,.5); }
+    .tok.r { font-size: 72px; padding: 16px 34px; border-radius: 24px; color: #fff; background: #10b981; box-shadow: 0 6px 18px rgba(0,0,0,.4); margin: 0 16px 16px 0; }
+    .empty { color: #64748b; font-size: 22px; font-weight: bold; }
+    #gate { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.85); z-index: 50; display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center; }
+    #gate button { background: #10b981; color: #fff; font-weight: 900; font-size: 30px; padding: 30px 48px; border: 0; border-radius: 24px; }
+    #banner { display: none; position: fixed; left: 0; right: 0; top: 28%; z-index: 40; text-align: center; pointer-events: none; }
+    #banner .box { display: inline-block; background: #10b981; color: #fff; border-radius: 32px; padding: 30px 80px; box-shadow: 0 10px 40px rgba(0,0,0,.6); -webkit-animation: pop .45s ease-out; animation: pop .45s ease-out; }
+    #banner .l { font-size: 30px; font-weight: bold; text-transform: uppercase; letter-spacing: 4px; }
+    #banner .n { font-size: 144px; line-height: 1.05; font-weight: 900; }
+    @-webkit-keyframes pop { 0% { -webkit-transform: scale(.6); opacity: 0 } 60% { -webkit-transform: scale(1.08) } 100% { -webkit-transform: scale(1); opacity: 1 } }
+    @keyframes pop { 0% { transform: scale(.6); opacity: 0 } 60% { transform: scale(1.08) } 100% { transform: scale(1); opacity: 1 } }
+  </style>
+</head>
+<body>
+
+  <div class="top"><h1>VISHAL FOODIEZ</h1><span id="clock"></span></div>
+
+  <div class="cols">
+    <div class="col prep">
+      <h2>&#128104;&#8205;&#127859; Preparing</h2>
+      <p class="sub">Aapka order ban raha hai</p>
+      <div id="preparing" class="list"></div>
+    </div>
+    <div class="col rdy">
+      <h2>&#9989; Ready</h2>
+      <p class="sub">Counter se apna order le lein</p>
+      <div id="ready" class="list"></div>
+    </div>
+  </div>
+
+  <!-- Desktop browsers block sound until someone clicks once (the Android TV app skips this) -->
+  <div id="gate"><button id="gateBtn" onclick="enableSound()">&#128266; Tap to start (sound on)</button></div>
+
+  <div id="banner"><div class="box"><div class="l">Token</div><div class="n" id="bannerNo"></div><div class="l" style="letter-spacing:0">is ready!</div></div></div>
+
+<script>
+  var soundOn = false, announced = null, queue = [], speaking = false, audioCtx = null;
+  function $(id) { return document.getElementById(id); }
+  function fmt(n) { var s = String(n); while (s.length < 3) s = '0' + s; return s; }
+  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  function enableSound() {
+    soundOn = true;
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+    try { window.speechSynthesis.getVoices(); } catch (e) {}
+    $('gate').style.display = 'none';
+  }
+
+  function chime() {
+    if (!audioCtx) return wait(0);
+    try {
+      [660, 880, 1100].forEach(function (f, i) {
+        var o = audioCtx.createOscillator(), g = audioCtx.createGain(), t = audioCtx.currentTime + i * 0.18;
+        o.frequency.value = f; o.type = 'sine';
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35, t + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+        o.connect(g); g.connect(audioCtx.destination); o.start(t); o.stop(t + 0.4);
+      });
+    } catch (e) {}
+    return wait(650);
+  }
+
+  // The Android TV app exposes TokenTV.speak() (native text-to-speech): old TV WebViews often have no speechSynthesis
+  function speak(text) {
+    return new Promise(function (done) {
+      try {
+        if (window.TokenTV && window.TokenTV.speak) { window.TokenTV.speak(text); setTimeout(done, 2800); return; }
+        if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) return done();
+        var u = new SpeechSynthesisUtterance(text);
+        u.lang = 'en-IN'; u.rate = 0.9;
+        u.onend = u.onerror = done;
+        window.speechSynthesis.speak(u);
+        setTimeout(done, 6000);   // never get stuck if the voice does not fire onend
+      } catch (e) { done(); }
+    });
+  }
+
+  // one token at a time: chime, banner, then voice
+  function runQueue() {
+    if (speaking) return;
+    if (!queue.length) return;
+    speaking = true;
+    var t = queue.shift();
+    $('bannerNo').innerText = fmt(t);
+    $('banner').style.display = 'block';
+    var p = soundOn ? chime().then(function () { return speak('Token number ' + Number(t) + ' is ready.'); }) : wait(3500);
+    p.then(function () { return wait(300); }).then(function () {
+      $('banner').style.display = 'none';
+      speaking = false;
+      runQueue();
+    });
+  }
+
+  function render(d) {
+    var prep = '', rdy = '', i;
+    for (i = 0; i < d.preparing.length; i++) prep += '<div class="tok p">' + fmt(d.preparing[i]) + '</div>';
+    for (i = 0; i < d.ready.length; i++) rdy += '<div class="tok r">' + fmt(d.ready[i]) + '</div>';
+    $('preparing').innerHTML = prep || '<div class="empty">Koi order preparing me nahi</div>';
+    $('ready').innerHTML = rdy || '<div class="empty">Abhi koi order ready nahi</div>';
+
+    if (announced === null) { announced = {}; for (i = 0; i < d.ready.length; i++) announced[d.ready[i]] = true; return; }   // first load: do not announce what was already ready
+    var cur = {}, fresh = [];
+    for (i = 0; i < d.ready.length; i++) cur[d.ready[i]] = true;
+    for (var k in announced) if (!cur[k]) delete announced[k];   // left the list (e.g. recalled): can be announced again later
+    for (i = 0; i < d.ready.length; i++) if (!announced[d.ready[i]]) { announced[d.ready[i]] = true; fresh.push(d.ready[i]); }
+    for (i = fresh.length - 1; i >= 0; i--) queue.push(fresh[i]);   // d.ready is newest first: oldest ready token speaks first
+    runQueue();
+  }
+
+  function poll() {
+    fetch('/api/token-display', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) { if (d) render(d); }).catch(function () {});
+  }
+  setInterval(poll, 3000); poll();
+  function tick() { var n = new Date(), h = n.getHours(), m = n.getMinutes(); $('clock').innerText = ((h % 12) || 12) + ':' + (m < 10 ? '0' : '') + m + (h >= 12 ? ' PM' : ' AM'); }
+  setInterval(tick, 1000); tick();
+
+  if (window.TokenTV) enableSound();   // TV app: no remote click needed
+  else $('gateBtn').focus();
+</script>
+</body>
+</html>

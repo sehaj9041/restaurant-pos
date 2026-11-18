@@ -9,7 +9,7 @@ const COOKIE = 'pos_auth';
 const SESSION_MS = 400 * 24 * 60 * 60 * 1000; // max cookie lifetime browsers allow; renewed on use, so a device stays logged in until someone logs out
 
 // Pages that need the staff login (everything else in public/ is customer-facing or a harmless asset)
-const PROTECTED_PAGES = /^\/(pos|index\.html|kitchen\.html|kiosk\.html|punch\.html|staff\.html|admin\.html|settings\.html|customers\.html|engagement\.html|table-qrs\.html|customer\.html|settings,html\.txt|index\.html\/customer)$/i;
+const PROTECTED_PAGES = /^\/(pos|index\.html|kitchen\.html|kiosk\.html|punch\.html|staff\.html|admin\.html|settings\.html|customers\.html|engagement\.html|table-qrs\.html|customer\.html|token-display(\.html)?|settings,html\.txt|index\.html\/customer)$/i;
 
 // /api routes that must work without a login (customer ordering, rider links, payment callbacks, login itself). Matched on req.path under /api.
 const PUBLIC_API = [
