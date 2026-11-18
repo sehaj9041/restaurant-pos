@@ -1064,8 +1064,10 @@
 
       <div>
         <label class="block text-[10px] font-black uppercase text-gray-400 mb-1">CASH RECEIVED</label>
-        <input type="text" id="inputCashReceivedAmount" readonly onclick="openVirtualKeyboard(this, 'number', 'center')" oninput="calculateChangeReturn()" placeholder="0.00" value="" class="w-full border-2 border-orange-400 rounded-xl p-2.5 text-base font-mono font-black outline-none bg-orange-50/20 focus:bg-white cursor-pointer">
+        <input type="text" id="inputCashReceivedAmount" readonly oninput="calculateChangeReturn()" placeholder="0.00" value="" class="w-full border-2 border-orange-400 rounded-xl p-2.5 text-base font-mono font-black outline-none bg-orange-50/20 focus:bg-white cursor-pointer">
       </div>
+
+      <div id="cashInlineKeypad" class="grid grid-cols-3 gap-2 select-none"><button type="button" onclick="keypadPress('1')" class="bg-white hover:bg-gray-50 active:bg-gray-200 border border-gray-200 text-gray-800 font-bold text-lg py-2.5 rounded-xl">1</button><button type="button" onclick="keypadPress('2')" class="bg-white hover:bg-gray-50 active:bg-gray-200 border border-gray-200 text-gray-800 font-bold text-lg py-2.5 rounded-xl">2</button><button type="button" onclick="keypadPress('3')" class="bg-white hover:bg-gray-50 active:bg-gray-200 border border-gray-200 text-gray-800 font-bold text-lg py-2.5 rounded-xl">3</button><button type="button" onclick="keypadPress('4')" class="bg-white hover:bg-gray-50 active:bg-gray-200 border border-gray-200 text-gray-800 font-bold text-lg py-2.5 rounded-xl">4</button><button type="button" onclick="keypadPress('5')" class="bg-white hover:bg-gray-50 active:bg-gray-200 border border-gray-200 text-gray-800 font-bold text-lg py-2.5 rounded-xl">5</button><button type="button" onclick="keypadPress('6')" class="bg-white hover:bg-gray-50 active:bg-gray-200 border border-gray-200 text-gray-800 font-bold text-lg py-2.5 rounded-xl">6</button><button type="button" onclick="keypadPress('7')" class="bg-white hover:bg-gray-50 active:bg-gray-200 border border-gray-200 text-gray-800 font-bold text-lg py-2.5 rounded-xl">7</button><button type="button" onclick="keypadPress('8')" class="bg-white hover:bg-gray-50 active:bg-gray-200 border border-gray-200 text-gray-800 font-bold text-lg py-2.5 rounded-xl">8</button><button type="button" onclick="keypadPress('9')" class="bg-white hover:bg-gray-50 active:bg-gray-200 border border-gray-200 text-gray-800 font-bold text-lg py-2.5 rounded-xl">9</button><button type="button" onclick="keypadPress('.')" class="bg-white hover:bg-gray-50 active:bg-gray-200 border border-gray-200 text-gray-800 font-bold text-lg py-2.5 rounded-xl">.</button><button type="button" onclick="keypadPress('0')" class="bg-white hover:bg-gray-50 active:bg-gray-200 border border-gray-200 text-gray-800 font-bold text-lg py-2.5 rounded-xl">0</button><button type="button" onclick="keypadBackspace()" class="bg-white hover:bg-gray-50 active:bg-gray-200 border border-gray-200 text-gray-800 font-bold text-lg py-2.5 rounded-xl">⌫</button></div>
 
       <div class="bg-orange-50/50 border border-orange-200 rounded-xl p-2.5 text-center">
         <span class="text-[11px] font-bold text-orange-700">Return to customer: </span>
@@ -3448,6 +3450,7 @@
         currentCashChange = 0;
         document.getElementById('modalCashReturnChange').innerText = '₹0.00';
         
+        activeVirtualInput = document.getElementById('inputCashReceivedAmount');
         document.getElementById('modalCashReceived').classList.remove('hidden');
         return;
       }
