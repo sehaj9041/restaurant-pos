@@ -963,7 +963,7 @@
       }
       return base || null;
     }
-    function wizMealReview(menuItem, groups) {
+    function wizMealData(menuItem, groups) {
       var w = addonWiz, tiles = [], shown = {};
       var burgerIdx = -1;
       groups.forEach(function(g, i) { if (burgerIdx < 0 && /burger/i.test(g.name || '')) burgerIdx = i; });
@@ -978,20 +978,32 @@
         shown[i] = true;
         tiles.push({ img: wizImg(withImg[0].image), name: chosen.map(function(a) { return a.name + (Number(a.price) ? ' (+₹' + a.price + ')' : ''); }).join(', '), note: '', label: g.name, step: i });
       });
-      var html = '<p class="font-black text-gray-800 text-sm mb-2">Your meal</p><div class="flex gap-2 items-stretch">' + tiles.map(function(t) {
+      var rows = [];
+      groups.forEach(function(g, i) {
+        if (shown[i]) return;
+        var chosen = w.sel[i];
+        rows.push({ label: g.name, step: i, value: chosen.length ? chosen.map(function(a) { return a.name + (Number(a.price) ? ' (+₹' + a.price + ')' : ''); }).join(', ') : 'None' });
+      });
+      return { tiles: tiles, rows: rows };
+    }
+    // edit=true: review popup tiles with Edit buttons; edit=false: compact read-only tiles for the cart
+    function wizTilesHtml(tiles, edit) {
+      return '<div class="flex gap-2 items-stretch">' + tiles.map(function(t) {
         return '<div class="flex-1 min-w-0 p-2 rounded-xl border bg-gray-50 flex flex-col items-center text-center">' +
           '<span class="text-[9px] font-bold uppercase tracking-widest text-gray-500 truncate w-full">' + wizEsc(t.label) + '</span>' +
-          '<div class="h-20 flex items-center justify-center">' + (t.img ? '<img src="' + wizEsc(t.img) + '" class="max-h-full max-w-full object-contain" onerror="this.style.display=\'none\'">' : '<span class="text-3xl">🍽️</span>') + '</div>' +
+          '<div class="' + (edit ? 'h-20' : 'h-12') + ' flex items-center justify-center">' + (t.img ? '<img src="' + wizEsc(t.img) + '" class="max-h-full max-w-full object-contain" onerror="this.style.display=\'none\'">' : '<span class="text-3xl">🍽️</span>') + '</div>' +
           '<span class="text-[11px] font-bold leading-tight mt-1 line-clamp-2">' + wizEsc(t.name) + '</span>' +
           (t.note ? '<span class="text-[10px] text-gray-500 leading-tight line-clamp-2">+ ' + wizEsc(t.note) + '</span>' : '') +
-          (t.step >= 0 ? '<button onclick="wizEdit(' + t.step + ')" class="border px-3 py-1 rounded-lg font-bold text-[11px] hover:bg-white mt-2 w-full">Edit</button>' : '') + '</div>';
+          (edit && t.step >= 0 ? '<button onclick="wizEdit(' + t.step + ')" class="border px-3 py-1 rounded-lg font-bold text-[11px] hover:bg-white mt-2 w-full">Edit</button>' : '') + '</div>';
       }).join('') + '</div>';
-      var rows = groups.map(function(g, i) {
-        if (shown[i]) return '';
-        var chosen = w.sel[i];
-        return '<div class="flex items-center justify-between gap-2 p-2.5 rounded-xl border bg-gray-50"><div class="min-w-0 flex-1"><div class="text-[10px] font-bold uppercase text-gray-500">' + wizEsc(g.name) + '</div>' +
-          '<div class="font-bold text-gray-800">' + (chosen.length ? chosen.map(function(a) { return wizEsc(a.name) + (Number(a.price) ? ' (+₹' + a.price + ')' : ''); }).join(', ') : 'None') + '</div></div>' +
-          '<button onclick="wizEdit(' + i + ')" class="shrink-0 border px-3 py-1 rounded-lg font-bold text-[11px] hover:bg-white">Edit</button></div>';
+    }
+    function wizMealReview(menuItem, groups) {
+      var d = wizMealData(menuItem, groups);
+      var html = '<p class="font-black text-gray-800 text-sm mb-2">Your meal</p>' + wizTilesHtml(d.tiles, true);
+      var rows = d.rows.map(function(r) {
+        return '<div class="flex items-center justify-between gap-2 p-2.5 rounded-xl border bg-gray-50"><div class="min-w-0 flex-1"><div class="text-[10px] font-bold uppercase text-gray-500">' + wizEsc(r.label) + '</div>' +
+          '<div class="font-bold text-gray-800">' + wizEsc(r.value) + '</div></div>' +
+          '<button onclick="wizEdit(' + r.step + ')" class="shrink-0 border px-3 py-1 rounded-lg font-bold text-[11px] hover:bg-white">Edit</button></div>';
       }).join('');
       return html + (rows ? '<div class="space-y-2 mt-3">' + rows + '</div>' : '') + wizQtyRow();
     }
@@ -1090,6 +1102,12 @@
         addons: selectedAddons,
         variant: currentModalSelectedItem.variantName || ''
       };
+      if (addonWiz.hidePrice) {   // meal: keep the review tiles/rows so the cart shows them too
+        const md = wizMealData(menu.find(i => i.id === currentModalSelectedItem.id) || currentModalSelectedItem, currentModalItemGroups);
+        line.baseName = currentModalSelectedItem.name;
+        line.tiles = md.tiles;
+        line.mealRows = md.rows.filter(r => r.value !== 'None');
+      }
       closeOnlineAddonModal();
       addToCart(line);
     }
@@ -1173,7 +1191,9 @@
       document.getElementById('cartList').innerHTML = cart.map((i, idx) => `
         <div class="flex justify-between items-center py-2 text-xs gap-2">
           <div class="min-w-0 flex-1">
-            <div class="font-bold text-gray-800">${esc(i.name)}</div>
+            <div class="font-bold text-gray-800">${esc(i.tiles && i.baseName ? i.baseName : i.name)}</div>
+            ${i.tiles ? `<div class="my-1.5">${wizTilesHtml(i.tiles, false)}</div>` : ''}
+            ${(i.mealRows || []).map(r => `<div class="mt-1 p-1.5 rounded-lg border bg-gray-50"><div class="text-[9px] font-bold uppercase text-gray-500">${esc(r.label)}</div><div class="font-bold text-gray-800 text-[11px] leading-tight">${esc(r.value)}</div></div>`).join('')}
             <div class="text-gray-400">₹${i.price} each</div>
           </div>
           <div class="flex items-center bg-indigo-50 border border-indigo-200 rounded-lg overflow-hidden shrink-0">
@@ -1476,7 +1496,7 @@
       const T = ckTotals(), sub = T.sub, gst = T.gst;
       // delivery address/location are stored on the order itself (shown on POS + bill, not on the kitchen screen)
       const note = isDelivery ? '' : (loc ? `Note: ${loc}` : '');
-      const items = cart.map((c, i) => ({ ...c, notes: i === 0 ? note : '' }));
+      const items = cart.map((c, i) => { const { tiles, mealRows, baseName, ...line } = c; return { ...line, notes: i === 0 ? note : '' }; });
       const itemCount = cart.reduce((n, c) => n + c.qty, 0);
 
       const orderBody = {

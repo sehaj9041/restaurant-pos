@@ -795,7 +795,7 @@
     }
     let tileSteps = new Set();
 
-    function renderCustReview() {
+    function custReviewRows() {
       const rows = [];
       custSteps.forEach((st, i) => {
         if (custHidePrice && tileSteps.has(i)) return;
@@ -807,6 +807,11 @@
           rows.push({ i, label: g ? g.name : 'Add-ons', value: chosen.length ? chosen.map(a => `${a.name} (+${money(a.price)})`).join(', ') : 'None', images: chosen.filter(a => a.image).map(a => a.image) });
         }
       });
+      return rows;
+    }
+
+    function renderCustReview() {
+      const rows = custReviewRows();
       $('modalReview').innerHTML = rows.length ? `
         <p class="text-xl font-black mb-3">Your selection</p>
         <div class="space-y-2">
@@ -998,7 +1003,8 @@
           notes: noteText,
           image: itemImgOf(selectedMenuItem),
           baseName: selectedMenuItem.name,
-          tiles: custHidePrice ? mealTileData() : null,   // meal: same burger/drink/fries tiles as the review page
+          tiles: custHidePrice ? mealTileData() : null,
+          rows: custHidePrice ? custReviewRows().filter(r => r.value !== 'None') : null,   // burger customise etc. (read-only on the Your Order page)   // meal: same burger/drink/fries tiles as the review page
           is_exempt: Number(selectedMenuItem.is_exempt) ? 1 : 0,
           qty: custQty
         };
@@ -1113,6 +1119,14 @@
             </div>
             ${item.notes ? `<p class="text-[11px] text-neutral-600 mt-1">${esc(item.notes)}</p>` : ''}
             ${item.tiles ? `<div class="mt-2">${mealTilesHtml(item.tiles, false)}</div>` : ''}
+            ${(item.rows || []).map(r => `
+              <div class="tile p-2 mt-2 flex items-center gap-3">
+                ${r.images.length ? `<span class="flex -space-x-2 shrink-0">${r.images.slice(0, 3).map(im => `<img src="${esc(resolveImgPath(im))}" class="w-10 h-10 rounded-lg object-cover border-2 border-white">`).join('')}</span>` : ''}
+                <span class="min-w-0 flex-1">
+                  <span class="block text-[10px] font-bold uppercase tracking-widest text-neutral-500">${esc(r.label)}</span>
+                  <span class="block text-[12px] font-bold leading-tight">${esc(r.value)}</span>
+                </span>
+              </div>`).join('')}
             <div class="flex items-center justify-between mt-3">
               <div class="flex items-stretch border border-[#9a9a9a] bg-white h-10">
                 <button onclick="changeTrayQty(${idx}, -1)" class="w-10 text-xl active:bg-neutral-100">−</button>

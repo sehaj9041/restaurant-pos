@@ -280,7 +280,7 @@
     }
     return base || null;
   }
-  function mealReviewSheet() {
+  function mealData() {
     var groups = pick.groups, tiles = [], shown = {}, burgerIdx = -1, burgerNote = '';
     var chosenOpts = function (g) { return (pick.sel[g.id] || []).map(function (n) { return groupOptions(g).filter(function (x) { return x.name === n; })[0]; }).filter(Boolean); };
     groups.forEach(function (g, i) { if (burgerIdx < 0 && /burger/i.test(g.name || '')) burgerIdx = i; });
@@ -294,20 +294,32 @@
       shown[i] = true;
       tiles.push({ img: imgSrc(withImg[0].image), name: opts.map(function (a) { return a.name + (Number(a.price) ? ' (+' + rs(a.price) + ')' : ''); }).join(', '), note: '', label: g.name, step: i });
     });
-    var html = '<p class="font-black text-gray-800 text-sm mb-2">Your meal</p><div class="flex gap-2 items-stretch">' + tiles.map(function (t) {
+    var rows = [];
+    groups.forEach(function (g, i) {
+      if (shown[i]) return;
+      var opts = chosenOpts(g);
+      rows.push({ label: g.name, step: i, value: opts.length ? opts.map(function (a) { return a.name + (Number(a.price) ? ' (+' + rs(a.price) + ')' : ''); }).join(', ') : 'None' });
+    });
+    return { tiles: tiles, rows: rows };
+  }
+  // edit=true: review sheet tiles with Edit buttons; edit=false: compact read-only tiles for the cart
+  function mealTilesHtml(tiles, edit) {
+    return '<div class="flex gap-2 items-stretch">' + tiles.map(function (t) {
       return '<div class="flex-1 min-w-0 p-2 rounded-xl border bg-gray-50 flex flex-col items-center text-center">' +
         '<span class="text-[9px] font-bold uppercase tracking-widest text-gray-500 truncate w-full">' + esc(t.label) + '</span>' +
-        '<div class="h-20 flex items-center justify-center">' + (t.img ? '<img src="' + esc(t.img) + '" class="max-h-full max-w-full object-contain" onerror="this.style.display=\'none\'">' : '<span class="text-3xl">🍽️</span>') + '</div>' +
+        '<div class="' + (edit ? 'h-20' : 'h-12') + ' flex items-center justify-center">' + (t.img ? '<img src="' + esc(t.img) + '" class="max-h-full max-w-full object-contain" onerror="this.style.display=\'none\'">' : '<span class="text-3xl">🍽️</span>') + '</div>' +
         '<span class="text-[11px] font-bold leading-tight mt-1 line-clamp-2">' + esc(t.name) + '</span>' +
         (t.note ? '<span class="text-[10px] text-gray-500 leading-tight line-clamp-2">+ ' + esc(t.note) + '</span>' : '') +
-        (t.step >= 0 ? '<button onclick="editStep(' + t.step + ')" class="border px-3 py-1 rounded-lg font-bold text-[11px] mt-2 w-full">Edit</button>' : '') + '</div>';
+        (edit && t.step >= 0 ? '<button onclick="editStep(' + t.step + ')" class="border px-3 py-1 rounded-lg font-bold text-[11px] mt-2 w-full">Edit</button>' : '') + '</div>';
     }).join('') + '</div>';
-    var rows = groups.map(function (g, i) {
-      if (shown[i]) return '';
-      var opts = chosenOpts(g);
-      return '<div class="flex items-center justify-between gap-2 p-2.5 rounded-xl border bg-gray-50"><div class="min-w-0 flex-1"><div class="text-[10px] font-bold uppercase text-gray-500">' + esc(g.name) + '</div>' +
-        '<div class="font-bold text-gray-800 text-sm">' + (opts.length ? opts.map(function (a) { return esc(a.name) + (Number(a.price) ? ' (+' + rs(a.price) + ')' : ''); }).join(', ') : 'None') + '</div></div>' +
-        '<button onclick="editStep(' + i + ')" class="shrink-0 border px-3 py-1 rounded-lg font-bold text-[11px]">Edit</button></div>';
+  }
+  function mealReviewSheet() {
+    var d = mealData();
+    var html = '<p class="font-black text-gray-800 text-sm mb-2">Your meal</p>' + mealTilesHtml(d.tiles, true);
+    var rows = d.rows.map(function (r) {
+      return '<div class="flex items-center justify-between gap-2 p-2.5 rounded-xl border bg-gray-50"><div class="min-w-0 flex-1"><div class="text-[10px] font-bold uppercase text-gray-500">' + esc(r.label) + '</div>' +
+        '<div class="font-bold text-gray-800 text-sm">' + esc(r.value) + '</div></div>' +
+        '<button onclick="editStep(' + r.step + ')" class="shrink-0 border px-3 py-1 rounded-lg font-bold text-[11px]">Edit</button></div>';
     }).join('');
     openSheet(sheetHead(esc(pick.item.name) + (pick.variant ? ' (' + esc(pick.variant.name) + ')' : ''), 'Review your selection') + html + (rows ? '<div class="space-y-2 mt-3">' + rows + '</div>' : '') +
       '<div class="flex items-stretch border border-gray-300 rounded-xl overflow-hidden bg-white mt-3 h-11"><button onclick="pickQty(-1)" aria-label="Decrease" class="w-14 text-xl font-black text-gray-500 active:bg-gray-100">−</button>' +
@@ -353,7 +365,11 @@
     var name = item.name + (variant ? ' (' + variant.name + ')' : '') + (addons.length ? ' (' + addons.map(function (a) { return a.name; }).join(', ') + ')' : '');
     var key = item.id + '|' + (variant ? variant.name : '') + '|' + addons.map(function (a) { return a.name; }).sort().join(',');
     var same = cart.filter(function (c) { return c.key === key; })[0];
-    if (same) same.qty += qty; else cart.push({ key: key, id: item.id, name: name, price: price, qty: qty, variant: variant ? variant.name : '', addons: addons });
+    if (same) same.qty += qty; else {
+      var line = { key: key, id: item.id, name: name, price: price, qty: qty, variant: variant ? variant.name : '', addons: addons };
+      if (pick.hide) { var md = mealData(); line.baseName = item.name; line.tiles = md.tiles; line.mealRows = md.rows.filter(function (r) { return r.value !== 'None'; }); }   // meal: cart shows the same tiles/rows as the review
+      cart.push(line);
+    }
     saveCart(); closeSheet(); updateCartBar(); renderMenu(); toast(item.name + ' added');
     if (back) cartSheet();
   }
@@ -397,7 +413,10 @@
     ['gName', 'gPhone', 'gNote'].forEach(function (id) { if ($(id)) keep[id] = $(id).value; });
     openSheet(sheetHead('Your order • Table ' + esc(T)) + '<div class="space-y-2 mb-4">' +
       cart.map(function (c, i) {
-        return '<div class="flex items-center gap-2 border-b pb-2"><div class="flex-1 min-w-0"><div class="text-sm font-bold leading-tight">' + esc(c.name) + '</div><div class="text-xs text-gray-500">' + rs(c.price) + ' each</div></div>' +
+        return '<div class="flex items-center gap-2 border-b pb-2"><div class="flex-1 min-w-0"><div class="text-sm font-bold leading-tight">' + esc(c.tiles && c.baseName ? c.baseName : c.name) + '</div>' +
+          (c.tiles ? '<div class="my-1.5">' + mealTilesHtml(c.tiles, false) + '</div>' : '') +
+          (c.mealRows || []).map(function (r) { return '<div class="mt-1 p-1.5 rounded-lg border bg-gray-50"><div class="text-[9px] font-bold uppercase text-gray-500">' + esc(r.label) + '</div><div class="text-[11px] font-bold text-gray-800 leading-tight">' + esc(r.value) + '</div></div>'; }).join('') +
+          '<div class="text-xs text-gray-500">' + rs(c.price) + ' each</div></div>' +
           '<div class="flex items-center gap-2"><button onclick="chg(' + i + ',-1)" class="w-8 h-8 rounded-lg border font-black">−</button><span class="w-5 text-center font-black text-sm">' + c.qty + '</span><button onclick="chg(' + i + ',1)" class="w-8 h-8 rounded-lg border font-black">+</button></div>' +
           '<div class="w-16 text-right font-black text-sm">' + rs(c.price * c.qty) + '</div></div>';
       }).join('') + '</div>' +
