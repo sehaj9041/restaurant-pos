@@ -752,7 +752,7 @@
     }
 
     // Meal review page: poori meal ki photo ki jagah burger + customer ke chune hue drink/fries ki photo, har ek ke Edit button ke saath
-    function mealHeroTiles() {
+    function mealTileData() {
       tileSteps = new Set();
       const tiles = [];
       const gStep = (st, i) => {
@@ -778,13 +778,19 @@
         tileSteps.add(i);
         tiles.push({ img: resolveImgPath(withImg[0].image), name: chosen.map(a => a.name + (Number(a.price) ? ' (+' + money(a.price) + ')' : '')).join(', '), note: '', label: g ? g.name : 'Add-on', step: i });
       });
-      return `<div class="flex gap-2 w-full justify-center items-stretch">${tiles.map(t => `
+      return tiles;
+    }
+    function mealHeroTiles() { return mealTilesHtml(mealTileData(), true); }
+    // edit=true: review page tiles with Edit buttons; edit=false: compact read-only tiles for the "Your Order" list
+    function mealTilesHtml(tiles, edit) {
+      const sz = edit ? 'h-28 w-28' : 'h-16 w-16';
+      return `<div class="flex gap-2 w-full ${edit ? 'justify-center' : ''} items-stretch">${tiles.map(t => `
         <div class="tile p-2 flex flex-col items-center text-center flex-none w-[calc(33.333%-0.34rem)] min-w-0">
           <span class="text-[10px] font-bold uppercase tracking-widest text-neutral-500 truncate w-full">${esc(t.label)}</span>
-          <div class="h-28 w-28 mx-auto flex items-center justify-center">${t.img ? `<img src="${esc(t.img)}" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">` : '<span class="text-4xl">🍽️</span>'}</div>
+          <div class="${sz} mx-auto flex items-center justify-center">${t.img ? `<img src="${esc(t.img)}" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">` : '<span class="text-4xl">🍽️</span>'}</div>
           <span class="text-[12px] font-bold leading-tight mt-1 line-clamp-2 min-h-[2.2em]">${esc(t.name)}</span>
           ${t.note ? `<span class="text-[10px] text-neutral-500 leading-tight line-clamp-2">+ ${esc(t.note)}</span>` : ''}
-          ${t.step >= 0 ? `<button onclick="custEdit(${t.step})" class="btn-outline px-3 py-1.5 text-xs mt-2 w-full">Edit</button>` : ''}
+          ${edit && t.step >= 0 ? `<button onclick="custEdit(${t.step})" class="btn-outline px-3 py-1.5 text-xs mt-2 w-full">Edit</button>` : ''}
         </div>`).join('')}</div>`;
     }
     let tileSteps = new Set();
@@ -991,6 +997,8 @@
           price: Number(finalPrice),
           notes: noteText,
           image: itemImgOf(selectedMenuItem),
+          baseName: selectedMenuItem.name,
+          tiles: custHidePrice ? mealTileData() : null,   // meal: same burger/drink/fries tiles as the review page
           is_exempt: Number(selectedMenuItem.is_exempt) ? 1 : 0,
           qty: custQty
         };
@@ -1095,15 +1103,16 @@
 
       container.innerHTML = kioskTray.map((item, idx) => `
         <div class="flex gap-3 pb-5 mb-5 border-b border-[var(--line)]">
-          <div class="w-20 h-20 shrink-0 flex items-center justify-center">
+          <div class="w-20 h-20 shrink-0 flex items-center justify-center ${item.tiles ? 'hidden' : ''}">
             ${item.image ? `<img src="${esc(item.image)}" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">` : '<span class="text-5xl">🍔</span>'}
           </div>
           <div class="flex-1 min-w-0">
             <div class="flex justify-between gap-2">
-              <h4 class="font-black text-[15px] leading-tight">${esc(item.name)}</h4>
+              <h4 class="font-black text-[15px] leading-tight">${esc(item.tiles && item.baseName ? item.baseName : item.name)}</h4>
               <span class="font-black text-[15px] whitespace-nowrap">${money(item.price * item.qty)}</span>
             </div>
             ${item.notes ? `<p class="text-[11px] text-neutral-600 mt-1">${esc(item.notes)}</p>` : ''}
+            ${item.tiles ? `<div class="mt-2">${mealTilesHtml(item.tiles, false)}</div>` : ''}
             <div class="flex items-center justify-between mt-3">
               <div class="flex items-stretch border border-[#9a9a9a] bg-white h-10">
                 <button onclick="changeTrayQty(${idx}, -1)" class="w-10 text-xl active:bg-neutral-100">−</button>
