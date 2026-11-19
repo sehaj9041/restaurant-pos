@@ -549,6 +549,26 @@
       if (any) pushCheckChanges(changes);
     }
 
+    // Veg / Non-Veg / Egg mark before item names. food_type comes from the menu, matched by item name.
+    var menuFoodType = {};
+    function loadMenuFoodTypes() {
+      fetch('/api/menu').then(function(r){ return r.json(); }).then(function(rows){
+        var m = {};
+        (rows || []).forEach(function(it){ if (it && it.name && it.food_type) m[String(it.name).trim().toLowerCase()] = it.food_type; });
+        menuFoodType = m;
+      }).catch(function(){});
+    }
+    loadMenuFoodTypes();
+    setInterval(loadMenuFoodTypes, 300000);
+    function vegIcon(rawName) {
+      var n = String(rawName || '').trim().toLowerCase(), t = menuFoodType[n];
+      while (!t && /\s*\([^()]*\)$/.test(n)) { n = n.replace(/\s*\([^()]*\)$/, '').trim(); t = menuFoodType[n]; }   // "Burger (Small)" -> "Burger"
+      var c = { veg: '#16a34a', nonveg: '#dc2626', egg: '#eab308' }[t];
+      if (!c) return '';
+      var label = { veg: 'Veg', nonveg: 'Non-Veg', egg: 'Egg' }[t];
+      return '<span title="' + label + '" style="display:inline-flex;align-items:center;justify-content:center;width:1em;height:1em;min-width:14px;min-height:14px;border:2px solid ' + c + ';border-radius:3px;background:#fff;vertical-align:-0.1em;margin-right:6px">' + (t === 'nonveg' ? '<span style="width:0;height:0;border-left:0.2em solid transparent;border-right:0.2em solid transparent;border-bottom:0.34em solid ' + c + '"></span>' : '<span style="width:0.42em;height:0.42em;border-radius:50%;background:' + c + '"></span>') + '</span>';
+    }
+
     // Known add-on names (for single-add-on items like "Burger (Spicy Mayo Dip)")
     var knownAddonNames = {};
     fetch('/api/addon-groups').then(function(r){ return r.json(); }).then(function(groups){
@@ -957,7 +977,7 @@
           <div class="flex items-center gap-2.5">
             <div class="kot-check-box rounded-md flex items-center justify-center border shrink-0 bg-emerald-600 border-emerald-600 text-white">✓</div>
             <span class="kot-qty-badge font-black text-slate-500 bg-slate-100 border border-slate-200 px-2 py-1 rounded-md shrink-0 line-through">${item.qty}</span>
-            <span class="kot-item-title font-bold text-slate-400 flex-1 line-through">${base}</span>
+            <span class="kot-item-title font-bold text-slate-400 flex-1 line-through">${vegIcon(item.name)}${base}</span>
             ${order ? itemPackBadge(order, item) : ''}
           </div>
           ${addonsList.length > 0 ? `<div class="mt-1 ml-8 space-y-0.5 pl-2 border-l-2 border-slate-200">${addonsList.map(function(a) { return `<div class="kot-addon-text font-semibold text-slate-400 line-through">+ ${a.name}</div>`; }).join('')}</div>` : ''}
@@ -1100,7 +1120,7 @@
                       </span>
 
                       <span class="kot-item-title font-bold text-slate-800 flex-1 ${isDone ? 'line-through text-slate-400' : ''}">
-                        ${cleanBaseName}
+                        ${vegIcon(item.name)}${cleanBaseName}
                       </span>
 
                       ${itemPackBadge(order, item)}

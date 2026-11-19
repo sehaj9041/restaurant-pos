@@ -1964,7 +1964,7 @@
 
     async function loadMenuManagementData() {
       try {
-        const res = await fetch('/api/menu');
+        const res = await fetch('/api/menu?admin=1');
         const items = await res.json();
 
         const categoriesSet = new Set(items.map(i => i.category || 'General'));

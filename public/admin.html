@@ -469,8 +469,12 @@
             </div>
             <div>
               <label class="block text-xs font-bold text-gray-600 mb-1">Category *</label>
-              <input type="text" id="edit_cat" list="catList" class="w-full border p-2 rounded-xl text-xs outline-none">
+              <input type="text" id="edit_cat" list="catList" class="w-full border p-2 rounded-xl text-xs outline-none" oninput="renderEditExtraCats()">
             </div>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-600 mb-1">Aur categories (item inme bhi dikhega)</label>
+            <div id="edit_extra_cats" class="flex flex-wrap gap-2"></div>
           </div>
           <div class="grid grid-cols-3 gap-3">
             <div>
@@ -899,7 +903,7 @@
               ${unavailable ? '<span class="ml-1 bg-red-100 text-red-700 px-1.5 py-0.5 rounded text-[10px] font-bold">Out of Stock</span>' : ''}
               ${Number(i.is_visible) === 0 ? '<span class="ml-1 bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded text-[10px] font-bold">Hidden</span>' : ''}
             </td>
-            <td class="p-3 text-gray-500">${esc(i.category)}</td>
+            <td class="p-3 text-gray-500">${esc(i.category)}${(() => { try { return JSON.parse(i.extra_categories || '[]').map(c => `<span class="ml-1 bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded text-[10px] font-bold">+ ${esc(c)}</span>`).join(''); } catch (e) { return ''; } })()}</td>
             <td class="p-3 font-black text-gray-900">₹${esc(i.price)}</td>
             <td class="p-3 font-bold text-gray-700">${stock}</td>
             <td class="p-3"><span class="bg-amber-50 text-amber-800 px-2 py-0.5 rounded text-[11px] font-bold">${vars.length} Sizes</span></td>
@@ -1440,6 +1444,22 @@
       renderEditImage();
     }
 
+    // Extra categories: the item also shows under these on POS / kiosk / QR (the main category above stays the one used for reports).
+    let editExtraCats = [];
+    function renderEditExtraCats() {
+      const main = document.getElementById('edit_cat').value.trim();
+      const names = allCategoryNames().filter(n => n !== main);
+      document.getElementById('edit_extra_cats').innerHTML = names.length ? names.map(n =>
+        `<label class="flex items-center gap-1.5 text-xs font-bold border rounded-lg px-2.5 py-1.5 cursor-pointer ${editExtraCats.includes(n) ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'bg-white text-gray-600'}">
+          <input type="checkbox" ${editExtraCats.includes(n) ? 'checked' : ''} onchange="toggleEditExtraCat(this.dataset.n, this.checked)" data-n="${esc(n)}"> ${esc(n)}</label>`).join('')
+        : '<span class="text-xs text-gray-400">Koi aur category nahi</span>';
+    }
+    function toggleEditExtraCat(n, on) {
+      editExtraCats = editExtraCats.filter(c => c !== n);
+      if (on) editExtraCats.push(n);
+      renderEditExtraCats();
+    }
+
     function openEditModal(id) {
       const item = menuItems.find(i => Number(i.id) === id);
       if (!item) return;
@@ -1447,6 +1467,8 @@
       document.getElementById('editTitle').innerText = item.name;
       document.getElementById('edit_name').value = item.name;
       document.getElementById('edit_cat').value = item.category || '';
+      try { editExtraCats = JSON.parse(item.extra_categories || '[]').filter(c => c && c !== item.category); } catch (e) { editExtraCats = []; }
+      renderEditExtraCats();
       document.getElementById('edit_price').value = item.price;
       document.getElementById('edit_stock').value = item.stock ?? 50;
       document.getElementById('edit_description').value = item.description || '';
@@ -1729,6 +1751,7 @@
 
         await api('/api/menu/' + id, 'PUT', {
           name, category, price, stock,
+          extra_categories: editExtraCats.filter(c => c !== category),
           image: currentEditImage,
           description: document.getElementById('edit_description').value.trim(),
           variations: currentEditVariations.map(v => { const c = Object.assign({}, v); delete c.is_default; return c; }),
@@ -1742,6 +1765,7 @@
           allergens, tags: currentEditTags
         });
         await ensureCategory(category);
+        for (const c of editExtraCats) await ensureCategory(c);
         closeEditModal();
         toast('Item update ho gaya');
         loadData();

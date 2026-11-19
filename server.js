@@ -548,6 +548,15 @@ app.get('/api/menu', (req, res) => {
     if (err) return res.status(500).json({ error: err.message });
     // Inactive ("Off") variants are hidden from POS/kiosk/QR; admin asks for everything with ?admin=1.
     if (key !== 'admin') {
+      // An item with extra categories also appears under each of them (same id, other category) on POS / kiosk / QR menus.
+      const extra = [];
+      (rows || []).forEach(r => {
+        try {
+          const cats = JSON.parse(r.extra_categories || '[]');
+          if (Array.isArray(cats)) cats.forEach(c => { if (c && c !== r.category) extra.push({ ...r, category: c }); });
+        } catch (e) {}
+      });
+      if (extra.length) rows = rows.concat(extra);   // clients group by category, so order inside the array does not matter
       (rows || []).forEach(r => {
         try {
           const vars = JSON.parse(r.variations || '[]');
@@ -562,16 +571,20 @@ app.get('/api/menu', (req, res) => {
 });
 
 // food_type: 'veg' | 'nonveg' | 'egg' (anything else = not set, no icon shown)
+function cleanExtraCats(v, primary) {
+  const list = Array.isArray(v) ? v : [];
+  return [...new Set(list.map(c => String(c || '').trim()).filter(c => c && c !== primary))];
+}
 function cleanFoodType(v) {
   const t = String(v || '').toLowerCase();
   return ['veg', 'nonveg', 'egg'].includes(t) ? t : null;
 }
 
 app.post('/api/menu', (req, res) => {
-  const { name, category, price, stock, image, variations, assigned_addon_groups, is_exempt, is_visible, food_type } = req.body;
+  const { name, category, price, stock, image, variations, assigned_addon_groups, is_exempt, is_visible, food_type, extra_categories } = req.body;
   db.all(
-    `INSERT INTO menu (name, category, price, stock, image, variations, assigned_addon_groups, is_exempt, is_visible, food_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-    [name, category || 'General', price, stock || 50, image || '', JSON.stringify(variations || []), JSON.stringify(assigned_addon_groups || []), is_exempt ? 1 : 0, is_visible === undefined ? 1 : (is_visible ? 1 : 0), cleanFoodType(food_type)],
+    `INSERT INTO menu (name, category, price, stock, image, variations, assigned_addon_groups, is_exempt, is_visible, food_type, extra_categories) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+    [name, category || 'General', price, stock || 50, image || '', JSON.stringify(variations || []), JSON.stringify(assigned_addon_groups || []), is_exempt ? 1 : 0, is_visible === undefined ? 1 : (is_visible ? 1 : 0), cleanFoodType(food_type), JSON.stringify(cleanExtraCats(extra_categories, category || 'General'))],
     (err, result) => {
       if (err) return res.status(500).json({ error: err.message });
       const id = result && result[0] ? result[0].id : null;
@@ -582,7 +595,7 @@ app.post('/api/menu', (req, res) => {
 
 app.put('/api/menu/:id', (req, res) => {
   const { name, category, price, stock, image, variations, assigned_addon_groups, is_exempt, is_visible,
-          description, tags, allergens, is_featured, send_to_kds, status, food_type } = req.body;
+          description, tags, allergens, is_featured, send_to_kds, status, food_type, extra_categories } = req.body;
   // Fields that are not sent stay as they are (the POS edit form only sends name/category/price/stock).
   const opt = v => (v === undefined ? null : v);
   const optJson = v => (v === undefined ? null : JSON.stringify(v || []));
@@ -594,9 +607,11 @@ app.put('/api/menu/:id', (req, res) => {
        description = COALESCE(?, description), tags = COALESCE(?, tags), allergens = COALESCE(?, allergens),
        is_featured = COALESCE(?, is_featured), send_to_kds = COALESCE(?, send_to_kds), status = COALESCE(?, status),
        food_type = CASE WHEN ? THEN ? ELSE food_type END,
+       extra_categories = CASE WHEN ? THEN ? ELSE extra_categories END,
        updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
     [opt(name), opt(category), opt(price), opt(stock), opt(image), optJson(variations), optJson(assigned_addon_groups), optFlag(is_exempt), optFlag(is_visible),
-     opt(description), optJson(tags), optJson(allergens), optFlag(is_featured), optFlag(send_to_kds), opt(status), food_type !== undefined, cleanFoodType(food_type), req.params.id],
+     opt(description), optJson(tags), optJson(allergens), optFlag(is_featured), optFlag(send_to_kds), opt(status), food_type !== undefined, cleanFoodType(food_type),
+     extra_categories !== undefined, JSON.stringify(cleanExtraCats(extra_categories, category)), req.params.id],
     function (err) {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ success: true });
