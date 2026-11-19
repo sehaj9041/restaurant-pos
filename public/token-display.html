@@ -72,43 +72,59 @@
   function chime() {
     if (!audioCtx) return wait(0);
     try {
-      [660, 880, 1100].forEach(function (f, i) {
-        var o = audioCtx.createOscillator(), g = audioCtx.createGain(), t = audioCtx.currentTime + i * 0.18;
+      [660, 880, 1100, 880, 1320].forEach(function (f, i) {
+        var o = audioCtx.createOscillator(), g = audioCtx.createGain(), t = audioCtx.currentTime + i * 0.3;
         o.frequency.value = f; o.type = 'sine';
-        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35, t + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
-        o.connect(g); g.connect(audioCtx.destination); o.start(t); o.stop(t + 0.4);
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35, t + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
+        o.connect(g); g.connect(audioCtx.destination); o.start(t); o.stop(t + 0.8);
       });
     } catch (e) {}
-    return wait(650);
+    return wait(1700);
   }
 
   // Voice = pre-recorded clips ("Token number" + each digit + "is ready"), played one after another.
   // Old TV WebViews often have no speechSynthesis and the TV may have no text-to-speech engine, but plain audio always plays.
   var clips = {};
   function clip(name) {
-    if (!clips[name]) { var a = new Audio('/token-voice/' + name + '.m4a?v=2'); a.preload = 'auto'; clips[name] = a; }
+    if (!clips[name]) { var a = new Audio('/token-voice/' + name + '.m4a?v=3'); a.preload = 'auto'; clips[name] = a; }
     return clips[name];
   }
-  function playClip(name) {
+  function playClip(name, maxMs, onFail) {
     return new Promise(function (done) {
       try {
         var a = clip(name), finished = false;
         var end = function () { if (!finished) { finished = true; done(); } };
-        a.onended = end; a.onerror = end;
+        a.onended = end; a.onerror = function () { if (onFail) onFail(); end(); };
         try { a.currentTime = 0; } catch (e) {}
         var pr = a.play();
-        if (pr && pr.catch) pr.catch(end);
-        setTimeout(end, 1500);   // never get stuck on one clip
+        if (pr && pr.catch) pr.catch(function () { if (onFail) onFail(); end(); });
+        setTimeout(end, maxMs || 2500);   // never get stuck on one clip
       } catch (e) { done(); }
     });
   }
+  // 123 -> "one" "twenty three"; 105 -> "one" "oh" "five"; 200 -> "two" "hundred"; 45 -> "forty five"
+  function numberClips(n) {
+    if (n < 100) return [n];
+    var h = Math.floor(n / 100), r = n % 100;
+    if (n >= 1000) return String(n).split('');
+    return [h].concat(r === 0 ? ['hundred'] : r < 10 ? ['oh', r] : [r]);
+  }
   function speakToken(t) {
-    var names = ['token'].concat(String(Number(t)).split(''), ['ready']), i = 0;
+    // one full-sentence clip per token (no gaps); falls back to word-by-word clips if it is missing or the number is above 500
+    var n = Number(t);
+    if (n >= 1 && n <= 500) {
+      var failed = false;
+      return playClip('full/' + n, 12000, function () { failed = true; }).then(function () { return failed ? speakParts(t) : null; });
+    }
+    return speakParts(t);
+  }
+  function speakParts(t) {
+    var names = ['attention'].concat(numberClips(Number(t)), ['ready']), i = 0;
     return new Promise(function (done) {
       (function next() { if (i >= names.length) return done(); playClip(names[i++]).then(function () { setTimeout(next, 60); }); })();
     });
   }
-  (function preload() { var n = ['token', 'ready', 0, 1, 2, 3, 4, 5, 6, 7, 8, 9]; for (var i = 0; i < n.length; i++) clip(n[i]); })();
+  (function preload() { var n = ['attention', 'ready', 'hundred', 'oh'], i; for (i = 1; i < 100; i++) n.push(i); for (i = 0; i < n.length; i++) clip(n[i]); })();
 
   // one token at a time: chime, banner, then voice
   function runQueue() {
