@@ -939,7 +939,7 @@
       var c = { veg: '#16a34a', nonveg: '#dc2626', egg: '#eab308' }[t];
       if (!c) return '';
       var label = { veg: 'Veg', nonveg: 'Non-Veg', egg: 'Egg' }[t];
-      return '<span title="' + label + '" class="inline-flex items-center justify-center w-3.5 h-3.5 border-2 rounded-sm shrink-0 align-middle mr-1" style="border-color:' + c + '"><span class="w-1.5 h-1.5 rounded-full" style="background:' + c + '"></span></span>';
+      return '<span title="' + label + '" class="inline-flex items-center justify-center w-3.5 h-3.5 border-2 rounded-sm shrink-0 align-middle mr-1" style="border-color:' + c + '">' + (t === 'nonveg' ? '<span style="width:0;height:0;border-left:3.5px solid transparent;border-right:3.5px solid transparent;border-bottom:6px solid ' + c + '"></span>' : '<span class="w-1.5 h-1.5 rounded-full" style="background:' + c + '"></span>') + '</span>';
     }
 
     function unitPrice() {

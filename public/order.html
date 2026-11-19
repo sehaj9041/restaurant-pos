@@ -494,7 +494,7 @@
       const c = { veg: '#16a34a', nonveg: '#dc2626', egg: '#eab308' }[t];
       if (!c) return '';
       const label = { veg: 'Veg', nonveg: 'Non-Veg', egg: 'Egg' }[t];
-      return `<span title="${label}" aria-label="${label}" class="inline-flex items-center justify-center w-4 h-4 border-2 rounded-sm shrink-0 align-middle" style="border-color:${c}"><span class="w-2 h-2 rounded-full" style="background:${c}"></span></span>`;
+      return `<span title="${label}" aria-label="${label}" class="inline-flex items-center justify-center w-4 h-4 border-2 rounded-sm shrink-0 align-middle" style="border-color:${c}">${t === 'nonveg' ? `<span style="width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-bottom:7px solid ${c}"></span>` : `<span class="w-2 h-2 rounded-full" style="background:${c}"></span>`}</span>`;
     }
     function isShown(i) { return Number(i.is_visible) !== 0 && !hiddenCategories[String(i.category || '').trim()]; }
     function isSoldOut(item) { return outCategories[String(item.category || '').trim()] || item.status === 'Out of Stock'; }

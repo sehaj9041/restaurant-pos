@@ -129,7 +129,7 @@
   var isSoldOut = function (i) { return outCats[String(i.category || '').trim()] || i.status === 'Out of Stock' || i.status === 'unavailable'; };
   function vegIcon(t) {
     var c = { veg: '#16a34a', nonveg: '#dc2626', egg: '#eab308' }[t]; if (!c) return '';
-    return '<span class="inline-flex items-center justify-center w-4 h-4 border-2 rounded-sm shrink-0 align-middle mr-1" style="border-color:' + c + '"><span class="w-2 h-2 rounded-full" style="background:' + c + '"></span></span>';
+    return '<span class="inline-flex items-center justify-center w-4 h-4 border-2 rounded-sm shrink-0 align-middle mr-1" style="border-color:' + c + '">' + (t === 'nonveg' ? '<span style="width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-bottom:7px solid ' + c + '"></span>' : '<span class="w-2 h-2 rounded-full" style="background:' + c + '"></span>') + '</span>';
   }
   function variationsOf(item) { return parse(item.variations, []).filter(function (v) { return v && v.active !== false; }); }
   function visibleItems() {
