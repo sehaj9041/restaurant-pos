@@ -20,8 +20,8 @@
     .col h2 { font-size: 30px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; }
     .prep h2 { color: #fbbf24; } .rdy h2 { color: #34d399; }
     .col p.sub { color: #94a3b8; font-size: 14px; margin: 4px 0 16px; }
-    .list { -webkit-flex: 1; flex: 1; min-height: 0; overflow: hidden; display: -webkit-flex; display: flex; -webkit-flex-wrap: wrap; flex-wrap: wrap; -webkit-align-content: flex-start; align-content: flex-start; }
-    .tok { font-weight: 900; margin: 0 12px 12px 0; text-align: center; }
+    .list { -webkit-flex: 1; flex: 1; min-height: 0; overflow: hidden; display: block; }   /* inline-block tokens: old WebViews stretch flex-wrap rows to the full height */
+    .tok { display: inline-block; vertical-align: top; font-weight: 900; margin: 0 12px 12px 0; text-align: center; }
     .tok.p { font-size: 48px; padding: 10px 24px; border-radius: 16px; color: #fcd34d; background: rgba(245,158,11,.15); border: 1px solid rgba(251,191,36,.5); }
     .tok.r { font-size: 72px; padding: 16px 34px; border-radius: 24px; color: #fff; background: #10b981; box-shadow: 0 6px 18px rgba(0,0,0,.4); margin: 0 16px 16px 0; }
     .empty { color: #64748b; font-size: 22px; font-weight: bold; }
