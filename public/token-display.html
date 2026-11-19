@@ -86,7 +86,7 @@
   // Old TV WebViews often have no speechSynthesis and the TV may have no text-to-speech engine, but plain audio always plays.
   var clips = {};
   function clip(name) {
-    if (!clips[name]) { var a = new Audio('/token-voice/' + name + '.m4a'); a.preload = 'auto'; clips[name] = a; }
+    if (!clips[name]) { var a = new Audio('/token-voice/' + name + '.m4a?v=2'); a.preload = 'auto'; clips[name] = a; }
     return clips[name];
   }
   function playClip(name) {
