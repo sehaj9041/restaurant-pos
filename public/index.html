@@ -4099,9 +4099,12 @@
 
       if (selectedPaymentMode && selectedPaymentMode === 'Split') {
         if (!upiHook) readSplitAmounts();   // with a UPI part waiting, the UPI row was blanked on purpose: re-reading the inputs would add it as paid
-        var splitSum = splitRows.reduce(function(t, r) { return t + (parseFloat(r.amount) || 0); }, 0);
+        // A DUE row in a split is not money received: only the other rows count as paid, and the order goes to the Due (khata) list for the DUE amount
+        var splitDueAmt = splitRows.reduce(function(t, r) { return t + (r.mode === 'DUE' ? (parseFloat(r.amount) || 0) : 0); }, 0);
+        var splitSum = splitRows.reduce(function(t, r) { return t + (r.mode === 'DUE' ? 0 : (parseFloat(r.amount) || 0)); }, 0);
+        if (splitDueAmt > 0 && !requireDuePhone()) return;
         initialPaid = alreadyPaidAmount + splitSum;
-        finalPaymentMode = 'SPLIT';
+        finalPaymentMode = splitDueAmt > 0 ? 'DUE' : 'SPLIT';
         // Split me jab cash hissa collect ho raha ho tabhi drawer khule
         if (splitRows.some(function(r) { return r.mode === 'Cash' && (parseFloat(r.amount) || 0) > 0; })) openCashDrawer();
       } else if (selectedPaymentMode === 'DUE') {
@@ -4120,7 +4123,7 @@
       if (posComp.on) { finalPaymentMode = 'COMPLIMENTARY'; initialPaid = 0; }
       // a split / UPI that is still waiting for its QR payment is not complete yet: the bill is printed only after the UPI part is confirmed (collectDeferredUpi)
       var paymentCollectedNow = !posComp.on && !upiHook && !!selectedPaymentMode && selectedPaymentMode !== 'DUE' && (initialPaid - recordedPaidAmount) > 0;
-      var remainingDue = Math.max(0, calc.grandTotal - initialPaid);
+      var remainingDue = Math.max(0, calc.grandTotal - initialPaid);   // a split's DUE part stays as this balance
       var isHoldOrder = !selectedPaymentMode && remainingDue > 0 && initialPaid === 0;
 
       var splitDetails = null, splitCashReceived = null, splitCashChangeTotal = 0;
@@ -4203,7 +4206,7 @@
     // The order is saved; now show the QR(s) for its UPI part(s). Closing a popup unpaid leaves the order saved with that part due; a late payment is applied by the server.
     // Stores how a split order is paid (Cash / UPI / Card amounts) so the bill and later reprints can list it. A split whose UPI part is still pending stores the full plan.
     function saveSplitBreakdown(orderId, deferredFull, payload) {
-      var split = deferredFull && deferredFull.mode === 'SPLIT' ? deferredFull.split : (payload.payment_mode === 'SPLIT' ? payload.split_details : null);
+      var split = deferredFull && deferredFull.mode === 'SPLIT' ? deferredFull.split : ((payload.payment_mode === 'SPLIT' || payload.payment_mode === 'DUE') ? payload.split_details : null);
       if (!orderId || !Array.isArray(split) || !split.length) return;
       fetch('/api/orders/' + orderId + '/split-details', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ split: split }) }).catch(function() {});
     }

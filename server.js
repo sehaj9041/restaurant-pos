@@ -35,6 +35,13 @@ db.run("ALTER TABLE orders ADD COLUMN paid_amount REAL DEFAULT 0", (err) => {});
 // Payment modes jinme koi amount receive nahi hota (paid_amount hamesha 0)
 const UNPAID_PAYMENT_MODES = ['UNPAID', 'DUE', 'ONLINE_PENDING'];
 const hasValidPhone = (p) => String(p || '').replace(/\D/g, '').length >= 10;
+// A split that has a DUE row (e.g. Cash 50 + DUE 43) is saved as a DUE order that already has the other rows paid: only the cash/UPI/card rows count as received.
+function paidBeforeDue(body, total) {
+  const rows = Array.isArray(body && body.split_details) ? body.split_details : [];
+  if (!rows.some(r => String(r && r.mode).toUpperCase() === 'DUE' && Number(r.amount) > 0)) return 0;
+  const paid = rows.reduce((t, r) => t + (String(r && r.mode).toUpperCase() === 'DUE' ? 0 : Math.max(0, Number(r && r.amount) || 0)), 0);
+  return Math.min(Math.max(0, Number(total) || 0), paid);
+}
 const DUE_PHONE_ERROR = 'Due (Khata) ke liye customer ka phone number zaroori hai';
 // Payment modes jinme amount na bheja ho toh poora total paid maana jata hai
 const FULL_PAYMENT_MODES = ['CASH', 'UPI', 'CARD', 'PAID', 'RAZORPAY'];
@@ -1426,6 +1433,8 @@ app.put('/api/orders/:id', (req, res, next) => engagement.applyPromoToOrderEdit(
     let finalPaid = 0;
     if (hasPaymentSelected) {
       finalPaid = incomingPaid > 0 ? incomingPaid : (FULL_PAYMENT_MODES.includes(requestedMode) ? finalTotal : 0);
+    } else if (requestedMode === 'DUE') {
+      finalPaid = paidBeforeDue(req.body, finalTotal);
     }
     let finalRemaining = Math.max(0, finalTotal - finalPaid);
     let finalMode = payment_mode || (currentOrder ? currentOrder.payment_mode : 'UNPAID');
@@ -1849,8 +1858,8 @@ const createOrderHandler = async (req, res) => {
   if (requestedMode && requestedMode !== 'PAY_COUNTER') {
     finalPaymentMode = requestedMode;
     if (UNPAID_PAYMENT_MODES.includes(requestedMode)) {
-      // UNPAID / DUE / ONLINE_PENDING: koi payment receive nahi hui
-      initialPaid = 0;
+      // UNPAID / DUE / ONLINE_PENDING: koi payment receive nahi hui (a split with a DUE row keeps its paid rows)
+      initialPaid = requestedMode === 'DUE' ? paidBeforeDue(req.body, calculatedTotal) : 0;
     } else if (initialPaid <= 0 && FULL_PAYMENT_MODES.includes(requestedMode)) {
       // Cash/UPI/Card select hai lekin paid_amount nahi bheja, toh poora total paid man lo
       initialPaid = calculatedTotal;
