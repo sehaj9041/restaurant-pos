@@ -100,7 +100,7 @@
 
   // ---------- reports ----------
   var REPORTS = {
-    dayend: { label: '📅 Day End / Payment', note: 'Din ke hisaab se sales aur payment mode. Split orders ka cash/UPI breakup save nahi hota, isliye wo alag "SPLIT" me dikhte hain.',
+    dayend: { label: '📅 Day End / Payment', note: 'Din ke hisaab se sales aur payment mode. Split aur Cash + Due orders ka amount unke apne mode (Cash / UPI / Card / Due) ke column me aata hai; jinka breakup save nahi hua wo "SPLIT" me dikhte hain.',
       render: function (d) {
         var t = d.totals, net = r2(t.cash - d.expenses.cash);
         return kpis([['Total Sales', rs(t.total), '', t.orders + ' orders'], ['Cash', rs(t.cash), 'text-emerald-600'], ['UPI', rs(t.upi), 'text-indigo-600'], ['Card', rs(t.card)], ['Due (Khata)', rs(t.due), 'text-rose-600'], ['Expenses', rs(d.expenses.total), 'text-amber-700', 'Cash: ' + rs(d.expenses.cash)]]) +

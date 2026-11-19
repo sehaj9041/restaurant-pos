@@ -20,8 +20,15 @@ const TYPE = `CASE WHEN LOWER(o.order_type) LIKE '%dine%' THEN 'Dine-In'
 const HAS_ITEMS = 'EXISTS (SELECT 1 FROM order_items x WHERE x.order_id = o.id)';
 const SALE_WHERE = `UPPER(o.status) IN ('COMPLETED', 'DISPATCHED', 'DUE_PENDING') AND ${HAS_ITEMS}`;
 const IN_RANGE = 'o.created_at::date BETWEEN ?::date AND ?::date';
+// due_amt = what is really still owed on the order (a split like Cash 50 + DUE 43 is a DUE order with 50 already paid); paid >= total (table settle) counts as fully due, same as the Due report
+const DUE_AMT_S = `(CASE WHEN o.total - COALESCE(o.paid_amount, 0) > 0 THEN o.total - COALESCE(o.paid_amount, 0) ELSE o.total END)`;
 // sale CTE: every report below reads FROM s
-const SALES = `WITH s AS (SELECT o.*, ${PM} AS pm, ${TYPE} AS otype FROM orders o WHERE ${IN_RANGE} AND ${SALE_WHERE})`;
+// Cash / UPI / Card part of a split (or of a "Cash + DUE" order), read from the saved split_details so each amount lands in its own mode
+const SPLIT_PART = (m) => `COALESCE((SELECT SUM(GREATEST(0, (e->>'amount')::numeric)) FROM jsonb_array_elements(CASE WHEN LEFT(COALESCE(o.split_details, ''), 1) = '[' THEN o.split_details::jsonb ELSE '[]'::jsonb END) e WHERE UPPER(e->>'mode') = '${m}'), 0)`;
+const SALES = `WITH s AS (SELECT o.*, ${PM} AS pm, ${TYPE} AS otype, ${DUE_AMT_S} AS due_amt, ${SPLIT_PART('CASH')} AS cash_amt, ${SPLIT_PART('UPI')} AS upi_amt, ${SPLIT_PART('CARD')} AS card_amt FROM orders o WHERE ${IN_RANGE} AND ${SALE_WHERE})`;
+// per-mode money of one order: CASH/UPI/CARD orders = total; SPLIT and DUE orders = their saved parts; "split" = part of a split with no saved breakup
+const MODE_SUM = (m) => `SUM(CASE WHEN pm = '${m}' THEN total WHEN pm IN ('SPLIT', 'DUE') THEN ${m.toLowerCase()}_amt ELSE 0 END)`;
+const SPLIT_LEFT = `GREATEST(0, (CASE WHEN pm = 'SPLIT' THEN total WHEN pm = 'DUE' THEN total - due_amt ELSE 0 END) - cash_amt - upi_amt - card_amt)`;
 const BASE_ITEM = "split_part(oi.name, ' (', 1)"; // strip add-on text "(...)" so one dish = one row
 
 function register(app, { dbAllAsync }) {
@@ -30,10 +37,20 @@ function register(app, { dbAllAsync }) {
 
   reports.dayend = async (a, b) => {
     const days = await q(`${SALES} SELECT TO_CHAR(created_at::date, 'YYYY-MM-DD') AS d, COUNT(*) AS orders, SUM(subtotal) AS subtotal, SUM(discount) AS discount, SUM(gst) AS gst, SUM(total) AS total,
-      SUM(CASE WHEN pm = 'CASH' THEN total ELSE 0 END) AS cash, SUM(CASE WHEN pm = 'UPI' THEN total ELSE 0 END) AS upi, SUM(CASE WHEN pm = 'CARD' THEN total ELSE 0 END) AS card,
-      SUM(CASE WHEN pm = 'SPLIT' THEN total ELSE 0 END) AS split, SUM(CASE WHEN pm = 'DUE' THEN total ELSE 0 END) AS due
+      ${MODE_SUM('CASH')} AS cash, ${MODE_SUM('UPI')} AS upi, ${MODE_SUM('CARD')} AS card,
+      SUM(${SPLIT_LEFT}) AS split, SUM(CASE WHEN pm = 'DUE' THEN due_amt ELSE 0 END) AS due
       FROM s GROUP BY 1 ORDER BY 1 DESC`, [a, b]);
-    const modes = await q(`${SALES} SELECT pm AS mode, COUNT(*) AS orders, SUM(total) AS total FROM s GROUP BY pm ORDER BY SUM(total) DESC`, [a, b]);
+    // payment mode list: each saved part of a split / Cash + DUE order is counted under its own mode
+    const per = await q(`${SALES} SELECT pm, total, due_amt, cash_amt, upi_amt, card_amt, ${SPLIT_LEFT} AS left_amt FROM s`, [a, b]);
+    const modeMap = {};
+    const add = (mode, amt) => { if (amt <= 0) return; const x = modeMap[mode] || (modeMap[mode] = { mode, orders: 0, total: 0 }); x.orders++; x.total += amt; };
+    per.forEach(o => {
+      if (o.pm === 'SPLIT' || o.pm === 'DUE') {
+        add('CASH', num(o.cash_amt)); add('UPI', num(o.upi_amt)); add('CARD', num(o.card_amt)); add('SPLIT', num(o.left_amt));
+        if (o.pm === 'DUE') add('DUE', num(o.due_amt));
+      } else add(o.pm, num(o.total));
+    });
+    const modes = Object.keys(modeMap).map(k => modeMap[k]).sort((x, y) => y.total - x.total);
     // Money that came through the online gateways (a part of the UPI / Card sales above), by the day it was paid (IST)
     const gw = await q(`SELECT 'Razorpay' AS gateway, COUNT(*) AS payments, COALESCE(SUM(amount), 0) AS total FROM razorpay_payments
         WHERE status = 'PAID' AND (to_timestamp(created_ms / 1000.0) AT TIME ZONE 'Asia/Kolkata')::date BETWEEN ?::date AND ?::date
@@ -114,7 +131,7 @@ function register(app, { dbAllAsync }) {
       c.name = c.name || o.customer_name || ''; c.orders++; c.due += num(o.due); c.oldest = Math.max(c.oldest, num(o.age_days));
       byCust.set(key, c);
     }
-    const given = await q(`${SALES} SELECT COUNT(*) AS orders, COALESCE(SUM(total), 0) AS total FROM s WHERE pm = 'DUE'`, [a, b]);
+    const given = await q(`${SALES} SELECT COUNT(*) AS orders, COALESCE(SUM(due_amt), 0) AS total FROM s WHERE pm = 'DUE'`, [a, b]);
     return { customers: [...byCust.values()].map(c => ({ ...c, due: r2(c.due) })).sort((x, y) => y.due - x.due),
       orders: orders.map(o => ({ ...o, total: r2(o.total), due: r2(o.due), age_days: num(o.age_days) })),
       outstanding: r2(orders.reduce((t, o) => t + num(o.due), 0)), given_in_range: { orders: num(given[0].orders), total: r2(given[0].total) } };
