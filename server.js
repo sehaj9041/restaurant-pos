@@ -1561,8 +1561,9 @@ function shapeTrackOrder(o, items) {
   // Delivery orders have one extra stage: rider assigned = out for delivery (step 3), delivered = step 4
   const isDelivery = /delivery/i.test(o.order_type || '');
   if (isDelivery && state !== 'rejected') {
-    if (state === 'done' || o.delivered_at) { step = 4; state = 'done'; }
-    else if (o.rider_name) step = 3;
+    // "Dispatched" from the KDS only means the food is ready: delivered needs the rider (or POS) to mark it, i.e. delivered_at (COMPLETED = already settled)
+    if (o.delivered_at || st === 'COMPLETED') { step = 4; state = 'done'; }
+    else { state = 'active'; step = o.rider_name ? 3 : Math.min(step, 2); }
   }
   return {
     id: o.id, order_type: o.order_type, state, step, rider_name: o.rider_name || '',
