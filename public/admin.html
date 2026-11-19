@@ -830,9 +830,12 @@
     }
 
     function allCategoryNames() {
-      const set = new Set(categories.map(c => c.name));
-      menuItems.forEach(i => { if (i.category) set.add(i.category); });
-      return [...set].sort((a, b) => a.localeCompare(b));
+      // Saved categories keep their reorder position (server sends them by sort_order); names used only by items come after, A-Z.
+      const saved = categories.map(c => c.name);
+      const known = new Set(saved);
+      const unsaved = new Set();
+      menuItems.forEach(i => { if (i.category && !known.has(i.category)) unsaved.add(i.category); });
+      return [...saved, ...[...unsaved].sort((a, b) => a.localeCompare(b))];
     }
 
     function renderCategoryOptions() {
