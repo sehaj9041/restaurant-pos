@@ -550,19 +550,23 @@
     }
 
     // Veg / Non-Veg / Egg mark before item names. food_type comes from the menu, matched by item name.
-    var menuFoodType = {};
+    var menuFoodType = {}, menuFoodNames = [];
+    function normFoodName(x) { return String(x || '').replace(/[\u00a0\u200b]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase(); }
     function loadMenuFoodTypes() {
       fetch('/api/menu').then(function(r){ return r.json(); }).then(function(rows){
         var m = {};
-        (rows || []).forEach(function(it){ if (it && it.name && it.food_type) m[String(it.name).trim().toLowerCase()] = it.food_type; });
+        (rows || []).forEach(function(it){ if (it && it.name && it.food_type) m[normFoodName(it.name)] = it.food_type; });
         menuFoodType = m;
+        menuFoodNames = Object.keys(m).sort(function(a, b){ return b.length - a.length; });
       }).catch(function(){});
     }
     loadMenuFoodTypes();
     setInterval(loadMenuFoodTypes, 300000);
     function vegIcon(rawName) {
-      var n = String(rawName || '').trim().toLowerCase(), t = menuFoodType[n];
+      var n = normFoodName(rawName), t = menuFoodType[n];
       while (!t && /\s*\([^()]*\)$/.test(n)) { n = n.replace(/\s*\([^()]*\)$/, '').trim(); t = menuFoodType[n]; }   // "Burger (Small)" -> "Burger"
+      // Still no match (e.g. "Wings - 6 pcs", nested brackets): longest menu name the order name starts with, at a word boundary
+      if (!t) { var full = normFoodName(rawName); for (var i = 0; i < menuFoodNames.length; i++) { var mn = menuFoodNames[i]; if (full.indexOf(mn) === 0 && /^\s*[(\-–:,]/.test(full.slice(mn.length))) { t = menuFoodType[mn]; break; } } }
       var c = { veg: '#16a34a', nonveg: '#dc2626', egg: '#eab308' }[t];
       if (!c) return '';
       var label = { veg: 'Veg', nonveg: 'Non-Veg', egg: 'Egg' }[t];
