@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Vishal Foodiez — 100% Pure Veg Burgers, Pizzas & Shakes</title>
-<meta name="description" content="Vishal Foodiez, Budhlada. 100% pure veg burgers, pizzas, wraps, pasta, momos and shakes. Order online for delivery, takeaway or dine-in.">
+<title>Vishal Foodiez — Burgers, Pizzas, Wraps & Shakes in Budhlada</title>
+<meta name="description" content="Vishal Foodiez, Budhlada. Veg and non-veg burgers, pizzas, wraps, pasta, momos, chicken and shakes. Order online for delivery, takeaway or dine-in.">
 <style>
 :root{--red:#d62828;--dark:#1d1d1f;--yellow:#ffb703;--cream:#fff8ee;--green:#2e9e4f}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -30,6 +30,12 @@ h1{font-size:clamp(2.2rem,5vw,3.6rem);line-height:1.1;margin:10px 0 16px}
 .cta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:22px}
 .tags{display:flex;gap:16px;flex-wrap:wrap;font-weight:600;font-size:.9rem}
 .hero-art{font-size:9rem;text-align:center;filter:drop-shadow(0 12px 12px rgba(0,0,0,.2))}
+.hero-art.photos{font-size:inherit;filter:none;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:12px;aspect-ratio:1/1;max-width:460px;margin:0 auto;width:100%}
+.hero-art.photos img{width:100%;height:100%;object-fit:cover;border-radius:20px;box-shadow:0 10px 24px rgba(0,0,0,.18);background:#fff}
+.hero-art.photos img:first-child{grid-row:1/3}
+.photo{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:12px;background:#f1e7d6;display:block;margin-bottom:12px}
+.card.pic{padding:14px}
+.card.pic h3{margin-top:2px}
 section{padding:64px 0}
 h2{font-size:2rem;margin-bottom:8px}
 .sub{color:#555;margin-bottom:32px}
@@ -66,7 +72,7 @@ footer li{list-style:none;margin:6px 0}footer a:hover{color:#fff}
   <nav class="links">
    <a href="#bestsellers">Bestsellers</a><a href="#menu">Menu</a><a href="#about">About</a><a href="#visit">Visit</a>
   </nav>
-  <div class="right"><span class="badge">100% Pure Veg</span><a class="btn" href="https://orders.vishalfoodiez.in">Order Now →</a></div>
+  <div class="right"><span class="badge">Open daily · 10:30 AM – 9 PM</span><a class="btn" href="https://orders.vishalfoodiez.in">Order Now →</a></div>
  </div>
 </header>
 
@@ -75,22 +81,22 @@ footer li{list-style:none;margin:6px 0}footer a:hover{color:#fff}
   <div>
    <div class="kicker">Freshly made · Fairly priced</div>
    <h1>Big flavour, zero compromise.</h1>
-   <p>Juicy paneer and veggie burgers, wood-fired-style pizzas, loaded wraps and thick shakes — all 100% pure vegetarian.</p>
+   <p>Juicy burgers, cheesy pizzas, loaded wraps, crispy chicken and thick shakes — veg and non-veg, made fresh every time.</p>
    <div class="cta">
     <a class="btn" href="https://orders.vishalfoodiez.in">Order Now →</a>
     <a class="btn alt" href="#menu">Explore the Menu</a>
    </div>
    <div class="tags"><span>🛵 Delivery &amp; Takeaway</span><span>🍽️ Dine-in</span><span>⚡ Made fresh in minutes</span></div>
   </div>
-  <div class="hero-art">🍔</div>
+  <div class="hero-art" id="heroArt">🍔</div>
  </div>
 </div>
 
 <section>
  <div class="wrap grid">
-  <div class="card"><div class="ic">🌱</div><h3>100% Pure Veg</h3><p>A fully vegetarian kitchen.</p></div>
+  <div class="card"><div class="ic">🥗</div><h3>Veg &amp; Non-Veg</h3><p>Something for everyone at the table.</p></div>
   <div class="card"><div class="ic">🔥</div><h3>Made to Order</h3><p>Burgers and pizzas cooked when you order.</p></div>
-  <div class="card"><div class="ic">💛</div><h3>Honest Pricing</h3><p>Big taste from ₹33.</p></div>
+  <div class="card"><div class="ic">💛</div><h3>Honest Pricing</h3><p>Big taste at pocket-friendly prices.</p></div>
   <div class="card"><div class="ic">🛵</div><h3>Fast &amp; Easy</h3><p>Order for delivery, takeaway or dine-in.</p></div>
  </div>
 </section>
@@ -98,39 +104,23 @@ footer li{list-style:none;margin:6px 0}footer a:hover{color:#fff}
 <section id="bestsellers">
  <div class="wrap">
   <h2>Crowd Favourites</h2><p class="sub">The ones everybody keeps coming back for.</p>
-  <div class="grid">
-   <div class="card"><div class="ic">🍔</div><h3>Maharaja Burger</h3><div class="price">₹159</div><a class="o" href="https://orders.vishalfoodiez.in">Order now →</a></div>
-   <div class="card"><div class="ic">🍕</div><h3>Peppy Paneer Pizza</h3><div class="price">₹249</div><a class="o" href="https://orders.vishalfoodiez.in">Order now →</a></div>
-   <div class="card"><div class="ic">🥟</div><h3>Kurkure Momos</h3><div class="price">₹99</div><a class="o" href="https://orders.vishalfoodiez.in">Order now →</a></div>
-   <div class="card"><div class="ic">🥤</div><h3>Vishal's Special Cold Coffee</h3><div class="price">₹89</div><a class="o" href="https://orders.vishalfoodiez.in">Order now →</a></div>
-  </div>
+  <div class="grid" id="bestGrid"><p class="sub">Loading menu…</p></div>
  </div>
 </section>
 
 <section id="menu" style="background:#fff">
  <div class="wrap">
   <h2>The Full Spread</h2><p class="sub">Tap any category to order online.</p>
-  <div class="grid">
-   <a class="card cat" href="https://orders.vishalfoodiez.in"><div class="ic">🍔</div><h3>Burgers</h3><p>17 options</p></a>
-   <a class="card cat" href="https://orders.vishalfoodiez.in"><div class="ic">🍱</div><h3>Value Meals</h3><p>Combos from ₹94</p></a>
-   <a class="card cat" href="https://orders.vishalfoodiez.in"><div class="ic">🍕</div><h3>Pizzas</h3><p>6 flavours</p></a>
-   <a class="card cat" href="https://orders.vishalfoodiez.in"><div class="ic">🌯</div><h3>Wraps</h3><p>Rolled fresh</p></a>
-   <a class="card cat" href="https://orders.vishalfoodiez.in"><div class="ic">🍝</div><h3>Pasta</h3><p>5 sauces</p></a>
-   <a class="card cat" href="https://orders.vishalfoodiez.in"><div class="ic">🥪</div><h3>Sandwiches</h3><p>Grilled to order</p></a>
-   <a class="card cat" href="https://orders.vishalfoodiez.in"><div class="ic">🥟</div><h3>Momos &amp; Starters</h3><p>Kurkure &amp; more</p></a>
-   <a class="card cat" href="https://orders.vishalfoodiez.in"><div class="ic">🍟</div><h3>French Fries</h3><p>Peri-peri &amp; classic</p></a>
-   <a class="card cat" href="https://orders.vishalfoodiez.in"><div class="ic">🥤</div><h3>Shakes &amp; Drinks</h3><p>16 to sip</p></a>
-   <a class="card cat" href="https://orders.vishalfoodiez.in"><div class="ic">🍨</div><h3>Desserts &amp; Ice Cream</h3><p>Sweet endings</p></a>
-  </div>
+  <div class="grid" id="catGrid"><p class="sub">Loading menu…</p></div>
  </div>
 </section>
 
 <section id="about" class="story">
  <div class="wrap">
   <h2>Our Story</h2>
-  <p class="sub" style="max-width:640px">Vishal Foodiez is fully vegetarian fast food, made by hand and cooked to order — no frozen patties, ever.</p>
+  <p class="sub" style="max-width:640px">Vishal Foodiez is fast food made fresh and cooked to order — burgers, pizzas, wraps, momos and more, with veg and non-veg options for everyone.</p>
   <div class="stats">
-   <div><b>100%</b>pure vegetarian</div><div><b>80+</b>menu items</div><div><b>₹33</b>burgers from</div>
+   <div><b id="stItems">100+</b>menu items</div><div><b id="stCats">15+</b>categories</div><div><b>Veg &amp; Non-Veg</b>options</div>
   </div>
  </div>
 </section>
@@ -159,13 +149,70 @@ footer li{list-style:none;margin:6px 0}footer a:hover{color:#fff}
 <footer>
  <div class="wrap">
   <div class="cols">
-   <div><h4>🍔 Vishal Foodiez</h4><p>Made fresh, served fast. 100% pure veg fast food from Budhlada.</p></div>
+   <div><h4>🍔 Vishal Foodiez</h4><p>Made fresh, served fast. Burgers, pizzas, wraps and more from Budhlada.</p></div>
    <div><h4>Explore</h4><ul><li><a href="#bestsellers">Bestsellers</a></li><li><a href="#menu">Menu</a></li><li><a href="#about">About us</a></li><li><a href="#visit">Visit us</a></li></ul></div>
    <div><h4>Order</h4><ul><li><a href="https://orders.vishalfoodiez.in">Order online</a></li><li><a href="tel:+919041398515">Call to order</a></li><li><a href="https://wa.me/919041398515">WhatsApp</a></li></ul></div>
    <div><h4>Legal</h4><ul><li><a href="/privacy">Privacy Policy</a></li><li><a href="/refund">Refund &amp; Cancellation</a></li><li><a href="/terms">Terms &amp; Conditions</a></li><li><a href="mailto:info@vishalfoodiez.in">Contact</a></li></ul></div>
   </div>
-  <div class="copy">© 2026 Vishal Foodiez. Made fresh, served fast · 100% Pure Veg 🌱</div>
+  <div class="copy">© 2026 Vishal Foodiez. Made fresh, served fast 🍔</div>
  </div>
 </footer>
+<script>
+(function () {
+  var ORDER = 'https://orders.vishalfoodiez.in';
+  var API = /^menu\./.test(location.hostname) || /^(localhost|127\.)/.test(location.hostname) ? '' : 'https://menu.vishalfoodiez.in';
+  function $(id) { return document.getElementById(id); }
+  function esc(t) { return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function img(u) { if (!u) return ''; return /^https?:/.test(u) ? u : API + (u.charAt(0) === '/' ? u : '/uploads/' + u); }
+  function clean(n) { return String(n || '').replace(/^[☀-➿️‍\s]+/, '').replace(/^[^\w(]+/u, '').trim(); }   // drop leading emoji from item names
+  function catName(n) { return String(n).replace(/'s$/i, '').replace(/'$/, ''); }                                              // "Garlic Bread's" -> "Garlic Bread"
+  var BEST = ['Maharaja Burger (Veggie+Paneer', 'Maharaja Chicken Burger', 'Peppy Paneer Pizza', 'Kurkure Momos', 'Chicken Popcorn', 'Cold Coffee'];
+
+  Promise.all([
+    fetch(API + '/api/menu').then(function (r) { return r.json(); }),
+    fetch(API + '/api/categories').then(function (r) { return r.json(); }).catch(function () { return []; })
+  ]).then(function (res) {
+    var items = (res[0] || []).filter(function (i) { return Number(i.is_visible) !== 0 && i.status !== 'Out of Stock'; });
+    var cats = res[1] || [], hidden = {}, catImg = {};
+    cats.forEach(function (c) { if (Number(c.is_visible) === 0) hidden[c.name] = true; if (c.image) catImg[c.name] = c.image; });
+    hidden['Add-ons'] = true;
+    items = items.filter(function (i) { return !hidden[i.category]; });
+
+    // bestsellers
+    var best = [], seen = {};
+    BEST.forEach(function (key) {
+      var k = key.toLowerCase();
+      var m = items.filter(function (i) { return clean(i.name).toLowerCase().indexOf(k) >= 0 && i.image && !seen[i.id]; })[0];
+      if (m) { seen[m.id] = 1; best.push(m); }
+    });
+    $('bestGrid').innerHTML = best.map(function (i) {
+      return '<div class="card pic"><img class="photo" loading="lazy" src="' + esc(img(i.image)) + '" alt="' + esc(clean(i.name)) + '" onerror="this.style.display=\'none\'"><h3>' + esc(clean(i.name)) + '</h3><div class="price">₹' + esc(i.price) + '</div><a class="o" href="' + ORDER + '">Order now →</a></div>';
+    }).join('');
+    if (!best.length) $('bestGrid').innerHTML = '<p class="sub">Full menu is on our ordering page.</p>';
+
+    // hero photo collage: up to 3 bestsellers
+    var hero = best.slice(0, 3);
+    if (hero.length === 3) {
+      $('heroArt').className = 'hero-art photos';
+      $('heroArt').innerHTML = hero.map(function (i) { return '<img src="' + esc(img(i.image)) + '" alt="' + esc(clean(i.name)) + '">'; }).join('');
+    }
+
+    // categories, in the same order as the ordering app
+    var order = [], by = {};
+    items.forEach(function (i) { if (!by[i.category]) { by[i.category] = []; order.push(i.category); } by[i.category].push(i); });
+    $('catGrid').innerHTML = order.map(function (c) {
+      var l = by[c], prices = l.map(function (i) { return Number(i.price); }).filter(function (p) { return p > 0; });
+      var pic = catImg[c] || (l.filter(function (i) { return i.image; })[0] || {}).image;
+      return '<a class="card pic cat" href="' + ORDER + '">' + (pic ? '<img class="photo" loading="lazy" src="' + esc(img(pic)) + '" alt="' + esc(catName(c)) + '" onerror="this.style.display=\'none\'">' : '') +
+        '<h3>' + esc(catName(c)) + '</h3><p>' + l.length + ' item' + (l.length > 1 ? 's' : '') + (prices.length ? ' · from ₹' + Math.min.apply(null, prices) : '') + '</p></a>';
+    }).join('');
+    var uniq = {}; items.forEach(function (i) { uniq[i.id] = 1; });   // an item in 2 categories counts once
+    $('stItems').innerText = Object.keys(uniq).length + '+';
+    $('stCats').innerText = order.length;
+  }).catch(function () {
+    $('bestGrid').innerHTML = $('catGrid').innerHTML = '<p class="sub">Menu is on our ordering page — <a href="' + ORDER + '" style="color:var(--red);font-weight:700">order online →</a></p>';
+  });
+})();
+</script>
 </body>
 </html>
