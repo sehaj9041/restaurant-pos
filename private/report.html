@@ -126,6 +126,19 @@
 
     </div>
 
+    <!-- Veg / Non-Veg / Egg sale mix -->
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+      <div class="p-4 border-b bg-gray-50 flex justify-between items-center">
+        <h3 class="text-xs font-black text-gray-800 uppercase tracking-wider">🥗 Veg / Non-Veg Sale Mix</h3>
+        <span id="foodMixNote" class="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">Selected range</span>
+      </div>
+      <div class="p-4 space-y-3">
+        <div id="foodMixBar" class="flex h-4 rounded-full overflow-hidden bg-gray-100"></div>
+        <div id="foodMixRows" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
+        <p id="foodMixUnset" class="hidden text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2"></p>
+      </div>
+    </div>
+
     <!-- Middle: Top Selling Items + Quick Expense Add -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
       
@@ -267,9 +280,50 @@
           renderMetrics(data.summary);
           renderTopItems(data.topItems);
           renderOrdersLog(data.orders);
+          renderFoodMix(data.orders);
         });
 
       loadTodayExpenses();
+    }
+
+    // ---------- Veg / Non-Veg / Egg mix: order lines matched to the menu's food_type by item name (same matching as the KDS mark) ----------
+    let foodTypeMap = null;
+    const normFood = x => String(x || '').replace(/[\u00a0\u200b]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+    function foodTypeOf(rawName) {
+      let n = normFood(rawName), t = foodTypeMap[n];
+      while (!t && /\s*\([^()]*\)$/.test(n)) { n = n.replace(/\s*\([^()]*\)$/, '').trim(); t = foodTypeMap[n]; }   // "Burger (Large) (Dip)" -> "Burger"
+      if (!t) { const full = normFood(rawName); const hit = Object.keys(foodTypeMap).filter(k => full.indexOf(k) === 0 && /^\s*[(\-–:,]/.test(full.slice(k.length))).sort((a, b) => b.length - a.length)[0]; if (hit) t = foodTypeMap[hit]; }
+      return t || 'unset';
+    }
+    async function renderFoodMix(orders) {
+      if (!foodTypeMap) {
+        try {
+          const rows = await fetch('/api/menu').then(r => r.json());
+          foodTypeMap = {};
+          (rows || []).forEach(it => { if (it && it.name && it.food_type) foodTypeMap[normFood(it.name)] = it.food_type; });
+        } catch (e) { foodTypeMap = null; return; }
+      }
+      const B = { veg: { label: 'Veg', color: '#16a34a', rev: 0, qty: 0 }, nonveg: { label: 'Non-Veg', color: '#dc2626', rev: 0, qty: 0 }, egg: { label: 'Egg', color: '#eab308', rev: 0, qty: 0 }, unset: { label: 'Type set nahi', color: '#9ca3af', rev: 0, qty: 0 } };
+      const unsetNames = {};
+      (orders || []).forEach(o => (o.items || []).forEach(i => {
+        if (/^delivery charge$/i.test(String(i.name || '').trim())) return;
+        const t = foodTypeOf(i.name), q = Number(i.qty) || 0, r = (Number(i.price) || 0) * q;
+        B[t].rev += r; B[t].qty += q;
+        if (t === 'unset') { const k = String(i.name).replace(/\s*\([^()]*\)$/g, '').trim(); unsetNames[k] = (unsetNames[k] || 0) + r; }
+      }));
+      const totalRev = Object.values(B).reduce((s, b) => s + b.rev, 0), totalQty = Object.values(B).reduce((s, b) => s + b.qty, 0);
+      const pct = (v, tot) => tot ? (v * 100 / tot).toFixed(1) : '0.0';
+      const keys = ['veg', 'nonveg', 'egg', 'unset'];
+      document.getElementById('foodMixBar').innerHTML = totalRev ? keys.filter(k => B[k].rev > 0).map(k => `<div style="width:${pct(B[k].rev, totalRev)}%;background:${B[k].color}" title="${B[k].label} ${pct(B[k].rev, totalRev)}%"></div>`).join('') : '';
+      document.getElementById('foodMixRows').innerHTML = keys.map(k => `
+        <div class="border border-gray-200 rounded-xl p-3">
+          <div class="flex items-center gap-1.5 text-[11px] font-black uppercase text-gray-500"><span class="inline-block w-2.5 h-2.5 rounded-full" style="background:${B[k].color}"></span>${B[k].label}</div>
+          <div class="text-xl font-black text-gray-900 mt-1">${pct(B[k].rev, totalRev)}%</div>
+          <div class="text-[11px] font-bold text-gray-500">₹${Math.round(B[k].rev)} • ${B[k].qty} items (${pct(B[k].qty, totalQty)}% qty)</div>
+        </div>`).join('');
+      const un = document.getElementById('foodMixUnset'), names = Object.keys(unsetNames).sort((a, b) => unsetNames[b] - unsetNames[a]).slice(0, 8);
+      un.classList.toggle('hidden', !names.length);
+      if (names.length) un.innerText = 'Inka Veg/Non-Veg menu me set nahi hai, isliye alag count hue: ' + names.join(', ');
     }
 
     function renderMetrics(summary) {
