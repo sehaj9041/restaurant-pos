@@ -371,7 +371,8 @@
       cart.push(line);
     }
     saveCart(); closeSheet(); updateCartBar(); renderMenu(); toast(item.name + ' added');
-    if (back) cartSheet();
+    if (back) return cartSheet();
+    var cross = crossSells(item.name); if (cross.length) crossSellSheet(cross);
   }
 
   // ---------- cart + checkout (name and phone are compulsory) ----------
@@ -395,13 +396,38 @@
     if (!list.length) return cartSheet();
     list.forEach(function (t) { suggestShown[t.id] = true; });
     openSheet('<div class="flex justify-between items-start mb-3"><div class="font-black text-base">Can we suggest?</div><button onclick="closeSheet()" class="text-gray-400 text-xl font-black px-2">✕</button></div>' +
-      '<div class="grid grid-cols-2 gap-2 mb-4">' + list.map(function (t) {
-        var vars = variationsOf(t), price = vars.length ? 'From ' + rs(Math.min.apply(null, vars.map(function (v) { return Number(v.price) || 0; }))) : rs(t.price), im = t.image || t.image_url;
-        return '<button onclick="pickSuggest(' + t.id + ')" class="text-left p-2.5 rounded-xl border-2 border-gray-200 active:border-indigo-500">' +
-          '<div class="h-24 flex items-center justify-center">' + (im ? '<img src="' + esc(imgSrc(im)) + '" class="max-h-full max-w-full object-contain" onerror="this.style.display=\'none\'">' : '<span class="text-3xl">🍽️</span>') + '</div>' +
-          '<div class="font-bold text-sm leading-tight mt-1 line-clamp-2">' + vegIcon(t.food_type) + esc(t.name) + '</div><div class="font-black text-emerald-700 text-sm mt-0.5">' + price + '</div></button>';
-      }).join('') + '</div>' +
+      suggestTiles(list, 'pickSuggest') +
       '<button onclick="cartSheet()" class="w-full border-2 border-gray-200 rounded-2xl py-3 font-black text-sm text-gray-700">Not Today</button>');
+  }
+  function suggestTiles(list, fn) {
+    return '<div class="grid grid-cols-2 gap-2 mb-4">' + list.map(function (t) {
+      var vars = variationsOf(t), price = vars.length ? 'From ' + rs(Math.min.apply(null, vars.map(function (v) { return Number(v.price) || 0; }))) : rs(t.price), im = t.image || t.image_url;
+      return '<button onclick="' + fn + '(' + t.id + ')" class="text-left p-2.5 rounded-xl border-2 border-gray-200 active:border-indigo-500">' +
+        '<div class="h-24 flex items-center justify-center">' + (im ? '<img src="' + esc(imgSrc(im)) + '" class="max-h-full max-w-full object-contain" onerror="this.style.display=\'none\'">' : '<span class="text-3xl">🍽️</span>') + '</div>' +
+        '<div class="font-bold text-sm leading-tight mt-1 line-clamp-2">' + vegIcon(t.food_type) + esc(t.name) + '</div><div class="font-black text-emerald-700 text-sm mt-0.5">' + price + '</div></button>';
+    }).join('') + '</div>';
+  }
+  // Admin > Upsells "Cross-sell" rules for the item just added: a suggested item, or every item of a suggested category (each offered once per visit)
+  function crossSells(baseName) {
+    var inCart = {}; cart.forEach(function (c) { inCart[c.id] = true; });
+    var out = [], seen = {};
+    upsells.filter(function (u) { return u.upsell_type !== 'upgrade' && u.item_name === baseName; })
+      .sort(function (a, b) { return (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0) || Number(a.id) - Number(b.id); })
+      .forEach(function (u) {
+        menu.filter(function (m) { return u.suggested_item ? m.name === u.suggested_item : String(m.category || '').trim() === String(u.suggested_category || '').trim(); })
+          .forEach(function (t) { if (!seen[t.id] && t.name !== baseName && (u.suggested_item || isShown(t)) && !isSoldOut(t) && !inCart[t.id] && !suggestShown[t.id]) { seen[t.id] = true; out.push(t); } });
+      });
+    return out;
+  }
+  function crossSellSheet(list) {
+    list.forEach(function (t) { suggestShown[t.id] = true; });
+    openSheet('<div class="flex justify-between items-start mb-3"><div class="font-black text-base">Can we suggest?</div><button onclick="closeSheet()" class="text-gray-400 text-xl font-black px-2">✕</button></div>' +
+      suggestTiles(list, 'pickCross') +
+      '<button onclick="closeSheet()" class="w-full border-2 border-gray-200 rounded-2xl py-3 font-black text-sm text-gray-700">Not Today</button>');
+  }
+  function pickCross(id) {
+    var t = menu.filter(function (m) { return m.id === id; })[0]; if (!t) return closeSheet();
+    closeSheet(); startItem(t, false);
   }
   function pickSuggest(id) {
     var t = menu.filter(function (m) { return m.id === id; })[0]; if (!t) return cartSheet();

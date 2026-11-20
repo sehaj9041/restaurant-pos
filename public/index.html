@@ -1132,6 +1132,17 @@
   </div>
 
   <!-- ================= POS SINGLE OR MEAL MODAL ================= -->
+  <div id="posCrossModal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-5 max-w-md w-full shadow-2xl space-y-3 max-h-[85vh] flex flex-col">
+      <div class="flex justify-between items-center border-b pb-2 shrink-0">
+        <h3 class="font-black text-gray-900 text-sm">Can we suggest?</h3>
+        <button onclick="closePOSCross()" class="text-gray-400 hover:text-black font-bold">✕</button>
+      </div>
+      <div id="posCrossContent" class="grid grid-cols-2 gap-2 overflow-y-auto flex-1 pr-1"></div>
+      <button onclick="closePOSCross()" class="shrink-0 w-full border border-gray-200 rounded-xl py-2.5 font-bold text-xs text-gray-700">Not Today</button>
+    </div>
+  </div>
+
   <div id="posMealModal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl p-5 max-w-md w-full shadow-2xl space-y-3 max-h-[85vh] flex flex-col">
       <div class="flex justify-between items-center border-b pb-2 shrink-0">
@@ -5003,6 +5014,7 @@
       switchRightTab('SUMMARY');
       renderPOSCart();
       renderPOSItems();
+      maybePOSCrossSells(displayName);
     }
 
     // ---------- Step-by-step add-on selection (one group per step, then an editable review) ----------
@@ -5207,6 +5219,7 @@
       switchRightTab('SUMMARY');
       renderPOSCart();
       renderPOSItems();
+      maybePOSCrossSells(displayName);
     }
 
     // ---------- Upsells ("Make it a meal" / "Add a drink") ----------
@@ -5274,6 +5287,53 @@
       document.getElementById('posMealTitle').innerText = item.name;
       document.getElementById('posMealContent').innerHTML = tile(item, 'Single') + meals.map(function(o) { return tile(o.t, o.u.label || 'Meal'); }).join('');
       document.getElementById('posMealModal').classList.remove('hidden');
+    }
+
+    // Admin > Upsells "Cross-sell" rules for the item just added: a suggested item, or every item of a suggested category (each offered once per order)
+    var posCrossShown = {};
+    function posCrossBase(name) {
+      var n = String(name || '').trim();
+      while (n) {
+        if (posUpsells.some(function(u) { return u.upsell_type !== 'upgrade' && u.item_name === n; })) return n;
+        if (!/\s*\([^()]*\)$/.test(n)) break;
+        n = n.replace(/\s*\([^()]*\)$/, '').trim();   // "Wings (6 Pcs) (Dip)" -> "Wings"
+      }
+      return '';
+    }
+    function maybePOSCrossSells(addedName) {
+      if (!posUpsellOn()) return;
+      if (posCart.length <= 1) posCrossShown = {};   // first line of a fresh order
+      var base = posCrossBase(addedName);
+      if (!base) return;
+      var inCart = {}; posCart.forEach(function(c) { if (c.id != null) inCart[c.id] = true; });
+      var list = [], seen = {};
+      posUpsells.filter(function(u) { return u.upsell_type !== 'upgrade' && u.item_name === base; })
+        .sort(function(a, b) { return (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0) || Number(a.id) - Number(b.id); })
+        .forEach(function(u) {
+          allMenuItems.filter(function(m) { return u.suggested_item ? m.name === u.suggested_item : String(m.category || '').trim() === String(u.suggested_category || '').trim(); })
+            .forEach(function(t) { if (!seen[t.id] && t.name !== base && (u.suggested_item || Number(t.is_visible) !== 0) && t.status !== 'Out of Stock' && !inCart[t.id] && !posCrossShown[t.id]) { seen[t.id] = true; list.push(t); } });
+        });
+      if (!list.length) return;
+      var esc = function(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+      document.getElementById('posCrossContent').innerHTML = list.map(function(t) {
+        posCrossShown[t.id] = true;
+        var vars = [];
+        try { vars = JSON.parse(t.variations || '[]'); } catch (e) {}
+        var price = vars.length ? 'From ₹' + Math.min.apply(null, vars.map(function(v) { return Number(v.price) || 0; })) : '₹' + t.price;
+        var im = t.image || t.image_url || t.img || '';
+        var src = im ? (/^(https?:)?\//.test(im) ? im : '/uploads/' + im) : '';
+        return '<button onclick="pickPOSCross(' + t.id + ')" class="text-left p-3 rounded-xl border border-gray-200 hover:border-orange-500 hover:bg-orange-50/50">' +
+          '<div class="h-20 flex items-center justify-center my-1">' + (src ? '<img src="' + esc(src) + '" class="max-h-full max-w-full object-contain rounded-lg" onerror="this.style.display=\'none\'">' : '<span class="text-4xl">🍽️</span>') + '</div>' +
+          '<div class="font-bold text-gray-800 text-xs leading-tight">' + esc(t.name) + '</div>' +
+          '<div class="font-black text-emerald-600 text-xs mt-1">' + price + '</div></button>';
+      }).join('');
+      document.getElementById('posCrossModal').classList.remove('hidden');
+    }
+    function closePOSCross() { document.getElementById('posCrossModal').classList.add('hidden'); }
+    function pickPOSCross(itemId) {
+      var t = allMenuItems.find(function(i) { return i.id === itemId; });
+      closePOSCross();
+      if (t) addOrIncrementItem(t.name, t.price, false);
     }
 
     function closePOSMealChoice() { document.getElementById('posMealModal').classList.add('hidden'); }

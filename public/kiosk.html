@@ -1028,9 +1028,10 @@
         }
       }
 
+      const addedBase = selectedMenuItem.name;
       closeCustomizerModal();
       updateTrayUI();
-      showAddedConfirmation();
+      if (!showItemCrossSells(addedBase)) showAddedConfirmation();
     }
 
     // ---------- Suggestions ("Can we suggest?") - cart kholne par ek baar poori tray ke liye ----------
@@ -1043,9 +1044,34 @@
         .filter(t => t && Number(t.is_visible) !== 0 && !inTray.has(t.id) && !suggestDismissed.has(t.id));
     }
 
+    // Admin > Upsells "Cross-sell" rules for an item that was just added: a suggested item, or every item of a suggested category
+    function itemCrossSells(baseName) {
+      const inTray = new Set(kioskTray.map(l => l.menu_id));
+      const out = [], seen = new Set();
+      upsells.filter(u => u.upsell_type !== 'upgrade' && u.item_name === baseName).sort(upsellRank).forEach(u => {
+        const found = u.suggested_item
+          ? allKioskItems.filter(i => i.name === u.suggested_item)
+          : allKioskItems.filter(i => String(i.category || '').trim() === String(u.suggested_category || '').trim());
+        found.forEach(t => {
+          if (!seen.has(t.id) && t.name !== baseName && (u.suggested_item || Number(t.is_visible) !== 0) && !itemUnavailable(t) && !inTray.has(t.id) && !suggestDismissed.has(t.id)) { seen.add(t.id); out.push(t); }
+        });
+      });
+      return out;
+    }
+
+    let upsellFromItem = false; // true: popup opened right after an item was added (Not Today just closes it)
+    function showItemCrossSells(baseName) {
+      const list = itemCrossSells(baseName);
+      if (!list.length) return false;
+      upsellFromItem = true;
+      showSuggestions(list);
+      return true;
+    }
+
     // Returns true if the suggestion popup was shown (cart review then opens from "Not Today").
-    function showSuggestions() {
-      const list = trayCrossSells();
+    function showSuggestions(given) {
+      const list = given || trayCrossSells();
+      if (!given) upsellFromItem = false;
       if (!list.length) return false;
       $('upsellList').innerHTML = `<div class="flex flex-wrap justify-center gap-3">${list.map(t => {
         let vars = [];
@@ -1079,6 +1105,7 @@
 
     function closeUpsell() {
       $('upsellModal').classList.add('hidden');
+      if (upsellFromItem) { upsellFromItem = false; return; }
       $('trayReviewModal').classList.remove('hidden');
     }
 
