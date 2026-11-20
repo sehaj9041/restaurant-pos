@@ -543,6 +543,9 @@ app.get('/api/menu', (req, res) => {
   const hit = menuCache.entries[key];
   if (hit && Date.now() - hit.at < MENU_CACHE_TTL_MS) return res.type('json').send(hit.body);
   const version = menuCache.version;
+  db.all('SELECT name, sort_order FROM categories', [], (cErr, catRows) => {
+  const catRank = {};
+  (catRows || []).forEach(c => { catRank[c.name] = c.sort_order == null ? 0 : Number(c.sort_order); });
   db.all(`SELECT m.* FROM menu m LEFT JOIN categories c ON c.name = m.category
           ORDER BY COALESCE(c.sort_order, 9999), m.category, COALESCE(m.sort_order, 0), m.name`, [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -556,7 +559,13 @@ app.get('/api/menu', (req, res) => {
           if (Array.isArray(cats)) cats.forEach(c => { if (c && c !== r.category) extra.push({ ...r, category: c }); });
         } catch (e) {}
       });
-      if (extra.length) rows = rows.concat(extra);   // clients group by category, so order inside the array does not matter
+      if (extra.length) {
+        // same order as the SQL above, so the extra copies land under their category's rank (not at the end of the list)
+        const rank = c => (c in catRank ? catRank[c] : 9999);
+        rows = rows.concat(extra).sort((a, b) =>
+          rank(a.category) - rank(b.category) || String(a.category).localeCompare(String(b.category)) ||
+          (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0) || String(a.name).localeCompare(String(b.name)));
+      }
       (rows || []).forEach(r => {
         try {
           const vars = JSON.parse(r.variations || '[]');
@@ -567,6 +576,7 @@ app.get('/api/menu', (req, res) => {
     const body = JSON.stringify(rows || []);
     if (version === menuCache.version) menuCache.entries[key] = { at: Date.now(), body };
     res.type('json').send(body);
+  });
   });
 });
 

@@ -868,23 +868,52 @@
       );
     }
 
+    // Rows of the table: every item under its main category, plus a read-only copy under each of its extra categories.
+    function getDisplayRows() {
+      const cat = document.getElementById('itemCatFilter').value;
+      const found = getFilteredItems();
+      const rows = found.filter(i => !cat || i.category === cat);
+      found.forEach(i => {
+        let extra = [];
+        try { extra = JSON.parse(i.extra_categories || '[]'); } catch (e) {}
+        extra.forEach(c => { if (c && c !== i.category && (!cat || c === cat)) rows.push(Object.assign({}, i, { category: c, _aliasOf: i.category })); });
+      });
+      const order = allCategoryNames();
+      const rank = c => { const k = order.indexOf(c); return k < 0 ? 9999 : k; };
+      return rows.map((r, k) => [r, k]).sort((a, b) => rank(a[0].category) - rank(b[0].category) || a[1] - b[1]).map(x => x[0]);
+    }
+
     function renderItems() {
-      const list = getFilteredItems();
+      const list = getDisplayRows();
+      const found = getFilteredItems().length;
       document.getElementById('itemCountBadge').innerText =
-        (list.length === menuItems.length ? list.length : list.length + ' / ' + menuItems.length) + ' Items';
+        (found === menuItems.length ? found : found + ' / ' + menuItems.length) + ' Items';
 
       let lastCat = null;
       itemDragGroups = [];
       const catCounts = {};
       const catIds = {};
-      list.forEach(i => { const c = i.category || 'Uncategorized'; catCounts[c] = (catCounts[c] || 0) + 1; (catIds[c] = catIds[c] || []).push(Number(i.id)); });
+      list.forEach(i => { if (i._aliasOf) return; const c = i.category || 'Uncategorized'; catCounts[c] = (catCounts[c] || 0) + 1; (catIds[c] = catIds[c] || []).push(Number(i.id)); });
       document.getElementById('menuTableBody').innerHTML = list.length ? list.map(i => {
         const catName = i.category || 'Uncategorized';
         const catHeader = catName !== lastCat
-          ? `<tr class="bg-indigo-50/70"><td colspan="9" class="px-3 py-2 text-xs font-black uppercase tracking-wide text-indigo-800"><input type="checkbox" class="mr-2 align-middle" title="Poori category select karein" ${catIds[catName].every(id => selItems.has(id)) ? 'checked' : ''} onchange="toggleCategoryItems(${itemDragGroups.length}, this.checked)">${esc(catName)} <span class="ml-1 text-[10px] font-bold text-indigo-500">${catCounts[catName]} items</span></td></tr>`
+          ? `<tr class="bg-indigo-50/70"><td colspan="9" class="px-3 py-2 text-xs font-black uppercase tracking-wide text-indigo-800"><input type="checkbox" class="mr-2 align-middle" title="Poori category select karein" ${(catIds[catName] || []).length && catIds[catName].every(id => selItems.has(id)) ? 'checked' : ''} onchange="toggleCategoryItems(${itemDragGroups.length}, this.checked)">${esc(catName)} <span class="ml-1 text-[10px] font-bold text-indigo-500">${catCounts[catName]} items</span></td></tr>`
           : '';
         if (catName !== lastCat) itemDragGroups.push({ cat: catName, ids: [] });
         lastCat = catName;
+        if (i._aliasOf) {
+          const aImg = resolveImgPath(i.image || i.image_url || i.img || '');
+          return catHeader + `
+          <tr class="bg-indigo-50/30 text-gray-500">
+            <td class="p-3"></td>
+            <td class="p-3">${aImg ? `<img src="${esc(aImg)}" class="w-10 h-10 object-cover rounded-lg border" onerror="this.onerror=null; this.style.display='none';">` : ''}</td>
+            <td class="p-3 font-bold text-gray-700">${esc(i.name)}</td>
+            <td class="p-3 text-[11px]">Main: <b>${esc(i._aliasOf)}</b></td>
+            <td class="p-3">₹${esc(i.price)}</td>
+            <td class="p-3" colspan="3"></td>
+            <td class="p-3 text-right"><button onclick="openEditModal(${Number(i.id)})" class="text-indigo-600 hover:text-indigo-800 font-bold">Edit</button></td>
+          </tr>`;
+        }
         const gIdx = itemDragGroups.length - 1;
         const pos = itemDragGroups[gIdx].ids.push(Number(i.id)) - 1;
         sortRegistry['items' + gIdx] = (f, t) => reorderItems(gIdx, f, t);
