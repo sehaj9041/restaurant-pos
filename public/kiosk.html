@@ -464,7 +464,7 @@
       fetch('/api/menu').then(res => res.json()).then(items => {
         allKioskItems = items;
         menuItems = items.filter(i => Number(i.is_visible) !== 0);
-        renderCategories();
+        renderCategories(); setTimeout(preloadKioskImages, 500);
       });
     }
 
@@ -510,8 +510,16 @@
         (rows || []).forEach(c => { if (c.image) categoryImages[String(c.name).trim()] = c.image; if (Number(c.out_of_stock)) outCategories[String(c.name).trim()] = true; if (Number(c.is_visible) === 0) hiddenCategories[String(c.name).trim()] = true; });
         allKioskItems = items;
         menuItems = items.filter(i => Number(i.is_visible) !== 0);
-        renderCategories();
+        renderCategories(); preloadKioskImages();
       } catch (e) {}
+    }
+    // Saari item/category images background mein pehle hi cache mein le aao, taaki tile par aate hi dikhe
+    const preloaded = new Set();
+    function preloadKioskImages() {
+      const urls = [];
+      (allKioskItems || []).forEach(i => urls.push(itemImgOf(i)));
+      Object.values(categoryImages).forEach(c => urls.push(resolveImgPath(c)));
+      urls.filter(u => u && !preloaded.has(u)).forEach((u, n) => { preloaded.add(u); setTimeout(() => { const im = new Image(); im.decoding = 'async'; im.src = u; }, n * 60); });
     }
     refreshKioskMenu();
     setInterval(refreshKioskMenu, 30000);
@@ -570,7 +578,7 @@
           <button ${na ? 'disabled' : `onclick="startKioskItem(${item.id})"`} class="tile p-2.5 flex flex-col text-left relative ${na ? 'cursor-not-allowed' : ''}">
             ${na ? '<span class="absolute top-2 left-2 z-10 bg-rose-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full">Not Available</span>' : ''}
             <div class="h-28 flex items-center justify-center ${na ? 'opacity-40 grayscale' : ''}">
-              ${img ? `<img src="${esc(img)}" class="max-h-full max-w-full object-contain" onerror="this.onerror=null; this.replaceWith(Object.assign(document.createElement('span'),{className:'text-6xl',textContent:'🍔'}));">` : '<span class="text-6xl">🍔</span>'}
+              ${img ? `<img decoding="async" src="${esc(img)}" class="max-h-full max-w-full object-contain" onerror="this.onerror=null; this.replaceWith(Object.assign(document.createElement('span'),{className:'text-6xl',textContent:'🍔'}));">` : '<span class="text-6xl">🍔</span>'}
             </div>
             <h3 class="font-bold text-[12px] leading-tight mt-2 break-words ${na ? 'opacity-50' : ''}">${vegIcon(item.food_type)}${esc(item.name)}</h3>
             <span class="font-bold text-[12px] mt-auto pt-1 ${na ? 'opacity-50' : ''}">${priceTag}</span>
@@ -602,7 +610,7 @@
           <button onclick="pickMealChoice(${t.id})" class="tile p-2.5 flex flex-col text-left">
             <span class="text-[11px] font-black uppercase tracking-widest text-[var(--red)]">${badge}</span>
             <div class="h-28 w-28 mx-auto flex items-center justify-center">
-              ${img ? `<img src="${esc(img)}" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">` : '<span class="text-5xl">🍽️</span>'}
+              ${img ? `<img decoding="async" src="${esc(img)}" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">` : '<span class="text-5xl">🍽️</span>'}
             </div>
             <h3 class="font-bold text-[13px] leading-tight mt-2 line-clamp-2 min-h-[2.1em]">${esc(t.name)}</h3>
             ${hidePrice ? '' : `<span class="font-bold text-[13px] mt-1">${price}</span>`}
@@ -1047,7 +1055,7 @@
         return `
           <button onclick="pickUpsell(${t.id})" class="tile p-2.5 flex flex-col text-left w-[calc(33.333%-0.5rem)]">
             <div class="h-28 w-28 mx-auto flex items-center justify-center">
-              ${img ? `<img src="${esc(img)}" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">` : '<span class="text-5xl">🍽️</span>'}
+              ${img ? `<img decoding="async" src="${esc(img)}" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">` : '<span class="text-5xl">🍽️</span>'}
             </div>
             <h3 class="font-bold text-[13px] leading-tight mt-2 line-clamp-2 min-h-[2.1em]">${esc(t.name)}</h3>
             <span class="font-bold text-[13px] mt-1">${price}</span>

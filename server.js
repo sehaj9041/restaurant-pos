@@ -1,5 +1,6 @@
 // Node must also run in IST so timestamps (stored as IST wall-clock) are read back correctly, locally and on Render
 process.env.TZ = 'Asia/Kolkata';
+const sharp = require('sharp');
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -181,8 +182,22 @@ app.get('/punch-manifest.json', async (req, res) => {
 
 // Static directories setup for public and uploads
 app.use(express.static(path.join(__dirname, 'public')));
+// Hot images RAM mein (DB BYTEA har baar na padhna pade); ~60 MB se upar jaye toh sabse purani nikal do
+const uploadCache = new Map();
+let uploadCacheBytes = 0;
+function uploadCacheSet(name, row) {
+  if (!row || !row.data || row.data.length > 5 * 1024 * 1024) return;
+  uploadCache.set(name, row);
+  uploadCacheBytes += row.data.length;
+  for (const [k, v] of uploadCache) {
+    if (uploadCacheBytes <= 60 * 1024 * 1024) break;
+    uploadCache.delete(k); uploadCacheBytes -= v.data.length;
+  }
+}
 app.get('/uploads/:name', (req, res, next) => {
-  db.get("SELECT mime, data FROM uploaded_files WHERE name = ?", [req.params.name], (err, row) => {
+  const hit = uploadCache.get(req.params.name);
+  const getRow = cb => hit ? cb(null, hit) : db.get("SELECT mime, data FROM uploaded_files WHERE name = ?", [req.params.name], (err, row) => { if (!err && row) uploadCacheSet(req.params.name, row); cb(err, row); });
+  getRow((err, row) => {
     if (err || !row) return next(); // DB mein nahi hai toh purani committed files static se serve hongi
     res.setHeader('Content-Type', row.mime || 'application/octet-stream');
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
@@ -217,12 +232,38 @@ db.run("CREATE TABLE IF NOT EXISTS uploaded_files (name TEXT PRIMARY KEY, mime T
   if (err) console.error('uploaded_files table error:', err.message);
 });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 30 * 1024 * 1024 } });
+// Server start hone ke 30s baad purani badi images (>150 KB) ko ek-ek karke 900px WebP mein compress kar do (naam wahi rehta hai, links nahi tootte).
+// Sirf tab save hota hai jab nayi file chhoti ho; compress ho chuki images dobara filter mein nahi aati.
+setTimeout(async () => {
+  const q = (sql, params) => new Promise((resolve, reject) => db.all(sql, params || [], (e, rows) => e ? reject(e) : resolve(rows)));
+  try {
+    const list = await q("SELECT name FROM uploaded_files WHERE mime ~* '^image/(png|jpe?g|webp)$' AND length(data) > 150000 ORDER BY length(data) DESC");
+    let before = 0, after = 0, n = 0;
+    for (const r of list) {
+      const [f] = await q("SELECT data FROM uploaded_files WHERE name = ?", [r.name]);
+      if (!f) continue;
+      const out = await sharp(f.data).rotate().resize({ width: 900, height: 900, fit: 'inside', withoutEnlargement: true }).webp({ quality: 80 }).toBuffer();
+      if (out.length >= f.data.length * 0.9) continue;
+      await q("UPDATE uploaded_files SET mime = 'image/webp', data = ? WHERE name = ? RETURNING name", [out, r.name]);
+      const c = uploadCache.get(r.name); if (c) { uploadCacheBytes -= c.data.length; uploadCache.delete(r.name); }
+      before += f.data.length; after += out.length; n++;
+      await new Promise(ok => setTimeout(ok, 200));
+    }
+    if (n) console.log('[images] ' + n + ' purani images compress hui: ' + (before / 1048576).toFixed(1) + ' MB -> ' + (after / 1048576).toFixed(1) + ' MB');
+  } catch (e) { console.error('[images] auto-compress fail:', e.message); }
+}, 30000);
 const uploadExcel = multer({ dest: 'uploads/' });
 
-app.post('/api/upload', upload.single('image'), (req, res) => {
+app.post('/api/upload', upload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  const name = Date.now() + '-' + Math.round(Math.random() * 1E9) + path.extname(req.file.originalname);
-  db.run("INSERT INTO uploaded_files (name, mime, data) VALUES (?, ?, ?) RETURNING name", [name, req.file.mimetype, req.file.buffer], (err) => {
+  let ext = path.extname(req.file.originalname), mime = req.file.mimetype, buf = req.file.buffer;
+  // Kiosk/website par tile chhote dikhte hain: bade photo ko 900px WebP bana do (GIF/SVG/video jaisa tha waisa)
+  if (/^image\/(png|jpe?g|webp)$/i.test(mime)) {
+    try { buf = await sharp(buf).rotate().resize({ width: 900, height: 900, fit: 'inside', withoutEnlargement: true }).webp({ quality: 80 }).toBuffer(); ext = '.webp'; mime = 'image/webp'; }
+    catch (e) { console.error('image resize failed, original save kiya:', e.message); buf = req.file.buffer; }
+  }
+  const name = Date.now() + '-' + Math.round(Math.random() * 1E9) + ext;
+  db.run("INSERT INTO uploaded_files (name, mime, data) VALUES (?, ?, ?) RETURNING name", [name, mime, buf], (err) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ imageUrl: '/uploads/' + name });
   });
