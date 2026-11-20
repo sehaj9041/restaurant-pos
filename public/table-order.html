@@ -247,7 +247,7 @@
     openSheet(sheetHead(esc(pick.item.name), 'Step ' + (pick.step + 1) + ' of ' + pick.groups.length + ' • ' + esc(g.name)) +
       '<div class="text-[11px] font-black uppercase text-gray-500 mb-2">' + rule + '</div><div class="grid grid-cols-3 gap-2 mb-4">' + opts + '</div>' +
       '<div class="flex gap-2"><button onclick="' + back + '" class="px-5 rounded-2xl border-2 border-gray-200 font-black text-sm">Back</button>' +
-      '<button onclick="nextStep()" class="flex-1 bg-indigo-600 text-white rounded-2xl py-3.5 font-black text-sm">' + (last || pick.fromReview ? 'Review' : 'Next') + '</button></div>');
+      '<button onclick="nextStep()" class="flex-1 bg-indigo-600 text-white rounded-2xl py-3.5 font-black text-sm">' + (!min && !chosen.length ? 'No Thanks' : (last || pick.fromReview ? 'Review' : 'Next')) + '</button></div>');
   }
   function toggleOpt(ai) {
     var g = pick.groups[pick.step], a = groupOptions(g)[ai], max = groupMax(g);

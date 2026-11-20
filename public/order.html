@@ -931,7 +931,7 @@
       document.getElementById('onlineAddonModalContent').innerHTML = body;
       document.getElementById('onlineAddonModalTotalPrice').innerText = '₹' + (wizTotal() * (review ? w.qty : 1));
       document.getElementById('onlineAddonModalTotalPrice').parentElement.classList.toggle('hidden', !!w.hidePrice);
-      document.getElementById('onlineAddonNext').innerText = review ? 'Add to Cart ✓' : (w.editing ? 'Done' : 'Next');
+      document.getElementById('onlineAddonNext').innerText = review ? 'Add to Cart ✓' : (!wizMin(groups[w.step]) && !w.sel[w.step].length ? 'No Thanks' : (w.editing ? 'Done' : 'Next'));
       document.getElementById('onlineAddonBack').innerText = (w.step === 0 && !w.editing) ? 'Cancel' : 'Back';
       document.getElementById('onlineAddonModalContent').scrollTop = 0;
     }

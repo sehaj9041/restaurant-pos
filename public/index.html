@@ -5108,7 +5108,7 @@
       document.getElementById('posAddonModalTotalPrice').innerText = '₹' + (wizTotal() * (review ? (w.qty || 1) : 1));
       document.getElementById('posAddonQtyRow').classList.toggle('hidden', !review);
       document.getElementById('posAddonQty').innerText = w.qty || 1;
-      document.getElementById('posAddonNext').innerText = review ? 'Add to Cart ✓' : (w.editing ? 'Done' : 'Next');
+      document.getElementById('posAddonNext').innerText = review ? 'Add to Cart ✓' : (!wizMin(groups[w.step]) && !w.sel[w.step].length ? 'No Thanks' : (w.editing ? 'Done' : 'Next'));
       document.getElementById('posAddonBack').innerText = (w.step === 0 && !w.editing) ? 'Cancel' : 'Back';
       document.getElementById('posAddonModalContent').scrollTop = 0;
     }

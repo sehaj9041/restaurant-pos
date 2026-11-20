@@ -722,6 +722,15 @@
       custSteps = steps;
     }
 
+    // Optional add-on step with nothing picked yet: "No Thanks" instead of "Next"; turns into "Next" once something is chosen
+    function refreshCustNextLabel() {
+      const step = custSteps[custStepIdx];
+      const review = !step || step.type === 'review';
+      const g = step && step.type === 'group' ? allMasterGroups.find(x => Number(x.id) === Number(step.id)) : null;
+      const skip = !!g && !g.is_mandatory && !(Number(g.min_selection) > 0) && !(selectedGroupAddons[g.id] || []).length;
+      $('addToTrayBtn').innerText = review ? 'Add To Order' : (skip ? 'No Thanks' : (custEditing ? 'Done' : 'Next'));
+    }
+
     let custDir = 1; // 1 = aage (right se slide-in), -1 = peeche
     function renderCustStep() {
       const step = custSteps[custStepIdx];
@@ -735,7 +744,7 @@
       $('custImgContainer').innerHTML = review && custHidePrice ? mealHeroTiles() : (review ? custHeroHtml : ''); // size/add-on steps: photo hidden
       if (review) renderCustReview();
       $('custStepInfo').innerText = custSteps.length > 1 ? (review ? 'Review your order' : `Step ${custStepIdx + 1} of ${custSteps.length - 1}`) : '';
-      $('addToTrayBtn').innerText = review ? 'Add To Order' : (custEditing ? 'Done' : 'Next');
+      refreshCustNextLabel();
       $('custBackBtn').innerText = custStepIdx === 0 || (review && custSteps.length === 1) ? 'Cancel Item' : 'Back';
       $('custQtyRow').classList.toggle('hidden', !review);
       $('customizerModal').querySelector('.overflow-y-auto').scrollTop = 0;
@@ -941,6 +950,7 @@
         cb.closest('label').classList.remove('selected');
       }
       updateCustomizerTotal();
+      refreshCustNextLabel();
     }
 
     function vegIcon(t) {
