@@ -486,7 +486,7 @@ async function crossSellData() {
   if (hit && hit.version === menuCache.version) return hit.data;
   const version = menuCache.version;
   const [ups, menu, cats] = await Promise.all([
-    dbAllAsync("SELECT * FROM upsells WHERE COALESCE(is_active, 1) = 1 AND COALESCE(upsell_type, 'cross_sell') <> 'upgrade' ORDER BY COALESCE(sort_order, 0), id", []),
+    dbAllAsync("SELECT * FROM upsells WHERE COALESCE(is_active, 1) = 1 AND COALESCE(as_addon, 0) = 1 AND COALESCE(upsell_type, 'cross_sell') <> 'upgrade' ORDER BY COALESCE(sort_order, 0), id", []),
     dbAllAsync('SELECT id, name, category, price, image, variations, status, is_visible, extra_categories FROM menu', []),
     dbAllAsync('SELECT name, is_visible, out_of_stock FROM categories', [])
   ]);
@@ -772,14 +772,14 @@ app.get('/api/upsells', (req, res) => {
 });
 
 app.post('/api/upsells', (req, res) => {
-  const { item_name, upsell_type, suggested_item, suggested_category, label, sort_order, is_active } = req.body;
+  const { item_name, upsell_type, suggested_item, suggested_category, label, sort_order, is_active, as_addon } = req.body;
   const type = upsell_type === 'upgrade' ? 'upgrade' : 'cross_sell';
   if (!item_name) return res.status(400).json({ error: 'Item name zaroori hai' });
   if (!!suggested_item === !!suggested_category) return res.status(400).json({ error: 'Suggested item ya suggested category me se sirf ek do' });
   if (type === 'upgrade' && !suggested_item) return res.status(400).json({ error: 'Upgrade ke liye suggested item chahiye' });
   db.run(
-    "INSERT INTO upsells (item_name, upsell_type, suggested_item, suggested_category, label, sort_order, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    [item_name, type, suggested_item || '', suggested_category || '', label || '', sort_order || 0, is_active === undefined ? 1 : (is_active ? 1 : 0)],
+    "INSERT INTO upsells (item_name, upsell_type, suggested_item, suggested_category, label, sort_order, is_active, as_addon) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    [item_name, type, suggested_item || '', suggested_category || '', label || '', sort_order || 0, is_active === undefined ? 1 : (is_active ? 1 : 0), type === 'cross_sell' && as_addon ? 1 : 0],
     function (err) {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ success: true, id: this.lastID });
@@ -789,7 +789,8 @@ app.post('/api/upsells', (req, res) => {
 
 app.put('/api/upsells/:id', (req, res) => {
   const active = req.body.is_active === undefined ? null : (req.body.is_active ? 1 : 0);
-  db.run("UPDATE upsells SET is_active = COALESCE(?, is_active) WHERE id = ?", [active, req.params.id], function (err) {
+  const addon = req.body.as_addon === undefined ? null : (req.body.as_addon ? 1 : 0);
+  db.run("UPDATE upsells SET is_active = COALESCE(?, is_active), as_addon = COALESCE(?, as_addon) WHERE id = ?", [active, addon, req.params.id], function (err) {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ success: true });
   });

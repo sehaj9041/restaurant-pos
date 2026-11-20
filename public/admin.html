@@ -351,7 +351,7 @@
           <table class="w-full text-left text-xs border-collapse">
             <thead><tr class="bg-gray-50 text-gray-500 border-b">
               <th class="p-3"></th><th class="p-3 font-bold">WHEN ITEM</th><th class="p-3 font-bold">TYPE</th>
-              <th class="p-3 font-bold">SUGGEST</th><th class="p-3 font-bold">LABEL</th><th class="p-3 font-bold">ACTIVE</th><th class="p-3 font-bold text-right">ACTION</th>
+              <th class="p-3 font-bold">SUGGEST</th><th class="p-3 font-bold">LABEL</th><th class="p-3 font-bold">ACTIVE</th><th class="p-3 font-bold">ADD-ON</th><th class="p-3 font-bold text-right">ACTION</th>
             </tr></thead>
             <tbody id="upsellsBody" class="divide-y divide-gray-100"></tbody>
           </table>
@@ -2131,8 +2131,9 @@
           <td class="p-3 text-gray-700">${u.suggested_item ? esc(u.suggested_item) : '📁 ' + esc(u.suggested_category)}</td>
           <td class="p-3 text-gray-500">${esc(u.label)}</td>
           <td class="p-3"><button onclick="toggleUpsell(${Number(u.id)}, ${Number(u.is_active) ? 0 : 1})" class="font-bold ${Number(u.is_active) ? 'text-emerald-600' : 'text-gray-400'}">${Number(u.is_active) ? 'On' : 'Off'}</button></td>
+          <td class="p-3">${u.upsell_type === 'upgrade' ? '<span class="text-gray-300">-</span>' : `<button onclick="toggleUpsellAddon(${Number(u.id)}, ${Number(u.as_addon) ? 0 : 1})" title="On = item ke add-on step me dikhta hai" class="font-bold ${Number(u.as_addon) ? 'text-emerald-600' : 'text-gray-400'}">${Number(u.as_addon) ? 'On' : 'Off'}</button>`}</td>
           <td class="p-3 text-right"><button onclick="deleteUpsell(${Number(u.id)})" class="text-red-500 hover:text-red-700 font-bold">Delete</button></td>
-        </tr>`).join('') : '<tr><td colspan="7" class="p-6 text-center text-gray-400">Koi upsell nahi</td></tr>';
+        </tr>`).join('') : '<tr><td colspan="8" class="p-6 text-center text-gray-400">Koi upsell nahi</td></tr>';
       updateUpsBar();
     }
 
@@ -2151,7 +2152,7 @@
       try {
         await api('/api/upsells', 'POST', {
           item_name: item, upsell_type: type, suggested_item: target, suggested_category: cat,
-          label: document.getElementById('ups_label').value.trim()
+          label: document.getElementById('ups_label').value.trim(), as_addon: 1
         });
         ['ups_item', 'ups_target_item', 'ups_target_cat', 'ups_label'].forEach(id => document.getElementById(id).value = '');
         toast('Upsell add ho gaya');
@@ -2161,6 +2162,10 @@
 
     async function toggleUpsell(id, on) {
       try { await api('/api/upsells/' + id, 'PUT', { is_active: on }); loadUpsells(); } catch (err) { toast(err.message, true); }
+    }
+
+    async function toggleUpsellAddon(id, on) {
+      try { await api('/api/upsells/' + id, 'PUT', { as_addon: on }); loadUpsells(); } catch (err) { toast(err.message, true); }
     }
 
     async function deleteUpsell(id) {

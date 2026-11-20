@@ -206,7 +206,8 @@ pool.query(`
       suggested_category TEXT,
       label TEXT,
       sort_order INTEGER DEFAULT 0,
-      is_active INTEGER DEFAULT 1
+      is_active INTEGER DEFAULT 1,
+      as_addon INTEGER DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS kiosk_suggestions (
       id SERIAL PRIMARY KEY,
@@ -276,6 +277,8 @@ pool.query(`
       notes TEXT
     );
   `).catch(err => console.error('Inventory table setup error:', err.message));
+  // Cross-sell rules from the Excel import stay inert; only rules switched on as add-on (default for rules made in Admin > Upsells) show as add-ons
+  await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS as_addon INTEGER DEFAULT 0;`).catch(() => {});
 
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS menu_name_idx ON menu (name);`).catch(() => {});
   console.log('Postgres Cloud DB tables ready.');
