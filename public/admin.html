@@ -240,7 +240,15 @@
             </div>
           </div>
 
-          <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+          <div>
+            <label class="block text-xs font-bold text-gray-600 mb-1">Items kahan se lein?</label>
+            <select id="grp_source_cat" onchange="syncGroupSource()" class="w-full md:w-72 border p-2 rounded-xl text-xs outline-none bg-white font-bold">
+              <option value="">Manual - items khud add karunga</option>
+            </select>
+            <p id="grpSourceHint" class="hidden text-[11px] text-indigo-700 mt-1">Is category ke saare items (naam, price, photo menu se) add-on ban jaayenge. Category me item badlo ya add karo to add-on apne aap badal jaayega.</p>
+          </div>
+
+          <div id="grpManualBox" class="bg-gray-50 p-4 rounded-xl border border-gray-200">
             <label class="block text-xs font-bold text-indigo-900 uppercase mb-2">Add Items To This Group</label>
             <div class="flex gap-2 mb-2">
               <input id="grp_item_name" type="text" placeholder="Item Name (e.g. Cheese Slice)" class="flex-1 border p-1.5 rounded-lg text-xs outline-none bg-white">
@@ -1209,7 +1217,24 @@
       `).join('');
     }
 
+    function fillGroupSourceCats(selected) {
+      const el = document.getElementById('grp_source_cat');
+      if (!el) return;
+      const names = (categories || []).map(c => String(c.name || c).trim()).filter(Boolean);
+      if (selected && !names.includes(selected)) names.push(selected);
+      el.innerHTML = '<option value="">Manual - items khud add karunga</option>' + names.map(n => `<option value="${esc(n)}">📁 Category: ${esc(n)}</option>`).join('');
+      el.value = selected || '';
+      syncGroupSource();
+    }
+
+    function syncGroupSource() {
+      const on = !!document.getElementById('grp_source_cat').value;
+      document.getElementById('grpManualBox').classList.toggle('hidden', on);
+      document.getElementById('grpSourceHint').classList.toggle('hidden', !on);
+    }
+
     function resetGroupForm() {
+      fillGroupSourceCats('');
       tempGroupItems = [];
       document.getElementById('grp_edit_id').value = '';
       document.getElementById('grp_name').value = '';
@@ -1230,7 +1255,8 @@
       document.getElementById('grp_min').value = g.min_selection ?? 0;
       document.getElementById('grp_max').value = g.max_selection ?? 5;
       document.getElementById('grp_mandatory').checked = !!Number(g.is_mandatory);
-      tempGroupItems = parseJson(g.items, []).map(i => ({ name: i.name, price: Number(i.price), image: i.image || '' }));
+      fillGroupSourceCats(g.source_category || '');
+      tempGroupItems = g.source_category ? [] : parseJson(g.items, []).map(i => ({ name: i.name, price: Number(i.price), image: i.image || '' }));
       document.getElementById('grpFormTitle').innerText = 'Edit Add-on Group: ' + g.name;
       document.getElementById('grpSaveBtn').innerText = 'Update Group';
       document.getElementById('grpCancelBtn').classList.remove('hidden');
@@ -1245,15 +1271,16 @@
       const min = Number(document.getElementById('grp_min').value) || 0;
       const max = Number(document.getElementById('grp_max').value) || 5;
       if (!name) return toast('Group name daalna zaroori hai!', true);
-      if (tempGroupItems.length === 0) return toast('Kam se kam ek item group me add karein!', true);
+      const sourceCat = document.getElementById('grp_source_cat').value;
+      if (!sourceCat && tempGroupItems.length === 0) return toast('Kam se kam ek item group me add karein!', true);
       if (min > max) return toast('Min selection, max se zyada nahi ho sakta', true);
-      if (max > tempGroupItems.length) return toast('Max selection group ke items se zyada hai', true);
+      if (!sourceCat && max > tempGroupItems.length) return toast('Max selection group ke items se zyada hai', true);
       busy('grpSaveBtn', true);
       try {
         await api('/api/addon-groups' + (editId ? '/' + editId : ''), editId ? 'PUT' : 'POST', {
           name, min_selection: min, max_selection: max,
           is_mandatory: document.getElementById('grp_mandatory').checked ? 1 : 0,
-          items: tempGroupItems
+          items: sourceCat ? [] : tempGroupItems, source_category: sourceCat
         });
         resetGroupForm();
         toast(editId ? 'Group update ho gaya' : 'Add-on Group save ho gaya!');
@@ -1263,6 +1290,7 @@
     }
 
     function renderGlobalGroups() {
+      if (!document.getElementById('grp_edit_id').value) fillGroupSourceCats(document.getElementById('grp_source_cat').value);
       document.getElementById('globalGroupsGrid').innerHTML = globalAddonGroups.map((g, gi) => {
         const items = parseJson(g.items, []);
         const linked = linkedItemsForGroup(Number(g.id)).length;
@@ -1277,6 +1305,7 @@
                   ${Number(g.is_mandatory) ? 'Mandatory' : 'Optional'} (Min ${esc(g.min_selection)}, Max ${esc(g.max_selection)})
                 </span>
                 <span class="text-[10px] text-gray-400 ml-1">${linked} items linked</span>
+                ${g.source_category ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 ml-1">📁 ${esc(g.source_category)} (auto)</span>` : ''}
               </div>
               <div class="space-x-3 text-xs">
                 <button onclick="editGroup(${Number(g.id)})" class="text-indigo-600 font-bold hover:underline">Edit</button>
@@ -1779,7 +1808,7 @@
           if (!g) continue;
           await api('/api/addon-groups/' + gid, 'PUT', {
             name: g.name, min_selection: g.min_selection, max_selection: g.max_selection,
-            is_mandatory: Number(g.is_mandatory) ? 1 : 0, items: editGroupsDraft[gid]
+            is_mandatory: Number(g.is_mandatory) ? 1 : 0, items: editGroupsDraft[gid], source_category: g.source_category || ''
           });
         }
 
@@ -2024,7 +2053,7 @@
       if (!await uiConfirm(`${groups.length} groups ko ${flag ? 'Mandatory' : 'Optional'} karein?`)) return;
       const r = await runBulk(groups, g => api('/api/addon-groups/' + g.id, 'PUT', {
         name: g.name, min_selection: Number(g.min_selection) || 0, max_selection: Number(g.max_selection) || 5,
-        is_mandatory: flag, items: parseJson(g.items, [])
+        is_mandatory: flag, items: parseJson(g.items, []), source_category: g.source_category || ''
       }));
       reportBulk(flag ? 'Mandatory' : 'Optional', r);
       loadData();

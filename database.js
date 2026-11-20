@@ -148,6 +148,7 @@ pool.query(`
   await pool.query(`ALTER TABLE addon_groups ADD COLUMN IF NOT EXISTS min_selection INTEGER DEFAULT 0;`).catch(() => {});
   await pool.query(`ALTER TABLE addon_groups ADD COLUMN IF NOT EXISTS max_selection INTEGER DEFAULT 5;`).catch(() => {});
   await pool.query(`ALTER TABLE addon_groups ADD COLUMN IF NOT EXISTS items TEXT;`).catch(() => {});
+  await pool.query(`ALTER TABLE addon_groups ADD COLUMN IF NOT EXISTS source_category TEXT;`).catch(() => {});
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS token_no INTEGER;`).catch(() => {});
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS source TEXT;`).catch(() => {});
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS merged_into INTEGER;`).catch(() => {});

@@ -481,31 +481,56 @@ app.delete('/api/categories/:id', (req, res) => {
 // Admin > Upsells "Cross-sell" rules behave like add-ons: each active rule becomes a virtual add-on group (negative id = -rule id) holding the
 // suggested item or every item of the suggested category, and that id is appended to the source item's assigned_addon_groups in /api/menu.
 // Kiosk / website / table QR / POS / KDS and the online price validation then treat it exactly like a normal add-on group. Admin (?admin=1) never sees them.
+// Menu rows + category flags, rebuilt only when the menu cache is cleared (any write)
+async function menuSnapshot() {
+  const hit = menuCache.snap;
+  if (hit && hit.version === menuCache.version) return hit.data;
+  const version = menuCache.version;
+  const [menu, cats] = await Promise.all([
+    dbAllAsync('SELECT id, name, category, price, image, variations, status, is_visible, extra_categories FROM menu ORDER BY COALESCE(sort_order, 0), id', []),
+    dbAllAsync('SELECT name, is_visible, out_of_stock FROM categories', [])
+  ]);
+  const catRow = {}; cats.forEach(c => { catRow[String(c.name).trim()] = c; });
+  const data = { menu, catRow };
+  if (version === menuCache.version) menuCache.snap = { version, data };
+  return data;
+}
+// Add-on options built from menu items: one named item, or every item of a category (visible, in stock; same name only once). Price = menu price (lowest size if it has sizes).
+function pickMenuAddons(snap, itemName, category, excludeName) {
+  const want = String(category || '').trim();
+  const seen = new Set(), items = [];
+  snap.menu.forEach(m => {
+    if (m.name === excludeName || seen.has(m.name)) return;
+    if (itemName ? m.name !== itemName : !(String(m.category || '').trim() === want || parseJsonSafe(m.extra_categories, []).map(c => String(c).trim()).includes(want))) return;
+    const cr = snap.catRow[String(m.category || '').trim()];
+    if (m.status === 'Out of Stock' || m.status === 'unavailable' || (cr && Number(cr.out_of_stock))) return;
+    if (!itemName && (Number(m.is_visible) === 0 || (cr && Number(cr.is_visible) === 0))) return;
+    const vars = parseJsonSafe(m.variations, []).filter(v => v && v.active !== false);
+    const price = vars.length ? Math.min(...vars.map(v => Number(v.price) || 0)) : (Number(m.price) || 0);
+    seen.add(m.name);
+    items.push({ name: m.name, price, image: m.image || '', available: true });
+  });
+  return items;
+}
+// Add-on groups with a source_category (Admin > Add-ons > "Items from category") get their items from that category live
+async function expandSourceGroups(rows) {
+  if (!(rows || []).some(r => r.source_category)) return rows || [];
+  const snap = await menuSnapshot();
+  return rows.map(r => r.source_category ? { ...r, items: JSON.stringify(pickMenuAddons(snap, '', r.source_category, '')) } : r);
+}
+
 async function crossSellData() {
   const hit = menuCache.cross;
   if (hit && hit.version === menuCache.version) return hit.data;
   const version = menuCache.version;
-  const [ups, menu, cats] = await Promise.all([
+  const [ups, snap] = await Promise.all([
     dbAllAsync("SELECT * FROM upsells WHERE COALESCE(is_active, 1) = 1 AND COALESCE(as_addon, 0) = 1 AND COALESCE(upsell_type, 'cross_sell') <> 'upgrade' ORDER BY COALESCE(sort_order, 0), id", []),
-    dbAllAsync('SELECT id, name, category, price, image, variations, status, is_visible, extra_categories FROM menu', []),
-    dbAllAsync('SELECT name, is_visible, out_of_stock FROM categories', [])
+    menuSnapshot()
   ]);
-  const catRow = {}; cats.forEach(c => { catRow[String(c.name).trim()] = c; });
   const data = { groups: [], byItem: {} };
   ups.forEach(u => {
     const want = String(u.suggested_category || '').trim();
-    const seen = new Set(), items = [];
-    menu.forEach(m => {
-      if (m.name === u.item_name || seen.has(m.name)) return;
-      if (u.suggested_item ? m.name !== u.suggested_item : !(String(m.category || '').trim() === want || parseJsonSafe(m.extra_categories, []).map(c => String(c).trim()).includes(want))) return;
-      const cr = catRow[String(m.category || '').trim()];
-      if (m.status === 'Out of Stock' || m.status === 'unavailable' || (cr && Number(cr.out_of_stock))) return;
-      if (!u.suggested_item && (Number(m.is_visible) === 0 || (cr && Number(cr.is_visible) === 0))) return;
-      const vars = parseJsonSafe(m.variations, []).filter(v => v && v.active !== false);
-      const price = vars.length ? Math.min(...vars.map(v => Number(v.price) || 0)) : (Number(m.price) || 0);
-      seen.add(m.name);
-      items.push({ name: m.name, price, image: m.image || '', available: true });
-    });
+    const items = pickMenuAddons(snap, u.suggested_item, want, u.item_name);
     if (!items.length) return;
     data.groups.push({ id: -Number(u.id), name: u.label || want || u.suggested_item, min_selection: 0, max_selection: Math.max(1, items.length), is_mandatory: 0, sort_order: Number(u.sort_order) || 0, items: JSON.stringify(items) });
     (data.byItem[u.item_name] = data.byItem[u.item_name] || []).push(-Number(u.id));
@@ -530,22 +555,25 @@ function applyCrossSell(rows, cs) {
 app.get('/api/addon-groups', (req, res) => {
   db.all("SELECT * FROM addon_groups ORDER BY COALESCE(sort_order, 0), id DESC", [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
-    if (req.query.admin === '1') return res.json(rows || []);
-    crossSellData().then(cs => res.json((rows || []).concat(cs.groups)), () => res.json(rows || []));
+    expandSourceGroups(rows).catch(() => rows || []).then(list => {
+      if (req.query.admin === '1') return res.json(list);
+      crossSellData().then(cs => res.json(list.concat(cs.groups)), () => res.json(list));
+    });
   });
 });
 
 app.post('/api/addon-groups', (req, res) => {
-  const { name, min_selection, max_selection, is_mandatory, selection_type, items } = req.body;
+  const { name, min_selection, max_selection, is_mandatory, selection_type, items, source_category } = req.body;
   
   db.run(
-    `INSERT INTO addon_groups (name, min_selection, max_selection, is_mandatory, items) VALUES (?, ?, ?, ?, ?)`,
+    `INSERT INTO addon_groups (name, min_selection, max_selection, is_mandatory, items, source_category) VALUES (?, ?, ?, ?, ?, ?)`,
     [
       name || 'New Group', 
       min_selection !== undefined ? min_selection : 0, 
       max_selection !== undefined ? max_selection : 5, 
       is_mandatory ? 1 : 0, 
-      JSON.stringify(items || [])
+      JSON.stringify(source_category ? [] : (items || [])),
+      String(source_category || '').trim() || null
     ],
     function (err) {
       if (err) {
@@ -558,10 +586,10 @@ app.post('/api/addon-groups', (req, res) => {
 });
 
 app.put('/api/addon-groups/:id', (req, res) => {
-  const { name, min_selection, max_selection, is_mandatory, items } = req.body;
+  const { name, min_selection, max_selection, is_mandatory, items, source_category } = req.body;
   db.run(
-    `UPDATE addon_groups SET name = ?, min_selection = ?, max_selection = ?, is_mandatory = ?, items = ? WHERE id = ?`,
-    [name || 'New Group', min_selection || 0, max_selection || 5, is_mandatory ? 1 : 0, JSON.stringify(items || []), req.params.id],
+    `UPDATE addon_groups SET name = ?, min_selection = ?, max_selection = ?, is_mandatory = ?, items = ?, source_category = ? WHERE id = ?`,
+    [name || 'New Group', min_selection || 0, max_selection || 5, is_mandatory ? 1 : 0, JSON.stringify(source_category ? [] : (items || [])), String(source_category || '').trim() || null, req.params.id],
     function (err) {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ success: true });
@@ -1629,7 +1657,7 @@ async function validateOnlineItems(items) {
   if (!Array.isArray(items) || !items.length) return { error: 'Cart khali hai' };
   if (items.length > 60) return { error: 'Too many items' };
   const cross = await crossSellData().catch(() => ({ groups: [], byItem: {} }));
-  const groups = (await dbAllAsync('SELECT * FROM addon_groups', [])).concat(cross.groups);
+  const groups = (await expandSourceGroups(await dbAllAsync('SELECT * FROM addon_groups', []))).concat(cross.groups);
   const out = [];
   const qtyById = {};
   let subtotal = 0;
