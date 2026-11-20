@@ -321,7 +321,7 @@
     <div id="tabUpsells" class="hidden space-y-6">
       <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
         <h2 class="text-base font-bold text-gray-800 mb-1">Add Upsell</h2>
-        <p class="text-xs text-gray-500 mb-3">Kiosk, website, table QR aur POS par item add hone ke baad ye suggestions dikhte hain. <b>Upgrade</b> = ordered item ki jagah dusra item (Make it a meal). <b>Cross-sell</b> = saath me add (item ya poori category).</p>
+        <p class="text-xs text-gray-500 mb-3">Kiosk, website, table QR aur POS par ye add-on/suggestions dikhte hain. <b>Upgrade</b> = ordered item ki jagah dusra item (Make it a meal). <b>Cross-sell</b> = item ke add-on step me dikhta hai (ek item ya poori category, price menu wali).</p>
         <form onsubmit="saveUpsell(event)" class="grid grid-cols-1 md:grid-cols-6 gap-3 items-center">
           <input id="ups_item" type="text" list="itemNameList" placeholder="Jab ye item add ho" required class="border p-2.5 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500">
           <select id="ups_type" onchange="syncUpsellForm()" class="border p-2.5 rounded-xl text-xs outline-none bg-white">
@@ -808,7 +808,7 @@
     async function loadData() {
       try {
         const [g, v, c, items] = await Promise.all([
-          api('/api/addon-groups'),
+          api('/api/addon-groups?admin=1'),
           api('/api/variation-masters'),
           api('/api/categories'),
           api('/api/menu?admin=1')

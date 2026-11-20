@@ -478,10 +478,60 @@ app.delete('/api/categories/:id', (req, res) => {
 });
 
 // ================= GLOBAL ADD-ON GROUPS APIS (ROBUST & SAFE) =================
+// Admin > Upsells "Cross-sell" rules behave like add-ons: each active rule becomes a virtual add-on group (negative id = -rule id) holding the
+// suggested item or every item of the suggested category, and that id is appended to the source item's assigned_addon_groups in /api/menu.
+// Kiosk / website / table QR / POS / KDS and the online price validation then treat it exactly like a normal add-on group. Admin (?admin=1) never sees them.
+async function crossSellData() {
+  const hit = menuCache.cross;
+  if (hit && hit.version === menuCache.version) return hit.data;
+  const version = menuCache.version;
+  const [ups, menu, cats] = await Promise.all([
+    dbAllAsync("SELECT * FROM upsells WHERE COALESCE(is_active, 1) = 1 AND COALESCE(upsell_type, 'cross_sell') <> 'upgrade' ORDER BY COALESCE(sort_order, 0), id", []),
+    dbAllAsync('SELECT id, name, category, price, image, variations, status, is_visible, extra_categories FROM menu', []),
+    dbAllAsync('SELECT name, is_visible, out_of_stock FROM categories', [])
+  ]);
+  const catRow = {}; cats.forEach(c => { catRow[String(c.name).trim()] = c; });
+  const data = { groups: [], byItem: {} };
+  ups.forEach(u => {
+    const want = String(u.suggested_category || '').trim();
+    const seen = new Set(), items = [];
+    menu.forEach(m => {
+      if (m.name === u.item_name || seen.has(m.name)) return;
+      if (u.suggested_item ? m.name !== u.suggested_item : !(String(m.category || '').trim() === want || parseJsonSafe(m.extra_categories, []).map(c => String(c).trim()).includes(want))) return;
+      const cr = catRow[String(m.category || '').trim()];
+      if (m.status === 'Out of Stock' || m.status === 'unavailable' || (cr && Number(cr.out_of_stock))) return;
+      if (!u.suggested_item && (Number(m.is_visible) === 0 || (cr && Number(cr.is_visible) === 0))) return;
+      const vars = parseJsonSafe(m.variations, []).filter(v => v && v.active !== false);
+      const price = vars.length ? Math.min(...vars.map(v => Number(v.price) || 0)) : (Number(m.price) || 0);
+      seen.add(m.name);
+      items.push({ name: m.name, price, image: m.image || '', available: true });
+    });
+    if (!items.length) return;
+    data.groups.push({ id: -Number(u.id), name: u.label || want || u.suggested_item, min_selection: 0, max_selection: Math.max(1, items.length), is_mandatory: 0, sort_order: Number(u.sort_order) || 0, items: JSON.stringify(items) });
+    (data.byItem[u.item_name] = data.byItem[u.item_name] || []).push(-Number(u.id));
+  });
+  if (version === menuCache.version) menuCache.cross = { version, data };
+  return data;
+}
+function applyCrossSell(rows, cs) {
+  (rows || []).forEach(r => {
+    const ids = cs.byItem[r.name];
+    if (!ids || !ids.length) return;
+    const add = list => list.concat(ids.filter(id => !list.map(Number).includes(id)));
+    r.assigned_addon_groups = JSON.stringify(add(parseJsonSafe(r.assigned_addon_groups, [])));
+    const vars = parseJsonSafe(r.variations, []);
+    if (vars.some(v => Array.isArray(v.addon_groups) && v.addon_groups.length)) {   // a size with its own add-on groups replaces the item's, so it needs the cross-sell group too
+      vars.forEach(v => { if (Array.isArray(v.addon_groups) && v.addon_groups.length) v.addon_groups = add(v.addon_groups); });
+      r.variations = JSON.stringify(vars);
+    }
+  });
+}
+
 app.get('/api/addon-groups', (req, res) => {
   db.all("SELECT * FROM addon_groups ORDER BY COALESCE(sort_order, 0), id DESC", [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
-    res.json(rows || []);
+    if (req.query.admin === '1') return res.json(rows || []);
+    crossSellData().then(cs => res.json((rows || []).concat(cs.groups)), () => res.json(rows || []));
   });
 });
 
@@ -614,9 +664,14 @@ app.get('/api/menu', (req, res) => {
         } catch (e) {}
       });
     }
-    const body = JSON.stringify(rows || []);
-    if (version === menuCache.version) menuCache.entries[key] = { at: Date.now(), body };
-    res.type('json').send(body);
+    const finish = cs => {
+      if (cs) applyCrossSell(rows, cs);
+      const body = JSON.stringify(rows || []);
+      if (version === menuCache.version) menuCache.entries[key] = { at: Date.now(), body };
+      res.type('json').send(body);
+    };
+    if (key === 'admin') return finish(null);
+    crossSellData().then(finish, () => finish(null));
   });
   });
 });
@@ -1572,7 +1627,8 @@ const parseJsonSafe = (v, d) => { try { const x = JSON.parse(v || ''); return x 
 async function validateOnlineItems(items) {
   if (!Array.isArray(items) || !items.length) return { error: 'Cart khali hai' };
   if (items.length > 60) return { error: 'Too many items' };
-  const groups = await dbAllAsync('SELECT * FROM addon_groups', []);
+  const cross = await crossSellData().catch(() => ({ groups: [], byItem: {} }));
+  const groups = (await dbAllAsync('SELECT * FROM addon_groups', [])).concat(cross.groups);
   const out = [];
   const qtyById = {};
   let subtotal = 0;
@@ -1603,6 +1659,7 @@ async function validateOnlineItems(items) {
       price = Number(v.price) || 0;
       if (Array.isArray(v.addon_groups) && v.addon_groups.length) groupIds = v.addon_groups;
     }
+    groupIds = (Array.isArray(groupIds) ? groupIds : []).concat(cross.byItem[m.name] || []);
 
     const allowed = {};
     (Array.isArray(groupIds) ? groupIds : []).map(Number).forEach(gid => {
