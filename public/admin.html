@@ -864,7 +864,7 @@
       const q = document.getElementById('itemSearch').value.trim().toLowerCase();
       const cat = document.getElementById('itemCatFilter').value;
       return menuItems.filter(i =>
-        (!cat || i.category === cat) && (!q || String(i.name).toLowerCase().includes(q))
+        (!cat || inCategory(i, cat)) && (!q || String(i.name).toLowerCase().includes(q))
       );
     }
 
@@ -1036,7 +1036,7 @@
     function renderCategories() {
       const names = allCategoryNames();
       document.getElementById('categoriesList').innerHTML = names.length ? names.map(n => {
-        const count = menuItems.filter(i => i.category === n).length;
+        const count = menuItems.filter(i => inCategory(i, n)).length;
         const rec = categories.find(c => c.name === n);
         const ci = names.indexOf(n);
         return `
@@ -1447,6 +1447,11 @@
       renderEditImage();
     }
 
+    // true if the item is in category c as its main category or as one of its extra categories
+    function inCategory(i, c) {
+      if (i.category === c) return true;
+      try { return JSON.parse(i.extra_categories || '[]').includes(c); } catch (e) { return false; }
+    }
     // Extra categories: the item also shows under these on POS / kiosk / QR (the main category above stays the one used for reports).
     let editExtraCats = [];
     function renderEditExtraCats() {
