@@ -171,6 +171,8 @@ pool.query(`
   await pool.query(`CREATE TABLE IF NOT EXISTS customer_profiles (phone TEXT PRIMARY KEY, name TEXT, token TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`).catch(() => {});
   await pool.query(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS config TEXT;`).catch(() => {});
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMP;`).catch(() => {});
+  // KDS timer start: set when the order reaches the KDS (accepted) and again whenever new items are added to a running KOT
+  await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS kds_at TIMESTAMP;`).catch(() => {});
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS ready_at TIMESTAMP;`).catch(() => {});
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS dispatched_at TIMESTAMP;`).catch(() => {});
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_address TEXT;`).catch(() => {});

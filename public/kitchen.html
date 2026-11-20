@@ -784,7 +784,7 @@
         var timerEl = document.getElementById('kotTimer_' + order.id);
         if (!timerEl) return;
 
-        var startTime = order.created_at ? new Date(order.created_at).getTime() : now;
+        var startTime = (order.kds_at || order.created_at) ? new Date(order.kds_at || order.created_at).getTime() : now;   // from the moment the KOT reached the KDS (restarts when items are added)
         var diffSec = Math.max(0, Math.floor((now - startTime) / 1000));
 
         var mins = Math.floor(diffSec / 60);

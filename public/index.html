@@ -1077,9 +1077,10 @@
         <span id="modalCashReturnChange" class="font-black text-sm text-orange-950">₹0.00</span>
       </div>
 
-      <div class="grid grid-cols-2 gap-2 pt-1">
-        <button onclick="closeCashReceivedModal()" class="border border-gray-300 hover:bg-gray-100 text-gray-700 py-2.5 rounded-xl text-xs font-black transition">Cancel</button>
-        <button onclick="confirmCashPaymentExecute()" class="bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white py-2.5 rounded-xl text-xs font-black transition shadow-sm">Confirm</button>
+      <div class="flex gap-2 pt-1">
+        <button onclick="closeCashReceivedModal()" class="border border-gray-300 hover:bg-gray-100 text-gray-700 px-4 py-2.5 rounded-xl text-xs font-black transition">Cancel</button>
+        <button onclick="confirmCashPaymentExecute(true)" class="flex-1 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white py-2.5 rounded-xl text-xs font-black transition shadow-sm">🖨 Confirm + Print</button>
+        <button onclick="confirmCashPaymentExecute(false)" class="flex-1 bg-gray-800 hover:bg-gray-900 active:bg-black text-white py-2.5 rounded-xl text-xs font-black transition shadow-sm">✓ Confirm (No Print)</button>
       </div>
     </div>
   </div>
@@ -3498,12 +3499,12 @@
       document.getElementById('modalCashReturnChange').innerText = '₹' + change.toFixed(2);
     }
 
-    function confirmCashPaymentExecute() {
+    function confirmCashPaymentExecute(printBill) {
       closeCashReceivedModal();
       selectPaymentMode('Cash');
       document.getElementById('splitPaymentPanel').classList.add('hidden');
       openCashDrawer();
-      executePlaceOrder();
+      executePlaceOrder(printBill !== false);
     }
 
     // ================= SPLIT PAYMENT LOGIC =================

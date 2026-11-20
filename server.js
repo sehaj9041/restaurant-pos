@@ -958,7 +958,8 @@ app.post('/api/orders/:id/approve', (req, res) => {
       `UPDATE orders 
        SET status = ?, 
            table_no = ?,
-           accepted_at = COALESCE(accepted_at, CURRENT_TIMESTAMP)
+           accepted_at = COALESCE(accepted_at, CURRENT_TIMESTAMP),
+           kds_at = CURRENT_TIMESTAMP
        WHERE id = ?`, 
       [newStatus, newTableNo, orderId], 
       (err2) => {
@@ -1074,7 +1075,7 @@ const assignTableHandler = async (req, res) => {
     const gst = Math.round(taxableSubtotal(rows) * 5 / 100);
     const paid = (Number(target.paid_amount) || 0) + (Number(src.paid_amount) || 0);
     // new items need cooking, so the merged bill goes back to the kitchen (RUNNING_TABLE)
-    await run(`UPDATE orders SET subtotal = ?, gst = ?, total = ?, paid_amount = ?, status = 'RUNNING_TABLE',
+    await run(`UPDATE orders SET subtotal = ?, gst = ?, total = ?, paid_amount = ?, status = 'RUNNING_TABLE', kds_at = CURRENT_TIMESTAMP,
         customer_name = COALESCE(NULLIF(customer_name, ''), ?), customer_phone = COALESCE(NULLIF(customer_phone, ''), ?),
         payment_mode = CASE WHEN ?::numeric > 0 AND COALESCE(payment_mode, '') IN ('', 'UNPAID') THEN ? ELSE payment_mode END
       WHERE id = ?`,
@@ -1617,6 +1618,8 @@ app.put('/api/orders/:id', (req, res, next) => engagement.applyPromoToOrderEdit(
       [order_type, table_no || '', customer_name || '', customer_phone || '', subtotal, putComp ? subtotal : putDiscount, putComp ? 0 : (gst || 0), finalTotal, finalMode, status, finalPaid, (putComp || putDiscount > 0) ? putReason : '', putComp ? 1 : 0, orderId],
       async (err) => {
         if (err) return res.status(500).json({ error: err.message });
+        // New items / more qty sent to the kitchen: the KOT timer on the KDS starts again
+        if (hasNewItems && status === 'RUNNING_TABLE') await dbAllAsync('UPDATE orders SET kds_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING id', [orderId]).catch(() => {});
 
         // Items are rewritten on every edit: carry over how many units of each line the kitchen already finished
         const lineKey = (n, pr, un) => [n, Number(pr) || 0, String(un || '')].join('|'); // pack_flip is not part of the key: flipping Pack must not make a ready item pending again
@@ -2184,10 +2187,11 @@ app.get('/token-display', (req, res) => res.sendFile(path.join(__dirname, 'publi
 // ================= KDS API ROUTE (STRICT FILTER) =================
 app.get('/api/kot', (req, res) => {
   const query = `
-    SELECT o.id, o.token_no, o.order_type, o.table_no, o.status, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time 
+    SELECT o.id, o.token_no, o.order_type, o.table_no, o.status, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time,
+           COALESCE(o.kds_at, o.accepted_at, o.created_at) AS kds_at   -- KDS timer start
     FROM orders o 
     WHERE UPPER(o.status) = 'RUNNING_TABLE'
-    ORDER BY o.id ASC
+    ORDER BY COALESCE(o.accepted_at, o.created_at) ASC, o.id ASC   -- KDS shows orders in the sequence they were accepted, not by order number
   `;
 
   db.all(query, [], async (err, orders) => {
@@ -2317,7 +2321,7 @@ app.get('/api/kot/recent', async (req, res) => {
 
 app.post('/api/kot/:id/recall', async (req, res) => {
   try {
-    const rows = await dbAllAsync(`UPDATE orders SET status = 'RUNNING_TABLE', ready_at = NULL
+    const rows = await dbAllAsync(`UPDATE orders SET status = 'RUNNING_TABLE', ready_at = NULL, kds_at = CURRENT_TIMESTAMP
       WHERE id = ? AND ${KDS_RECALLABLE} AND delivered_at IS NULL RETURNING id`, [req.params.id]);
     if (!rows.length) return res.status(409).json({ error: 'Ye order ab recall nahi ho sakta (settle ho chuka ya delivered hai)' });
     await dbAllAsync('UPDATE order_items SET done_qty = 0 WHERE order_id = ? RETURNING id', [req.params.id]);
