@@ -1406,14 +1406,64 @@
       try { c = JSON.parse(localStorage.getItem(PRINT_KEY) || '{}'); } catch (e) {}
       return { method: c.method || (window.AndroidPrinter ? 'usb' : 'off'), width: Number(c.width) || 42, logo: c.logo !== false, fast: c.fast === true, billw: Number(c.billw) > 0 ? Number(c.billw) : '', feed: c.feed === undefined || c.feed === '' ? 4 : Math.max(0, Math.min(20, Number(c.feed) || 0)), copies: Math.max(1, Math.min(3, Number(c.copies) || 1)) };
     }
-    // Welcome screen ka background (Settings > Storefront > Kiosk Welcome Background): video ya photo, warna default offer design
+    // Welcome screen ka background (Settings > Storefront > Kiosk Welcome Background): ek ya kai photos/videos, ek ke baad ek slide hote rehte hain.
+    // Photo `seconds` tak rukti hai, video khatam hone par agli slide aati hai. Kuch set nahi to default offer design.
+    let welcomeKey = '', welcomeList = [], welcomeSec = 6, welcomeIdx = -1, welcomeTimer = null;
+    function normWelcome(w) {
+      const items = w && Array.isArray(w.items) ? w.items.filter(x => x && x.url) : (w && w.url ? [w] : []);   // old setting = a single {url, type}
+      return { items, seconds: Math.min(60, Math.max(2, Number(w && w.seconds) || 6)) };
+    }
     function paintWelcomeMedia(w) {
-      const url = w && w.url;
-      $('idleDefault').classList.toggle('hidden', !!url);
-      $('idleMedia').classList.toggle('hidden', !url);
-      $('idleMedia').innerHTML = !url ? '' : w.type === 'video'
-        ? `<video src="${esc(url)}" class="w-full h-full object-cover" autoplay muted loop playsinline></video>`
-        : `<img src="${esc(url)}" class="w-full h-full object-cover" alt="">`;
+      const n = normWelcome(w), key = JSON.stringify(n);
+      $('idleDefault').classList.toggle('hidden', !n.items.length);
+      $('idleMedia').classList.toggle('hidden', !n.items.length);
+      if (key === welcomeKey) return;
+      welcomeKey = key; welcomeList = n.items; welcomeSec = n.seconds; welcomeIdx = -1;
+      clearTimeout(welcomeTimer);
+      $('idleMedia').innerHTML = '';
+      if (welcomeList.length) welcomeNext();
+    }
+    function welcomeNext() {
+      clearTimeout(welcomeTimer);
+      if (!welcomeList.length) return;
+      const box = $('idleMedia'), multi = welcomeList.length > 1, old = box.querySelector('.wslide');
+      welcomeIdx = (welcomeIdx + 1) % welcomeList.length;
+      const it = welcomeList[welcomeIdx], el = document.createElement('div');
+      el.className = 'wslide absolute inset-0';
+      if (old && multi) el.style.cssText = 'transform:translateX(100%);transition:transform .7s ease';
+      if (it.type === 'video') {
+        const v = document.createElement('video');
+        v.src = it.url; v.className = 'w-full h-full object-cover'; v.muted = true; v.autoplay = true; v.playsInline = true; v.loop = !multi;
+        if (multi) {
+          v.onended = welcomeNext;
+          v.onerror = () => { clearTimeout(welcomeTimer); welcomeTimer = setTimeout(welcomeNext, 1500); };
+          welcomeTimer = setTimeout(welcomeNext, 180000);   // never stay stuck on one video
+        }
+        el.appendChild(v);
+        v.play().catch(() => {});
+      } else {
+        const img = document.createElement('img');
+        img.src = it.url; img.className = 'w-full h-full object-cover'; img.alt = '';
+        if (multi) img.onerror = () => { clearTimeout(welcomeTimer); welcomeTimer = setTimeout(welcomeNext, 1500); };
+        el.appendChild(img);
+        if (multi) welcomeTimer = setTimeout(welcomeNext, welcomeSec * 1000);
+      }
+      box.appendChild(el);
+      if (old && multi) {
+        void el.offsetWidth;
+        el.style.transform = 'translateX(0)';
+        old.style.transition = 'transform .7s ease'; old.style.transform = 'translateX(-100%)';
+        setTimeout(() => old.remove(), 800);
+      } else if (old) old.remove();
+    }
+    // customer left the welcome screen: stop slides/videos (decoder/GPU), and start again when it comes back
+    function welcomePause() {
+      clearTimeout(welcomeTimer);
+      $('idleMedia').querySelectorAll('video').forEach(v => v.pause());
+    }
+    function welcomeResume() {
+      if (welcomeList.length > 1) welcomeNext();
+      else { const v = $('idleMedia').querySelector('video'); if (v) v.play().catch(() => {}); }
     }
     function loadKioskReceiptCfg() {
       fetch('/api/settings/config').then(r => r.json()).then(c => { kioskReceiptCfg = (c && c.receipt) || {}; paintBrand(); paintWelcomeMedia(c && c.kiosk_welcome); }).catch(() => {});
@@ -1850,8 +1900,7 @@
       // show the next screen first, then stop the welcome video so it stops competing for the decoder/GPU
       $('modeSelectionScreen').classList.remove('hidden');
       $('idleScreensaver').classList.add('hidden');
-      const v = $('idleMedia').querySelector('video');
-      if (v) v.pause();
+      welcomePause();
     }
 
     function startKioskOrderWithMode(mode) {
@@ -1882,8 +1931,7 @@
       ['tokenSuccessModal', 'trayReviewModal', 'phoneModal', 'pointsModal', 'paymentModal', 'upiQrModal', 'customizerModal', 'modeSelectionScreen', 'addedModal', 'upsellModal', 'mealChoiceModal', 'thinkingModal']
         .forEach(id => $(id).classList.add('hidden'));
       $('idleScreensaver').classList.remove('hidden');
-      const idleVideo = $('idleMedia').querySelector('video');
-      if (idleVideo) idleVideo.play().catch(() => {});
+      welcomeResume();
       if (categories.length) { activeCategory = categories[0]; renderCategories(); }
       clearTimeout(idleTimer);
       clearInterval(countdownTimer);

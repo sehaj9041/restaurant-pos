@@ -411,16 +411,17 @@
         </div>
         <div class="bg-white border rounded-2xl p-5">
           <h2 class="font-black text-base">Kiosk Welcome Background</h2>
-          <p class="text-[11px] text-gray-500 mb-3">Kiosk ke welcome screen ka background. 9:16 (portrait) video ya photo — MP4/WebM ya PNG/JPG/WebP, max 25 MB. Video bina awaaz ke loop me chalegi. Set nahi karne par default offer design dikhega.</p>
-          <div class="flex items-center gap-4">
-            <div class="w-24 h-[170px] border rounded-xl flex items-center justify-center bg-gray-50 overflow-hidden"><div id="kwPreview" class="w-full h-full hidden"></div><span id="kwNone" class="text-[10px] text-gray-400">Default</span></div>
-            <div class="space-y-2">
-              <input type="file" id="kwFile" accept="image/png,image/jpeg,image/webp,video/mp4,video/webm" onchange="uploadKioskWelcome()" class="hidden">
-              <button onclick="$('kwFile').click()" class="border text-xs font-black px-3 py-2 rounded-lg hover:bg-gray-50">Upload video / photo</button>
-              <button id="kwRemove" onclick="removeKioskWelcome()" class="hidden border border-rose-200 text-rose-600 text-xs font-black px-3 py-2 rounded-lg hover:bg-rose-50 ml-2">Remove</button>
-              <p id="kwStatus" class="text-[10px] text-gray-400">MP4, WebM, PNG, JPG, WebP — max 25 MB</p>
-            </div>
+          <p class="text-[11px] text-gray-500 mb-3">Kiosk ke welcome screen par ek ya kai photos / videos laga sakte hain, wo ek ke baad ek slide hote rehte hain. 9:16 (portrait) — MP4/WebM ya PNG/JPG/WebP, har file max 25 MB, max 10 files. Video bina awaaz ke chalegi aur khatam hone par agli slide aayegi. Kuch set nahi karne par default offer design dikhega.</p>
+          <div id="kwList" class="flex flex-wrap gap-3 mb-3"></div>
+          <span id="kwNone" class="text-[11px] text-gray-400 block mb-3">Abhi default design laga hai</span>
+          <div class="flex flex-wrap items-center gap-3">
+            <input type="file" id="kwFile" multiple accept="image/png,image/jpeg,image/webp,video/mp4,video/webm" onchange="uploadKioskWelcome()" class="hidden">
+            <button onclick="$('kwFile').click()" class="border text-xs font-black px-3 py-2 rounded-lg hover:bg-gray-50">+ Add videos / photos</button>
+            <button id="kwRemove" onclick="removeKioskWelcome()" class="hidden border border-rose-200 text-rose-600 text-xs font-black px-3 py-2 rounded-lg hover:bg-rose-50">Remove all</button>
+            <label class="text-xs font-bold text-gray-600 flex items-center gap-1.5">Photo kitne second dikhe
+              <input id="kwSeconds" type="number" min="2" max="60" value="6" onchange="setKioskWelcomeSeconds()" class="w-16 border rounded-lg p-1.5 text-xs font-bold"></label>
           </div>
+          <p id="kwStatus" class="text-[10px] text-gray-400 mt-2">MP4, WebM, PNG, JPG, WebP — max 25 MB</p>
         </div>
       </section>
 
@@ -1157,38 +1158,73 @@
     }
 
     // ---------- Kiosk welcome background ----------
+    let kwItems = [], kwSeconds = 6;
     function showKioskWelcome(w) {
-      const box = $('kwPreview'), url = w && w.url;
-      box.classList.toggle('hidden', !url);
-      $('kwNone').classList.toggle('hidden', !!url);
-      $('kwRemove').classList.toggle('hidden', !url);
-      box.innerHTML = !url ? '' : w.type === 'video'
-        ? `<video src="${url}" class="w-full h-full object-cover" muted loop autoplay playsinline></video>`
-        : `<img src="${url}" class="w-full h-full object-cover" alt="">`;
+      kwItems = w && Array.isArray(w.items) ? w.items.filter(x => x && x.url) : (w && w.url ? [{ url: w.url, type: w.type }] : []);   // old setting = a single {url, type}
+      kwSeconds = Math.min(60, Math.max(2, Number(w && w.seconds) || 6));
+      $('kwSeconds').value = kwSeconds;
+      kwRender();
+    }
+    function kwRender() {
+      $('kwNone').classList.toggle('hidden', !!kwItems.length);
+      $('kwRemove').classList.toggle('hidden', !kwItems.length);
+      $('kwList').innerHTML = kwItems.map((it, i) => `
+        <div class="w-24">
+          <div class="w-24 h-[170px] border rounded-xl overflow-hidden bg-gray-50 relative">
+            ${it.type === 'video' ? `<video src="${it.url}" class="w-full h-full object-cover" muted loop autoplay playsinline></video><span class="absolute top-1 left-1 bg-black/60 text-white text-[9px] font-black px-1.5 rounded">VIDEO</span>` : `<img src="${it.url}" class="w-full h-full object-cover" alt="">`}
+            <span class="absolute bottom-1 left-1 bg-white/90 text-[10px] font-black px-1.5 rounded">${i + 1}</span>
+          </div>
+          <div class="flex justify-between mt-1 text-xs font-black">
+            <button ${i === 0 ? 'disabled style="opacity:.3"' : ''} onclick="kwMove(${i}, -1)" class="px-2 border rounded">◀</button>
+            <button onclick="kwDelete(${i})" class="px-2 border border-rose-200 text-rose-600 rounded">✕</button>
+            <button ${i === kwItems.length - 1 ? 'disabled style="opacity:.3"' : ''} onclick="kwMove(${i}, 1)" class="px-2 border rounded">▶</button>
+          </div>
+        </div>`).join('');
+    }
+    async function kwSave(msg) {
+      try {
+        await putConfig({ kiosk_welcome: kwItems.length ? { items: kwItems, seconds: kwSeconds } : null });
+        kwRender();
+        toast(msg);
+      } catch (e) { toast(e.message, true); }
     }
     async function uploadKioskWelcome() {
-      const f = $('kwFile').files[0];
-      if (!f) return;
-      const isVideo = /^video\/(mp4|webm)$/.test(f.type), isImage = /^image\/(png|jpeg|webp)$/.test(f.type);
-      if (!isVideo && !isImage) { $('kwFile').value = ''; return toast('Sirf MP4/WebM video ya PNG/JPG/WebP photo', true); }
-      if (f.size > 25 * 1024 * 1024) { $('kwFile').value = ''; return toast('File 25 MB se chhoti honi chahiye', true); }
-      $('kwStatus').innerText = 'Uploading...';
-      const fd = new FormData(); fd.append('image', f);
-      try {
-        const r = await fetch('/api/upload', { method: 'POST', body: fd });
-        const d = await r.json().catch(() => ({}));
-        if (!r.ok || !d.imageUrl) throw new Error(d.error || 'Upload fail');
-        const w = { url: d.imageUrl, type: isVideo ? 'video' : 'image' };
-        await putConfig({ kiosk_welcome: w });
-        showKioskWelcome(w);
-        toast('Welcome background save ho gaya ✓');
-      } catch (e) { toast(e.message, true); }
-      $('kwStatus').innerText = 'MP4, WebM, PNG, JPG, WebP — max 25 MB';
+      const files = [...$('kwFile').files];
       $('kwFile').value = '';
+      if (!files.length) return;
+      if (kwItems.length + files.length > 10) return toast('Max 10 files laga sakte hain', true);
+      let added = 0;
+      for (const f of files) {
+        const isVideo = /^video\/(mp4|webm)$/.test(f.type), isImage = /^image\/(png|jpeg|webp)$/.test(f.type);
+        if (!isVideo && !isImage) { toast(f.name + ': sirf MP4/WebM video ya PNG/JPG/WebP photo', true); continue; }
+        if (f.size > 25 * 1024 * 1024) { toast(f.name + ': 25 MB se chhoti honi chahiye', true); continue; }
+        $('kwStatus').innerText = 'Uploading ' + f.name + '...';
+        const fd = new FormData(); fd.append('image', f);
+        try {
+          const r = await fetch('/api/upload', { method: 'POST', body: fd });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok || !d.imageUrl) throw new Error(d.error || 'Upload fail');
+          kwItems.push({ url: d.imageUrl, type: isVideo ? 'video' : 'image' });
+          added++;
+        } catch (e) { toast(f.name + ': ' + e.message, true); }
+      }
+      $('kwStatus').innerText = 'MP4, WebM, PNG, JPG, WebP — max 25 MB';
+      if (added) await kwSave('Welcome background save ho gaya ✓');
+      else kwRender();
     }
-    function removeKioskWelcome() {
-      putConfig({ kiosk_welcome: null }).then(() => { showKioskWelcome(null); toast('Default design wapas laga diya'); }).catch(e => toast(e.message, true));
+    function kwMove(i, d) {
+      const j = i + d;
+      if (j < 0 || j >= kwItems.length) return;
+      kwItems.splice(j, 0, kwItems.splice(i, 1)[0]);
+      kwSave('Order save ho gaya ✓');
     }
+    function kwDelete(i) { kwItems.splice(i, 1); kwSave(kwItems.length ? 'Hata diya' : 'Default design wapas laga diya'); }
+    function setKioskWelcomeSeconds() {
+      kwSeconds = Math.min(60, Math.max(2, Number($('kwSeconds').value) || 6));
+      $('kwSeconds').value = kwSeconds;
+      if (kwItems.length) kwSave('Time save ho gaya ✓');
+    }
+    function removeKioskWelcome() { kwItems = []; kwSave('Default design wapas laga diya'); }
 
     // ---------- Operating Hours ----------
     const DAYS = [['mon', 'MON'], ['tue', 'TUE'], ['wed', 'WED'], ['thu', 'THU'], ['fri', 'FRI'], ['sat', 'SAT'], ['sun', 'SUN']];
