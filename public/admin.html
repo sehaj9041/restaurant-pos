@@ -1205,9 +1205,10 @@
 
     function renderTempGroupItems() {
       document.getElementById('tempGroupItemsList').innerHTML = tempGroupItems.map((item, idx) => `
-        <span class="inline-flex items-center gap-1.5 bg-white border border-indigo-200 px-2.5 py-1 rounded-lg text-xs shadow-sm">
+        <span class="inline-flex items-center gap-1.5 bg-white border ${item.available === false ? 'border-red-300 opacity-70' : 'border-indigo-200'} px-2.5 py-1 rounded-lg text-xs shadow-sm">
           ${item.image ? `<img src="${esc(resolveImgPath(item.image))}" class="w-4 h-4 rounded object-cover">` : ''}
-          <span class="font-bold text-gray-700">${esc(item.name)} (+₹${esc(item.price)})</span>
+          <span class="font-bold text-gray-700 ${item.available === false ? 'line-through' : ''}">${esc(item.name)} (+₹${esc(item.price)})</span>
+          <button type="button" onclick="tempGroupItems[${idx}].available = tempGroupItems[${idx}].available === false; renderTempGroupItems();" class="font-bold ml-1 px-1.5 py-0.5 rounded text-[10px] ${item.available === false ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}" title="Out of stock karne / wapas laane ke liye dabayein">${item.available === false ? 'Unavailable' : 'Available'}</button>
           <label class="text-indigo-600 font-bold ml-1 cursor-pointer hover:underline" title="Image change karein">📷<input type="file" accept="image/*" class="hidden" onchange="changeGroupItemImage(${idx}, this)"></label>
           <button type="button" ${idx === 0 ? 'disabled style="opacity:.3"' : ''} onclick="moveGroupItem(${idx}, -1)" class="text-gray-500 font-bold ml-1" title="Pehle le jaayein">◀</button>
           <button type="button" ${idx === tempGroupItems.length - 1 ? 'disabled style="opacity:.3"' : ''} onclick="moveGroupItem(${idx}, 1)" class="text-gray-500 font-bold" title="Baad me le jaayein">▶</button>
@@ -1256,7 +1257,7 @@
       document.getElementById('grp_max').value = g.max_selection ?? 5;
       document.getElementById('grp_mandatory').checked = !!Number(g.is_mandatory);
       fillGroupSourceCats(g.source_category || '');
-      tempGroupItems = g.source_category ? [] : parseJson(g.items, []).map(i => ({ name: i.name, price: Number(i.price), image: i.image || '' }));
+      tempGroupItems = g.source_category ? [] : parseJson(g.items, []).map(i => ({ name: i.name, price: Number(i.price), image: i.image || '', available: i.available !== false }));
       document.getElementById('grpFormTitle').innerText = 'Edit Add-on Group: ' + g.name;
       document.getElementById('grpSaveBtn').innerText = 'Update Group';
       document.getElementById('grpCancelBtn').classList.remove('hidden');
