@@ -118,6 +118,18 @@
       return kpis([['Dishes sold', d.rows.length], ['Total quantity', q], ['Gross item sales', rs(g)]]) +
         table('Item wise sales (highest first)', [['#', function (r) { return d.rows.indexOf(r) + 1; }, 'c'], ['Item', B('item')], ['Category', T('category')], ['Qty', function (r) { return '<b class="text-indigo-600">' + r.qty + '</b>'; }, 'c'], ['Orders', T('orders'), 'c'], ['Amount', R('gross'), 'r'], ['Share', function (r) { return bar(r.share); }]], d.rows, ['', 'Total', '', q, '', rs(g), '']);
     } },
+    foodmix: { label: '🥗 Veg / Non-Veg', note: 'Har item ka Veg / Non-Veg / Egg menu me set kiye type se aata hai. Amount = qty × price (discount aur GST se pehle).', render: function (d) {
+      var col = { veg: '#16a34a', nonveg: '#dc2626', egg: '#eab308', unset: '#9ca3af' };
+      var tg = r2(d.rows.reduce(function (t, r) { return t + r.gross; }, 0)), tq = d.rows.reduce(function (t, r) { return t + r.qty; }, 0);
+      var strip = tg ? '<div class="flex h-4 rounded-full overflow-hidden bg-gray-100">' + d.rows.filter(function (r) { return r.gross > 0; }).map(function (r) { return '<div style="width:' + r.share + '%;background:' + col[r.type] + '" title="' + esc(r.label) + ' ' + r.share + '%"></div>'; }).join('') + '</div>' : '';
+      return '<div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">' + strip + '</div>' +
+        '<div class="grid grid-cols-2 md:grid-cols-4 gap-3">' + d.rows.map(function (r) {
+          return '<div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm"><span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider"><span class="inline-block w-2.5 h-2.5 rounded-full mr-1.5 align-middle" style="background:' + col[r.type] + '"></span>' + esc(r.label) + '</span>' +
+            '<h2 class="text-2xl font-black text-gray-900 mt-1">' + r.share + '%</h2><p class="text-[11px] text-gray-500 mt-0.5">' + rs(r.gross) + ' • ' + r.qty + ' items (' + r.qty_share + '% qty)</p></div>';
+        }).join('') + '</div>' +
+        table('Veg / Non-Veg wise sales', [['Type', function (r) { return '<span class="inline-block w-2.5 h-2.5 rounded-full mr-1.5" style="background:' + col[r.type] + '"></span><b>' + esc(r.label) + '</b>'; }], ['Qty', T('qty'), 'c'], ['Qty share', function (r) { return r.qty_share + '%'; }, 'c'], ['Amount', R('gross'), 'r'], ['Share', function (r) { return bar(r.share); }]], d.rows, ['Total', tq, '100%', rs(tg), '']) +
+        (d.unset && d.unset.length ? '<p class="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">Inka Veg/Non-Veg menu me set nahi hai, isliye "Type set nahi" me gine gaye: ' + d.unset.map(esc).join(', ') + '</p>' : '');
+    } },
     categories: { label: '🗂 Categories', render: function (d) {
       var g = r2(d.rows.reduce(function (t, r) { return t + r.gross; }, 0));
       return table('Category wise sales', [['Category', B('category')], ['Dishes', T('dishes'), 'c'], ['Qty', T('qty'), 'c'], ['Amount', R('gross'), 'r'], ['Share', function (r) { return bar(r.share); }]], d.rows, ['Total', '', d.rows.reduce(function (t, r) { return t + r.qty; }, 0), rs(g), '']);

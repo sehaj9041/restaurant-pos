@@ -81,6 +81,33 @@ function register(app, { dbAllAsync }) {
     return { rows: rows.map(r => ({ item: r.item, category: r.category || 'Uncategorised', qty: num(r.qty), orders: num(r.orders), gross: r2(r.gross), share: all ? r2(num(r.gross) * 100 / all) : 0 })) };
   };
 
+  // Veg / Non-Veg / Egg split: each order line is matched to the menu's food_type by item name (size / add-on text in the name is ignored)
+  reports.foodmix = async (a, b) => {
+    const lines = await q(`${SALES} SELECT oi.name, SUM(oi.qty) AS qty, SUM(oi.price * oi.qty) AS gross
+      FROM order_items oi JOIN s ON s.id = oi.order_id WHERE oi.name <> 'Delivery Charge' GROUP BY 1`, [a, b]);
+    const menu = await q("SELECT name, food_type FROM menu WHERE COALESCE(food_type, '') <> ''");
+    const norm = x => String(x || '').replace(/[\u00a0\u200b]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+    const map = {}; menu.forEach(m => { map[norm(m.name)] = m.food_type; });
+    const keys = Object.keys(map).sort((x, y) => y.length - x.length);
+    const typeOf = (raw) => {
+      let n = norm(raw), t = map[n];
+      while (!t && /\s*\([^()]*\)$/.test(n)) { n = n.replace(/\s*\([^()]*\)$/, '').trim(); t = map[n]; }   // "Burger (Large) (Dip)" -> "Burger"
+      if (!t) { const full = norm(raw); const hit = keys.find(k => full.indexOf(k) === 0 && /^\s*[(\-–:,]/.test(full.slice(k.length))); if (hit) t = map[hit]; }
+      return ['veg', 'nonveg', 'egg'].includes(t) ? t : 'unset';
+    };
+    const B = { veg: { label: 'Veg', qty: 0, gross: 0 }, nonveg: { label: 'Non-Veg', qty: 0, gross: 0 }, egg: { label: 'Egg', qty: 0, gross: 0 }, unset: { label: 'Type set nahi', qty: 0, gross: 0 } };
+    const unset = {};
+    lines.forEach(l => {
+      const t = typeOf(l.name); B[t].qty += num(l.qty); B[t].gross += num(l.gross);
+      if (t === 'unset') { const k = String(l.name).replace(/\s*\([^()]*\)$/g, '').trim(); unset[k] = (unset[k] || 0) + num(l.gross); }
+    });
+    const totG = Object.values(B).reduce((s, x) => s + x.gross, 0), totQ = Object.values(B).reduce((s, x) => s + x.qty, 0);
+    return {
+      rows: ['veg', 'nonveg', 'egg', 'unset'].map(k => ({ type: k, label: B[k].label, qty: B[k].qty, gross: r2(B[k].gross), share: totG ? r2(B[k].gross * 100 / totG) : 0, qty_share: totQ ? r2(B[k].qty * 100 / totQ) : 0 })),
+      unset: Object.keys(unset).sort((x, y) => unset[y] - unset[x]).slice(0, 10)
+    };
+  };
+
   reports.categories = async (a, b) => {
     const rows = await q(`${SALES} SELECT COALESCE(m.category, 'Uncategorised') AS category, SUM(oi.qty) AS qty, SUM(oi.price * oi.qty) AS gross, COUNT(DISTINCT ${BASE_ITEM}) AS dishes
       FROM order_items oi JOIN s ON s.id = oi.order_id LEFT JOIN menu m ON m.name = ${BASE_ITEM}
