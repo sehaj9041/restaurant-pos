@@ -4318,6 +4318,7 @@
           ${payload.customer_address && bOn('show_address') ? `<div>Address: ${String(payload.customer_address).replace(/[&<>]/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; })}</div>` : ''}
           ${bOn('show_date') ? `<div>Date: ${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' })}</div>` : ''}
           <div class="divider"></div>
+          ${bOn('show_feedback_qr') && orderId ? `<div style="text-align:center; margin:4px 0;"><div style="font-size:13px; font-weight:900;">Khana pasand aaya?</div><img src="/api/feedback/qr/${encodeURIComponent(orderId)}" style="width:30mm;height:30mm;"><div style="font-size:12px; font-weight:700;">Scan karke 5 second me rate karein</div></div><div class="divider"></div>` : ''}
           ${itemsRows}
           <div class="divider"></div>
           <div class="row"><span>Subtotal:</span><span>₹${(calc.subtotal - rcptDeliveryCharge).toFixed(2)}</span></div>
@@ -4335,7 +4336,7 @@
           <div class="center" style="font-size:11px;">Payment Mode: <b>${payModeText(payload, '')}</b></div>
           <div class="center" style="font-size:11px; margin-top:4px;">${billEsc(billCfg.c.thank_you || 'Thanks For Visiting Us!')}</div>
           ${billCfg.c.footer ? `<div class="center" style="font-size:10px; margin-top:2px;">${billEsc(billCfg.c.footer)}</div>` : ''}
-          ${(bOn('show_feedback_qr') && orderId) || bOn('show_app_qr') ? `<div style="display:flex; justify-content:center; gap:4mm; margin-top:6px; text-align:center;">${bOn('show_feedback_qr') && orderId ? `<div><img src="/api/feedback/qr/${encodeURIComponent(orderId)}" style="width:26mm;height:26mm;"><div style="font-size:12px;">Scan to rate us</div></div>` : ''}${bOn('show_app_qr') ? `<div><img src="/api/app/qr" style="width:26mm;height:26mm;"><div style="font-size:12px;">Scan to get our app</div></div>` : ''}</div>` : ''}
+          ${bOn('show_app_qr') ? `<div style="display:flex; justify-content:center; margin-top:6px; text-align:center;"><div><img src="/api/app/qr" style="width:26mm;height:26mm;"><div style="font-size:12px;">Scan to get our app</div></div></div>` : ''}
         </body>
         </html>
       `;

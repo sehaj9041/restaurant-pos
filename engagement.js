@@ -474,6 +474,12 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
   const sign = (secret, id) => crypto.createHmac('sha256', secret).update('fb:' + id).digest('hex').slice(0, 20);
   const baseUrl = (req) => (req.get('x-forwarded-proto') || req.protocol) + '://' + req.get('host');
 
+  // Signed feedback link for an order (website tracking page shows it once the order is done)
+  async function feedbackInfo(id) {
+    const f = await dbAllAsync('SELECT 1 FROM feedback WHERE order_id = ?', [id]);
+    return { url: `/feedback.html?o=${id}&t=${sign(await feedbackSecret(), id)}`, done: !!f.length };
+  }
+
   app.get('/api/feedback/qr/:orderId', async (req, res) => {
     const id = Number(req.params.orderId);
     if (!Number.isInteger(id) || id <= 0) return res.status(400).end();
@@ -603,7 +609,7 @@ else location.replace(isA?(a||o):o);
     } catch (e) { console.error('Promo (edit) error:', e.message); res.status(500).json({ error: 'Coupon / points check nahi ho paaya' }); }
   }
 
-  return { computeDiscount, applyPromoToOrderEdit };
+  return { computeDiscount, applyPromoToOrderEdit, feedbackInfo };
 }
 
 module.exports = { register, simulateLoyalty };

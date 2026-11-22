@@ -1735,6 +1735,12 @@ function shapeTrackOrder(o, items) {
     delivery_address: o.delivery_address || '', items: items || []
   };
 }
+// Finished orders carry a signed feedback link (+ whether it was already rated) so the website can show "Rate your order"
+async function withFeedbackLink(shaped) {
+  if (shaped.state !== 'done' || !engagement) return shaped;
+  try { const f = await engagement.feedbackInfo(shaped.id); shaped.feedback_url = f.url; shaped.feedback_done = f.done; } catch (e) {}
+  return shaped;
+}
 const ORDER_TRACK_COLS = 'id, order_type, table_no, status, subtotal, gst, total, created_at, delivery_address, customer_phone, rider_name, delivered_at';
 
 // One order: needs order id + the phone number used while ordering.
@@ -1745,7 +1751,7 @@ app.get('/api/track/:id', (req, res) => {
   db.all(`SELECT ${ORDER_TRACK_COLS} FROM orders WHERE id = ?`, [id], (err, rows) => {
     const o = rows && rows[0];
     if (err || !o || o.customer_phone !== phone) return res.status(404).json({ error: 'Order nahi mila' });
-    db.all('SELECT name, qty, price FROM order_items WHERE order_id = ? ORDER BY id', [id], (e2, items) => res.json(shapeTrackOrder(o, items)));
+    db.all('SELECT name, qty, price FROM order_items WHERE order_id = ? ORDER BY id', [id], async (e2, items) => res.json(await withFeedbackLink(shapeTrackOrder(o, items))));
   });
 });
 
@@ -1770,7 +1776,7 @@ app.get('/api/my-orders', (req, res) => {
         const out = [];
         for (const o of (orders || [])) {
           const items = await dbAllAsync('SELECT name, qty, price FROM order_items WHERE order_id = ? ORDER BY id', [o.id]);
-          out.push(shapeTrackOrder(o, items));
+          out.push(await withFeedbackLink(shapeTrackOrder(o, items)));
         }
         res.json(out);
       } catch (e3) { res.status(500).json({ error: 'Orders load nahi hue' }); }
