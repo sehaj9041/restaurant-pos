@@ -27,6 +27,7 @@
 </head>
 <body>
   <div class="card">
+    <button type="button" class="btn alt hidden" id="backBtn" style="margin:0 0 12px;padding:8px 14px;width:auto;font-size:13px">&larr; Back to orders</button>
     <div id="loading">Loading...</div>
 
     <div id="form" class="hidden">
@@ -59,6 +60,11 @@
     var rating = 0, googleUrl = '';
     var labels = ['', 'Very bad', 'Bad', 'Okay', 'Good', 'Excellent!'];
     var $ = function(id) { return document.getElementById(id); };
+    // Opened from the website's Orders list (?back=1): offer a way back (a receipt-QR scan has nothing to go back to)
+    if (q.get('back') === '1') {
+      $('backBtn').classList.remove('hidden'); $('backBtn').style.display = 'inline-block';
+      $('backBtn').onclick = function() { if (history.length > 1 && document.referrer) history.back(); else location.href = '/'; };
+    }
     function show(id) { ['loading', 'form', 'thanks', 'bad'].forEach(function(x) { $(x).classList.toggle('hidden', x !== id); }); }
 
     function showThanks(already) {

@@ -1831,7 +1831,7 @@
             <div class="text-[11px] text-gray-500 font-semibold">${esc(when)} • ${esc(o.order_type)}</div>
             <div class="text-xs text-gray-700">${esc(summary)}</div>
             <div class="flex justify-between items-center pt-1"><span class="font-black text-emerald-600">₹${esc(o.total)}</span>
-              <span class="flex items-center gap-2">${o.feedback_url ? (o.feedback_done ? '<span class="text-[11px] font-black text-emerald-600">✓ Rated</span>' : `<a href="${esc(o.feedback_url)}" class="bg-amber-500 text-white font-black text-[11px] px-3.5 py-1.5 rounded-xl">⭐ Rate</a>`) : ''}
+              <span class="flex items-center gap-2">${o.feedback_url ? (o.feedback_done ? '<span class="text-[11px] font-black text-emerald-600">✓ Rated</span>' : `<a href="${esc(o.feedback_url)}&back=1" class="bg-amber-500 text-white font-black text-[11px] px-3.5 py-1.5 rounded-xl">⭐ Rate</a>`) : ''}
               <button onclick="openTrack(${Number(o.id)}, '${esc(p.phone)}')" class="bg-indigo-600 text-white font-black text-[11px] px-3.5 py-1.5 rounded-xl">📍 Track</button></span></div>
           </div>`;
         }).join('');
@@ -1861,7 +1861,7 @@
           </div>`;
         }).join('') + (o.state === 'done' && o.feedback_url
           ? (o.feedback_done ? '<div class="text-center text-xs font-black text-emerald-600 pt-2">✓ Aapka feedback mil gaya, shukriya!</div>'
-            : `<a href="${esc(o.feedback_url)}" class="block text-center bg-amber-500 hover:bg-amber-600 text-white font-black text-sm py-3 rounded-xl mt-3">⭐ Order kaisa laga? Rate karein</a>`) : '');
+            : `<a href="${esc(o.feedback_url)}&back=1" class="block text-center bg-amber-500 hover:bg-amber-600 text-white font-black text-sm py-3 rounded-xl mt-3">⭐ Order kaisa laga? Rate karein</a>`) : '');
         if (o.state === 'done') clearInterval(trackTimer);
       }
       document.getElementById('trackDetails').innerHTML =
