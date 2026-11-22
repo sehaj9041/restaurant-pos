@@ -480,6 +480,30 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
     return { url: `/feedback.html?o=${id}&t=${sign(await feedbackSecret(), id)}`, done: !!f.length };
   }
 
+  // QR for the token display TV / table stands: opens the feedback page without an order (anyone can leave feedback, then rate on Google)
+  app.get('/api/feedback/qr-general', async (req, res) => {
+    try {
+      const png = await QRCode.toBuffer(`${baseUrl(req)}/feedback.html?g=1`, { width: 220, margin: 1 });
+      res.set('Content-Type', 'image/png').set('Cache-Control', 'public, max-age=86400').send(png);
+    } catch (e) { res.status(500).end(); }
+  });
+  app.get('/api/feedback/general', async (req, res) => {
+    try {
+      const s = await getSettingsConfig();
+      res.json({ restaurant: (await dbAllAsync('SELECT restaurant_name FROM settings WHERE id = 1', []))[0]?.restaurant_name || '', google_review_url: String(s.google_review_url || '') });
+    } catch (e) { res.status(500).json({ error: 'Kuch galat hua' }); }
+  });
+  // no signed link for these, so cap how many one device can send (5 per hour)
+  const generalFb = new Map();
+  const generalFbOk = (req) => {
+    const ip = (req.get('x-forwarded-for') || '').split(',').map(x => x.trim()).filter(Boolean).pop() || req.socket.remoteAddress || '?';
+    const now = Date.now(), list = (generalFb.get(ip) || []).filter(t => now - t < 3600000);
+    if (list.length >= 5) { generalFb.set(ip, list); return false; }
+    list.push(now); generalFb.set(ip, list);
+    if (generalFb.size > 5000) generalFb.clear();
+    return true;
+  };
+
   app.get('/api/feedback/qr/:orderId', async (req, res) => {
     const id = Number(req.params.orderId);
     if (!Number.isInteger(id) || id <= 0) return res.status(400).end();
@@ -545,6 +569,16 @@ else location.replace(isA?(a||o):o);
   });
 
   app.post('/api/feedback', async (req, res) => {
+    if (req.body.general) {   // feedback without an order (token display QR)
+      const r = Math.floor(num(req.body.rating));
+      if (r < 1 || r > 5) return res.status(400).json({ error: 'Rating 1 se 5 ke beech chunein' });
+      if (!generalFbOk(req)) return res.status(429).json({ error: 'Bahut zyada feedback bheje gaye. Thodi der baad try karein' });
+      try {
+        await dbAllAsync(`INSERT INTO feedback (order_id, token_no, customer_name, customer_phone, rating, comment) VALUES (NULL, NULL, ?, '', ?, ?) RETURNING id`,
+          [String(req.body.name || '').trim().slice(0, 60), r, String(req.body.comment || '').trim().slice(0, 500)]);
+        return res.json({ success: true });
+      } catch (e) { console.error('feedback save:', e.message); return res.status(500).json({ error: 'Feedback save nahi hua' }); }
+    }
     const id = Number(req.body.order_id);
     const rating = Math.floor(num(req.body.rating));
     if (!Number.isInteger(id) || !safeEq(req.body.t, sign(await feedbackSecret(), id))) return res.status(403).json({ error: 'Link sahi nahi hai' });
