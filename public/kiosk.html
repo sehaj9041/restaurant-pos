@@ -1946,6 +1946,7 @@
       $('modeSelectionScreen').classList.remove('hidden');
       $('idleScreensaver').classList.add('hidden');
       welcomePause();
+      armIdleTimer();   // the tap that opens this screen only reaches the idle timer before the welcome screen is hidden, so start it here
     }
 
     function startKioskOrderWithMode(mode) {
