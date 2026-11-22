@@ -130,14 +130,18 @@ async function printBillBitmap(html, copies) {
     await new Promise((r) => setTimeout(r, 500)); // let images (logo, QR) finish
     const box = await pw.webContents.executeJavaScript('(function(){var b=document.body.getBoundingClientRect(),l=document.body.lastElementChild,e=l?l.getBoundingClientRect().bottom:b.bottom;return [b.left,b.width,Math.ceil(e+8)];})()');
     const x = Math.floor(box[0]), w = Math.ceil(box[1]), h = box[2];
-    pw.setContentSize(x + w + 10, h + 10);
-    await new Promise((r) => setTimeout(r, 200));
-    let img = await pw.webContents.capturePage({ x, y: 0, width: w, height: h });
     const DOTS = Math.max(8, (Math.round(Number(cfg.billDots) || 544) >> 3) << 3);   // paper width, multiple of 8
     const scale = Math.max(30, Math.min(100, Number(cfg.billScale) || 100)) / 100;
     const left = Math.max(0, Math.round(Number(cfg.billLeft) || 0));
     const bottom = Math.max(0, Math.round(Number(cfg.billBottom) || 0));
     const CW = Math.max(8, Math.round(DOTS * scale));                                 // bill width inside the paper
+    // The bill is only ~260 px wide on screen but ~544 dots on paper: capturing it at 1x and stretching it made the text soft.
+    // Zoom the page so the text is drawn (as real vector text) at paper resolution, then capture that.
+    const z = Math.max(1, Math.min(4, CW / w));
+    pw.webContents.setZoomFactor(z);
+    pw.setContentSize(Math.ceil((x + w + 10) * z), Math.ceil((h + 10) * z));
+    await new Promise((r) => setTimeout(r, 350));
+    let img = await pw.webContents.capturePage({ x: Math.floor(x * z), y: 0, width: Math.round(w * z), height: Math.round(h * z) });
     const H = Math.max(1, Math.round(img.getSize().height * CW / img.getSize().width));
     img = img.resize({ width: CW, height: H, quality: 'best' });
     const px = img.toBitmap(), rowBytes = DOTS / 8, bytes = Buffer.alloc(rowBytes * H); // BGRA in, 1 bit out

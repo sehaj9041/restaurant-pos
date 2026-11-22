@@ -4424,7 +4424,10 @@
       // (the exe prints the bill as an ESC/POS bitmap below, like the old agent: the Windows driver route gave a short blank slip + cut on the thermal printer. localStorage vf_desktop_html_print=1 brings the driver route back)
       // newer exe: the app renders the bill itself (real Chromium text) and sends it as a bitmap; older exe falls through to html2canvas below
       if (window.vfDesktop && window.vfDesktop.printBill && localStorage.getItem('vf_desktop_html_print') !== '1') {
-        window.vfDesktop.printBill(String(htmlOne).replace(/(src=")\//g, '$1' + location.origin + '/'), copies)
+        // The exe captures the bill at 1x and fits it to the paper width, so a ~260 px bill gets stretched and looks soft. Render it ~2.2x bigger here
+        // (CSS zoom) so the capture is already about paper size and is only shrunk a little (works with the installed exe, no update needed).
+        var hiRes = String(htmlOne).replace(/zoom:\s*[\d.]+\s*;?/, 'zoom: 2.2;');
+        window.vfDesktop.printBill(hiRes.replace(/(src=")\//g, '$1' + location.origin + '/'), copies)
           .then(function(d) { if (!d || !d.success) throw new Error('desktop bill print failed'); })
           .catch(function(e) { console.warn('Desktop bill print failed, using print dialog:', e); fallback(); });
         return;
