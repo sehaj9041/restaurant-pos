@@ -1315,7 +1315,8 @@ app.get('/api/orders/active', (req, res) => {
            GREATEST(0, total - COALESCE(paid_amount, 0)) as remaining_balance,
            -- Order timers: kitchen time = accepted (or placed) -> KDS done; still running while the kitchen works on it
            GREATEST(0, EXTRACT(EPOCH FROM ((CASE WHEN ready_at IS NOT NULL AND UPPER(status) = 'KOT_DONE' THEN ready_at ELSE NOW() END) - COALESCE(accepted_at, created_at)))) AS kitchen_sec,
-           (ready_at IS NOT NULL AND UPPER(status) = 'KOT_DONE') AS kitchen_done
+           (ready_at IS NOT NULL AND UPPER(status) = 'KOT_DONE') AS kitchen_done,
+           (CASE WHEN COALESCE(customer_phone, '') <> '' THEN (SELECT COUNT(*) FROM orders o2 WHERE o2.customer_phone = orders.customer_phone AND o2.id <= orders.id AND o2.created_at >= orders.created_at - INTERVAL '30 days' AND UPPER(COALESCE(o2.status, '')) NOT IN ('VOID', 'CANCELLED')) ELSE 0 END) AS order_no_30d
     FROM orders 
     WHERE (UPPER(status) = 'RUNNING_TABLE' OR UPPER(status) = 'KOT_DONE'
            -- Delivery stays active (even if paid / kitchen done) until it is marked delivered

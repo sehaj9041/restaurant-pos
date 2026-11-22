@@ -977,14 +977,14 @@
       var addonsList = extractAddonsList(item);
       var base = (addonsList.length > 0 && !(item.addons && item.addons.length) ? splitNameAddons(item.name).base : (item.name || '')).trim() || (item.name || '').trim();
       return `
-        <div class="border-b border-slate-100 pb-1.5 mb-1 opacity-50 select-none">
+        <div class="border-b border-slate-100 pb-1.5 mb-1 select-none">
           <div class="flex items-center gap-2.5">
             <div class="kot-check-box rounded-md flex items-center justify-center border shrink-0 bg-emerald-600 border-emerald-600 text-white">✓</div>
-            <span class="kot-qty-badge font-black text-slate-500 bg-slate-100 border border-slate-200 px-2 py-1 rounded-md shrink-0 line-through">${item.qty}</span>
-            <span class="kot-item-title font-bold text-slate-400 flex-1 line-through">${vegIcon(item.name)}${base}</span>
+            <span class="kot-qty-badge font-black text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2 py-1 rounded-md shrink-0 line-through">${item.qty}</span>
+            <span class="kot-item-title font-bold text-slate-800 flex-1 line-through">${vegIcon(item.name)}${base}</span>
             ${order ? itemPackBadge(order, item) : ''}
           </div>
-          ${addonsList.length > 0 ? `<div class="mt-1 ml-8 space-y-0.5 pl-2 border-l-2 border-slate-200">${addonsList.map(function(a) { return `<div class="kot-addon-text font-semibold text-slate-400 line-through">+ ${a.name}</div>`; }).join('')}</div>` : ''}
+          ${addonsList.length > 0 ? `<div class="mt-1 ml-8 space-y-0.5 pl-2 border-l-2 border-slate-200">${addonsList.map(function(a) { return `<div class="kot-addon-text font-semibold text-slate-600 line-through">+ ${a.name}</div>`; }).join('')}</div>` : ''}
         </div>`;
     }
 
@@ -1113,7 +1113,7 @@
 
                 return `
                   <div class="border-b border-slate-100 pb-1.5">
-                    <div onclick="toggleItemReady(${order.id}, 'row_${idx}')" class="flex items-center gap-2.5 cursor-pointer select-none transition ${isDone ? 'opacity-35' : 'hover:bg-slate-50'}">
+                    <div onclick="toggleItemReady(${order.id}, 'row_${idx}')" class="flex items-center gap-2.5 cursor-pointer select-none transition ${isDone ? '' : 'hover:bg-slate-50'}">
                       <div class="kot-check-box rounded-md flex items-center justify-center border shrink-0 transition ${isDone ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-slate-300 bg-white'}">
                         ${isDone ? '✓' : ''}
                       </div>
@@ -1123,7 +1123,7 @@
                         ${item.qty}
                       </span>
 
-                      <span class="kot-item-title font-bold text-slate-800 flex-1 ${isDone ? 'line-through text-slate-400' : ''}">
+                      <span class="kot-item-title font-bold text-slate-800 flex-1 ${isDone ? 'line-through' : ''}">
                         ${vegIcon(item.name)}${cleanBaseName}
                       </span>
 
@@ -1145,7 +1145,7 @@
                           var addonKey = order.id + '_row_' + idx + '_addon_' + aIdx;
                           var isAddonDone = !!checkedMap[addonKey];
                           return `
-                            <div onclick="toggleAddonReady(${order.id}, ${idx},${aIdx})" class="flex items-center gap-2 cursor-pointer select-none ${isAddonDone ? 'opacity-30 line-through text-slate-400' : 'text-slate-600 hover:text-slate-900'}">
+                            <div onclick="toggleAddonReady(${order.id}, ${idx},${aIdx})" class="flex items-center gap-2 cursor-pointer select-none ${isAddonDone ? 'line-through text-slate-600' : 'text-slate-600 hover:text-slate-900'}">
                               <div class="kot-sub-check-box rounded flex items-center justify-center border shrink-0 transition ${isAddonDone ? 'bg-emerald-600 border-emerald-600 text-white text-[10px]' : 'border-slate-300 bg-white'}">
                                 ${isAddonDone ? '✓' : ''}
                               </div>

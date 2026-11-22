@@ -3221,6 +3221,7 @@
                     <span class="bg-pink-100 text-pink-700 font-black px-1.5 py-0.5 rounded text-[10px]">Kiosk Order</span>
                     <span class="text-gray-900 font-black text-base">Token ${tokenLabel(o)}</span>
                     <span class="text-gray-500 font-bold text-[10px]">ORD-${o.id}</span>
+                  ${Number(o.order_no_30d) > 0 ? `<span class="bg-emerald-100 text-emerald-700 font-black px-1.5 py-0.5 rounded text-[10px]">${Number(o.order_no_30d) === 1 ? '🆕 1st order' : (o.order_no_30d + (o.order_no_30d == 2 ? 'nd' : o.order_no_30d == 3 ? 'rd' : 'th') + ' order')} • 30d</span>` : ''}
                   </div>
                   <div class="text-[11px] text-gray-600 mt-0.5 line-clamp-1">${itemsText || 'Order placed'}</div>
                   <div class="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
@@ -3288,6 +3289,7 @@
                 <div class="flex items-center gap-1.5">
                   <span class="text-gray-900 font-black text-base">Token ${tokenLabel(o)}</span>
                   <span class="text-gray-500 font-bold text-[10px]">ORD-${o.id}</span>
+                  ${Number(o.order_no_30d) > 0 ? `<span class="bg-emerald-100 text-emerald-700 font-black px-1.5 py-0.5 rounded text-[10px]">${Number(o.order_no_30d) === 1 ? '🆕 1st order' : (o.order_no_30d + (o.order_no_30d == 2 ? 'nd' : o.order_no_30d == 3 ? 'rd' : 'th') + ' order')} • 30d</span>` : ''}
                 </div>
                 <div class="text-[11px] text-gray-600 mt-0.5 line-clamp-1">${itemsText || 'Order placed'}</div>
                 <div class="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
