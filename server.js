@@ -2194,10 +2194,10 @@ app.get('/token-display', (req, res) => res.sendFile(path.join(__dirname, 'publi
 app.get('/api/kot', (req, res) => {
   const query = `
     SELECT o.id, o.token_no, o.order_type, o.table_no, o.status, o.created_at, TO_CHAR(o.created_at, 'HH12:MI AM') as time,
-           COALESCE(o.kds_at, o.accepted_at, o.created_at) AS kds_at   -- KDS timer start
+           COALESCE(o.kds_at, o.kds_seq_at, o.accepted_at, o.created_at) AS kds_at   -- KDS timer start
     FROM orders o 
     WHERE UPPER(o.status) = 'RUNNING_TABLE'
-    ORDER BY COALESCE(o.accepted_at, o.created_at) ASC, o.id ASC   -- KDS shows orders in the sequence they were accepted, not by order number
+    ORDER BY COALESCE(o.kds_seq_at, o.accepted_at, o.created_at) ASC, o.id ASC   -- KDS shows orders in the sequence they reached the KDS, not by order number
   `;
 
   db.all(query, [], async (err, orders) => {

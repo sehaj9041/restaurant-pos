@@ -173,6 +173,23 @@ pool.query(`
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMP;`).catch(() => {});
   // KDS timer start: set when the order reaches the KDS (accepted) and again whenever new items are added to a running KOT
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS kds_at TIMESTAMP;`).catch(() => {});
+  // kds_seq_at = when the order first reached the KDS (status became RUNNING_TABLE): it decides the order of the KOTs on the KDS.
+  // A trigger stamps it (and kds_at) on every move INTO RUNNING_TABLE, whatever route did it (accept, held order placed, assign table, recall...),
+  // so an order created earlier but reaching the KDS later no longer jumps ahead of one that arrived before it.
+  await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS kds_seq_at TIMESTAMP;`).catch(() => {});
+  await pool.query(`
+    CREATE OR REPLACE FUNCTION vf_orders_kds_arrival() RETURNS trigger AS $$
+    BEGIN
+      IF UPPER(COALESCE(NEW.status, '')) = 'RUNNING_TABLE' AND (TG_OP = 'INSERT' OR UPPER(COALESCE(OLD.status, '')) <> 'RUNNING_TABLE') THEN
+        NEW.kds_seq_at := now();
+        NEW.kds_at := now();
+      END IF;
+      RETURN NEW;
+    END
+    $$ LANGUAGE plpgsql;
+    DROP TRIGGER IF EXISTS vf_orders_kds_arrival ON orders;
+    CREATE TRIGGER vf_orders_kds_arrival BEFORE INSERT OR UPDATE OF status ON orders FOR EACH ROW EXECUTE PROCEDURE vf_orders_kds_arrival();
+  `).catch(e => console.error('KDS arrival trigger setup error:', e.message));
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS ready_at TIMESTAMP;`).catch(() => {});
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS dispatched_at TIMESTAMP;`).catch(() => {});
   await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_address TEXT;`).catch(() => {});
