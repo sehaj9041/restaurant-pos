@@ -193,10 +193,12 @@
         <input type="checkbox" id="cUsePts" onchange="togglePoints()" class="w-4 h-4 accent-amber-500">
         <span id="cPtsText" class="text-xs font-black text-amber-900"></span>
       </label>
-      <label id="cStampBox" class="hidden flex items-center gap-2.5 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5 cursor-pointer">
-        <input type="checkbox" id="cUseStamp" onchange="toggleStamp()" class="w-4 h-4 accent-emerald-500">
-        <span id="cStampText" class="text-xs font-black text-emerald-900"></span>
-      </label>
+      <div id="cStampProg" class="hidden"></div>
+      <div id="cStampBox" class="hidden bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5 space-y-1.5">
+        <div class="text-xs font-black text-emerald-900">🍽 Stamp card: apna FREE item chunein</div>
+        <select id="cStampSel" onchange="pickStamp()" class="w-full border border-emerald-200 rounded-lg px-2 py-2 text-xs font-bold bg-white"></select>
+        <div id="cStampNote" class="text-[11px] font-bold text-emerald-700"></div>
+      </div>
       <div class="pt-3 border-t flex justify-between items-center">
         <div>
           <p class="text-[10px] text-gray-400 uppercase font-black tracking-wider">Total Payable</p>
@@ -1124,12 +1126,31 @@
     }
 
     // ---- loyalty points on the website checkout (the server re-checks everything; this only mirrors its maths) ----
-    let loyCk = null, usePts = false, stampCk = null, useStamp = false; // stampCk = stamp card status from the same reply; loyCk = /api/loyalty/my reply for the verified phone
+    let loyCk = null, usePts = false, stampCk = null, stampPick = 0, stampSt = null, stampGen = null; // stampSt = stamp status of the profile phone (public), stampCk = same but only when a free item can be redeemed now; stampGen = offer text for visitors without a phone
     function loadCkLoyalty() {
       const p = getProfile();
-      if (!p || !p.token) { loyCk = null; usePts = false; stampCk = null; useStamp = false; return updateCartUI(); }
+      if (!p || !p.phone) { stampSt = null; stampCk = null; stampPick = 0; fetch('/api/loyalty-info').then(r => r.ok ? r.json() : null).then(d => { stampGen = d && d.stamp && d.stamp.enabled ? d.stamp : null; updateCartUI(); }).catch(() => {}); }
+      else fetch('/api/stamps/' + encodeURIComponent(p.phone)).then(r => r.ok ? r.json() : null).then(d => {
+        stampSt = d && d.enabled ? d : null; stampCk = stampSt && p.token && stampSt.available > 0 ? stampSt : null; if (!stampCk) stampPick = 0; updateCartUI();
+      }).catch(() => {});
+      if (!p || !p.token) { loyCk = null; usePts = false; return updateCartUI(); }
       fetch('/api/loyalty/my', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: p.phone, token: p.token }) })
-        .then(r => r.ok ? r.json() : null).then(d => { loyCk = d && d.enabled ? d : null; stampCk = d && d.stamp && d.stamp.enabled && d.stamp.available > 0 ? d.stamp : null; updateCartUI(); }).catch(() => {});
+        .then(r => r.ok ? r.json() : null).then(d => { loyCk = d && d.enabled ? d : null; updateCartUI(); }).catch(() => {});
+    }
+    // Stamp progress for the checkout: where the customer stands, and what THIS bill does (earns a stamp / is too small for the free item)
+    function stampProgHtml(st, bill) {
+      if (!st) return '';
+      const n = st.orders_needed, minO = Number(st.min_order) || 0, minR = Number(st.redeem_min) || 0;
+      const box = (head, msg, tone) => `<div class="rounded-xl bg-${tone}-50 border border-${tone}-200 px-3 py-2 text-left"><div class="text-xs font-black text-${tone}-900">${head}</div><div class="text-[11px] font-bold text-${tone}-800 mt-1">${msg}</div></div>`;
+      if (st.progress === undefined) return box(`🍽 Stamp card: ${n} orders = 1 FREE item`, minO > 0 ? `₹${minO} ya zyada ke har paid order par 1 stamp. Apna number verify karke progress dekhein.` : 'Har paid order par 1 stamp. Apna number verify karke progress dekhein.', 'emerald');
+      const dots = '●'.repeat(st.progress) + '○'.repeat(Math.max(0, n - st.progress)), head = `🍽 Stamp card: ${st.progress}/${n} <span class="tracking-widest text-emerald-600">${dots}</span>`;
+      if (st.available > 0) {
+        if (!minR || bill >= minR) return box(head, '🎁 Aapka FREE item ready hai! Neeche list se chunein.', 'emerald');
+        return box(head, bill > 0 ? `⚠ Free item pakka hai! Bas ₹${Math.ceil(minR - bill)} ka aur order karein (free item ke alawa kam se kam ₹${minR} ka bill chahiye).` : `🎁 Free item pakka hai! ₹${minR} ya zyada ka order karein to ek free item milega.`, 'amber');
+      }
+      const counts = bill > 0 && bill >= minO;
+      if (counts) return box(head, st.progress + 1 >= n ? '✅ Is order ke baad aapka FREE item unlock ho jayega!' : `✅ Is order se stamp milega (${st.progress + 1}/${n}). ${n - st.progress - 1} aur → 1 FREE item.`, 'emerald');
+      return box(head, minO > 0 ? `Stamp ke liye ₹${minO} ya zyada ka order karein${bill > 0 ? ' (₹' + Math.ceil(minO - bill) + ' aur)' : ''}. ${n - st.progress} stamp aur → 1 FREE item.` : `${n - st.progress} order aur → 1 FREE item.`, 'emerald');
     }
     // Most points this cart can redeem (balance, min points and "max % of bill" all respected); 0 = not possible
     function maxPoints() {
@@ -1139,19 +1160,14 @@
       return pts > 0 && pts >= (Number(loyCk.min_redeem) || 0) ? pts : 0;
     }
     function togglePoints() { usePts = document.getElementById('cUsePts').checked; updateCartUI(); }
-    // Stamp card reward: the cheapest item in the cart is free (capped by the owner's limit); the server re-checks
-    function stampOff() {
-      if (!stampCk) return 0;
-      const prices = cart.map(i => Number(i.price)).filter(x => x > 0); if (!prices.length) return 0;
-      let v = Math.min(...prices); if (Number(stampCk.reward_max) > 0) v = Math.min(v, Number(stampCk.reward_max));
-      return Math.round(v * 100) / 100;
-    }
-    function toggleStamp() { useStamp = document.getElementById('cUseStamp').checked; updateCartUI(); }
+    // Stamp card reward: free items the customer may pick (bill must reach the owner's minimum); the server adds the free line and re-checks
+    function stampItems() { return stampCk && cartSubtotal() >= (Number(stampCk.redeem_min) || 0) ? (stampCk.free_items || []) : []; }
+    function pickStamp() { stampPick = Number(document.getElementById('cStampSel').value) || 0; updateCartUI(); }
     // Server order: discount comes off the subtotal (incl. delivery) and GST is charged on what is left of the taxable part
     function ckTotals() {
       const sub = cartSubtotal() + chargeNow(), pts = usePts ? maxPoints() : 0;
       const ptsOff = pts ? Math.round(pts * Number(loyCk.point_value) * 100) / 100 : 0, tax = taxableOf();
-      const stamp = useStamp && stampOff() > 0 ? 1 : 0, stOff = stamp ? Math.min(stampOff(), Math.max(0, cartSubtotal() - ptsOff)) : 0, off = ptsOff + stOff;
+      const off = ptsOff, stamp = stampItems().some(x => x.id === stampPick) ? stampPick : 0;
       const gst = gstOf(sub > 0 ? Math.max(0, tax - off * tax / sub) : 0);
       return { sub, pts, stamp, off, gst, total: Math.round(sub + gst - off) };
     }
@@ -1162,14 +1178,20 @@
       document.getElementById('cPtsBox').classList.toggle('hidden', !mp);
       document.getElementById('cUsePts').checked = usePts;
       document.getElementById('cPtsText').textContent = `⭐ ${mp} points use karein (−₹${off}) • aapke paas ${loyCk ? loyCk.balance : 0}`;
-      const so = stampOff();
-      if (!so) useStamp = false;
-      document.getElementById('cStampBox').classList.toggle('hidden', !so);
-      document.getElementById('cUseStamp').checked = useStamp;
-      document.getElementById('cStampText').textContent = `🍽 Stamp card free item lagayein (−₹${so}) • sabse sasta item free`;
+      document.getElementById('cStampProg').innerHTML = stampProgHtml(stampSt || stampGen, cartSubtotal());
+      document.getElementById('cStampProg').classList.toggle('hidden', !(stampSt || stampGen) || !cart.length);
+      const sItems = stampItems();
+      if (stampPick && !sItems.some(x => x.id === stampPick)) stampPick = 0;
+      document.getElementById('cStampBox').classList.toggle('hidden', !stampCk);
+      if (stampCk) {
+        const sel = document.getElementById('cStampSel');
+        sel.classList.toggle('hidden', !sItems.length);
+        sel.innerHTML = '<option value="">— Free item nahi lena —</option>' + sItems.map(i => `<option value="${i.id}"${stampPick === i.id ? ' selected' : ''}>${esc(i.name)} (₹${i.price})</option>`).join('');
+        document.getElementById('cStampNote').textContent = !sItems.length ? `Free item ${Number(stampCk.redeem_min) > 0 ? '₹' + stampCk.redeem_min + ' ya zyada ke order par' : 'abhi'} milega (cart me aur item add karein)` : (stampPick ? '✅ Ye item aapke order me FREE judega' : 'Upar se apna free item chunein');
+      }
       ['c', 'a'].forEach(k => {
         document.getElementById(k + 'PtsRow').classList.toggle('hidden', !T.off);
-        document.getElementById(k + 'PtsLbl').textContent = [T.pts ? `${T.pts} pts` : '', T.stamp ? 'free item' : ''].filter(Boolean).join(' + ').replace(/^/, 'Discount (') + ')';
+        document.getElementById(k + 'PtsLbl').textContent = `Points discount (${T.pts} pts)`;
         document.getElementById(k + 'Pts').textContent = `−₹${T.off}`;
       });
     }
@@ -1694,7 +1716,7 @@
       if (!st || !st.enabled) return '';
       var n = st.orders_needed, left = n - st.progress, pct = Math.max(4, Math.round(st.progress * 100 / n));
       if (st.available > 0) return '<div class="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 text-left"><div class="text-xs font-black text-emerald-800">🍽 Aapke paas ' + st.available + ' FREE item hai!</div>' +
-        '<div class="text-[11px] font-bold text-emerald-700 mt-1">Website par cart me apne aap dikhega. Kiosk / counter par "Show redeem code" dikhayein. Sabse sasta item free' + (st.reward_max ? ' (max ₹' + st.reward_max + ')' : '') + '.</div></div>';
+        '<div class="text-[11px] font-bold text-emerald-700 mt-1">' + (st.redeem_min > 0 ? '₹' + st.redeem_min + ' ya zyada ke order par ' : 'Agle order par ') + 'free item list me se apna item chunein: website par checkout me, kiosk / counter par "Show redeem code" dikhayein.</div></div>';
       return '<div class="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 text-left"><div class="text-xs font-black text-emerald-900">🍽 Stamps: ' + st.progress + ' / ' + n + '</div>' +
         '<div class="mt-1.5 h-2 rounded-full bg-emerald-200"><div class="h-2 rounded-full bg-emerald-500" style="width:' + pct + '%"></div></div>' +
         '<div class="text-[11px] font-bold text-emerald-800 mt-1">Bas ' + left + ' order aur' + (st.all_day ? '' : ' (' + t12(st.start) + ' – ' + t12(st.end) + ')') + ' → 1 FREE item!</div></div>';

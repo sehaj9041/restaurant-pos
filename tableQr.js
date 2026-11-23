@@ -108,7 +108,7 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, stor
       if (payNow && !rzConfigured()) return res.status(503).json({ error: 'Online payment abhi available nahi hai. Pay at the end chunein.' });
       const pts = payNow ? Math.floor(Number(b.points_redeem)) : 0;
       req.body = { order_type: 'Dine-In', table_no: table, customer_name: name, customer_phone: phone, items,
-        points_redeem: pts > 0 ? pts : undefined, stamp_redeem: payNow && b.stamp_redeem === true ? true : undefined, profile_token: String(b.profile_token || '').slice(0, 100) };
+        points_redeem: pts > 0 ? pts : undefined, stamp_redeem: payNow && Math.floor(Number(b.stamp_redeem)) > 0 ? Math.floor(Number(b.stamp_redeem)) : undefined, profile_token: String(b.profile_token || '').slice(0, 100) };
       req.tableQr = { table };
       req.tableQrPayNow = payNow;
       const origJson = res.json.bind(res);

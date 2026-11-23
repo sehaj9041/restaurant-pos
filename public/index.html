@@ -845,6 +845,7 @@
             <div>
               <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Phone Number</label>
               <input type="text" id="posCustPhone" readonly onclick="openVirtualKeyboard(this, 'number', 'right')" placeholder="e.g. 9876543210" class="w-full border border-gray-200 rounded-lg p-2 text-xs font-mono outline-none focus:border-orange-500 bg-white cursor-pointer">
+              <div id="posStampLine" class="mt-1 text-[10px] font-black leading-snug"></div>
             </div>
             <div>
               <label class="block text-[10px] font-bold uppercase text-gray-400 mb-1">Customer Name</label>
@@ -3714,6 +3715,7 @@
       var txt = '';
       if (posComp.on) txt = '🎁 Complimentary — ' + posComp.reason;
       else if (posDiscount.value > 0) txt = '🏷 Discount ' + (posDiscount.type === 'percent' ? posDiscount.value + '%' : '₹' + posDiscount.value) + (posDiscount.reason ? ' — ' + posDiscount.reason : '');
+      if (posPromo && posPromo.stamp_line) txt = (txt ? txt + ' • ' : '') + '🍽 Free item — ' + posPromo.stamp_line.name;
       box.classList.toggle('hidden', !txt);
       document.getElementById('posDiscountInfoText').innerText = txt;
     }
@@ -3736,15 +3738,17 @@
       document.getElementById('posOfferLoyalty').innerText = '';
       document.getElementById('posOfferPointsRow').classList.add('hidden');
       document.getElementById('posOfferLoyalty').innerText = 'Loyalty points sirf kiosk, website ya table QR order par redeem hote hain';
-      var stRow = document.getElementById('posOfferStampRow'), stBox = document.getElementById('posOfferStamp');
-      stRow.classList.add('hidden'); stBox.checked = !!(posPromo && posPromo.stamp_redeem);
+      var stRow = document.getElementById('posOfferStampRow'), stSel = document.getElementById('posOfferStampItem');
+      stRow.classList.add('hidden'); stSel.innerHTML = '';
       var stPhone = (document.getElementById('posCustPhone').value || '').replace(/\D/g, '').slice(-10);
       if (stPhone.length === 10) fetch('/api/stamps/' + stPhone).then(function(r) { return r.json(); }).then(function(st) {
         if (!st.enabled) return;
         stRow.classList.remove('hidden');
-        document.getElementById('posOfferStampInfo').innerText = st.available > 0 ? ('Free item bana hua hai (' + st.available + ') — sabse sasta item free' + (st.reward_max ? ', max ₹' + st.reward_max : '')) : ('Abhi ' + st.progress + '/' + st.orders_needed + ' orders' + (st.all_day ? '' : ' (' + st.start + '-' + st.end + ')'));
-        stBox.disabled = !(st.available > 0 || stBox.checked);
-        document.getElementById('posOfferPointsRow').classList.toggle('hidden', !stBox.checked);
+        var can = st.available > 0 && (st.free_items || []).length;
+        stSel.disabled = !can;
+        stSel.innerHTML = '<option value="">' + (can ? '— Free item nahi lagana —' : 'Free item abhi nahi bana') + '</option>' + (can ? st.free_items.map(function(i) { return '<option value="' + i.id + '"' + (posPromo && posPromo.stamp_redeem === i.id ? ' selected' : '') + '>' + String(i.name).replace(/</g, '&lt;') + ' (₹' + i.price + ')</option>'; }).join('') : '');
+        document.getElementById('posOfferStampInfo').innerText = can ? ('Free item bana hua hai (' + st.available + ')' + (st.redeem_min ? ' — bill (free item ke alawa) ₹' + st.redeem_min + '+ ho' : '')) : ('Abhi ' + st.progress + '/' + st.orders_needed + ' orders' + (st.all_day ? '' : ' (' + st.start + '-' + st.end + ')'));
+        document.getElementById('posOfferPointsRow').classList.toggle('hidden', !stSel.value);
       }).catch(function() {});
       document.getElementById('posOfferModal').classList.remove('hidden');
     }
@@ -3753,17 +3757,17 @@
       var err = document.getElementById('posOfferErr');
       var code = document.getElementById('posOfferCode').value.trim();
       var pts = Math.floor(Number(document.getElementById('posOfferPoints').value) || 0);
-      var stampOn = !!document.getElementById('posOfferStamp').checked;
-      if (!code && pts <= 0 && !stampOn) { err.innerText = 'Coupon code, points ya free item chunein'; return; }
+      var stampId = Number(document.getElementById('posOfferStampItem').value) || 0;
+      if (!code && pts <= 0 && !stampId) { err.innerText = 'Coupon code, points ya free item chunein'; return; }
       var ptsCode = document.getElementById('posOfferPtsCode').value.trim(), offerPw = document.getElementById('posOfferPw').value;
       var subtotal = posCart.reduce(function(s, i) { return s + (i.price * i.qty); }, 0);
       err.innerText = 'Checking...';
       fetch('/api/coupons/validate', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subtotal: subtotal, phone: document.getElementById('posCustPhone').value, coupon_code: code, points_redeem: pts, points_code: ptsCode, auth_password: offerPw, exclude_order_id: editingActiveOrderId || 0, stamp_redeem: stampOn, items: posCart.map(function(i) { return { name: i.name, price: i.price, qty: i.qty }; }) })
+        body: JSON.stringify({ subtotal: subtotal, phone: document.getElementById('posCustPhone').value, coupon_code: code, points_redeem: pts, points_code: ptsCode, auth_password: offerPw, exclude_order_id: editingActiveOrderId || 0, stamp_redeem: stampId || undefined, items: posCart.map(function(i) { return { name: i.name, price: i.price, qty: i.qty }; }) })
       }).then(function(r) { return r.json().then(function(d) { if (!r.ok) throw new Error(d.error || 'Failed'); return d; }); })
         .then(function(d) {
-          posPromo = { coupon_code: d.couponCode || '', points_redeem: d.pointsRedeemed || 0, points_code: (d.pointsRedeemed || d.stampRedeemed) ? ptsCode : '', stamp_redeem: d.stampRedeemed ? 1 : 0, subtotal: subtotal };
+          posPromo = { coupon_code: d.couponCode || '', points_redeem: d.pointsRedeemed || 0, points_code: (d.pointsRedeemed || d.stampRedeemed) ? ptsCode : '', stamp_redeem: d.stampRedeemed ? stampId : 0, stamp_line: d.stampItem ? { id: d.stampItem.id, name: d.stampItem.line_name + ' (FREE)', qty: 1, price: 0, notes: '', is_exempt: d.stampItem.is_exempt, stamp_free: true } : null, subtotal: subtotal };
           if ((d.pointsRedeemed || d.stampRedeemed) && offerPw) posAuthPw = offerPw; // staff override: the same password is sent with the order so the server accepts it
           posDiscount = { value: d.discount, type: 'amount', reason: d.reason };
           posComp = { on: false, reason: '' };
@@ -3818,6 +3822,7 @@
     }
 
     function calculatePOSBillTotals() {
+      try { refreshPosStamp(); } catch (e) {}
       var subtotal = posCart.reduce(function(s, i) { return s + (i.price * i.qty); }, 0);
       var taxable = posCart.reduce(function(s, i) { return Number(i.is_exempt) ? s : s + (i.price * i.qty); }, 0);
       // A coupon / points discount was computed for one specific cart total; if the cart changed, drop it (staff re-applies).
@@ -4156,7 +4161,7 @@
         table_no: (currentPOSOrderType === 'Dine-In' ? selectedPOSTableId : ''),
         customer_name: custName,
         customer_phone: custPhone,
-        items: [...posCart],
+        items: [...posCart].concat(posPromo && posPromo.stamp_line ? [posPromo.stamp_line] : []),
         payment_mode: finalPaymentMode, // Yeh ab seedha CASH, UPI, CARD ya DUE jayega
         subtotal: calc.subtotal,
         discount: calc.discount || 0,
@@ -4166,7 +4171,7 @@
         coupon_code: posPromo ? posPromo.coupon_code : '',
         points_redeem: posPromo ? posPromo.points_redeem : 0,
         points_code: posPromo ? (posPromo.points_code || '') : '',
-        stamp_redeem: posPromo && posPromo.stamp_redeem ? 1 : 0,
+        stamp_redeem: posPromo && posPromo.stamp_redeem ? posPromo.stamp_redeem : 0,
         gst: calc.gst,
         total: calc.grandTotal,
         paid_amount: initialPaid,       // Yeh ab poora grandTotal bhejega taaki backend turant payment catch kar le!
@@ -4605,7 +4610,35 @@
       if (e.target && (e.target.id === 'posCustPhone' || e.target.id === 'posCustName')) onCustFieldInput(e.target);
     });
 
+    // Stamp card progress under the phone number (public status by phone) + what this bill does
+    var posStampSt = null, posStampPhone = '';
+    function refreshPosStamp() {
+      var el = document.getElementById('posStampLine'); if (!el) return;
+      var ph = (document.getElementById('posCustPhone').value || '').replace(/\D/g, '').slice(-10);
+      if (ph.length !== 10) { posStampSt = null; posStampPhone = ''; el.innerHTML = ''; return; }
+      if (ph !== posStampPhone) {
+        posStampPhone = ph;
+        fetch('/api/stamps/' + ph).then(function(r) { return r.json(); }).then(function(d) { if (posStampPhone === ph) { posStampSt = d && d.enabled ? d : null; renderPosStamp(); } }).catch(function() {});
+        return;
+      }
+      renderPosStamp();
+    }
+    function renderPosStamp() {
+      var el = document.getElementById('posStampLine'); if (!el) return;
+      var st = posStampSt; if (!st) { el.innerHTML = ''; return; }
+      var bill = posCart.reduce(function(s, i) { return s + (i.price * i.qty); }, 0), n = st.orders_needed, minO = Number(st.min_order) || 0, minR = Number(st.redeem_min) || 0, msg, tone = 'text-emerald-700';
+      if (st.available > 0) {
+        if (!minR || bill >= minR) msg = '🎁 FREE item ready — Coupon / Points button se lagao';
+        else { msg = bill > 0 ? '🎁 Free item pakka, ₹' + Math.ceil(minR - bill) + ' ka aur order karwao (min ₹' + minR + ', free item ke alawa)' : '🎁 Free item pakka — ₹' + minR + '+ ka bill banwao'; tone = 'text-amber-700'; }
+      } else {
+        var dots = '●'.repeat(st.progress) + '○'.repeat(Math.max(0, n - st.progress));
+        msg = '🍽 Stamp ' + st.progress + '/' + n + ' ' + dots + (bill > 0 && bill >= minO ? ' • is bill se stamp milega' : (minO > 0 ? ' • stamp ke liye ₹' + minO + '+ ka bill' : ''));
+      }
+      el.className = 'mt-1 text-[10px] font-black leading-snug ' + tone; el.textContent = msg;
+    }
+
     function lookupCustomerPhone() {
+      refreshPosStamp();
       var ph = document.getElementById('posCustPhone').value.trim();
       if (ph.length >= 10) {
         fetch('/api/customers/' + ph)
@@ -5361,9 +5394,11 @@
         <p class="text-[10px] font-bold text-gray-500">Free item ke liye: customer apne phone par <b>My Points</b> khol kar code dikhayega. Code nahi hai to neeche staff password daalein.</p>
         <input id="posOfferPw" type="password" readonly onclick="openVirtualKeyboard(this, 'text')" autocomplete="off" placeholder="Staff password (sirf code na ho tab)" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-orange-500">
       </div>
-      <label id="posOfferStampRow" class="hidden flex items-start gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-800">
-        <input id="posOfferStamp" type="checkbox" class="mt-0.5" onchange="document.getElementById('posOfferPointsRow').classList.toggle('hidden', !this.checked)"><span>🍽 Stamp card free item lagao <span id="posOfferStampInfo" class="block text-[11px] font-bold text-emerald-700"></span></span>
-      </label>
+      <div id="posOfferStampRow" class="hidden rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 space-y-1">
+        <div class="text-xs font-black text-emerald-800">🍽 Stamp card — free item</div>
+        <select id="posOfferStampItem" onchange="document.getElementById('posOfferPointsRow').classList.toggle('hidden', !this.value)" class="w-full border border-emerald-300 rounded-lg px-2 py-2 text-sm bg-white"></select>
+        <div id="posOfferStampInfo" class="text-[11px] font-bold text-emerald-700"></div>
+      </div>
       <p id="posOfferLoyalty" class="text-[11px] font-bold text-amber-700"></p>
       <p id="posOfferErr" class="text-xs font-bold text-rose-600 min-h-[1rem]"></p>
       <div class="flex gap-2">

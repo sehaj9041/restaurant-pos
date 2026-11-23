@@ -421,14 +421,14 @@
           '<div class="w-16 text-right font-black text-sm">' + rs(c.price * c.qty) + '</div></div>';
       }).join('') + '</div>' +
       '<div class="space-y-2 mb-3"><input id="gName" placeholder="Your name *" maxlength="40" class="w-full border rounded-xl px-3 py-2.5 text-sm"><input id="gPhone" type="tel" inputmode="numeric" maxlength="10" placeholder="Mobile number (10 digit) *" class="w-full border rounded-xl px-3 py-2.5 text-sm"><div id="tqOtp" class="space-y-2"></div><input id="gNote" placeholder="Any note for the kitchen? (optional)" maxlength="150" class="w-full border rounded-xl px-3 py-2.5 text-sm"></div>' +
-      '<div class="flex justify-between font-black text-base mb-1"><span>Subtotal</span><span>' + rs(cartSub()) + '</span></div>' +
+      '<div id="stampProg" class="mb-3"></div><div class="flex justify-between font-black text-base mb-1"><span>Subtotal</span><span>' + rs(cartSub()) + '</span></div>' +
       '<p class="text-[11px] text-gray-500 mb-3">GST (5%) final bill me judega. Payment ka option order ke baad milega.</p>' +
       '<button id="placeBtn" onclick="placeOrder()" class="w-full bg-indigo-600 text-white rounded-2xl py-3.5 font-black text-sm">🚀 Place Order</button>');
     $('gName').value = keep.gName != null ? keep.gName : (g.name || '');
     $('gPhone').value = keep.gPhone != null ? keep.gPhone : (g.phone || '');
     $('gNote').value = keep.gNote || '';
-    $('gPhone').oninput = function () { this.value = this.value.replace(/\D/g, ''); renderPts(); };
-    renderTqLogin(); loadPts();
+    $('gPhone').oninput = function () { this.value = this.value.replace(/\D/g, ''); renderPts(); loadStampSt(); };
+    renderTqLogin(); loadPts(); loadStampSt();
   }
   // ---- WhatsApp OTP login (same as the website checkout): verified once, remembered on this device ----
   var tqOtpOn = true, tqTimer = null;
@@ -475,10 +475,10 @@
   function tqChangeNumber() {
     if (!window.confirm('Number badalne par is device ka login hat jayega. Aage badhein?')) return;
     try { localStorage.removeItem('vf_profile'); } catch (e) {}
-    $('gPhone').value = ''; ptsInfo = null; usePts = false; stampInfo = null; useStamp = false; renderTqLogin(); renderPts();
+    $('gPhone').value = ''; ptsInfo = null; usePts = false; stampInfo = null; stampPick = 0; renderTqLogin(); renderPts();
   }
   // ---- use loyalty points on this order (server re-checks everything; this only mirrors its limits) ----
-  var ptsInfo = null, usePts = false, stampInfo = null, useStamp = false; // stampInfo = stamp card status (only when a free item is available)
+  var ptsInfo = null, usePts = false, stampInfo = null, stampPick = 0; // stampInfo = stamp card status (only when a free item is available)
   async function loadPts() {
     var p = profile();
     if (p && p.token && !ptsInfo && !stampInfo) {
@@ -500,23 +500,23 @@
   }
   var ptsOffer = function () { return Math.round(maxPts() * Number(ptsInfo.point_value) * 100) / 100; };
   function togglePts() { usePts = $('usePts').checked; renderPts(); }
-  // Free item (stamp card): cheapest item in the cart (capped by the owner's limit); only for the phone this device is logged in with; the server re-checks
-  function stampOffer() {
+  // Free item (stamp card): the guest picks one from the owner's list (cart must reach the owner's minimum, phone = the one this device is logged in with); the server adds the free line and re-checks
+  function stampItems() {
     var p = profile(), phone = $('gPhone') ? $('gPhone').value.replace(/\D/g, '') : (pg ? pg.phone : '');
-    if (!stampInfo || !p || !phone || phone !== p.phone || !cart.length) return 0;
-    var v = Math.min.apply(null, cart.map(function (c) { return Number(c.price); }).filter(function (x) { return x > 0; }).concat([Infinity]));
-    if (!isFinite(v)) return 0;
-    if (Number(stampInfo.reward_max) > 0) v = Math.min(v, Number(stampInfo.reward_max));
-    return Math.round(v * 100) / 100;
+    if (!stampInfo || !p || !phone || phone !== p.phone || !cart.length) return [];
+    return cartSub() >= (Number(stampInfo.redeem_min) || 0) ? (stampInfo.free_items || []) : [];
   }
-  function toggleStamp() { useStamp = $('useStamp').checked; renderPts(); }
+  function pickStamp() { stampPick = Number($('stampSel').value) || 0; renderPts(); }
   function renderPts() {
     var box = $('ptsBox'), off = $('ptsOff'); if (!box) return;
     var n = maxPts(); if (!n) usePts = false;
-    var so = stampOffer(); if (!so) useStamp = false;
+    var sItems = stampItems(); if (stampPick && !sItems.some(function (i) { return i.id === stampPick; })) stampPick = 0;
     box.innerHTML = n ? '<label class="flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 cursor-pointer"><input type="checkbox" id="usePts" onchange="togglePts()" class="w-4 h-4 accent-amber-500"' + (usePts ? ' checked' : '') + '><span class="text-xs font-black text-amber-900">⭐ ' + n + ' points use karein (−' + rs(ptsOffer()) + ', Pay now par lagega) • aapke paas ' + ptsInfo.balance + '</span></label>' : '';
-    if (so) box.innerHTML += '<label class="flex items-center gap-2.5 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5 cursor-pointer' + (n ? ' mt-2' : '') + '"><input type="checkbox" id="useStamp" onchange="toggleStamp()" class="w-4 h-4 accent-emerald-500"' + (useStamp ? ' checked' : '') + '><span class="text-xs font-black text-emerald-900">🍽 Stamp card free item lagayein (−' + rs(so) + ', Pay now par lagega) • sabse sasta item free</span></label>';
-    if (off) off.innerHTML = (usePts ? '<span>Points discount (' + n + ' pts)</span><span>−' + rs(ptsOffer()) + '</span>' : '') + (useStamp ? '<span>Free item</span><span>−' + rs(so) + '</span>' : '');
+    if (stampInfo) box.innerHTML += '<div class="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5' + (n ? ' mt-2' : '') + '"><div class="text-xs font-black text-emerald-900 mb-1.5">🍽 Stamp card: apna FREE item chunein (Pay now par lagega)</div>' +
+      (sItems.length ? '<select id="stampSel" onchange="pickStamp()" class="w-full border border-emerald-200 rounded-lg px-2 py-2 text-xs font-bold bg-white"><option value="">— Free item nahi lena —</option>' + sItems.map(function (i) { return '<option value="' + i.id + '"' + (stampPick === i.id ? ' selected' : '') + '>' + esc(i.name) + ' (' + rs(i.price) + ')</option>'; }).join('') + '</select>' +
+        '<div class="text-[11px] font-bold text-emerald-700 mt-1">' + (stampPick ? '✅ Ye item aapke order me FREE judega' : 'Upar se apna free item chunein') + '</div>'
+        : '<div class="text-[11px] font-bold text-emerald-700">Free item ' + (Number(stampInfo.redeem_min) > 0 ? rs(stampInfo.redeem_min) + ' ya zyada ke order par' : 'abhi') + ' milega (cart me aur item add karein)</div>') + '</div>';
+    if (off) off.innerHTML = (usePts ? '<span>Points discount (' + n + ' pts)</span><span>−' + rs(ptsOffer()) + '</span>' : '') + (stampPick ? '<span>Free item</span><span>FREE</span>' : '');
   }
   function chg(i, d) {
     cart[i].qty += d; if (cart[i].qty < 1) cart.splice(i, 1);
@@ -534,11 +534,11 @@
   function payChoiceSheet() {
     openSheet(sheetHead('Payment kab karenge?') +
       '<p class="text-xs text-gray-500 mb-3">Subtotal ' + rs(cartSub()) + ' (GST 5% alag se judega)</p>' +
-      '<div id="ptsBox" class="mb-3"></div><div id="ptsOff" class="flex justify-between font-black text-sm text-amber-700 mb-2"></div>' +
+      '<div id="stampProg" class="mb-3"></div><div id="ptsBox" class="mb-3"></div><div id="ptsOff" class="flex justify-between font-black text-sm text-amber-700 mb-2"></div>' +
       '<button id="payNowBtn" onclick="placeOrder(\'now\')" class="w-full bg-emerald-600 text-white rounded-2xl py-3.5 font-black text-sm mb-2">💳 Pay now (UPI / Card)</button>' +
       '<button id="payLaterBtn" onclick="placeOrder(\'later\')" class="w-full bg-white border-2 border-indigo-600 text-indigo-700 rounded-2xl py-3 font-black text-sm">🕒 Pay at the end</button>' +
       '<p class="text-[11px] text-gray-500 text-center mt-2">Points sirf payment ke waqt use hote hain: abhi Pay now par, ya baad me bill par.</p>');
-    renderPts(); loadPts();
+    renderPts(); loadPts(); loadStampSt();
   }
   async function placeOrder(mode) {
     if (placing || !cart.length) return;
@@ -550,14 +550,14 @@
       var prof = profile(), tok = prof && prof.phone === phone ? prof.token || '' : '';
       if (tqOtpOn && !tok) return toast('Pehle WhatsApp OTP se number verify karein', true);
       pg = { name: name, phone: phone, note: $('gNote').value, tok: tok };
-      usePts = false; useStamp = false;
+      usePts = false; stampPick = 0;
       var b0 = null; try { b0 = await fetch('/api/table-qr/bill?t=' + encodeURIComponent(T) + '&k=' + encodeURIComponent(K)).then(jsonOrThrow); } catch (e) { /* no bill info: just place it unpaid */ }
       if (b0 && b0.online && !b0.lines.length && !b0.pendingCount) return payChoiceSheet();
       mode = 'later';
     }
     if (!pg) return;
     placing = true; setPlaceBusy(true);
-    var lines = cart.slice(), sub = cartSub(), pts = (mode === 'now' && usePts) ? maxPts() : 0, stampOn = mode === 'now' && useStamp && stampOffer() > 0, off = pts ? ptsOffer() : 0, rpId = null;
+    var lines = cart.slice(), sub = cartSub(), pts = (mode === 'now' && usePts) ? maxPts() : 0, stampOn = mode === 'now' && stampPick && stampItems().some(function (i) { return i.id === stampPick; }) ? stampPick : 0, off = pts ? ptsOffer() : 0, rpId = null;
     try {
       var r = await fetch('/api/table-qr/order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
         t: T, k: K, customer_name: pg.name, customer_phone: pg.phone, note: pg.note, points_redeem: pts || undefined, stamp_redeem: stampOn || undefined, pay_now: mode === 'now' || undefined, profile_token: pg.tok,
@@ -586,7 +586,7 @@
       var rec = { id: d.orderId, s: d.track, token: d.token_no, shared: !!d.shared, total: sub - off, at: Date.now(), items: lines.map(function (c) { return { name: c.name, qty: c.qty }; }) };
       orders.unshift(rec);
       try { localStorage.setItem(ORD_KEY, JSON.stringify(orders.slice(0, 5))); } catch (e) {}
-      usePts = false; ptsInfo = null; useStamp = false; stampInfo = null; pg = null;
+      usePts = false; ptsInfo = null; stampPick = 0; stampInfo = null; pg = null;
       cart = []; saveCart(); updateCartBar(); renderMenu(); closeSheet(); placing = false;
       showOrderPage(rec); pollOrders();
     } catch (e) {
@@ -699,13 +699,40 @@
   var DAYN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   function t12(hhmm) { var p = String(hhmm).split(':'), h = +p[0], m = p[1] || '00'; return (h % 12 || 12) + ':' + m + ' ' + (h < 12 ? 'AM' : 'PM'); }
   function fmtD(iso) { var d = new Date(iso + 'T00:00:00'); return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); }
+  // Stamp progress (public, by phone) + what THIS order does: earns a stamp / is too small for the free item
+  var stampSt = null, stampStPhone = '', stampGen = null;
+  function loadStampSt() {
+    var ph = $('gPhone') ? $('gPhone').value.replace(/\D/g, '') : (pg ? pg.phone : '');
+    if (ph.length !== 10) {
+      stampSt = null; stampStPhone = '';
+      if (!stampGen) fetch('/api/loyalty-info').then(jsonOrThrow).then(function (d) { stampGen = d && d.stamp && d.stamp.enabled ? d.stamp : null; renderStampProg(); }).catch(function () {});
+      return renderStampProg();
+    }
+    if (ph === stampStPhone) return renderStampProg();
+    stampStPhone = ph;
+    fetch('/api/stamps/' + ph).then(jsonOrThrow).then(function (d) { if (stampStPhone === ph) { stampSt = d && d.enabled ? d : null; renderStampProg(); } }).catch(function () {});
+  }
+  function renderStampProg() { var el = $('stampProg'); if (el) el.innerHTML = stampProgHtml(stampSt || stampGen, cartSub()); }
+  function stampProgHtml(st, bill) {
+    if (!st) return '';
+    var n = st.orders_needed, minO = Number(st.min_order) || 0, minR = Number(st.redeem_min) || 0;
+    var box = function (head, msg, tone) { return '<div class="rounded-xl bg-' + tone + '-50 border border-' + tone + '-200 px-3 py-2 text-left"><div class="text-xs font-black text-' + tone + '-900">' + head + '</div><div class="text-[11px] font-bold text-' + tone + '-800 mt-1">' + msg + '</div></div>'; };
+    if (st.progress === undefined) return box('🍽 Stamp card: ' + n + ' orders = 1 FREE item', (minO > 0 ? '₹' + minO + ' ya zyada ke har paid order par 1 stamp. ' : 'Har paid order par 1 stamp. ') + 'Phone number daalein to apna progress dikhega.', 'emerald');
+    var dots = '●'.repeat(st.progress) + '○'.repeat(Math.max(0, n - st.progress)), head = '🍽 Stamp card: ' + st.progress + '/' + n + ' <span class="tracking-widest text-emerald-600">' + dots + '</span>';
+    if (st.available > 0) {
+      if (!minR || bill >= minR) return box(head, '🎁 Aapka FREE item ready hai! Pay now par list se chunein.', 'emerald');
+      return box(head, bill > 0 ? '⚠ Free item pakka hai! Bas ₹' + Math.ceil(minR - bill) + ' ka aur order karein (free item ke alawa kam se kam ₹' + minR + ' ka bill chahiye).' : '🎁 Free item pakka hai! ₹' + minR + ' ya zyada ka order karein to ek free item milega.', 'amber');
+    }
+    if (bill > 0 && bill >= minO) return box(head, st.progress + 1 >= n ? '✅ Is order ke baad aapka FREE item unlock ho jayega!' : '✅ Is order se stamp milega (' + (st.progress + 1) + '/' + n + '). ' + (n - st.progress - 1) + ' aur → 1 FREE item.', 'emerald');
+    return box(head, minO > 0 ? 'Stamp ke liye ₹' + minO + ' ya zyada ka order karein' + (bill > 0 ? ' (₹' + Math.ceil(minO - bill) + ' aur)' : '') + '. ' + (n - st.progress) + ' stamp aur → 1 FREE item.' : (n - st.progress) + ' order aur → 1 FREE item.', 'emerald');
+  }
   // Stamp card (N orders = 1 free item)
   function stampCard(st) {
     if (!st || !st.enabled) return '';
     var n = st.orders_needed, left = n - st.progress, pct = Math.max(4, Math.round(st.progress * 100 / n));
     var t = function (hhmm) { var q = String(hhmm).split(':'), h = +q[0]; return (h % 12 || 12) + ':' + (q[1] || '00') + ' ' + (h < 12 ? 'AM' : 'PM'); };
     if (st.available > 0) return '<div class="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 text-left"><div class="text-xs font-black text-emerald-800">🍽 Aapke paas ' + st.available + ' FREE item hai!</div>' +
-      '<div class="text-[11px] font-bold text-emerald-700 mt-1">Pay now par checkout me dikhega. Counter / kiosk par "Show redeem code" dikhayein. Sabse sasta item free' + (st.reward_max ? ' (max ₹' + st.reward_max + ')' : '') + '.</div></div>';
+      '<div class="text-[11px] font-bold text-emerald-700 mt-1">' + (st.redeem_min > 0 ? '₹' + st.redeem_min + ' ya zyada ke order par ' : 'Agle order par ') + 'free item list me se apna item chunein: Pay now par checkout me, kiosk / counter par "Show redeem code" dikhayein.</div></div>';
     return '<div class="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 text-left"><div class="text-xs font-black text-emerald-900">🍽 Stamps: ' + st.progress + ' / ' + n + '</div>' +
       '<div class="mt-1.5 h-2 rounded-full bg-emerald-200"><div class="h-2 rounded-full bg-emerald-500" style="width:' + pct + '%"></div></div>' +
       '<div class="text-[11px] font-bold text-emerald-800 mt-1">Bas ' + left + ' order aur' + (st.all_day ? '' : ' (' + t(st.start) + ' – ' + t(st.end) + ')') + ' → 1 FREE item!</div></div>';

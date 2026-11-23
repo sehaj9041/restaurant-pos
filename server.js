@@ -1977,14 +1977,17 @@ const createOrderHandler = async (req, res) => {
   let discountReason = String(req.body.discount_reason || '').trim().slice(0, 200);
   // Coupon / loyalty points: the rupee discount is recomputed here from the DB, never taken from the client, so no discount password is needed.
   let couponCode = null, pointsRedeemed = 0, stampRedeemed = 0, promoApplied = false;
+  // the free stamp item is only ever added here, by the server, after the stamp is verified: lines a client marks stamp_free are dropped
+  if (Array.isArray(items)) items = items.filter(i => !(i && i.stamp_free));
+  const addFreeLine = (it) => { items = items.concat([{ id: it.id, name: it.line_name + ' (FREE)', qty: 1, price: 0, notes: '', is_exempt: it.is_exempt, stamp_free: true }]); };
   if (!isOnlineOrder && !req.tableQr && !is_kiosk && !req.autoAccept && Number(req.body.points_redeem) > 0) return res.status(400).json({ error: 'Points sirf kiosk, website ya table QR se redeem ho sakte hain' });
   if (!isOnlineOrder && !req.tableQr && !req.body.is_complimentary && (req.body.coupon_code || Number(req.body.points_redeem) > 0 || req.body.stamp_redeem)) { // table QR is handled by the profile-token block below
     try {
       const promo = await engagement.computeDiscount({ subtotal: calculatedSubtotal, phone: customer_phone, coupon_code: req.body.coupon_code, points_redeem: req.body.points_redeem,
         points_code: req.body.points_code, staff_override: discountPasswordOk(req.body.auth_password) || !!req.promoVerified, consume: true,
-        stamp_redeem: !!req.body.stamp_redeem, items: Array.isArray(items) ? items : [] });
+        stamp_redeem: req.body.stamp_redeem, items: Array.isArray(items) ? items : [] });
       if (promo.error) return res.status(400).json({ error: promo.error });
-      finalDiscount = promo.discount; couponCode = promo.couponCode || null; pointsRedeemed = promo.pointsRedeemed || 0; stampRedeemed = promo.stampRedeemed || 0;
+      finalDiscount = promo.discount; couponCode = promo.couponCode || null; pointsRedeemed = promo.pointsRedeemed || 0; stampRedeemed = promo.stampRedeemed || 0; if (promo.stampItem) addFreeLine(promo.stampItem);
       discountReason = promo.reason; promoApplied = true;
     } catch (e) { console.error('Promo error:', e.message); return res.status(500).json({ error: 'Coupon / points check nahi ho paaya' }); }
   }
@@ -1997,9 +2000,9 @@ const createOrderHandler = async (req, res) => {
     if (pend.length) return res.status(400).json({ error: 'Points wala ek payment abhi pending hai. Use poora karein ya thodi der baad (30 min) dobara try karein.' });
     try {
       const foodSubtotal = items.reduce((sum, i) => i.name === 'Delivery Charge' ? sum : sum + Number(i.price) * Number(i.qty), 0);
-      const promo = await engagement.computeDiscount({ subtotal: foodSubtotal, phone: customer_phone, points_redeem: req.body.points_redeem, staff_override: true, consume: true, stamp_redeem: !!req.body.stamp_redeem, items });
+      const promo = await engagement.computeDiscount({ subtotal: foodSubtotal, phone: customer_phone, points_redeem: req.body.points_redeem, staff_override: true, consume: true, stamp_redeem: req.body.stamp_redeem, items });
       if (promo.error) return res.status(400).json({ error: promo.error });
-      finalDiscount = promo.discount; pointsRedeemed = promo.pointsRedeemed || 0; stampRedeemed = promo.stampRedeemed || 0; discountReason = promo.reason; promoApplied = true;
+      finalDiscount = promo.discount; pointsRedeemed = promo.pointsRedeemed || 0; stampRedeemed = promo.stampRedeemed || 0; if (promo.stampItem) addFreeLine(promo.stampItem); discountReason = promo.reason; promoApplied = true;
     } catch (e) { console.error('Online points error:', e.message); return res.status(500).json({ error: 'Points check nahi ho paaya' }); }
   }
   if (isComp || (finalDiscount > 0 && !promoApplied)) {

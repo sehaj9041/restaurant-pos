@@ -301,11 +301,11 @@ function register(app, { dbAllAsync, createOrderHandler, computeDiscount, discou
       // The discount is never taken from the client: only a loyalty-points redemption (code checked and spent right now) can lower the amount
       delete p._promo_verified;
       p.discount = 0;
-      const pts = Math.floor(Number(p.points_redeem) || 0), stampWanted = !!p.stamp_redeem;
+      const pts = Math.floor(Number(p.points_redeem) || 0), stampWanted = p.stamp_redeem || 0;
       if ((pts > 0 || stampWanted) && computeDiscount) {
         const promo = await computeDiscount({ subtotal: subtotalOf(p), phone: p.customer_phone, points_redeem: pts, points_code: p.points_code, staff_override: false, consume: true, stamp_redeem: stampWanted, items: p.items });
         if (promo.error) return res.status(400).json({ error: promo.error });
-        p.discount = promo.discount; p.points_redeem = promo.pointsRedeemed; p.stamp_redeem = promo.stampRedeemed || 0; p._promo_verified = true;
+        p.discount = promo.discount; p.points_redeem = promo.pointsRedeemed; p.stamp_redeem = promo.stampRedeemed ? stampWanted : 0; p._promo_verified = true;
       } else { p.points_redeem = 0; p.stamp_redeem = 0; }
       delete p.points_code; delete p.coupon_code; delete p.is_complimentary; delete p.auth_password; delete p.discount_reason;
       const amount = payableAmount(p);

@@ -242,7 +242,7 @@
       <div class="text-6xl">&#11088;</div>
       <h3 id="pointsTitle" class="text-3xl font-black leading-tight mt-2">Use your<br>loyalty points?</h3>
       <p id="pointsInfo" class="text-lg font-bold mt-3"></p>
-      <button id="stampToggle" onclick="toggleStamp()" class="hidden tile w-full max-w-[340px] mt-3 py-3 px-3 text-lg font-black"></button>
+      <div id="stampPicker" class="hidden w-full max-w-[340px] mt-3 space-y-2 text-left"></div>
       <div id="pointsAmountWrap" class="w-full max-w-[340px] mt-4 text-left">
         <div class="flex items-end justify-between"><span class="text-sm font-black">Points to use <span class="opacity-60 font-bold">(tap to change)</span></span><button onclick="pointsMax()" class="text-sm font-black underline">Use max</button></div>
         <div id="pointsAmountDisplay" onclick="pointsFocus('amount')" class="tile w-full py-3 mt-1 text-3xl font-black text-center min-h-[3.5rem]"></div>
@@ -352,6 +352,7 @@
         <p id="kioskModeNote" class="text-[12px] font-bold text-neutral-600 uppercase tracking-wider">Dine In</p>
       </div>
       <p id="kioskPlacedFoot" class="text-sm text-neutral-500 mt-6">Kitchen is preparing your fresh meal...</p>
+      <div id="kioskStampDone" class="hidden tile w-full max-w-[300px] mt-5 py-3 px-4 text-center text-base font-black"></div>
       <div id="kioskRateBox" class="hidden tile w-full max-w-[300px] mt-5 py-4 flex flex-col items-center">
         <span class="text-base font-black">⭐ Enjoyed it? Rate us!</span>
         <img id="kioskRateQr" alt="Rate us" class="w-40 h-40 mt-2 bg-white rounded-lg">
@@ -1104,7 +1105,7 @@
     const trayGst = () => Math.round((kioskTray.reduce((s, i) => Number(i.is_exempt) ? s : s + (Number(i.price) * i.qty), 0) * 5) / 100);
     const trayTotal = () => traySubtotal() + trayGst();
     // Loyalty points redeemed on this order (see the points step); GST is charged after the discount, same as the server
-    let kioskPromo = null; // { points, stamp, code, discount }
+    let kioskPromo = null; // { points, stampLine (free item bill line), code, discount }
     const promoDiscount = () => (kioskPromo ? Math.min(kioskPromo.discount, traySubtotal()) : 0);
     const trayGstAfterPromo = () => {
       const sub = traySubtotal(), disc = promoDiscount();
@@ -1214,13 +1215,13 @@
 
     // ---------- Loyalty points step (optional; only when the customer has enough points) ----------
     let kioskLoyalty = null; // last /api/loyalty/<phone> answer (for the progress card on the payment screen)
-    let kioskStamp = null, stampUse = false; // kioskStamp = /api/stamps/<phone> answer; stampUse = customer picked the free item
+    let kioskStamp = null, stampPick = 0; // kioskStamp = /api/stamps/<phone> answer; stampPick = menu id of the free item the customer chose
     let pointsCode = '', pointsAmount = '', pointsField = 'code', pointsFresh = false, pointsOffer = null; // pointsOffer = { points (max usable), value, balance, min, perPoint }
     const pointsWanted = () => Math.floor(Number(pointsAmount) || 0);
     function pointsAmountError() {
       const n = pointsWanted();
       if (!pointsOffer) return '';
-      if (n === 0 && stampUse) return '';
+      if (n === 0 && stampPick) return '';
       if (n < pointsOffer.min) return 'Use at least ' + pointsOffer.min + ' points';
       if (n > pointsOffer.points) return 'You can use up to ' + pointsOffer.points + ' points on this bill';
       return '';
@@ -1232,7 +1233,7 @@
       const err = pointsAmountError(), n = pointsWanted();
       $('pointsSaving').innerText = err ? err : (pointsOffer ? 'Saves ' + money(Math.round(n * pointsOffer.perPoint * 100) / 100) : '');
       $('pointsSaving').style.color = err ? '#dc2626' : '';
-      $('pointsApplyBtn').disabled = !!err || pointsCode.length !== 6;
+      $('pointsApplyBtn').disabled = !!err || pointsCode.length !== 6 || (!pointsOffer && !stampPick);
     }
     function pointsFocus(f) { pointsField = f; pointsFresh = f === 'amount'; renderPointsFields(); }
     function pointsMax() { pointsAmount = String(pointsOffer.points); pointsFresh = false; $('pointsErr').innerText = ''; renderPointsFields(); }
@@ -1247,14 +1248,16 @@
       }
       renderPointsFields();
     }
-    function renderStampToggle() {
-      const b = $('stampToggle');
-      b.classList.toggle('hidden', !(kioskStamp && kioskStamp.available > 0));
-      b.innerHTML = (stampUse ? '&#9989; ' : '&#11036; ') + 'Use my FREE item' + '<div class="text-sm font-bold opacity-70">Cheapest item on this order is free' + (kioskStamp && kioskStamp.reward_max ? ' (up to ' + money(kioskStamp.reward_max) + ')' : '') + '</div>';
+    function renderStampPicker() {
+      const box = $('stampPicker'), st = kioskStamp;
+      const items = st && st.available > 0 && traySubtotal() >= (Number(st.redeem_min) || 0) ? (st.free_items || []) : [];
+      box.classList.toggle('hidden', !items.length);
+      box.innerHTML = items.length ? '<p class="text-center text-sm font-black">&#127873; Pick your FREE item (tap again to remove)</p>' + items.map(i =>
+        '<button onclick="pickStamp(' + i.id + ')" class="tile w-full py-2.5 px-3 text-base font-black flex items-center justify-between ' + (stampPick === i.id ? 'ring-4 ring-[#d9531e]' : '') + '"><span>' + (stampPick === i.id ? '&#9989; ' : '') + i.name.replace(/</g, '&lt;') + '</span><span class="opacity-60">' + money(i.price) + '</span></button>').join('') : '';
     }
-    function toggleStamp() { stampUse = !stampUse; $('pointsErr').innerText = ''; renderStampToggle(); renderPointsFields(); }
+    function pickStamp(id) { stampPick = stampPick === id ? 0 : id; $('pointsErr').innerText = ''; renderStampPicker(); renderPointsFields(); }
     function openPointsStep() {
-      kioskPromo = null; pointsCode = ''; pointsAmount = ''; pointsOffer = null; kioskLoyalty = null; kioskStamp = null; stampUse = false;
+      kioskPromo = null; pointsCode = ''; pointsAmount = ''; pointsOffer = null; kioskLoyalty = null; kioskStamp = null; stampPick = 0;
       Promise.all([
         fetch('/api/loyalty/' + kioskPhone).then(r => r.json()).catch(() => null),
         fetch('/api/stamps/' + kioskPhone).then(r => r.json()).catch(() => null)
@@ -1267,9 +1270,8 @@
           const points = Math.min(Number(d.balance) || 0, Math.floor(room / Number(d.point_value)));
           if (points >= Number(d.min_redeem) && points > 0) pointsOffer = { points, value: Math.round(points * Number(d.point_value) * 100) / 100, balance: Number(d.balance), min: Number(d.min_redeem), perPoint: Number(d.point_value) };
         }
-        const hasStamp = !!(kioskStamp && kioskStamp.available > 0);
+        const hasStamp = !!(kioskStamp && kioskStamp.available > 0 && (kioskStamp.free_items || []).length && traySubtotal() >= (Number(kioskStamp.redeem_min) || 0));
         if (!pointsOffer && !hasStamp) return openPaymentChoice();
-        stampUse = hasStamp;
         $('pointsAmountWrap').classList.toggle('hidden', !pointsOffer);
         $('pointsTitle').innerHTML = pointsOffer && hasStamp ? 'Use your points<br>and free item?' : (pointsOffer ? 'Use your<br>loyalty points?' : 'Use your<br>FREE item?');
         let info = '';
@@ -1278,22 +1280,22 @@
         $('pointsInfo').innerHTML = info;
         pointsField = 'code'; pointsFresh = false;
         $('pointsErr').innerText = '';
-        renderStampToggle();
+        renderStampPicker();
         renderPointsFields();
         $('pointsModal').classList.remove('hidden');
       }).catch(() => openPaymentChoice());
     }
     function skipPoints() { kioskPromo = null; $('pointsModal').classList.add('hidden'); openPaymentChoice(); }
     function applyKioskPoints() {
-      if ((!pointsOffer && !stampUse) || pointsCode.length !== 6) return;
+      if ((!pointsOffer && !stampPick) || pointsCode.length !== 6) return;
       const wanted = pointsOffer ? pointsWanted() : 0, amountErr = pointsAmountError();
       if (amountErr) { $('pointsErr').innerText = amountErr; return; }
       $('pointsErr').innerText = 'Checking...';
       fetch('/api/coupons/validate', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subtotal: traySubtotal(), phone: kioskPhone, points_redeem: wanted, points_code: pointsCode, stamp_redeem: stampUse, items: kioskTray }) })
+        body: JSON.stringify({ subtotal: traySubtotal(), phone: kioskPhone, points_redeem: wanted, points_code: pointsCode, stamp_redeem: stampPick || undefined, items: kioskTray }) })
         .then(r => r.json().then(d => { if (!r.ok) throw new Error(d.error || 'Could not apply points'); return d; }))
         .then(d => {
-          kioskPromo = { points: d.pointsRedeemed || 0, stamp: d.stampRedeemed ? 1 : 0, code: pointsCode, discount: d.discount };
+          kioskPromo = { points: d.pointsRedeemed || 0, stampLine: d.stampItem ? { id: d.stampItem.id, name: d.stampItem.line_name + ' (FREE)', qty: 1, price: 0, notes: '', is_exempt: d.stampItem.is_exempt, stamp_free: true } : null, code: pointsCode, discount: d.discount };
           $('pointsModal').classList.add('hidden');
           openPaymentChoice();
         })
@@ -1316,12 +1318,17 @@
             '<div class="flex justify-between text-sm opacity-80 mt-1"><span>' + bal + ' / ' + min + ' points</span>' + (spend ? '<span>about ' + money(spend) + ' more in orders</span>' : '') + '</div>';
         }
       }
-      if (st && !(kioskPromo && kioskPromo.stamp)) {
-        const n = st.orders_needed, pct = Math.max(4, Math.round(st.progress * 100 / n)), t12 = h => { const [H, M] = h.split(':').map(Number); return ((H % 12) || 12) + (M ? ':' + String(M).padStart(2, '0') : '') + (H < 12 ? 'am' : 'pm'); };
-        html += (html ? '<div class="mt-3 pt-3 border-t border-black/10"></div>' : '') + (st.available > 0
-          ? '<div class="text-base font-black">&#127869; You have a FREE item waiting!</div><div class="text-sm opacity-80 mt-1">Use it on your next order with the redeem code from your phone.</div>'
-          : '<div class="text-base font-black">&#127869; Stamps: ' + st.progress + ' / ' + n + '</div><div class="mt-2 h-2.5 rounded-full bg-black/10"><div class="h-2.5 rounded-full" style="width:' + pct + '%;background:#d9531e"></div></div>' +
-            '<div class="text-sm opacity-80 mt-1">' + (n - st.progress) + ' more order' + (n - st.progress === 1 ? '' : 's') + (st.all_day ? '' : ' between ' + t12(st.start) + ' and ' + t12(st.end)) + ' for a FREE item</div>');
+      if (st && !(kioskPromo && kioskPromo.stampLine)) {
+        const n = st.orders_needed, bill = traySubtotal(), minO = Number(st.min_order) || 0, minR = Number(st.redeem_min) || 0, pct = Math.max(4, Math.round(st.progress * 100 / n));
+        const dots = '&#9679;'.repeat(st.progress) + '&#9675;'.repeat(Math.max(0, n - st.progress));
+        let msg;
+        if (st.available > 0) msg = minR > 0 ? 'Use it on an order of ' + money(minR) + ' or more (not counting the free item). This order is ' + money(bill) + ', so ask for it next time with the redeem code from your phone.' : 'Use it on your next order with the redeem code from your phone.';
+        else if (bill >= minO) msg = st.progress + 1 >= n ? 'This order unlocks your FREE item!' : 'This order adds a stamp (' + (st.progress + 1) + ' / ' + n + '). ' + (n - st.progress - 1) + ' more for a FREE item.';
+        else msg = 'Orders of ' + money(minO) + ' or more earn a stamp (this one is ' + money(bill) + '). ' + (n - st.progress) + ' more stamps for a FREE item.';
+        html += (html ? '<div class="mt-3 pt-3 border-t border-black/10"></div>' : '') +
+          '<div class="text-base font-black">&#127869; ' + (st.available > 0 ? 'You have a FREE item waiting!' : 'Stamp card: ' + st.progress + ' / ' + n + ' <span class="tracking-widest" style="color:#d9531e">' + dots + '</span>') + '</div>' +
+          (st.available > 0 ? '' : '<div class="mt-2 h-2.5 rounded-full bg-black/10"><div class="h-2.5 rounded-full" style="width:' + pct + '%;background:#d9531e"></div></div>') +
+          '<div class="text-sm opacity-80 mt-1">' + msg + '</div>';
       }
       if (!html) { el.classList.add('hidden'); return; }
       el.innerHTML = html; el.classList.remove('hidden');
@@ -1332,7 +1339,7 @@
       renderPayProgress();
       const note = $('payTotalNote');
       note.classList.toggle('hidden', !kioskPromo);
-      if (kioskPromo) note.innerText = 'Total ' + money(trayPayable()) + '  (you saved ' + money(promoDiscount()) + ')';
+      if (kioskPromo) note.innerText = 'Total ' + money(trayPayable()) + (promoDiscount() > 0 ? '  (you saved ' + money(promoDiscount()) + ')' : '') + (kioskPromo.stampLine ? '  \u2022  FREE ' + kioskPromo.stampLine.name.replace(' (FREE)', '') + ' added' : '');
       $('paymentModal').classList.remove('hidden');
     }
     function closePaymentModal() { $('paymentModal').classList.add('hidden'); }
@@ -1342,19 +1349,20 @@
       closePaymentModal();
       pendingPaymentMode = payMethod;
       const total = trayPayable(), discount = promoDiscount(), gstNow = trayGstAfterPromo();
-      const snapshot = { items: kioskTray.map(i => ({ ...i })), subtotal: traySubtotal(), discount: discount, gst: gstNow, total: total, order_type: kioskOrderType, payment_mode: payMethod };
+      const freeLine = kioskPromo && kioskPromo.stampLine ? [kioskPromo.stampLine] : []; // the free stamp item shows on the slip / kitchen as a Rs 0 line
+      const snapshot = { items: kioskTray.map(i => ({ ...i })).concat(freeLine), subtotal: traySubtotal(), discount: discount, gst: gstNow, total: total, order_type: kioskOrderType, payment_mode: payMethod };
       const orderBody = {
         order_type: kioskOrderType,
         is_kiosk: true,
         table_no: '',
         customer_name: 'Self Kiosk Guest',
         customer_phone: kioskPhone,
-        items: kioskTray,
+        items: kioskTray.concat(freeLine),
         payment_mode: pendingPaymentMode,
         subtotal: traySubtotal(),
         discount: discount,
         points_redeem: kioskPromo ? kioskPromo.points : 0,
-        stamp_redeem: kioskPromo && kioskPromo.stamp ? 1 : 0,
+        stamp_redeem: kioskPromo && kioskPromo.stampLine ? kioskPromo.stampLine.id : 0,
         points_code: kioskPromo ? kioskPromo.code : '',
         gst: gstNow,
         total: total,
@@ -1390,6 +1398,16 @@
       $('kioskPlacedTitle').innerText = payAtCounter ? 'Almost Done!' : 'Order Placed!';
       $('kioskPlacedSub').innerText = payAtCounter ? 'Please complete your payment at the counter to proceed with your order. Collect your token slip.' : 'Please take your order token & receipt';
       $('kioskPlacedFoot').classList.toggle('hidden', !!payAtCounter);
+      // Stamp card line on the done screen: where the customer stands after this order
+      const sd = $('kioskStampDone'), st = kioskStamp;
+      if (st && st.enabled) {
+        const n = st.orders_needed, counts = !(kioskPromo && kioskPromo.stampLine) && Number(snapshot.total) >= (Number(st.min_order) || 0) && Number(snapshot.total) > 0;
+        const now = st.available > 0 && !(kioskPromo && kioskPromo.stampLine) ? n : st.progress + (counts ? 1 : 0);
+        sd.innerHTML = kioskPromo && kioskPromo.stampLine ? '&#127873; Enjoy your FREE item!'
+          : (st.available > 0 || now >= n) ? '&#127869; FREE item unlocked for your next order!<div class="text-sm font-bold opacity-70 mt-1">Show your redeem code from the app' + (Number(st.redeem_min) > 0 ? ' on an order of ' + money(st.redeem_min) + '+' : '') + '</div>'
+          : '&#127869; Stamp card: ' + now + ' / ' + n + (counts ? '' : '<div class="text-sm font-bold opacity-70 mt-1">Orders of ' + money(st.min_order) + '+ earn a stamp</div>') + (counts ? '<div class="text-sm font-bold opacity-70 mt-1">Counts once your payment is done</div>' : '');
+        sd.classList.remove('hidden');
+      } else sd.classList.add('hidden');
       // Big "rate us" QR on the done screen (the one on the receipt is easy to miss); the screen stays a little longer so it can be scanned
       const showRate = !payAtCounter && !!data.orderId && kioskReceiptCfg.show_feedback_qr !== false;
       $('kioskRateBox').classList.toggle('hidden', !showRate);
@@ -1999,7 +2017,7 @@
       if (upiPaytmId) cancelUpiPayment();
       kioskTray = [];
       kioskPhone = '';
-      kioskPromo = null; pointsCode = ''; pointsAmount = ''; pointsOffer = null; kioskLoyalty = null; kioskStamp = null; stampUse = false;
+      kioskPromo = null; pointsCode = ''; pointsAmount = ''; pointsOffer = null; kioskLoyalty = null; kioskStamp = null; stampPick = 0;
       selectedMenuItem = null;
       selectedVariation = null;
       selectedGroupAddons = {};
