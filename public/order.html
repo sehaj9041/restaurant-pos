@@ -1139,13 +1139,16 @@
     });
     function loadCkLoyalty() {
       const p = getProfile();
-      if (!p || !p.phone) { stampSt = null; stampCk = null; stampPick = 0; fetch('/api/loyalty-info').then(r => r.ok ? r.json() : null).then(d => { stampGen = d && d.stamp && d.stamp.enabled ? d.stamp : null; updateCartUI(); }).catch(() => {}); }
-      else fetch('/api/stamps/' + encodeURIComponent(p.phone)).then(r => r.ok ? r.json() : null).then(d => {
-        stampSt = d && d.enabled ? d : null; stampCk = stampSt && p.token && stampSt.available > 0 ? stampSt : null; if (!stampCk) stampPick = 0; updateCartUI();
-      }).catch(() => {});
-      if (!p || !p.token) { loyCk = null; usePts = false; return updateCartUI(); }
+      // visitors without a verified number only get the plain offer (/api/loyalty-info is public); the stamp progress of a phone is only given to the verified owner of that phone
+      const generic = () => { stampSt = null; stampCk = null; stampPick = 0; fetch('/api/loyalty-info').then(r => r.ok ? r.json() : null).then(d => { stampGen = d && d.stamp && d.stamp.enabled ? d.stamp : null; updateCartUI(); }).catch(() => {}); };
+      if (!p || !p.token) { loyCk = null; usePts = false; generic(); return updateCartUI(); }
       fetch('/api/loyalty/my', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: p.phone, token: p.token }) })
-        .then(r => r.ok ? r.json() : null).then(d => { loyCk = d && d.enabled ? d : null; updateCartUI(); }).catch(() => {});
+        .then(r => r.ok ? r.json() : null).then(d => {
+          if (!d) { loyCk = null; return generic(); }
+          loyCk = d.enabled ? d : null;
+          stampSt = d.stamp && d.stamp.enabled ? d.stamp : null; stampCk = stampSt && stampSt.available > 0 ? stampSt : null; if (!stampCk) stampPick = 0;
+          updateCartUI();
+        }).catch(() => generic());
     }
     // Preview of the free items the customer can pick once the stamp card is complete
     function stampFreeChips(st) {

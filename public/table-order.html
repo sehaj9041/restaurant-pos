@@ -703,15 +703,18 @@
   // Stamp progress (public, by phone) + what THIS order does: earns a stamp / is too small for the free item
   var stampSt = null, stampStPhone = '', stampGen = null;
   function loadStampSt() {
-    var ph = $('gPhone') ? $('gPhone').value.replace(/\D/g, '') : (pg ? pg.phone : '');
-    if (ph.length !== 10) {
-      stampSt = null; stampStPhone = '';
-      if (!stampGen) fetch('/api/loyalty-info').then(jsonOrThrow).then(function (d) { stampGen = d && d.stamp && d.stamp.enabled ? d.stamp : null; renderStampProg(); }).catch(function () {});
-      return renderStampProg();
+    var p = profile(), ph = $('gPhone') ? $('gPhone').value.replace(/\D/g, '') : (pg ? pg.phone : '');
+    // progress of a phone is only given to its verified owner (profile token); everyone else sees the plain offer
+    if (p && p.token && ph === p.phone) {
+      if (stampStPhone === ph && stampSt) return renderStampProg();
+      stampStPhone = ph;
+      fetch('/api/loyalty/my', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: p.phone, token: p.token }) }).then(jsonOrThrow)
+        .then(function (d) { if (stampStPhone === ph) { stampSt = d && d.stamp && d.stamp.enabled ? d.stamp : null; renderStampProg(); } }).catch(function () {});
+      return;
     }
-    if (ph === stampStPhone) return renderStampProg();
-    stampStPhone = ph;
-    fetch('/api/stamps/' + ph).then(jsonOrThrow).then(function (d) { if (stampStPhone === ph) { stampSt = d && d.enabled ? d : null; renderStampProg(); } }).catch(function () {});
+    stampSt = null; stampStPhone = '';
+    if (!stampGen) fetch('/api/loyalty-info').then(jsonOrThrow).then(function (d) { stampGen = d && d.stamp && d.stamp.enabled ? d.stamp : null; renderStampProg(); }).catch(function () {});
+    renderStampProg();
   }
   function renderStampProg() { var el = $('stampProg'); if (el) el.innerHTML = stampProgHtml(stampSt || stampGen, cartSub()); }
   function stampFreeChips(st) {
@@ -723,7 +726,7 @@
   async function loadStampBanner() {
     try {
       var p = profile(), st = null;
-      if (p && p.phone) { var d = await fetch('/api/stamps/' + p.phone).then(jsonOrThrow); if (d && d.enabled) st = d; }
+      if (p && p.token) { var d = await fetch('/api/loyalty/my', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: p.phone, token: p.token }) }).then(jsonOrThrow); if (d && d.stamp && d.stamp.enabled) st = d.stamp; }
       if (!st) { var g = await fetch('/api/loyalty-info').then(jsonOrThrow); if (g && g.stamp && g.stamp.enabled) st = g.stamp; }
       if (!st) return;
       $('stampBanner').innerHTML = stampProgHtml(st, cartSub()); $('stampBanner').classList.remove('hidden');
