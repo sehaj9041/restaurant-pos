@@ -19,7 +19,7 @@ const QRCode = require('qrcode');
 
 const DEFAULT_LOYALTY = { enabled: false, earn_per_100: 5, point_value: 0.5, min_redeem: 50, max_redeem_pct: 50,
   expiry_days: 0, expiry_since: 0, bonus_enabled: false, bonus_start: '15:00', bonus_end: '18:00', bonus_multiplier: 2, bonus_days: [], bonus_since: 0, first_order_bonus: 0, first_bonus_since: 0 };
-const DEFAULT_STAMPS = { enabled: false, orders_needed: 5, start: '00:00', end: '23:59', days: [], min_order: 0, reward_max: 0, since: 0 };
+const DEFAULT_STAMPS = { enabled: false, orders_needed: 5, start: '00:00', end: '23:59', all_day: true, days: [], min_order: 0, reward_max: 0, since: 0 };
 const DEAD_STATUS = "('VOID', 'CANCELLED', 'HOLD')";
 
 const numOr = (v, d = 0) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
@@ -130,7 +130,7 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
   async function stampConfig() {
     const cfg = await getSettingsConfig();
     const s = Object.assign({}, DEFAULT_STAMPS, cfg.stamps || {});
-    return { enabled: !!s.enabled, orders_needed: Math.max(1, Math.floor(num(s.orders_needed, 5))),
+    return { enabled: !!s.enabled, all_day: cfg.stamps && cfg.stamps.all_day === undefined ? false : !!s.all_day, orders_needed: Math.max(1, Math.floor(num(s.orders_needed, 5))),
       start: /^\d{1,2}:\d{2}$/.test(s.start) ? s.start : '18:00', end: /^\d{1,2}:\d{2}$/.test(s.end) ? s.end : '23:59',
       days: (Array.isArray(s.days) ? s.days : []).map(Number).filter(d => d >= 0 && d <= 6), min_order: Math.max(0, num(s.min_order, 0)), reward_max: Math.max(0, num(s.reward_max, 0)), since: num(s.since, 0) };
   }
@@ -138,7 +138,7 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
   // Stamps come from the orders themselves (any source, phone needed): fully paid, not complimentary, not an order that already used a free item.
   async function stampStatus(phone, S, excludeId = 0) {
     phone = cleanPhone(phone);
-    const base = { enabled: S.enabled, orders_needed: S.orders_needed, start: S.start, end: S.end, all_day: toMin(S.start) === 0 && toMin(S.end) >= 1439 && !S.days.length, days: S.days, reward_max: S.reward_max, stamps: 0, progress: 0, earned: 0, used: 0, available: 0 };
+    const base = { enabled: S.enabled, orders_needed: S.orders_needed, start: S.start, end: S.end, all_day: S.all_day, days: S.days, reward_max: S.reward_max, stamps: 0, progress: 0, earned: 0, used: 0, available: 0 };
     if (!S.enabled || phone.length !== 10) return base;
     const rows = await dbAllAsync(`SELECT ${ledgerCols}, COALESCE(stamp_redeemed, 0) AS stamp_redeemed FROM orders WHERE RIGHT(customer_phone, 10) = ? AND id <> ? AND UPPER(COALESCE(status, '')) NOT IN ${DEAD_STATUS}`, [phone, excludeId]);
     const win = { bonus_enabled: true, bonus_start: S.start, bonus_end: S.end, bonus_days: S.days };
@@ -148,7 +148,7 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
       if (numOr(r.stamp_redeemed) > 0 || numOr(r.is_complimentary)) continue;
       if (new Date(r.created_at).getTime() < S.since) continue;
       if (!(numOr(r.paid_amount) >= numOr(r.total) && numOr(r.total) > 0 && numOr(r.total) >= S.min_order)) continue;
-      if (base.all_day || inBonusWindow(win, numOr(r.hh), numOr(r.mm), numOr(r.dow))) stamps++;
+      if (S.all_day ? (!S.days.length || S.days.includes(numOr(r.dow))) : inBonusWindow(win, numOr(r.hh), numOr(r.mm), numOr(r.dow))) stamps++;
     }
     const earned = Math.floor(stamps / S.orders_needed);
     return Object.assign(base, { stamps, progress: stamps % S.orders_needed, earned, used, available: Math.max(0, earned - used) });
@@ -470,12 +470,13 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
     const b = req.body || {};
     const n = Math.floor(numOr(b.orders_needed, 0));
     if (n < 1 || n > 50) return res.status(400).json({ error: 'Kitne orders par free item: 1 se 50 ke beech daalein' });
-    if (!/^\d{1,2}:\d{2}$/.test(String(b.start || '')) || !/^\d{1,2}:\d{2}$/.test(String(b.end || ''))) return res.status(400).json({ error: 'Start aur end time daalein' });
-    if (toMin(b.start) === toMin(b.end)) return res.status(400).json({ error: 'Start aur end time alag hone chahiye' });
+    const allDay = !!b.all_day;
+    if (!allDay && (!/^\d{1,2}:\d{2}$/.test(String(b.start || '')) || !/^\d{1,2}:\d{2}$/.test(String(b.end || '')))) return res.status(400).json({ error: 'Start aur end time daalein (ya Poora din chunein)' });
+    if (!allDay && toMin(b.start) === toMin(b.end)) return res.status(400).json({ error: 'Start aur end time alag hone chahiye (poora din chahiye to "Poora din" tick karein)' });
     try {
       const prev = await stampConfig();
       const days = (Array.isArray(b.days) ? b.days : []).map(Number).filter(d => d >= 0 && d <= 6).sort();
-      const s = { enabled: !!b.enabled, orders_needed: n, start: String(b.start), end: String(b.end), days, min_order: Math.max(0, numOr(b.min_order, 0)), reward_max: Math.max(0, numOr(b.reward_max, 0)),
+      const s = { enabled: !!b.enabled, orders_needed: n, all_day: allDay, start: allDay ? '00:00' : String(b.start), end: allDay ? '23:59' : String(b.end), days, min_order: Math.max(0, numOr(b.min_order, 0)), reward_max: Math.max(0, numOr(b.reward_max, 0)),
         since: b.enabled ? (prev.enabled && prev.since ? prev.since : Date.now()) : prev.since }; // stamps count only from the day the offer was first switched on
       await saveSettingsConfig({ stamps: s });
       res.json({ success: true, config: s });

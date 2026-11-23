@@ -92,6 +92,7 @@
       </div>
       <div class="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm space-y-3 text-sm">
         <label class="flex items-center gap-2 font-black"><input id="sEnabled" type="checkbox"> 🍽 Stamp card chalu karein (N orders = 1 free item)</label>
+        <label class="flex items-center gap-2 font-black"><input id="sAll" type="checkbox" onchange="stampAllDay()"> 🕛 Poora din (24 ghante, koi time limit nahi)</label>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
           <label>Kitne orders par 1 free item<input id="sN" type="number" min="1" max="50" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
           <label>Start time<input id="sStart" type="time" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
@@ -103,7 +104,7 @@
           <label><input type="checkbox" class="sDay" value="1"> Mon</label><label><input type="checkbox" class="sDay" value="2"> Tue</label><label><input type="checkbox" class="sDay" value="3"> Wed</label><label><input type="checkbox" class="sDay" value="4"> Thu</label><label><input type="checkbox" class="sDay" value="5"> Fri</label><label><input type="checkbox" class="sDay" value="6"> Sat</label><label><input type="checkbox" class="sDay" value="0"> Sun</label>
         </div>
         <button onclick="saveStamps()" class="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2 rounded-xl font-black">Save stamp settings</button>
-        <p class="text-[11px] text-gray-400">Stamp har us poori paid order par milta hai jo is time window me hui aur jisme customer ka phone number tha. Poora din chalana hai to start 00:00 aur end 23:59 rakhein, din khali chhodein (counter, kiosk, website, sab). Free item = bill ka sabse sasta item (max ₹ tak). Counter par POS ke Coupon / Points button me "Free item" se lagta hai. Stamp sirf save karne ke din se aage ginte hain.</p>
+        <p class="text-[11px] text-gray-400">Stamp har us poori paid order par milta hai jo is time window me hui aur jisme customer ka phone number tha. Poora din chalana hai to "Poora din" tick karein (din khali chhodein = roz) (counter, kiosk, website, sab). Free item = bill ka sabse sasta item (max ₹ tak). Counter par POS ke Coupon / Points button me "Free item" se lagta hai. Stamp sirf save karne ke din se aage ginte hain.</p>
       </div>
       <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-x-auto">
         <div class="p-3 border-b flex flex-wrap items-center justify-between gap-2">
@@ -270,7 +271,7 @@
         loyaltyHint();
       }).catch(fail);
       api('/api/loyalty-admin/stamps').then(function(c) {
-        $('sEnabled').checked = c.enabled; $('sN').value = c.orders_needed; $('sStart').value = c.start; $('sEnd').value = c.end; $('sMin').value = c.min_order || ''; $('sMax').value = c.reward_max || '';
+        $('sEnabled').checked = c.enabled; $('sN').value = c.orders_needed; $('sAll').checked = !!c.all_day; $('sStart').value = c.start; $('sEnd').value = c.end; stampAllDay(); $('sMin').value = c.min_order || ''; $('sMax').value = c.reward_max || '';
         document.querySelectorAll('.sDay').forEach(function(x) { x.checked = (c.days || []).indexOf(Number(x.value)) >= 0; });
       }).catch(fail);
       api('/api/loyalty-admin/top').then(function(rows) {
@@ -286,9 +287,10 @@
         .then(function() { (window.uiAlert || window.alert)('Saved'); loadLoyalty(); }).catch(fail);
     }
 
+    function stampAllDay() { ['sStart', 'sEnd'].forEach(function(i) { $(i).disabled = $('sAll').checked; $(i).style.opacity = $('sAll').checked ? '0.4' : '1'; }); }
     function saveStamps() {
       var days = []; document.querySelectorAll('.sDay').forEach(function(x) { if (x.checked) days.push(Number(x.value)); });
-      api('/api/loyalty-admin/stamps', 'PUT', { enabled: $('sEnabled').checked, orders_needed: $('sN').value, start: $('sStart').value, end: $('sEnd').value, min_order: $('sMin').value || 0, reward_max: $('sMax').value || 0, days: days })
+      api('/api/loyalty-admin/stamps', 'PUT', { enabled: $('sEnabled').checked, orders_needed: $('sN').value, all_day: $('sAll').checked, start: $('sStart').value, end: $('sEnd').value, min_order: $('sMin').value || 0, reward_max: $('sMax').value || 0, days: days })
         .then(function() { (window.uiAlert || window.alert)('Saved'); loadLoyalty(); }).catch(fail);
     }
 
