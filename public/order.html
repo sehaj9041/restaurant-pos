@@ -1124,7 +1124,7 @@
     }
 
     // ---- loyalty points on the website checkout (the server re-checks everything; this only mirrors its maths) ----
-    let loyCk = null, usePts = false, stampCk = null, useStamp = false; // stampCk = evening stamp status from the same reply; loyCk = /api/loyalty/my reply for the verified phone
+    let loyCk = null, usePts = false, stampCk = null, useStamp = false; // stampCk = stamp card status from the same reply; loyCk = /api/loyalty/my reply for the verified phone
     function loadCkLoyalty() {
       const p = getProfile();
       if (!p || !p.token) { loyCk = null; usePts = false; stampCk = null; useStamp = false; return updateCartUI(); }
@@ -1139,7 +1139,7 @@
       return pts > 0 && pts >= (Number(loyCk.min_redeem) || 0) ? pts : 0;
     }
     function togglePoints() { usePts = document.getElementById('cUsePts').checked; updateCartUI(); }
-    // Evening stamp reward: the cheapest item in the cart is free (capped by the owner's limit); the server re-checks
+    // Stamp card reward: the cheapest item in the cart is free (capped by the owner's limit); the server re-checks
     function stampOff() {
       if (!stampCk) return 0;
       const prices = cart.map(i => Number(i.price)).filter(x => x > 0); if (!prices.length) return 0;
@@ -1166,7 +1166,7 @@
       if (!so) useStamp = false;
       document.getElementById('cStampBox').classList.toggle('hidden', !so);
       document.getElementById('cUseStamp').checked = useStamp;
-      document.getElementById('cStampText').textContent = `🍽 Evening free item lagayein (−₹${so}) • sabse sasta item free`;
+      document.getElementById('cStampText').textContent = `🍽 Stamp card free item lagayein (−₹${so}) • sabse sasta item free`;
       ['c', 'a'].forEach(k => {
         document.getElementById(k + 'PtsRow').classList.toggle('hidden', !T.off);
         document.getElementById(k + 'PtsLbl').textContent = [T.pts ? `${T.pts} pts` : '', T.stamp ? 'free item' : ''].filter(Boolean).join(' + ').replace(/^/, 'Discount (') + ')';
@@ -1689,15 +1689,15 @@
         '<div class="flex justify-between text-[11px] font-bold text-amber-800 mt-1"><span>' + bal + ' / ' + min + ' points</span>' + (spend ? '<span>≈ ' + rs(spend) + ' ka order aur</span>' : '') + '</div></div>';
     }
 
-    // Evening stamp card (N evening orders = 1 free item)
+    // Stamp card (N orders = 1 free item)
     function stampCard(st) {
       if (!st || !st.enabled) return '';
       var n = st.orders_needed, left = n - st.progress, pct = Math.max(4, Math.round(st.progress * 100 / n));
       if (st.available > 0) return '<div class="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 text-left"><div class="text-xs font-black text-emerald-800">🍽 Aapke paas ' + st.available + ' FREE item hai!</div>' +
         '<div class="text-[11px] font-bold text-emerald-700 mt-1">Website par cart me apne aap dikhega. Kiosk / counter par "Show redeem code" dikhayein. Sabse sasta item free' + (st.reward_max ? ' (max ₹' + st.reward_max + ')' : '') + '.</div></div>';
-      return '<div class="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 text-left"><div class="text-xs font-black text-emerald-900">🍽 Evening stamps: ' + st.progress + ' / ' + n + '</div>' +
+      return '<div class="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 text-left"><div class="text-xs font-black text-emerald-900">🍽 Stamps: ' + st.progress + ' / ' + n + '</div>' +
         '<div class="mt-1.5 h-2 rounded-full bg-emerald-200"><div class="h-2 rounded-full bg-emerald-500" style="width:' + pct + '%"></div></div>' +
-        '<div class="text-[11px] font-bold text-emerald-800 mt-1">Bas ' + left + ' evening order aur (' + t12(st.start) + ' – ' + t12(st.end) + ') → 1 FREE item!</div></div>';
+        '<div class="text-[11px] font-bold text-emerald-800 mt-1">Bas ' + left + ' order aur' + (st.all_day ? '' : ' (' + t12(st.start) + ' – ' + t12(st.end) + ')') + ' → 1 FREE item!</div></div>';
     }
 
     // ---- loyalty offers text (expiry warning, double-points hours) ----

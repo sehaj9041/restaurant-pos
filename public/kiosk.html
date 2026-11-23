@@ -1274,7 +1274,7 @@
         $('pointsTitle').innerHTML = pointsOffer && hasStamp ? 'Use your points<br>and free item?' : (pointsOffer ? 'Use your<br>loyalty points?' : 'Use your<br>FREE item?');
         let info = '';
         if (pointsOffer) { pointsAmount = String(pointsOffer.points); info += 'You have <b>' + pointsOffer.balance + ' points</b> (1 point = ' + money(pointsOffer.perPoint) + ').<br>You can use <b>' + pointsOffer.min + '&ndash;' + pointsOffer.points + ' points</b> on this order.'; }
-        if (hasStamp) info += (info ? '<br>' : '') + '&#127869; You earned a <b>free item</b> with your evening orders!';
+        if (hasStamp) info += (info ? '<br>' : '') + '&#127869; You earned a <b>free item</b> with your stamp card!';
         $('pointsInfo').innerHTML = info;
         pointsField = 'code'; pointsFresh = false;
         $('pointsErr').innerText = '';
@@ -1320,8 +1320,8 @@
         const n = st.orders_needed, pct = Math.max(4, Math.round(st.progress * 100 / n)), t12 = h => { const [H, M] = h.split(':').map(Number); return ((H % 12) || 12) + (M ? ':' + String(M).padStart(2, '0') : '') + (H < 12 ? 'am' : 'pm'); };
         html += (html ? '<div class="mt-3 pt-3 border-t border-black/10"></div>' : '') + (st.available > 0
           ? '<div class="text-base font-black">&#127869; You have a FREE item waiting!</div><div class="text-sm opacity-80 mt-1">Use it on your next order with the redeem code from your phone.</div>'
-          : '<div class="text-base font-black">&#127869; Evening stamps: ' + st.progress + ' / ' + n + '</div><div class="mt-2 h-2.5 rounded-full bg-black/10"><div class="h-2.5 rounded-full" style="width:' + pct + '%;background:#d9531e"></div></div>' +
-            '<div class="text-sm opacity-80 mt-1">' + (n - st.progress) + ' more order' + (n - st.progress === 1 ? '' : 's') + ' between ' + t12(st.start) + ' and ' + t12(st.end) + ' for a FREE item</div>');
+          : '<div class="text-base font-black">&#127869; Stamps: ' + st.progress + ' / ' + n + '</div><div class="mt-2 h-2.5 rounded-full bg-black/10"><div class="h-2.5 rounded-full" style="width:' + pct + '%;background:#d9531e"></div></div>' +
+            '<div class="text-sm opacity-80 mt-1">' + (n - st.progress) + ' more order' + (n - st.progress === 1 ? '' : 's') + (st.all_day ? '' : ' between ' + t12(st.start) + ' and ' + t12(st.end)) + ' for a FREE item</div>');
       }
       if (!html) { el.classList.add('hidden'); return; }
       el.innerHTML = html; el.classList.remove('hidden');

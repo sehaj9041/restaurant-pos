@@ -91,11 +91,11 @@
         <p class="text-[11px] text-gray-400">Points sirf poori paid bills par milte hain (due / complimentary par nahi). Earn rate badalne par purane orders ke points bhi naye rate se count honge. Expiry, double-points ghante aur pehle-order bonus sirf save karne ke din se aage lagte hain: purane customers ke points nahi katte (unhe poora expiry time milta hai) aur purane orders ke points dobara nahi badalte.</p>
       </div>
       <div class="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm space-y-3 text-sm">
-        <label class="flex items-center gap-2 font-black"><input id="sEnabled" type="checkbox"> 🍽 Evening stamp card chalu karein (N evening orders = 1 free item)</label>
+        <label class="flex items-center gap-2 font-black"><input id="sEnabled" type="checkbox"> 🍽 Stamp card chalu karein (N orders = 1 free item)</label>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
           <label>Kitne orders par 1 free item<input id="sN" type="number" min="1" max="50" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
-          <label>Evening start<input id="sStart" type="time" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
-          <label>Evening end<input id="sEnd" type="time" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
+          <label>Start time<input id="sStart" type="time" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
+          <label>End time<input id="sEnd" type="time" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
           <label>Stamp ke liye min bill ₹<input id="sMin" type="number" min="0" placeholder="0 = koi limit nahi" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
           <label>Free item max ₹<input id="sMax" type="number" min="0" placeholder="0 = koi limit nahi" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
         </div>
@@ -103,7 +103,7 @@
           <label><input type="checkbox" class="sDay" value="1"> Mon</label><label><input type="checkbox" class="sDay" value="2"> Tue</label><label><input type="checkbox" class="sDay" value="3"> Wed</label><label><input type="checkbox" class="sDay" value="4"> Thu</label><label><input type="checkbox" class="sDay" value="5"> Fri</label><label><input type="checkbox" class="sDay" value="6"> Sat</label><label><input type="checkbox" class="sDay" value="0"> Sun</label>
         </div>
         <button onclick="saveStamps()" class="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2 rounded-xl font-black">Save stamp settings</button>
-        <p class="text-[11px] text-gray-400">Stamp har us poori paid order par milta hai jo evening time me hua aur jisme customer ka phone number tha (counter, kiosk, website, sab). Free item = bill ka sabse sasta item (max ₹ tak). Counter par POS ke Coupon / Points button me "Evening free item" se lagta hai. Stamp sirf save karne ke din se aage ginte hain.</p>
+        <p class="text-[11px] text-gray-400">Stamp har us poori paid order par milta hai jo is time window me hui aur jisme customer ka phone number tha. Poora din chalana hai to start 00:00 aur end 23:59 rakhein, din khali chhodein (counter, kiosk, website, sab). Free item = bill ka sabse sasta item (max ₹ tak). Counter par POS ke Coupon / Points button me "Free item" se lagta hai. Stamp sirf save karne ke din se aage ginte hain.</p>
       </div>
       <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-x-auto">
         <div class="p-3 border-b flex flex-wrap items-center justify-between gap-2">

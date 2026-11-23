@@ -3742,7 +3742,7 @@
       if (stPhone.length === 10) fetch('/api/stamps/' + stPhone).then(function(r) { return r.json(); }).then(function(st) {
         if (!st.enabled) return;
         stRow.classList.remove('hidden');
-        document.getElementById('posOfferStampInfo').innerText = st.available > 0 ? ('Free item bana hua hai (' + st.available + ') — sabse sasta item free' + (st.reward_max ? ', max ₹' + st.reward_max : '')) : ('Abhi ' + st.progress + '/' + st.orders_needed + ' evening orders (' + st.start + '-' + st.end + ')');
+        document.getElementById('posOfferStampInfo').innerText = st.available > 0 ? ('Free item bana hua hai (' + st.available + ') — sabse sasta item free' + (st.reward_max ? ', max ₹' + st.reward_max : '')) : ('Abhi ' + st.progress + '/' + st.orders_needed + ' orders' + (st.all_day ? '' : ' (' + st.start + '-' + st.end + ')'));
         stBox.disabled = !(st.available > 0 || stBox.checked);
         document.getElementById('posOfferPointsRow').classList.toggle('hidden', !stBox.checked);
       }).catch(function() {});
@@ -5362,7 +5362,7 @@
         <input id="posOfferPw" type="password" readonly onclick="openVirtualKeyboard(this, 'text')" autocomplete="off" placeholder="Staff password (sirf code na ho tab)" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-orange-500">
       </div>
       <label id="posOfferStampRow" class="hidden flex items-start gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-800">
-        <input id="posOfferStamp" type="checkbox" class="mt-0.5" onchange="document.getElementById('posOfferPointsRow').classList.toggle('hidden', !this.checked)"><span>🍽 Evening free item lagao <span id="posOfferStampInfo" class="block text-[11px] font-bold text-emerald-700"></span></span>
+        <input id="posOfferStamp" type="checkbox" class="mt-0.5" onchange="document.getElementById('posOfferPointsRow').classList.toggle('hidden', !this.checked)"><span>🍽 Stamp card free item lagao <span id="posOfferStampInfo" class="block text-[11px] font-bold text-emerald-700"></span></span>
       </label>
       <p id="posOfferLoyalty" class="text-[11px] font-bold text-amber-700"></p>
       <p id="posOfferErr" class="text-xs font-bold text-rose-600 min-h-[1rem]"></p>

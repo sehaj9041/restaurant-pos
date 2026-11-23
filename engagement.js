@@ -19,7 +19,7 @@ const QRCode = require('qrcode');
 
 const DEFAULT_LOYALTY = { enabled: false, earn_per_100: 5, point_value: 0.5, min_redeem: 50, max_redeem_pct: 50,
   expiry_days: 0, expiry_since: 0, bonus_enabled: false, bonus_start: '15:00', bonus_end: '18:00', bonus_multiplier: 2, bonus_days: [], bonus_since: 0, first_order_bonus: 0, first_bonus_since: 0 };
-const DEFAULT_STAMPS = { enabled: false, orders_needed: 5, start: '18:00', end: '23:59', days: [], min_order: 0, reward_max: 0, since: 0 };
+const DEFAULT_STAMPS = { enabled: false, orders_needed: 5, start: '00:00', end: '23:59', days: [], min_order: 0, reward_max: 0, since: 0 };
 const DEAD_STATUS = "('VOID', 'CANCELLED', 'HOLD')";
 
 const numOr = (v, d = 0) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
@@ -126,7 +126,7 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
   const publicOffers = (L) => ({ expiry_days: L.expiry_days, first_order_bonus: L.first_order_bonus,
     bonus: L.bonus_enabled ? { start: L.bonus_start, end: L.bonus_end, multiplier: L.bonus_multiplier, days: L.bonus_days } : null });
 
-  // ---- Evening stamp card: every `orders_needed` paid orders placed inside the time window earn 1 free item (cheapest item of the bill, capped by reward_max) ----
+  // ---- Stamp card: every `orders_needed` paid orders placed inside the time window earn 1 free item (cheapest item of the bill, capped by reward_max) ----
   async function stampConfig() {
     const cfg = await getSettingsConfig();
     const s = Object.assign({}, DEFAULT_STAMPS, cfg.stamps || {});
@@ -138,7 +138,7 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
   // Stamps come from the orders themselves (any source, phone needed): fully paid, not complimentary, not an order that already used a free item.
   async function stampStatus(phone, S, excludeId = 0) {
     phone = cleanPhone(phone);
-    const base = { enabled: S.enabled, orders_needed: S.orders_needed, start: S.start, end: S.end, days: S.days, reward_max: S.reward_max, stamps: 0, progress: 0, earned: 0, used: 0, available: 0 };
+    const base = { enabled: S.enabled, orders_needed: S.orders_needed, start: S.start, end: S.end, all_day: toMin(S.start) === 0 && toMin(S.end) >= 1439 && !S.days.length, days: S.days, reward_max: S.reward_max, stamps: 0, progress: 0, earned: 0, used: 0, available: 0 };
     if (!S.enabled || phone.length !== 10) return base;
     const rows = await dbAllAsync(`SELECT ${ledgerCols}, COALESCE(stamp_redeemed, 0) AS stamp_redeemed FROM orders WHERE RIGHT(customer_phone, 10) = ? AND id <> ? AND UPPER(COALESCE(status, '')) NOT IN ${DEAD_STATUS}`, [phone, excludeId]);
     const win = { bonus_enabled: true, bonus_start: S.start, bonus_end: S.end, bonus_days: S.days };
@@ -148,7 +148,7 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
       if (numOr(r.stamp_redeemed) > 0 || numOr(r.is_complimentary)) continue;
       if (new Date(r.created_at).getTime() < S.since) continue;
       if (!(numOr(r.paid_amount) >= numOr(r.total) && numOr(r.total) > 0 && numOr(r.total) >= S.min_order)) continue;
-      if (inBonusWindow(win, numOr(r.hh), numOr(r.mm), numOr(r.dow))) stamps++;
+      if (base.all_day || inBonusWindow(win, numOr(r.hh), numOr(r.mm), numOr(r.dow))) stamps++;
     }
     const earned = Math.floor(stamps / S.orders_needed);
     return Object.assign(base, { stamps, progress: stamps % S.orders_needed, earned, used, available: Math.max(0, earned - used) });
@@ -261,12 +261,12 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
     }
     if (stamp_redeem) {
       const S = await stampConfig();
-      if (!S.enabled) return { error: 'Evening stamp offer abhi band hai' };
+      if (!S.enabled) return { error: 'Stamp offer abhi band hai' };
       if (cleanPhone(phone).length !== 10) return { error: 'Free item ke liye customer ka phone zaroori hai' };
       const st = await stampStatus(phone, S, ex);
       stampNeedCode = !staff_override && !needCode;
       if (stampNeedCode) { const c = await checkRedeemCode(phone, points_code, false); if (c.error) return c; }
-      if (st.available < 1) return { error: `Free item abhi nahi bana: ${st.progress}/${S.orders_needed} evening orders hue hain` };
+      if (st.available < 1) return { error: `Free item abhi nahi bana: ${st.progress}/${S.orders_needed} orders hue hain` };
       const prices = (Array.isArray(items) ? items : []).filter(i => i && i.name !== 'Delivery Charge' && num(i.price) > 0).map(i => num(i.price));
       if (!prices.length) return { error: 'Free item ke liye bill me item hona chahiye' };
       stampDiscount = Math.min(...prices);
@@ -278,7 +278,7 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
     const parts = [];
     if (couponCode) parts.push('Coupon ' + couponCode);
     if (pointsRedeemed) parts.push(pointsRedeemed + ' pts');
-    if (stampRedeemed) parts.push('Evening free item');
+    if (stampRedeemed) parts.push('Free item (stamp card)');
     return { discount: Math.min(subtotal, couponDiscount + pointsDiscount + stampDiscount), couponDiscount, pointsDiscount, stampDiscount, stampRedeemed, couponCode, pointsRedeemed, reason: parts.join(' + ') };
   }
 
