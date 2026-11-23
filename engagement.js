@@ -5,7 +5,7 @@
 //   redeemed = sum of orders.points_redeemed (non-void orders)
 // so it stays correct whichever screen (POS, table settle, due settle...) marked the order paid.
 // Config lives in settings.config.loyalty = { enabled, earn_per_100, point_value, min_redeem, max_redeem_pct,
-//   expiry_days, bonus_enabled, bonus_start, bonus_end, bonus_multiplier, bonus_days, first_order_bonus, *_since }.
+//   earn_stop_at / earn_resume_at (orders placed in that window earn no points; balances already earned stay usable), expiry_days, bonus_enabled, bonus_start, bonus_end, bonus_multiplier, bonus_days, first_order_bonus, *_since }.
 // The balance is replayed order by order (simulateLoyalty): points earned are lots, redemptions use the oldest lots first, lots expire
 // `expiry_days` after they were earned. Expiry / bonus-hours / first-order bonus only apply from the day they were switched on (`*_since`),
 // so existing customers keep their points and old orders are never re-valued.
@@ -18,11 +18,13 @@ const crypto = require('crypto');
 const QRCode = require('qrcode');
 
 const DEFAULT_LOYALTY = { enabled: false, earn_per_100: 5, point_value: 0.5, min_redeem: 50, max_redeem_pct: 50,
-  expiry_days: 0, expiry_since: 0, bonus_enabled: false, bonus_start: '15:00', bonus_end: '18:00', bonus_multiplier: 2, bonus_days: [], bonus_since: 0, first_order_bonus: 0, first_bonus_since: 0 };
+  expiry_days: 0, expiry_since: 0, bonus_enabled: false, bonus_start: '15:00', bonus_end: '18:00', bonus_multiplier: 2, bonus_days: [], bonus_since: 0, first_order_bonus: 0, first_bonus_since: 0, earn_stop_at: 0, earn_resume_at: 0 };
 const DEFAULT_STAMPS = { enabled: false, orders_needed: 5, start: '00:00', end: '23:59', all_day: true, days: [], min_order: 0, redeem_min: 0, free_items: [], since: 0 };
 const DEAD_STATUS = "('VOID', 'CANCELLED', 'HOLD')";
 
 const numOr = (v, d = 0) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
+// Points are no longer given for new orders (owner stopped earning); existing balances can still be used
+const earnStoppedAt = (L, ms) => L.earn_stop_at > 0 && ms >= L.earn_stop_at && !(L.earn_resume_at > 0 && ms >= L.earn_resume_at);
 const toMin = (hhmm) => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || '')); return m ? Math.min(23, +m[1]) * 60 + Math.min(59, +m[2]) : 0; };
 
 // Is the order time (IST wall clock: hour, minute, day of week) inside the double-points window?
@@ -49,6 +51,7 @@ function simulateLoyalty(rows, L, nowMs, events) {
     redeemed += red;
     if (events && red > 0) events.push({ at, type: 'redeem', pts: red, order_id: r.id, note: 'Order par redeem kiye' });
     while (red > 0 && lots.length) { const take = Math.min(red, lots[0].qty); lots[0].qty -= take; red -= take; if (lots[0].qty <= 0) lots.shift(); }
+    if (earnStoppedAt(L, at)) continue; // owner stopped giving new points from this moment
     if (!EARN_SOURCES.includes(String(r.source || '').toUpperCase())) continue; // points are earned only on kiosk / website / table-QR orders, not counter (POS) orders
     const paid = numOr(r.paid_amount) >= numOr(r.total) && numOr(r.total) > 0 && !numOr(r.is_complimentary);
     if (!paid) continue;
@@ -118,13 +121,14 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
       expiry_days: Math.max(0, Math.floor(num(l.expiry_days, 0))), expiry_since: num(l.expiry_since, 0),
       bonus_enabled: !!l.bonus_enabled, bonus_start: /^\d{1,2}:\d{2}$/.test(l.bonus_start) ? l.bonus_start : '15:00', bonus_end: /^\d{1,2}:\d{2}$/.test(l.bonus_end) ? l.bonus_end : '18:00',
       bonus_multiplier: Math.min(5, Math.max(1, num(l.bonus_multiplier, 2))), bonus_days: (Array.isArray(l.bonus_days) ? l.bonus_days : []).map(Number).filter(d => d >= 0 && d <= 6), bonus_since: num(l.bonus_since, 0),
-      first_order_bonus: Math.max(0, Math.floor(num(l.first_order_bonus, 0))), first_bonus_since: num(l.first_bonus_since, 0)
+      first_order_bonus: Math.max(0, Math.floor(num(l.first_order_bonus, 0))), first_bonus_since: num(l.first_bonus_since, 0),
+      earn_stop_at: num(l.earn_stop_at, 0), earn_resume_at: num(l.earn_resume_at, 0), earn_stopped: earnStoppedAt({ earn_stop_at: num(l.earn_stop_at, 0), earn_resume_at: num(l.earn_resume_at, 0) }, Date.now())
     };
   }
 
   // What customers may be told about the offers (no internals)
-  const publicOffers = (L) => ({ expiry_days: L.expiry_days, first_order_bonus: L.first_order_bonus,
-    bonus: L.bonus_enabled ? { start: L.bonus_start, end: L.bonus_end, multiplier: L.bonus_multiplier, days: L.bonus_days } : null });
+  const publicOffers = (L) => ({ expiry_days: L.expiry_days, earn_stopped: !!L.earn_stopped, first_order_bonus: L.earn_stopped ? 0 : L.first_order_bonus,
+    bonus: L.bonus_enabled && !L.earn_stopped ? { start: L.bonus_start, end: L.bonus_end, multiplier: L.bonus_multiplier, days: L.bonus_days } : null });
 
   // ---- Stamp card: every `orders_needed` paid orders placed inside the time window earn 1 free item; the customer picks it from the owner's free-item list (menu ids) ----
   async function stampConfig() {
@@ -505,7 +509,7 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
   app.put('/api/loyalty-admin/config', async (req, res) => {
     const b = req.body || {};
     const isNum = (v) => v !== '' && v != null && Number.isFinite(Number(v));
-    if (!isNum(b.earn_per_100) || Number(b.earn_per_100) < 0) return res.status(400).json({ error: 'Earn points per ₹100 sahi daalein' });
+    if (!isNum(b.earn_per_100) || Number(b.earn_per_100) <= 0) return res.status(400).json({ error: 'Earn points per ₹100 0 se zyada rakhein. 0 karne se customers ke purane points bhi zero ho jaate hain. Naye points rokne ke liye "Naye points dena band karein" tick karein.' });
     if (!isNum(b.point_value) || Number(b.point_value) < 0) return res.status(400).json({ error: '1 point ki value sahi daalein' });
     if (!isNum(b.min_redeem) || Number(b.min_redeem) < 0) return res.status(400).json({ error: 'Min points to redeem daalein (0 ya zyada)' });
     if (!isNum(b.max_redeem_pct) || Number(b.max_redeem_pct) < 1 || Number(b.max_redeem_pct) > 100) return res.status(400).json({ error: 'Max % of bill 1 se 100 ke beech daalein (khali chhodne par points use nahi ho paate)' });
@@ -526,7 +530,10 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
         expiry_days: days, expiry_since: days > 0 ? (prev.expiry_days > 0 && prev.expiry_since ? prev.expiry_since : now) : prev.expiry_since,
         bonus_enabled: bonusOn, bonus_start: bonusOn ? String(b.bonus_start) : prev.bonus_start, bonus_end: bonusOn ? String(b.bonus_end) : prev.bonus_end,
         bonus_multiplier: bonusOn ? numOr(b.bonus_multiplier, 2) : prev.bonus_multiplier, bonus_days: bonusOn ? bonusDays : prev.bonus_days, bonus_since: bonusChanged ? now : prev.bonus_since,
-        first_order_bonus: firstBonus, first_bonus_since: firstBonus > 0 ? (prev.first_order_bonus > 0 && prev.first_bonus_since ? prev.first_bonus_since : now) : prev.first_bonus_since
+        first_order_bonus: firstBonus, first_bonus_since: firstBonus > 0 ? (prev.first_order_bonus > 0 && prev.first_bonus_since ? prev.first_bonus_since : now) : prev.first_bonus_since,
+        // stop earning: orders from now on give no points. Un-ticking resumes earning from that moment (the stopped period stays without points)
+        earn_stop_at: b.earn_stopped ? (prev.earn_stop_at || now) : prev.earn_stop_at,
+        earn_resume_at: b.earn_stopped ? 0 : (prev.earn_stopped ? now : prev.earn_resume_at)
       };
       await saveSettingsConfig({ loyalty: l });
       res.json({ success: true, config: l });

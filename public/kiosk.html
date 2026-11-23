@@ -1321,7 +1321,7 @@
       const el = $('payProgress'), d = kioskLoyalty, st = kioskStamp;
       const min = d ? Number(d.min_redeem) || 0 : 0, val = d ? Number(d.point_value) || 0 : 0;
       let html = '';
-      if (d && !kioskPromo && min > 0 && val > 0) {
+      if (d && !kioskPromo && min > 0 && val > 0 && !(d.earn_stopped && (Number(d.balance) || 0) < min)) {
         const bal = Number(d.balance) || 0, earn = Number(d.earn_per_100) || 0, reward = money(min * val);
         if (bal >= min) {
           html = '<div class="text-base font-black">&#11088; You have ' + bal + ' points (worth ' + money(bal * val) + ')</div><div class="text-sm opacity-80 mt-1">Use them on your next order with the redeem code from your phone.</div>';

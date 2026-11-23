@@ -1716,7 +1716,7 @@
     // Progress towards the next reward: points still needed, what they unlock and roughly how much spending that is
     function loyaltyProgress(d) {
       var min = Number(d.min_redeem) || 0, bal = Number(d.balance) || 0, val = Number(d.point_value) || 0, earn = Number(d.earn_per_100) || 0;
-      if (!(min > 0) || !(val > 0)) return '';
+      if (!(min > 0) || !(val > 0) || (d.earn_stopped && bal < min)) return '';
       var rs = function (n) { return '₹' + (Math.round(n * 100) / 100).toLocaleString('en-IN'); };
       if (bal >= min) {
         return '<div class="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 text-left"><div class="text-xs font-black text-emerald-800">✅ Aapke ' + bal + ' points = ' + rs(bal * val) + ' ka discount</div>' +
