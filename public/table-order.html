@@ -475,14 +475,14 @@
   function tqChangeNumber() {
     if (!window.confirm('Number badalne par is device ka login hat jayega. Aage badhein?')) return;
     try { localStorage.removeItem('vf_profile'); } catch (e) {}
-    $('gPhone').value = ''; ptsInfo = null; usePts = false; renderTqLogin(); renderPts();
+    $('gPhone').value = ''; ptsInfo = null; usePts = false; stampInfo = null; useStamp = false; renderTqLogin(); renderPts();
   }
   // ---- use loyalty points on this order (server re-checks everything; this only mirrors its limits) ----
-  var ptsInfo = null, usePts = false;
+  var ptsInfo = null, usePts = false, stampInfo = null, useStamp = false; // stampInfo = evening stamp status (only when a free item is available)
   async function loadPts() {
     var p = profile();
-    if (p && p.token && !ptsInfo) {
-      try { var d = await fetch('/api/loyalty/my', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: p.phone, token: p.token }) }).then(function (r) { return r.ok ? r.json() : null; }); ptsInfo = d && d.enabled ? d : null; } catch (e) {}
+    if (p && p.token && !ptsInfo && !stampInfo) {
+      try { var d = await fetch('/api/loyalty/my', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: p.phone, token: p.token }) }).then(function (r) { return r.ok ? r.json() : null; }); ptsInfo = d && d.enabled ? d : null; stampInfo = d && d.stamp && d.stamp.enabled && d.stamp.available > 0 ? d.stamp : null; } catch (e) {}
     }
     renderPts();
   }
@@ -500,11 +500,23 @@
   }
   var ptsOffer = function () { return Math.round(maxPts() * Number(ptsInfo.point_value) * 100) / 100; };
   function togglePts() { usePts = $('usePts').checked; renderPts(); }
+  // Evening free item: cheapest item in the cart (capped by the owner's limit); only for the phone this device is logged in with; the server re-checks
+  function stampOffer() {
+    var p = profile(), phone = $('gPhone') ? $('gPhone').value.replace(/\D/g, '') : (pg ? pg.phone : '');
+    if (!stampInfo || !p || !phone || phone !== p.phone || !cart.length) return 0;
+    var v = Math.min.apply(null, cart.map(function (c) { return Number(c.price); }).filter(function (x) { return x > 0; }).concat([Infinity]));
+    if (!isFinite(v)) return 0;
+    if (Number(stampInfo.reward_max) > 0) v = Math.min(v, Number(stampInfo.reward_max));
+    return Math.round(v * 100) / 100;
+  }
+  function toggleStamp() { useStamp = $('useStamp').checked; renderPts(); }
   function renderPts() {
     var box = $('ptsBox'), off = $('ptsOff'); if (!box) return;
     var n = maxPts(); if (!n) usePts = false;
+    var so = stampOffer(); if (!so) useStamp = false;
     box.innerHTML = n ? '<label class="flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 cursor-pointer"><input type="checkbox" id="usePts" onchange="togglePts()" class="w-4 h-4 accent-amber-500"' + (usePts ? ' checked' : '') + '><span class="text-xs font-black text-amber-900">⭐ ' + n + ' points use karein (−' + rs(ptsOffer()) + ', Pay now par lagega) • aapke paas ' + ptsInfo.balance + '</span></label>' : '';
-    if (off) off.innerHTML = usePts ? '<span>Points discount (' + n + ' pts)</span><span>−' + rs(ptsOffer()) + '</span>' : '';
+    if (so) box.innerHTML += '<label class="flex items-center gap-2.5 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5 cursor-pointer' + (n ? ' mt-2' : '') + '"><input type="checkbox" id="useStamp" onchange="toggleStamp()" class="w-4 h-4 accent-emerald-500"' + (useStamp ? ' checked' : '') + '><span class="text-xs font-black text-emerald-900">🍽 Evening free item lagayein (−' + rs(so) + ', Pay now par lagega) • sabse sasta item free</span></label>';
+    if (off) off.innerHTML = (usePts ? '<span>Points discount (' + n + ' pts)</span><span>−' + rs(ptsOffer()) + '</span>' : '') + (useStamp ? '<span>Free item</span><span>−' + rs(so) + '</span>' : '');
   }
   function chg(i, d) {
     cart[i].qty += d; if (cart[i].qty < 1) cart.splice(i, 1);
@@ -538,17 +550,17 @@
       var prof = profile(), tok = prof && prof.phone === phone ? prof.token || '' : '';
       if (tqOtpOn && !tok) return toast('Pehle WhatsApp OTP se number verify karein', true);
       pg = { name: name, phone: phone, note: $('gNote').value, tok: tok };
-      usePts = false;
+      usePts = false; useStamp = false;
       var b0 = null; try { b0 = await fetch('/api/table-qr/bill?t=' + encodeURIComponent(T) + '&k=' + encodeURIComponent(K)).then(jsonOrThrow); } catch (e) { /* no bill info: just place it unpaid */ }
       if (b0 && b0.online && !b0.lines.length && !b0.pendingCount) return payChoiceSheet();
       mode = 'later';
     }
     if (!pg) return;
     placing = true; setPlaceBusy(true);
-    var lines = cart.slice(), sub = cartSub(), pts = (mode === 'now' && usePts) ? maxPts() : 0, off = pts ? ptsOffer() : 0, rpId = null;
+    var lines = cart.slice(), sub = cartSub(), pts = (mode === 'now' && usePts) ? maxPts() : 0, stampOn = mode === 'now' && useStamp && stampOffer() > 0, off = pts ? ptsOffer() : 0, rpId = null;
     try {
       var r = await fetch('/api/table-qr/order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-        t: T, k: K, customer_name: pg.name, customer_phone: pg.phone, note: pg.note, points_redeem: pts || undefined, pay_now: mode === 'now' || undefined, profile_token: pg.tok,
+        t: T, k: K, customer_name: pg.name, customer_phone: pg.phone, note: pg.note, points_redeem: pts || undefined, stamp_redeem: stampOn || undefined, pay_now: mode === 'now' || undefined, profile_token: pg.tok,
         items: lines.map(function (c) { return { id: c.id, qty: c.qty, variant: c.variant || undefined, addons: c.addons }; }) }) });
       var d = await r.json().catch(function () { return {}; });
       if (!r.ok || !d.success) throw new Error(d.error || 'Order nahi ho paaya. Dobara try karein.');
@@ -574,7 +586,7 @@
       var rec = { id: d.orderId, s: d.track, token: d.token_no, shared: !!d.shared, total: sub - off, at: Date.now(), items: lines.map(function (c) { return { name: c.name, qty: c.qty }; }) };
       orders.unshift(rec);
       try { localStorage.setItem(ORD_KEY, JSON.stringify(orders.slice(0, 5))); } catch (e) {}
-      usePts = false; ptsInfo = null; pg = null;
+      usePts = false; ptsInfo = null; useStamp = false; stampInfo = null; pg = null;
       cart = []; saveCart(); updateCartBar(); renderMenu(); closeSheet(); placing = false;
       showOrderPage(rec); pollOrders();
     } catch (e) {
@@ -687,6 +699,17 @@
   var DAYN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   function t12(hhmm) { var p = String(hhmm).split(':'), h = +p[0], m = p[1] || '00'; return (h % 12 || 12) + ':' + m + ' ' + (h < 12 ? 'AM' : 'PM'); }
   function fmtD(iso) { var d = new Date(iso + 'T00:00:00'); return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); }
+  // Evening stamp card (N evening orders = 1 free item)
+  function stampCard(st) {
+    if (!st || !st.enabled) return '';
+    var n = st.orders_needed, left = n - st.progress, pct = Math.max(4, Math.round(st.progress * 100 / n));
+    var t = function (hhmm) { var q = String(hhmm).split(':'), h = +q[0]; return (h % 12 || 12) + ':' + (q[1] || '00') + ' ' + (h < 12 ? 'AM' : 'PM'); };
+    if (st.available > 0) return '<div class="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 text-left"><div class="text-xs font-black text-emerald-800">🍽 Aapke paas ' + st.available + ' FREE item hai!</div>' +
+      '<div class="text-[11px] font-bold text-emerald-700 mt-1">Pay now par checkout me dikhega. Counter / kiosk par "Show redeem code" dikhayein. Sabse sasta item free' + (st.reward_max ? ' (max ₹' + st.reward_max + ')' : '') + '.</div></div>';
+    return '<div class="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 text-left"><div class="text-xs font-black text-emerald-900">🍽 Evening stamps: ' + st.progress + ' / ' + n + '</div>' +
+      '<div class="mt-1.5 h-2 rounded-full bg-emerald-200"><div class="h-2 rounded-full bg-emerald-500" style="width:' + pct + '%"></div></div>' +
+      '<div class="text-[11px] font-bold text-emerald-800 mt-1">Bas ' + left + ' evening order aur (' + t(st.start) + ' – ' + t(st.end) + ') → 1 FREE item!</div></div>';
+  }
   function offerLines(d) {
     var out = [];
     if (d.expiring) out.push('<span class="text-rose-600">⚠ ' + d.expiring.points + ' points ' + fmtD(d.expiring.on) + ' ko expire honge. Jaldi use karein!</span>');
@@ -723,10 +746,12 @@
     var d;
     try { d = await fetch('/api/loyalty/my', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: p.phone, token: p.token }) }).then(jsonOrThrow); }
     catch (e) { return openSheet(sheetHead('⭐ My Points') + '<p class="text-center py-6 text-sm font-bold text-rose-600">' + esc(e.message) + '</p>'); }
-    if (!d.enabled) return openSheet(sheetHead('⭐ My Points') + '<p class="text-center py-6 text-sm font-bold text-gray-500">Loyalty points abhi chalu nahi hain.</p>');
+    var stOn = !!(d.stamp && d.stamp.enabled);
+    if (!d.enabled && !stOn) return openSheet(sheetHead('⭐ My Points') + '<p class="text-center py-6 text-sm font-bold text-gray-500">Loyalty points abhi chalu nahi hain.</p>');
+    if (!d.enabled) return openSheet(sheetHead('🍽 My Stamps', '+91 ' + esc(p.phone)) + stampCard(d.stamp) + '<button onclick="showRedeemCode()" class="mt-4 w-full bg-amber-500 text-white rounded-2xl py-3.5 font-black text-sm">Show redeem code</button><div id="codeBox"></div>');
     openSheet(sheetHead('⭐ My Points', '+91 ' + esc(p.phone)) +
       '<div class="text-center"><div class="text-5xl font-black text-amber-600">' + d.balance + '</div><div class="text-xs font-bold text-gray-500 mt-1">1 point = ' + rs(d.point_value) + ' • min ' + d.min_redeem + ' points • max ' + d.max_redeem_pct + '% of bill</div>' +
-      '</div><div class="mt-3">' + loyaltyProgress(d) + '</div><div class="text-center">' +
+      '</div><div class="mt-3">' + loyaltyProgress(d) + '</div><div class="mt-3">' + stampCard(d.stamp) + '</div><div class="text-center">' +
       offerLines(d).map(function (l) { return '<div class="text-[11px] font-bold text-gray-600 mt-1.5">' + l + '</div>'; }).join('') + '</div>' +
       '<button onclick="showRedeemCode()" class="mt-4 w-full bg-amber-500 text-white rounded-2xl py-3.5 font-black text-sm">Show redeem code</button><div id="codeBox"></div>');
   }

@@ -193,6 +193,10 @@
         <input type="checkbox" id="cUsePts" onchange="togglePoints()" class="w-4 h-4 accent-amber-500">
         <span id="cPtsText" class="text-xs font-black text-amber-900"></span>
       </label>
+      <label id="cStampBox" class="hidden flex items-center gap-2.5 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5 cursor-pointer">
+        <input type="checkbox" id="cUseStamp" onchange="toggleStamp()" class="w-4 h-4 accent-emerald-500">
+        <span id="cStampText" class="text-xs font-black text-emerald-900"></span>
+      </label>
       <div class="pt-3 border-t flex justify-between items-center">
         <div>
           <p class="text-[10px] text-gray-400 uppercase font-black tracking-wider">Total Payable</p>
@@ -1120,12 +1124,12 @@
     }
 
     // ---- loyalty points on the website checkout (the server re-checks everything; this only mirrors its maths) ----
-    let loyCk = null, usePts = false; // loyCk = /api/loyalty/my reply for the verified phone
+    let loyCk = null, usePts = false, stampCk = null, useStamp = false; // stampCk = evening stamp status from the same reply; loyCk = /api/loyalty/my reply for the verified phone
     function loadCkLoyalty() {
       const p = getProfile();
-      if (!p || !p.token) { loyCk = null; usePts = false; return updateCartUI(); }
+      if (!p || !p.token) { loyCk = null; usePts = false; stampCk = null; useStamp = false; return updateCartUI(); }
       fetch('/api/loyalty/my', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: p.phone, token: p.token }) })
-        .then(r => r.ok ? r.json() : null).then(d => { loyCk = d && d.enabled ? d : null; updateCartUI(); }).catch(() => {});
+        .then(r => r.ok ? r.json() : null).then(d => { loyCk = d && d.enabled ? d : null; stampCk = d && d.stamp && d.stamp.enabled && d.stamp.available > 0 ? d.stamp : null; updateCartUI(); }).catch(() => {});
     }
     // Most points this cart can redeem (balance, min points and "max % of bill" all respected); 0 = not possible
     function maxPoints() {
@@ -1135,12 +1139,21 @@
       return pts > 0 && pts >= (Number(loyCk.min_redeem) || 0) ? pts : 0;
     }
     function togglePoints() { usePts = document.getElementById('cUsePts').checked; updateCartUI(); }
+    // Evening stamp reward: the cheapest item in the cart is free (capped by the owner's limit); the server re-checks
+    function stampOff() {
+      if (!stampCk) return 0;
+      const prices = cart.map(i => Number(i.price)).filter(x => x > 0); if (!prices.length) return 0;
+      let v = Math.min(...prices); if (Number(stampCk.reward_max) > 0) v = Math.min(v, Number(stampCk.reward_max));
+      return Math.round(v * 100) / 100;
+    }
+    function toggleStamp() { useStamp = document.getElementById('cUseStamp').checked; updateCartUI(); }
     // Server order: discount comes off the subtotal (incl. delivery) and GST is charged on what is left of the taxable part
     function ckTotals() {
       const sub = cartSubtotal() + chargeNow(), pts = usePts ? maxPoints() : 0;
-      const off = pts ? Math.round(pts * Number(loyCk.point_value) * 100) / 100 : 0, tax = taxableOf();
+      const ptsOff = pts ? Math.round(pts * Number(loyCk.point_value) * 100) / 100 : 0, tax = taxableOf();
+      const stamp = useStamp && stampOff() > 0 ? 1 : 0, stOff = stamp ? Math.min(stampOff(), Math.max(0, cartSubtotal() - ptsOff)) : 0, off = ptsOff + stOff;
       const gst = gstOf(sub > 0 ? Math.max(0, tax - off * tax / sub) : 0);
-      return { sub, pts, off, gst, total: Math.round(sub + gst - off) };
+      return { sub, pts, stamp, off, gst, total: Math.round(sub + gst - off) };
     }
     function renderPointsBox(T) {
       const mp = maxPoints();
@@ -1149,9 +1162,14 @@
       document.getElementById('cPtsBox').classList.toggle('hidden', !mp);
       document.getElementById('cUsePts').checked = usePts;
       document.getElementById('cPtsText').textContent = `⭐ ${mp} points use karein (−₹${off}) • aapke paas ${loyCk ? loyCk.balance : 0}`;
+      const so = stampOff();
+      if (!so) useStamp = false;
+      document.getElementById('cStampBox').classList.toggle('hidden', !so);
+      document.getElementById('cUseStamp').checked = useStamp;
+      document.getElementById('cStampText').textContent = `🍽 Evening free item lagayein (−₹${so}) • sabse sasta item free`;
       ['c', 'a'].forEach(k => {
         document.getElementById(k + 'PtsRow').classList.toggle('hidden', !T.off);
-        document.getElementById(k + 'PtsLbl').textContent = `Points discount (${T.pts} pts)`;
+        document.getElementById(k + 'PtsLbl').textContent = [T.pts ? `${T.pts} pts` : '', T.stamp ? 'free item' : ''].filter(Boolean).join(' + ').replace(/^/, 'Discount (') + ')';
         document.getElementById(k + 'Pts').textContent = `−₹${T.off}`;
       });
     }
@@ -1510,6 +1528,7 @@
           subtotal: sub,
           discount: T.off,
           points_redeem: T.pts || undefined,
+          stamp_redeem: T.stamp || undefined,
           gst: gst,
           total: T.total,
           delivery_address: isDelivery ? address : undefined,
@@ -1670,6 +1689,17 @@
         '<div class="flex justify-between text-[11px] font-bold text-amber-800 mt-1"><span>' + bal + ' / ' + min + ' points</span>' + (spend ? '<span>≈ ' + rs(spend) + ' ka order aur</span>' : '') + '</div></div>';
     }
 
+    // Evening stamp card (N evening orders = 1 free item)
+    function stampCard(st) {
+      if (!st || !st.enabled) return '';
+      var n = st.orders_needed, left = n - st.progress, pct = Math.max(4, Math.round(st.progress * 100 / n));
+      if (st.available > 0) return '<div class="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 text-left"><div class="text-xs font-black text-emerald-800">🍽 Aapke paas ' + st.available + ' FREE item hai!</div>' +
+        '<div class="text-[11px] font-bold text-emerald-700 mt-1">Website par cart me apne aap dikhega. Kiosk / counter par "Show redeem code" dikhayein. Sabse sasta item free' + (st.reward_max ? ' (max ₹' + st.reward_max + ')' : '') + '.</div></div>';
+      return '<div class="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 text-left"><div class="text-xs font-black text-emerald-900">🍽 Evening stamps: ' + st.progress + ' / ' + n + '</div>' +
+        '<div class="mt-1.5 h-2 rounded-full bg-emerald-200"><div class="h-2 rounded-full bg-emerald-500" style="width:' + pct + '%"></div></div>' +
+        '<div class="text-[11px] font-bold text-emerald-800 mt-1">Bas ' + left + ' evening order aur (' + t12(st.start) + ' – ' + t12(st.end) + ') → 1 FREE item!</div></div>';
+    }
+
     // ---- loyalty offers text (expiry warning, double-points hours) ----
     var DAYN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     function t12(hhmm) { var p = String(hhmm).split(':'), h = +p[0], m = p[1] || '00'; return (h % 12 || 12) + ':' + m + ' ' + (h < 12 ? 'AM' : 'PM'); }
@@ -1720,18 +1750,22 @@
       const p = getProfile(), box = document.getElementById('loyaltyBox');
       if (!p || !box) return;
       if (!p.token) {
-        fetch('/api/loyalty-info').then(r => r.ok ? r.json() : null).then(d => { if (d && d.enabled) showOtpCard(); }).catch(() => {});
+        fetch('/api/loyalty-info').then(r => r.ok ? r.json() : null).then(d => { if (d && (d.enabled || d.stamp_enabled)) showOtpCard(); }).catch(() => {});
         return;
       }
       fetch('/api/loyalty/my', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: p.phone, token: p.token }) })
         .then(r => r.ok ? r.json() : (r.status === 401 ? 'stale' : null)).then(d => {
           if (d === 'stale') { saveProfile({ name: p.name, phone: p.phone, token: '' }); return loadLoyalty(); }
-          if (!d || !d.enabled) return;
+          const stOn = !!(d && d.stamp && d.stamp.enabled);
+          if (!d || (!d.enabled && !stOn)) return;
           box.classList.remove('hidden');
+          if (!d.enabled) { box.innerHTML = `<div class="flex items-center justify-between"><div class="text-[11px] font-black text-gray-500 uppercase tracking-wide">🍽 My Stamps</div>
+            <button onclick="showRedeemCode()" class="bg-amber-500 text-white font-black px-4 py-2.5 rounded-xl text-xs">Show redeem code</button></div>${stampCard(d.stamp)}<div id="loyCode"></div>`; return; }
           box.innerHTML = `<div class="flex items-center justify-between"><div><div class="text-[11px] font-black text-gray-500 uppercase tracking-wide">⭐ My Points</div>
             <div class="text-3xl font-black text-amber-600">${d.balance}</div><div class="text-[11px] font-semibold text-gray-500">1 point = ₹${d.point_value} • min ${d.min_redeem} points</div></div>
             <button onclick="showRedeemCode()" class="bg-amber-500 text-white font-black px-4 py-2.5 rounded-xl text-xs">Show redeem code</button></div>
             ${loyaltyProgress(d)}
+            ${stampCard(d.stamp)}
             ${offerLines(d).map(l => `<div class="text-[11px] font-bold text-gray-600">${l}</div>`).join('')}<div id="loyCode"></div>
             <button onclick="togglePointsStatement()" id="loyStmtBtn" class="w-full mt-2 border border-amber-300 text-amber-700 font-black text-xs py-2 rounded-xl">📜 Points history dekhein</button>
             <div id="loyStmt" class="hidden"></div>`;

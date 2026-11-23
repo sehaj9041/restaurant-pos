@@ -1976,29 +1976,30 @@ const createOrderHandler = async (req, res) => {
   let finalDiscount = isOnlineOrder ? 0 : Math.min(Math.max(0, Number(discount) || 0), calculatedSubtotal);
   let discountReason = String(req.body.discount_reason || '').trim().slice(0, 200);
   // Coupon / loyalty points: the rupee discount is recomputed here from the DB, never taken from the client, so no discount password is needed.
-  let couponCode = null, pointsRedeemed = 0, promoApplied = false;
+  let couponCode = null, pointsRedeemed = 0, stampRedeemed = 0, promoApplied = false;
   if (!isOnlineOrder && !req.tableQr && !is_kiosk && !req.autoAccept && Number(req.body.points_redeem) > 0) return res.status(400).json({ error: 'Points sirf kiosk, website ya table QR se redeem ho sakte hain' });
-  if (!isOnlineOrder && !req.body.is_complimentary && (req.body.coupon_code || Number(req.body.points_redeem) > 0)) {
+  if (!isOnlineOrder && !req.tableQr && !req.body.is_complimentary && (req.body.coupon_code || Number(req.body.points_redeem) > 0 || req.body.stamp_redeem)) { // table QR is handled by the profile-token block below
     try {
       const promo = await engagement.computeDiscount({ subtotal: calculatedSubtotal, phone: customer_phone, coupon_code: req.body.coupon_code, points_redeem: req.body.points_redeem,
-        points_code: req.body.points_code, staff_override: discountPasswordOk(req.body.auth_password) || !!req.promoVerified, consume: true });
+        points_code: req.body.points_code, staff_override: discountPasswordOk(req.body.auth_password) || !!req.promoVerified, consume: true,
+        stamp_redeem: !!req.body.stamp_redeem, items: Array.isArray(items) ? items : [] });
       if (promo.error) return res.status(400).json({ error: promo.error });
-      finalDiscount = promo.discount; couponCode = promo.couponCode || null; pointsRedeemed = promo.pointsRedeemed || 0;
+      finalDiscount = promo.discount; couponCode = promo.couponCode || null; pointsRedeemed = promo.pointsRedeemed || 0; stampRedeemed = promo.stampRedeemed || 0;
       discountReason = promo.reason; promoApplied = true;
     } catch (e) { console.error('Promo error:', e.message); return res.status(500).json({ error: 'Coupon / points check nahi ho paaya' }); }
   }
   // Website / table QR order paying with loyalty points: the customer's profile token proves the phone is theirs (replaces the counter redeem code).
   // Only food counts towards the "max % of bill" cap, not the delivery charge.
-  if ((isOnlineOrder || req.tableQr) && Number(req.body.points_redeem) > 0) {
+  if ((isOnlineOrder || req.tableQr) && (Number(req.body.points_redeem) > 0 || req.body.stamp_redeem)) {
     if (!(await profileTokenOk(customer_phone, req.body.profile_token))) return res.status(401).json({ error: req.tableQr ? 'Points verify nahi ho paaye. "My Points" me check karein ya counter par redeem code use karein' : 'Points use karne ke liye pehle WhatsApp OTP se number verify karein', need_otp: true });
     // Razorpay orders sit in HOLD (not counted in the points ledger) until paid, so a second order could spend the same points: allow one pending points payment per phone
-    const pend = await dbAllAsync("SELECT id FROM orders WHERE status = 'HOLD' AND points_redeemed > 0 AND RIGHT(customer_phone, 10) = ? AND created_at > NOW() - INTERVAL '30 minutes' LIMIT 1", [String(customer_phone)]);
+    const pend = await dbAllAsync("SELECT id FROM orders WHERE status = 'HOLD' AND (points_redeemed > 0 OR stamp_redeemed > 0) AND RIGHT(customer_phone, 10) = ? AND created_at > NOW() - INTERVAL '30 minutes' LIMIT 1", [String(customer_phone)]);
     if (pend.length) return res.status(400).json({ error: 'Points wala ek payment abhi pending hai. Use poora karein ya thodi der baad (30 min) dobara try karein.' });
     try {
       const foodSubtotal = items.reduce((sum, i) => i.name === 'Delivery Charge' ? sum : sum + Number(i.price) * Number(i.qty), 0);
-      const promo = await engagement.computeDiscount({ subtotal: foodSubtotal, phone: customer_phone, points_redeem: req.body.points_redeem, staff_override: true, consume: true });
+      const promo = await engagement.computeDiscount({ subtotal: foodSubtotal, phone: customer_phone, points_redeem: req.body.points_redeem, staff_override: true, consume: true, stamp_redeem: !!req.body.stamp_redeem, items });
       if (promo.error) return res.status(400).json({ error: promo.error });
-      finalDiscount = promo.discount; pointsRedeemed = promo.pointsRedeemed || 0; discountReason = promo.reason; promoApplied = true;
+      finalDiscount = promo.discount; pointsRedeemed = promo.pointsRedeemed || 0; stampRedeemed = promo.stampRedeemed || 0; discountReason = promo.reason; promoApplied = true;
     } catch (e) { console.error('Online points error:', e.message); return res.status(500).json({ error: 'Points check nahi ho paaya' }); }
   }
   if (isComp || (finalDiscount > 0 && !promoApplied)) {
@@ -2047,8 +2048,8 @@ const createOrderHandler = async (req, res) => {
   }
 
   const insertOrderQuery = `
-    INSERT INTO orders (order_type, table_no, customer_name, customer_phone, status, payment_mode, subtotal, discount, gst, total, paid_amount, delivery_address, delivery_lat, delivery_lng, discount_reason, is_complimentary, coupon_code, points_redeemed, source, token_no)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT MAX(token_no) FROM orders WHERE created_at::date = CURRENT_DATE), 0) + 1)
+    INSERT INTO orders (order_type, table_no, customer_name, customer_phone, status, payment_mode, subtotal, discount, gst, total, paid_amount, delivery_address, delivery_lat, delivery_lng, discount_reason, is_complimentary, coupon_code, points_redeemed, stamp_redeemed, source, token_no)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT MAX(token_no) FROM orders WHERE created_at::date = CURRENT_DATE), 0) + 1)
     RETURNING id, token_no
   `;
 
@@ -2071,6 +2072,7 @@ const createOrderHandler = async (req, res) => {
     isComp ? 1 : 0,
     couponCode,
     pointsRedeemed,
+    stampRedeemed,
     req.tableQr ? 'TABLE_QR' : (isOnlineOrder ? 'ONLINE' : ((is_kiosk || req.autoAccept) ? 'KIOSK' : null))
   ];
 

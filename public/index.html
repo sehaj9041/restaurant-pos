@@ -3736,6 +3736,16 @@
       document.getElementById('posOfferLoyalty').innerText = '';
       document.getElementById('posOfferPointsRow').classList.add('hidden');
       document.getElementById('posOfferLoyalty').innerText = 'Loyalty points sirf kiosk, website ya table QR order par redeem hote hain';
+      var stRow = document.getElementById('posOfferStampRow'), stBox = document.getElementById('posOfferStamp');
+      stRow.classList.add('hidden'); stBox.checked = !!(posPromo && posPromo.stamp_redeem);
+      var stPhone = (document.getElementById('posCustPhone').value || '').replace(/\D/g, '').slice(-10);
+      if (stPhone.length === 10) fetch('/api/stamps/' + stPhone).then(function(r) { return r.json(); }).then(function(st) {
+        if (!st.enabled) return;
+        stRow.classList.remove('hidden');
+        document.getElementById('posOfferStampInfo').innerText = st.available > 0 ? ('Free item bana hua hai (' + st.available + ') — sabse sasta item free' + (st.reward_max ? ', max ₹' + st.reward_max : '')) : ('Abhi ' + st.progress + '/' + st.orders_needed + ' evening orders (' + st.start + '-' + st.end + ')');
+        stBox.disabled = !(st.available > 0 || stBox.checked);
+        document.getElementById('posOfferPointsRow').classList.toggle('hidden', !stBox.checked);
+      }).catch(function() {});
       document.getElementById('posOfferModal').classList.remove('hidden');
     }
     function closePosOfferModal() { closeVirtualKeyboards(); document.getElementById('posOfferModal').classList.add('hidden'); }
@@ -3743,17 +3753,18 @@
       var err = document.getElementById('posOfferErr');
       var code = document.getElementById('posOfferCode').value.trim();
       var pts = Math.floor(Number(document.getElementById('posOfferPoints').value) || 0);
-      if (!code && pts <= 0) { err.innerText = 'Coupon code ya points daalein'; return; }
+      var stampOn = !!document.getElementById('posOfferStamp').checked;
+      if (!code && pts <= 0 && !stampOn) { err.innerText = 'Coupon code, points ya free item chunein'; return; }
       var ptsCode = document.getElementById('posOfferPtsCode').value.trim(), offerPw = document.getElementById('posOfferPw').value;
       var subtotal = posCart.reduce(function(s, i) { return s + (i.price * i.qty); }, 0);
       err.innerText = 'Checking...';
       fetch('/api/coupons/validate', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subtotal: subtotal, phone: document.getElementById('posCustPhone').value, coupon_code: code, points_redeem: pts, points_code: ptsCode, auth_password: offerPw, exclude_order_id: editingActiveOrderId || 0 })
+        body: JSON.stringify({ subtotal: subtotal, phone: document.getElementById('posCustPhone').value, coupon_code: code, points_redeem: pts, points_code: ptsCode, auth_password: offerPw, exclude_order_id: editingActiveOrderId || 0, stamp_redeem: stampOn, items: posCart.map(function(i) { return { name: i.name, price: i.price, qty: i.qty }; }) })
       }).then(function(r) { return r.json().then(function(d) { if (!r.ok) throw new Error(d.error || 'Failed'); return d; }); })
         .then(function(d) {
-          posPromo = { coupon_code: d.couponCode || '', points_redeem: d.pointsRedeemed || 0, points_code: d.pointsRedeemed ? ptsCode : '', subtotal: subtotal };
-          if (d.pointsRedeemed && offerPw) posAuthPw = offerPw; // staff override: the same password is sent with the order so the server accepts it
+          posPromo = { coupon_code: d.couponCode || '', points_redeem: d.pointsRedeemed || 0, points_code: (d.pointsRedeemed || d.stampRedeemed) ? ptsCode : '', stamp_redeem: d.stampRedeemed ? 1 : 0, subtotal: subtotal };
+          if ((d.pointsRedeemed || d.stampRedeemed) && offerPw) posAuthPw = offerPw; // staff override: the same password is sent with the order so the server accepts it
           posDiscount = { value: d.discount, type: 'amount', reason: d.reason };
           posComp = { on: false, reason: '' };
           closePosOfferModal();
@@ -4155,6 +4166,7 @@
         coupon_code: posPromo ? posPromo.coupon_code : '',
         points_redeem: posPromo ? posPromo.points_redeem : 0,
         points_code: posPromo ? (posPromo.points_code || '') : '',
+        stamp_redeem: posPromo && posPromo.stamp_redeem ? 1 : 0,
         gst: calc.gst,
         total: calc.grandTotal,
         paid_amount: initialPaid,       // Yeh ab poora grandTotal bhejega taaki backend turant payment catch kar le!
@@ -5344,11 +5356,14 @@
       </div>
       <input id="posOfferCode" type="text" readonly onclick="openVirtualKeyboard(this, 'text')" maxlength="30" placeholder="Coupon code" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm uppercase font-mono outline-none focus:border-orange-500">
       <div id="posOfferPointsRow" class="hidden space-y-2">
-        <input id="posOfferPoints" type="text" readonly onclick="openVirtualKeyboard(this, 'number', 'center')" placeholder="Points to redeem" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-orange-500">
+        <input id="posOfferPoints" type="text" readonly style="display:none" onclick="openVirtualKeyboard(this, 'number', 'center')" placeholder="Points to redeem" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-orange-500">
         <input id="posOfferPtsCode" type="text" readonly onclick="openVirtualKeyboard(this, 'number', 'center')" maxlength="6" placeholder="Customer ka redeem code (6 digit)" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono outline-none focus:border-orange-500">
-        <p class="text-[10px] font-bold text-gray-500">Customer apne phone par <b>My Points</b> khol kar code dikhayega. Code nahi hai to neeche staff password daalein.</p>
+        <p class="text-[10px] font-bold text-gray-500">Free item ke liye: customer apne phone par <b>My Points</b> khol kar code dikhayega. Code nahi hai to neeche staff password daalein.</p>
         <input id="posOfferPw" type="password" readonly onclick="openVirtualKeyboard(this, 'text')" autocomplete="off" placeholder="Staff password (sirf code na ho tab)" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-orange-500">
       </div>
+      <label id="posOfferStampRow" class="hidden flex items-start gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-800">
+        <input id="posOfferStamp" type="checkbox" class="mt-0.5" onchange="document.getElementById('posOfferPointsRow').classList.toggle('hidden', !this.checked)"><span>🍽 Evening free item lagao <span id="posOfferStampInfo" class="block text-[11px] font-bold text-emerald-700"></span></span>
+      </label>
       <p id="posOfferLoyalty" class="text-[11px] font-bold text-amber-700"></p>
       <p id="posOfferErr" class="text-xs font-bold text-rose-600 min-h-[1rem]"></p>
       <div class="flex gap-2">

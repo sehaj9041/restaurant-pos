@@ -90,6 +90,21 @@
         <button onclick="saveLoyalty()" class="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2 rounded-xl font-black">Save loyalty settings</button>
         <p class="text-[11px] text-gray-400">Points sirf poori paid bills par milte hain (due / complimentary par nahi). Earn rate badalne par purane orders ke points bhi naye rate se count honge. Expiry, double-points ghante aur pehle-order bonus sirf save karne ke din se aage lagte hain: purane customers ke points nahi katte (unhe poora expiry time milta hai) aur purane orders ke points dobara nahi badalte.</p>
       </div>
+      <div class="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm space-y-3 text-sm">
+        <label class="flex items-center gap-2 font-black"><input id="sEnabled" type="checkbox"> 🍽 Evening stamp card chalu karein (N evening orders = 1 free item)</label>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <label>Kitne orders par 1 free item<input id="sN" type="number" min="1" max="50" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
+          <label>Evening start<input id="sStart" type="time" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
+          <label>Evening end<input id="sEnd" type="time" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
+          <label>Stamp ke liye min bill ₹<input id="sMin" type="number" min="0" placeholder="0 = koi limit nahi" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
+          <label>Free item max ₹<input id="sMax" type="number" min="0" placeholder="0 = koi limit nahi" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
+        </div>
+        <div class="flex flex-wrap items-center gap-3 text-xs font-bold text-gray-700"><span>Din (kuch na chunein = roz):</span>
+          <label><input type="checkbox" class="sDay" value="1"> Mon</label><label><input type="checkbox" class="sDay" value="2"> Tue</label><label><input type="checkbox" class="sDay" value="3"> Wed</label><label><input type="checkbox" class="sDay" value="4"> Thu</label><label><input type="checkbox" class="sDay" value="5"> Fri</label><label><input type="checkbox" class="sDay" value="6"> Sat</label><label><input type="checkbox" class="sDay" value="0"> Sun</label>
+        </div>
+        <button onclick="saveStamps()" class="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2 rounded-xl font-black">Save stamp settings</button>
+        <p class="text-[11px] text-gray-400">Stamp har us poori paid order par milta hai jo evening time me hua aur jisme customer ka phone number tha (counter, kiosk, website, sab). Free item = bill ka sabse sasta item (max ₹ tak). Counter par POS ke Coupon / Points button me "Evening free item" se lagta hai. Stamp sirf save karne ke din se aage ginte hain.</p>
+      </div>
       <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-x-auto">
         <div class="p-3 border-b flex flex-wrap items-center justify-between gap-2">
           <span class="font-black text-gray-800">Top customers</span>
@@ -254,6 +269,10 @@
         document.querySelectorAll('.lDay').forEach(function(x) { x.checked = (c.bonus_days || []).indexOf(Number(x.value)) >= 0; });
         loyaltyHint();
       }).catch(fail);
+      api('/api/loyalty-admin/stamps').then(function(c) {
+        $('sEnabled').checked = c.enabled; $('sN').value = c.orders_needed; $('sStart').value = c.start; $('sEnd').value = c.end; $('sMin').value = c.min_order || ''; $('sMax').value = c.reward_max || '';
+        document.querySelectorAll('.sDay').forEach(function(x) { x.checked = (c.days || []).indexOf(Number(x.value)) >= 0; });
+      }).catch(fail);
       api('/api/loyalty-admin/top').then(function(rows) {
         $('topRows').innerHTML = rows.length ? rows.map(function(r) {
           return '<tr class="border-t"><td class="p-3 font-bold">' + esc(r.name || 'Guest') + '</td><td class="p-3 font-mono">' + esc(r.phone) + '</td><td class="p-3 text-right">' + r.orders + '</td><td class="p-3 text-right">₹' + Math.round(r.spent) + '</td><td class="p-3 text-right font-black text-amber-600">' + r.points + '</td><td class="p-3 text-right text-xs text-rose-600 font-bold">' + (r.expiring ? r.expiring.points + ' pts • ' + esc(r.expiring.on) : '') + '</td><td class="p-3 text-right"><button onclick="openStatement(\'' + esc(r.phone) + '\')" class="text-orange-600 font-black text-xs hover:underline">Statement</button></td></tr>';
@@ -264,6 +283,12 @@
       var days = []; document.querySelectorAll('.lDay').forEach(function(x) { if (x.checked) days.push(Number(x.value)); });
       api('/api/loyalty-admin/config', 'PUT', { enabled: $('lEnabled').checked, earn_per_100: $('lEarn').value, point_value: $('lValue').value, min_redeem: $('lMin').value, max_redeem_pct: $('lPct').value,
         expiry_days: $('lExpiry').value || 0, first_order_bonus: $('lFirst').value || 0, bonus_enabled: $('lBonusOn').checked, bonus_start: $('lBStart').value, bonus_end: $('lBEnd').value, bonus_multiplier: $('lBMult').value, bonus_days: days })
+        .then(function() { (window.uiAlert || window.alert)('Saved'); loadLoyalty(); }).catch(fail);
+    }
+
+    function saveStamps() {
+      var days = []; document.querySelectorAll('.sDay').forEach(function(x) { if (x.checked) days.push(Number(x.value)); });
+      api('/api/loyalty-admin/stamps', 'PUT', { enabled: $('sEnabled').checked, orders_needed: $('sN').value, start: $('sStart').value, end: $('sEnd').value, min_order: $('sMin').value || 0, reward_max: $('sMax').value || 0, days: days })
         .then(function() { (window.uiAlert || window.alert)('Saved'); loadLoyalty(); }).catch(fail);
     }
 

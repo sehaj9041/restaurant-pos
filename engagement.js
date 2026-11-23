@@ -19,6 +19,7 @@ const QRCode = require('qrcode');
 
 const DEFAULT_LOYALTY = { enabled: false, earn_per_100: 5, point_value: 0.5, min_redeem: 50, max_redeem_pct: 50,
   expiry_days: 0, expiry_since: 0, bonus_enabled: false, bonus_start: '15:00', bonus_end: '18:00', bonus_multiplier: 2, bonus_days: [], bonus_since: 0, first_order_bonus: 0, first_bonus_since: 0 };
+const DEFAULT_STAMPS = { enabled: false, orders_needed: 5, start: '18:00', end: '23:59', days: [], min_order: 0, reward_max: 0, since: 0 };
 const DEAD_STATUS = "('VOID', 'CANCELLED', 'HOLD')";
 
 const numOr = (v, d = 0) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
@@ -96,6 +97,7 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
   )`, []).catch(e => console.error('feedback table error:', e.message));
   dbAllAsync(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS coupon_code TEXT`, []).catch(() => {});
   dbAllAsync(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS points_redeemed INTEGER DEFAULT 0`, []).catch(() => {});
+  dbAllAsync(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS stamp_redeemed INTEGER DEFAULT 0`, []).catch(() => {});
   // Kiosk orders used to be saved without a source; they are recognisable by the fixed guest name the kiosk sends
   dbAllAsync(`UPDATE orders SET source = 'KIOSK' WHERE source IS NULL AND customer_name = 'Self Kiosk Guest'`, []).catch(() => {});
 
@@ -123,6 +125,34 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
   // What customers may be told about the offers (no internals)
   const publicOffers = (L) => ({ expiry_days: L.expiry_days, first_order_bonus: L.first_order_bonus,
     bonus: L.bonus_enabled ? { start: L.bonus_start, end: L.bonus_end, multiplier: L.bonus_multiplier, days: L.bonus_days } : null });
+
+  // ---- Evening stamp card: every `orders_needed` paid orders placed inside the time window earn 1 free item (cheapest item of the bill, capped by reward_max) ----
+  async function stampConfig() {
+    const cfg = await getSettingsConfig();
+    const s = Object.assign({}, DEFAULT_STAMPS, cfg.stamps || {});
+    return { enabled: !!s.enabled, orders_needed: Math.max(1, Math.floor(num(s.orders_needed, 5))),
+      start: /^\d{1,2}:\d{2}$/.test(s.start) ? s.start : '18:00', end: /^\d{1,2}:\d{2}$/.test(s.end) ? s.end : '23:59',
+      days: (Array.isArray(s.days) ? s.days : []).map(Number).filter(d => d >= 0 && d <= 6), min_order: Math.max(0, num(s.min_order, 0)), reward_max: Math.max(0, num(s.reward_max, 0)), since: num(s.since, 0) };
+  }
+
+  // Stamps come from the orders themselves (any source, phone needed): fully paid, not complimentary, not an order that already used a free item.
+  async function stampStatus(phone, S, excludeId = 0) {
+    phone = cleanPhone(phone);
+    const base = { enabled: S.enabled, orders_needed: S.orders_needed, start: S.start, end: S.end, days: S.days, reward_max: S.reward_max, stamps: 0, progress: 0, earned: 0, used: 0, available: 0 };
+    if (!S.enabled || phone.length !== 10) return base;
+    const rows = await dbAllAsync(`SELECT ${ledgerCols}, COALESCE(stamp_redeemed, 0) AS stamp_redeemed FROM orders WHERE RIGHT(customer_phone, 10) = ? AND id <> ? AND UPPER(COALESCE(status, '')) NOT IN ${DEAD_STATUS}`, [phone, excludeId]);
+    const win = { bonus_enabled: true, bonus_start: S.start, bonus_end: S.end, bonus_days: S.days };
+    let stamps = 0, used = 0;
+    for (const r of rows) {
+      used += Math.floor(numOr(r.stamp_redeemed));
+      if (numOr(r.stamp_redeemed) > 0 || numOr(r.is_complimentary)) continue;
+      if (new Date(r.created_at).getTime() < S.since) continue;
+      if (!(numOr(r.paid_amount) >= numOr(r.total) && numOr(r.total) > 0 && numOr(r.total) >= S.min_order)) continue;
+      if (inBonusWindow(win, numOr(r.hh), numOr(r.mm), numOr(r.dow))) stamps++;
+    }
+    const earned = Math.floor(stamps / S.orders_needed);
+    return Object.assign(base, { stamps, progress: stamps % S.orders_needed, earned, used, available: Math.max(0, earned - used) });
+  }
 
   const ledgerCols = `id, total, paid_amount, is_complimentary, points_redeemed, source, created_at,
     EXTRACT(HOUR FROM created_at)::int AS hh, EXTRACT(MINUTE FROM created_at)::int AS mm, EXTRACT(DOW FROM created_at)::int AS dow`;
@@ -183,10 +213,10 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
 
   // Returns { error } or { discount, couponDiscount, pointsDiscount, couponCode, pointsRedeemed, reason }
   // Points need the customer's redeem code (or the staff discount password as an override); `consume` spends the code (order save).
-  async function computeDiscount({ subtotal, phone, coupon_code, points_redeem, exclude_order_id, points_code, staff_override, consume }) {
+  async function computeDiscount({ subtotal, phone, coupon_code, points_redeem, exclude_order_id, points_code, staff_override, consume, stamp_redeem, items }) {
     const ex = Math.floor(num(exclude_order_id)); // an order being edited must not count its own earlier coupon / points
     subtotal = Math.max(0, num(subtotal));
-    let couponDiscount = 0, couponCode = '', pointsDiscount = 0, pointsRedeemed = 0;
+    let couponDiscount = 0, couponCode = '', pointsDiscount = 0, pointsRedeemed = 0, stampDiscount = 0, stampRedeemed = 0;
     const code = cleanCode(coupon_code);
     if (code) {
       const rows = await dbAllAsync('SELECT * FROM coupons WHERE code = ?', [code]);
@@ -212,7 +242,7 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
       couponCode = code;
     }
     const pts = Math.floor(num(points_redeem));
-    let needCode = false;
+    let needCode = false, stampNeedCode = false;
     if (pts > 0) {
       const L = await loyaltyConfig();
       if (!L.enabled) return { error: 'Loyalty points abhi band hain' };
@@ -229,11 +259,27 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
       if (pointsDiscount > room + 0.001) return { error: `Ek bill par max ${L.max_redeem_pct}% tak hi points redeem ho sakte hain (₹${Math.floor(room)})` };
       pointsRedeemed = pts;
     }
-    if (needCode && consume) { const c = await checkRedeemCode(phone, points_code, true); if (c.error) return c; }
+    if (stamp_redeem) {
+      const S = await stampConfig();
+      if (!S.enabled) return { error: 'Evening stamp offer abhi band hai' };
+      if (cleanPhone(phone).length !== 10) return { error: 'Free item ke liye customer ka phone zaroori hai' };
+      const st = await stampStatus(phone, S, ex);
+      stampNeedCode = !staff_override && !needCode;
+      if (stampNeedCode) { const c = await checkRedeemCode(phone, points_code, false); if (c.error) return c; }
+      if (st.available < 1) return { error: `Free item abhi nahi bana: ${st.progress}/${S.orders_needed} evening orders hue hain` };
+      const prices = (Array.isArray(items) ? items : []).filter(i => i && i.name !== 'Delivery Charge' && num(i.price) > 0).map(i => num(i.price));
+      if (!prices.length) return { error: 'Free item ke liye bill me item hona chahiye' };
+      stampDiscount = Math.min(...prices);
+      if (S.reward_max > 0) stampDiscount = Math.min(stampDiscount, S.reward_max);
+      stampDiscount = Math.min(Math.round(stampDiscount * 100) / 100, Math.max(0, subtotal - couponDiscount - pointsDiscount));
+      stampRedeemed = 1;
+    }
+    if ((needCode || stampNeedCode) && consume) { const c = await checkRedeemCode(phone, points_code, true); if (c.error) return c; }
     const parts = [];
     if (couponCode) parts.push('Coupon ' + couponCode);
     if (pointsRedeemed) parts.push(pointsRedeemed + ' pts');
-    return { discount: Math.min(subtotal, couponDiscount + pointsDiscount), couponDiscount, pointsDiscount, couponCode, pointsRedeemed, reason: parts.join(' + ') };
+    if (stampRedeemed) parts.push('Evening free item');
+    return { discount: Math.min(subtotal, couponDiscount + pointsDiscount + stampDiscount), couponDiscount, pointsDiscount, stampDiscount, stampRedeemed, couponCode, pointsRedeemed, reason: parts.join(' + ') };
   }
 
   // ---- public / POS routes ----
@@ -248,7 +294,7 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
 
   // Public: what the restaurant offers (shown as a banner on the ordering pages)
   app.get('/api/loyalty-info', async (req, res) => {
-    try { const L = await loyaltyConfig(); res.json(Object.assign({ enabled: L.enabled, earn_per_100: L.earn_per_100, point_value: L.point_value }, publicOffers(L))); }
+    try { const L = await loyaltyConfig(); res.json(Object.assign({ enabled: L.enabled, earn_per_100: L.earn_per_100, point_value: L.point_value, stamp_enabled: (await stampConfig()).enabled }, publicOffers(L))); }
     catch (e) { res.status(500).json({ error: e.message }); }
   });
 
@@ -258,7 +304,7 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
       if (!(await profileOk(phone, token))) return res.status(401).json({ error: 'Profile verify nahi hui' });
       const L = await loyaltyConfig();
       const b = await loyaltyBalance(phone, L);
-      res.json(Object.assign({ enabled: L.enabled, balance: b.balance, earned: b.earned, redeemed: b.redeemed, expiring: b.expiring, point_value: L.point_value, min_redeem: L.min_redeem, max_redeem_pct: L.max_redeem_pct, earn_per_100: L.earn_per_100 }, publicOffers(L)));
+      res.json(Object.assign({ enabled: L.enabled, balance: b.balance, earned: b.earned, redeemed: b.redeemed, expiring: b.expiring, point_value: L.point_value, min_redeem: L.min_redeem, max_redeem_pct: L.max_redeem_pct, earn_per_100: L.earn_per_100 }, publicOffers(L), { stamp: await stampStatus(phone, await stampConfig()) }));
     } catch (e) { res.status(500).json({ error: 'Load nahi hua' }); }
   });
 
@@ -332,7 +378,7 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
       if (asks.length >= 6) return res.status(429).json({ error: 'Bahut baar code manga. Thodi der baad try karein.' });
       asks.push(now); codeAsks.set(ph, asks);
       const L = await loyaltyConfig();
-      if (!L.enabled) return res.status(400).json({ error: 'Loyalty points abhi band hain' });
+      if (!L.enabled && !(await stampConfig()).enabled) return res.status(400).json({ error: 'Loyalty points abhi band hain' });
       const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
       await dbAllAsync(`INSERT INTO loyalty_codes (phone, code_hash, expires_ms, fails, lock_until, created_ms) VALUES (?, ?, ?, 0, 0, ?)
         ON CONFLICT (phone) DO UPDATE SET code_hash = EXCLUDED.code_hash, expires_ms = EXCLUDED.expires_ms, fails = 0, created_ms = EXCLUDED.created_ms RETURNING phone`,
@@ -415,6 +461,26 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
     catch (e) { res.status(500).json({ error: e.message }); }
   });
 
+  app.get('/api/stamps/:phone', async (req, res) => {
+    try { const S = await stampConfig(); res.json(await stampStatus(req.params.phone, S)); }
+    catch (e) { res.status(500).json({ error: e.message }); }
+  });
+  app.get('/api/loyalty-admin/stamps', async (req, res) => { try { res.json(await stampConfig()); } catch (e) { res.status(500).json({ error: e.message }); } });
+  app.put('/api/loyalty-admin/stamps', async (req, res) => {
+    const b = req.body || {};
+    const n = Math.floor(numOr(b.orders_needed, 0));
+    if (n < 1 || n > 50) return res.status(400).json({ error: 'Kitne orders par free item: 1 se 50 ke beech daalein' });
+    if (!/^\d{1,2}:\d{2}$/.test(String(b.start || '')) || !/^\d{1,2}:\d{2}$/.test(String(b.end || ''))) return res.status(400).json({ error: 'Start aur end time daalein' });
+    if (toMin(b.start) === toMin(b.end)) return res.status(400).json({ error: 'Start aur end time alag hone chahiye' });
+    try {
+      const prev = await stampConfig();
+      const days = (Array.isArray(b.days) ? b.days : []).map(Number).filter(d => d >= 0 && d <= 6).sort();
+      const s = { enabled: !!b.enabled, orders_needed: n, start: String(b.start), end: String(b.end), days, min_order: Math.max(0, numOr(b.min_order, 0)), reward_max: Math.max(0, numOr(b.reward_max, 0)),
+        since: b.enabled ? (prev.enabled && prev.since ? prev.since : Date.now()) : prev.since }; // stamps count only from the day the offer was first switched on
+      await saveSettingsConfig({ stamps: s });
+      res.json({ success: true, config: s });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
   app.get('/api/loyalty-admin/config', async (req, res) => res.json(await loyaltyConfig()));
   app.put('/api/loyalty-admin/config', async (req, res) => {
     const b = req.body || {};
