@@ -147,7 +147,7 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
   }
 
   // What any visitor may be told about the stamp card (no phone needed)
-  async function stampPublic() { const S = await stampConfig(); return S.enabled ? { enabled: true, orders_needed: S.orders_needed, min_order: S.min_order, redeem_min: S.redeem_min, all_day: S.all_day, start: S.start, end: S.end } : { enabled: false }; }
+  async function stampPublic() { const S = await stampConfig(); if (!S.enabled) return { enabled: false }; return { enabled: true, orders_needed: S.orders_needed, min_order: S.min_order, redeem_min: S.redeem_min, all_day: S.all_day, start: S.start, end: S.end, free_items: (await stampFreeItems(S)).map(i => ({ id: i.id, name: i.name, price: i.price, image: i.image })) }; }
 
   // Stamps come from the orders themselves (any source, phone needed): fully paid, not complimentary, not an order that already used a free item.
   async function stampStatus(phone, S, excludeId = 0) {

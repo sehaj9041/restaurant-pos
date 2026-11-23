@@ -4634,6 +4634,8 @@
         var dots = '●'.repeat(st.progress) + '○'.repeat(Math.max(0, n - st.progress));
         msg = '🍽 Stamp ' + st.progress + '/' + n + ' ' + dots + (bill > 0 && bill >= minO ? ' • is bill se stamp milega' : (minO > 0 ? ' • stamp ke liye ₹' + minO + '+ ka bill' : ''));
       }
+      var fl = st.free_items || [];
+      if (fl.length && !(st.available > 0 && (!minR || bill >= minR))) msg += ' • Free item: ' + fl.slice(0, 4).map(function(i) { return i.name; }).join(', ') + (fl.length > 4 ? ' +' + (fl.length - 4) : '');
       el.className = 'mt-1 text-[10px] font-black leading-snug ' + tone; el.textContent = msg;
     }
 

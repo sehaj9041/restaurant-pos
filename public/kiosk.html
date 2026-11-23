@@ -1303,6 +1303,11 @@
     }
 
     // "X more points -> Rs Y off" card: shown on the payment screen when points were not used on this order
+    // 'Fries, Coke, Brownie +2 more': what the stamp card's free item can be (preview)
+    function stampNames(st, max) {
+      const l = (st && st.free_items) || []; if (!l.length) return '';
+      return l.slice(0, max).map(i => i.name.replace(/</g, '&lt;')).join(', ') + (l.length > max ? ' +' + (l.length - max) + ' more' : '');
+    }
     function renderPayProgress() {
       const el = $('payProgress'), d = kioskLoyalty, st = kioskStamp;
       const min = d ? Number(d.min_redeem) || 0 : 0, val = d ? Number(d.point_value) || 0 : 0;
@@ -1328,7 +1333,7 @@
         html += (html ? '<div class="mt-3 pt-3 border-t border-black/10"></div>' : '') +
           '<div class="text-base font-black">&#127869; ' + (st.available > 0 ? 'You have a FREE item waiting!' : 'Stamp card: ' + st.progress + ' / ' + n + ' <span class="tracking-widest" style="color:#d9531e">' + dots + '</span>') + '</div>' +
           (st.available > 0 ? '' : '<div class="mt-2 h-2.5 rounded-full bg-black/10"><div class="h-2.5 rounded-full" style="width:' + pct + '%;background:#d9531e"></div></div>') +
-          '<div class="text-sm opacity-80 mt-1">' + msg + '</div>';
+          '<div class="text-sm opacity-80 mt-1">' + msg + '</div>' + (stampNames(st, 4) ? '<div class="text-sm font-bold mt-1">&#127873; Your FREE item: ' + stampNames(st, 4) + '</div>' : '');
       }
       if (!html) { el.classList.add('hidden'); return; }
       el.innerHTML = html; el.classList.remove('hidden');
@@ -1405,7 +1410,7 @@
         const now = st.available > 0 && !(kioskPromo && kioskPromo.stampLine) ? n : st.progress + (counts ? 1 : 0);
         sd.innerHTML = kioskPromo && kioskPromo.stampLine ? '&#127873; Enjoy your FREE item!'
           : (st.available > 0 || now >= n) ? '&#127869; FREE item unlocked for your next order!<div class="text-sm font-bold opacity-70 mt-1">Show your redeem code from the app' + (Number(st.redeem_min) > 0 ? ' on an order of ' + money(st.redeem_min) + '+' : '') + '</div>'
-          : '&#127869; Stamp card: ' + now + ' / ' + n + (counts ? '' : '<div class="text-sm font-bold opacity-70 mt-1">Orders of ' + money(st.min_order) + '+ earn a stamp</div>') + (counts ? '<div class="text-sm font-bold opacity-70 mt-1">Counts once your payment is done</div>' : '');
+          : '&#127869; Stamp card: ' + now + ' / ' + n + (counts ? '' : '<div class="text-sm font-bold opacity-70 mt-1">Orders of ' + money(st.min_order) + '+ earn a stamp</div>') + (counts ? '<div class="text-sm font-bold opacity-70 mt-1">Counts once your payment is done</div>' : '') + (stampNames(st, 3) ? '<div class="text-sm font-bold mt-1">&#127873; FREE item: ' + stampNames(st, 3) + '</div>' : '');
         sd.classList.remove('hidden');
       } else sd.classList.add('hidden');
       // Big "rate us" QR on the done screen (the one on the receipt is easy to miss); the screen stays a little longer so it can be scanned
