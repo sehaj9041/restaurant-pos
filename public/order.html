@@ -83,6 +83,7 @@
 
     <!-- Menu Listing (grouped by category) -->
     <main class="p-3 flex-1">
+      <div id="stampBanner" class="hidden mb-3"></div>
       <div id="menuGrid" class="space-y-6">
         <div class="text-center py-12 text-gray-400 text-xs font-semibold">Loading menu items...</div>
       </div>
@@ -1127,6 +1128,7 @@
 
     // ---- loyalty points on the website checkout (the server re-checks everything; this only mirrors its maths) ----
     let loyCk = null, usePts = false, stampCk = null, stampPick = 0, stampSt = null, stampGen = null; // stampSt = stamp status of the profile phone (public), stampCk = same but only when a free item can be redeemed now; stampGen = offer text for visitors without a phone
+    window.addEventListener('load', () => { try { loadCkLoyalty(); } catch (e) {} }); // stamp banner on the menu page
     function loadCkLoyalty() {
       const p = getProfile();
       if (!p || !p.phone) { stampSt = null; stampCk = null; stampPick = 0; fetch('/api/loyalty-info').then(r => r.ok ? r.json() : null).then(d => { stampGen = d && d.stamp && d.stamp.enabled ? d.stamp : null; updateCartUI(); }).catch(() => {}); }
@@ -1140,7 +1142,7 @@
     // Preview of the free items the customer can pick once the stamp card is complete
     function stampFreeChips(st) {
       const l = (st && st.free_items) || []; if (!l.length) return '';
-      return `<div class="mt-1.5 flex flex-wrap gap-1 items-center"><span class="text-[10px] font-black text-emerald-900">🎁 Inme se ek free:</span>${l.slice(0, 5).map(i => `<span class="inline-flex items-center gap-1 bg-white border border-emerald-200 rounded-full px-2 py-0.5 text-[10px] font-bold text-emerald-900">${i.image ? `<img src="${esc(i.image)}" class="w-4 h-4 rounded-full object-cover" onerror="this.remove()">` : ''}${esc(i.name)}</span>`).join('')}${l.length > 5 ? `<span class="text-[10px] font-bold text-emerald-800">+${l.length - 5} aur</span>` : ''}</div>`;
+      return `<div class="mt-2 text-[10px] font-black text-emerald-900">🎁 Inme se ek FREE milega:</div><div class="mt-1 flex gap-2 pb-0.5" style="overflow-x:auto;scrollbar-width:none">${l.map(i => `<div class="shrink-0 w-16 text-center"><div class="w-16 h-16 rounded-xl bg-white border border-emerald-200 overflow-hidden flex items-center justify-center">${i.image ? `<img src="${esc(imgSrc(i.image))}" class="w-full h-full object-cover" onerror="this.outerHTML='<span class=\\'text-xl\\'>🍽</span>'">` : '<span class="text-xl">🍽</span>'}</div><div class="text-[10px] font-bold leading-tight mt-0.5 text-emerald-900">${esc(i.name)}</div></div>`).join('')}</div>`;
     }
     // Stamp progress for the checkout: where the customer stands, and what THIS bill does (earns a stamp / is too small for the free item)
     function stampProgHtml(st, bill) {
@@ -1184,6 +1186,8 @@
       document.getElementById('cPtsBox').classList.toggle('hidden', !mp);
       document.getElementById('cUsePts').checked = usePts;
       document.getElementById('cPtsText').textContent = `⭐ ${mp} points use karein (−₹${off}) • aapke paas ${loyCk ? loyCk.balance : 0}`;
+      const sb = document.getElementById('stampBanner');
+      if (sb) { sb.innerHTML = stampProgHtml(stampSt || stampGen, cartSubtotal()); sb.classList.toggle('hidden', !(stampSt || stampGen)); }
       document.getElementById('cStampProg').innerHTML = stampProgHtml(stampSt || stampGen, cartSubtotal());
       document.getElementById('cStampProg').classList.toggle('hidden', !(stampSt || stampGen) || !cart.length);
       const sItems = stampItems();

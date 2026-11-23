@@ -36,6 +36,7 @@
       <div id="chips" class="chips flex gap-2 overflow-x-auto px-4 pb-2.5"></div>
     </header>
 
+    <div id="stampBanner" class="hidden mx-4 mt-3"></div>
     <div id="offerBanner" class="hidden mx-4 mt-3 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs font-bold text-amber-900 space-y-0.5"></div>
     <div id="statusBox" class="px-4 pt-3 space-y-2"></div>
 
@@ -121,7 +122,7 @@
       $('app').classList.remove('hidden');
       closedBanner = storeOpen ? '' : '<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-3 text-sm font-bold">' + esc(storeMsg || 'Abhi restaurant band hai') + '</div>';
       $('statusBox').innerHTML = closedBanner;
-      renderChips(); renderMenu(); updateCartBar(); pollOrders(); loadOfferBanner();
+      renderChips(); renderMenu(); updateCartBar(); pollOrders(); loadOfferBanner(); loadStampBanner();
     } catch (e) { fatal('Menu load nahi hua. Internet check karke dobara try karein.'); }
   }
 
@@ -715,9 +716,18 @@
   function renderStampProg() { var el = $('stampProg'); if (el) el.innerHTML = stampProgHtml(stampSt || stampGen, cartSub()); }
   function stampFreeChips(st) {
     var l = (st && st.free_items) || []; if (!l.length) return '';
-    return '<div class="mt-1.5 flex flex-wrap gap-1 items-center"><span class="text-[10px] font-black text-emerald-900">🎁 Inme se ek free:</span>' + l.slice(0, 5).map(function (i) {
-      return '<span class="inline-flex items-center gap-1 bg-white border border-emerald-200 rounded-full px-2 py-0.5 text-[10px] font-bold text-emerald-900">' + (i.image ? '<img src="' + esc(i.image) + '" class="w-4 h-4 rounded-full object-cover" onerror="this.remove()">' : '') + esc(i.name) + '</span>'; }).join('') +
-      (l.length > 5 ? '<span class="text-[10px] font-bold text-emerald-800">+' + (l.length - 5) + ' aur</span>' : '') + '</div>';
+    return '<div class="mt-2 text-[10px] font-black text-emerald-900">🎁 Inme se ek FREE milega:</div><div class="mt-1 flex gap-2 pb-0.5" style="overflow-x:auto;scrollbar-width:none">' + l.map(function (i) {
+      return '<div class="shrink-0 w-16 text-center"><div class="w-16 h-16 rounded-xl bg-white border border-emerald-200 overflow-hidden flex items-center justify-center">' + (i.image ? '<img src="' + esc(imgSrc(i.image)) + '" class="w-full h-full object-cover" onerror="this.outerHTML=\'<span class=&quot;text-xl&quot;>🍽</span>\'">' : '<span class="text-xl">🍽</span>') + '</div><div class="text-[10px] font-bold leading-tight mt-0.5 text-emerald-900">' + esc(i.name) + '</div></div>'; }).join('') + '</div>';
+  }
+  // Stamp banner on the menu page: progress + free items (public status of this device's phone, or the plain offer)
+  async function loadStampBanner() {
+    try {
+      var p = profile(), st = null;
+      if (p && p.phone) { var d = await fetch('/api/stamps/' + p.phone).then(jsonOrThrow); if (d && d.enabled) st = d; }
+      if (!st) { var g = await fetch('/api/loyalty-info').then(jsonOrThrow); if (g && g.stamp && g.stamp.enabled) st = g.stamp; }
+      if (!st) return;
+      $('stampBanner').innerHTML = stampProgHtml(st, cartSub()); $('stampBanner').classList.remove('hidden');
+    } catch (e) {}
   }
   function stampProgHtml(st, bill) {
     if (!st) return '';

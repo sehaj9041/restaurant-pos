@@ -4634,9 +4634,17 @@
         var dots = '●'.repeat(st.progress) + '○'.repeat(Math.max(0, n - st.progress));
         msg = '🍽 Stamp ' + st.progress + '/' + n + ' ' + dots + (bill > 0 && bill >= minO ? ' • is bill se stamp milega' : (minO > 0 ? ' • stamp ke liye ₹' + minO + '+ ka bill' : ''));
       }
-      var fl = st.free_items || [];
-      if (fl.length && !(st.available > 0 && (!minR || bill >= minR))) msg += ' • Free item: ' + fl.slice(0, 4).map(function(i) { return i.name; }).join(', ') + (fl.length > 4 ? ' +' + (fl.length - 4) : '');
+      var fl = st.free_items || [], showList = fl.length && !(st.available > 0 && (!minR || bill >= minR));
       el.className = 'mt-1 text-[10px] font-black leading-snug ' + tone; el.textContent = msg;
+      if (showList) {
+        var wrap = document.createElement('div'); wrap.className = 'flex gap-1.5 mt-1 flex-wrap';
+        fl.slice(0, 6).forEach(function(i) {
+          var c = document.createElement('div'); c.className = 'w-12 text-center text-gray-700';
+          c.innerHTML = '<div class="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden flex items-center justify-center">' + (i.image ? '<img src="' + (/^(https?:)?\//.test(i.image) ? i.image : '/uploads/' + i.image) + '" class="w-full h-full object-cover">' : '🍽') + '</div><div class="text-[9px] font-bold leading-tight"></div>';
+          c.lastChild.textContent = i.name; wrap.appendChild(c);
+        });
+        el.appendChild(wrap);
+      }
     }
 
     function lookupCustomerPhone() {

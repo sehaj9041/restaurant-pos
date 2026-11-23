@@ -70,7 +70,8 @@
       <!-- Items -->
       <section class="flex-1 min-w-0 flex flex-col px-4 pt-6">
         <h2 id="activeCategoryHeading" class="text-4xl font-black tracking-tight leading-none truncate">Menu</h2>
-        <p class="text-[13px] text-neutral-600 mt-3 mb-4">Browse between categories on the left</p>
+        <p class="text-[13px] text-neutral-600 mt-3 mb-3">Browse between categories on the left</p>
+        <div id="stampBannerMenu" class="hidden mb-3"></div>
         <div id="itemsGrid" class="flex-1 overflow-y-auto grid grid-cols-3 gap-2.5 content-start pb-4"></div>
       </section>
     </div>
@@ -153,6 +154,7 @@
           <span class="w-full h-12 bg-neutral-200"></span>
         </button>
       </div>
+      <div id="stampBannerMode" class="hidden w-full mt-8"></div>
       <div class="mt-auto w-full pb-6 flex gap-3">
         <button onclick="startOver()" class="btn-outline flex-1 py-2.5 text-[13px]">Start Over</button>
       </div>
@@ -1253,7 +1255,7 @@
       const items = st && st.available > 0 && traySubtotal() >= (Number(st.redeem_min) || 0) ? (st.free_items || []) : [];
       box.classList.toggle('hidden', !items.length);
       box.innerHTML = items.length ? '<p class="text-center text-sm font-black">&#127873; Pick your FREE item (tap again to remove)</p>' + items.map(i =>
-        '<button onclick="pickStamp(' + i.id + ')" class="tile w-full py-2.5 px-3 text-base font-black flex items-center justify-between ' + (stampPick === i.id ? 'ring-4 ring-[#d9531e]' : '') + '"><span>' + (stampPick === i.id ? '&#9989; ' : '') + i.name.replace(/</g, '&lt;') + '</span><span class="opacity-60">' + money(i.price) + '</span></button>').join('') : '';
+        '<button onclick="pickStamp(' + i.id + ')" class="tile w-full py-2.5 px-3 text-base font-black flex items-center justify-between ' + (stampPick === i.id ? 'ring-4 ring-[#d9531e]' : '') + '"><span class="flex items-center gap-3">' + (i.image ? '<img src="' + resolveImgPath(i.image) + '" class="w-12 h-12 rounded-lg object-cover" onerror="this.remove()">' : '') + '<span>' + (stampPick === i.id ? '&#9989; ' : '') + i.name.replace(/</g, '&lt;') + '</span></span><span class="opacity-60">' + money(i.price) + '</span></button>').join('') : '';
     }
     function pickStamp(id) { stampPick = stampPick === id ? 0 : id; $('pointsErr').innerText = ''; renderStampPicker(); renderPointsFields(); }
     function openPointsStep() {
@@ -1308,6 +1310,13 @@
       const l = (st && st.free_items) || []; if (!l.length) return '';
       return l.slice(0, max).map(i => i.name.replace(/</g, '&lt;')).join(', ') + (l.length > max ? ' +' + (l.length - max) + ' more' : '');
     }
+    // Row of free-item photos + names (preview of what the stamp card gives)
+    function stampThumbs(st, max) {
+      const l = (st && st.free_items) || []; if (!l.length) return '';
+      return '<div class="text-sm font-black mt-2">&#127873; Your FREE item can be:</div><div class="flex gap-2 justify-center flex-wrap mt-1">' + l.slice(0, max).map(i =>
+        '<div class="w-[72px] text-center"><div class="w-[72px] h-[72px] rounded-xl bg-white/70 overflow-hidden flex items-center justify-center">' + (i.image ? '<img src="' + resolveImgPath(i.image) + '" class="w-full h-full object-cover" onerror="this.outerHTML=\'&#127869;\'">' : '<span class="text-2xl">&#127869;</span>') + '</div><div class="text-xs font-bold leading-tight mt-0.5">' + i.name.replace(/</g, '&lt;') + '</div></div>').join('') + '</div>' +
+        (l.length > max ? '<div class="text-xs font-bold opacity-70 mt-1">+' + (l.length - max) + ' more</div>' : '');
+    }
     function renderPayProgress() {
       const el = $('payProgress'), d = kioskLoyalty, st = kioskStamp;
       const min = d ? Number(d.min_redeem) || 0 : 0, val = d ? Number(d.point_value) || 0 : 0;
@@ -1333,7 +1342,7 @@
         html += (html ? '<div class="mt-3 pt-3 border-t border-black/10"></div>' : '') +
           '<div class="text-base font-black">&#127869; ' + (st.available > 0 ? 'You have a FREE item waiting!' : 'Stamp card: ' + st.progress + ' / ' + n + ' <span class="tracking-widest" style="color:#d9531e">' + dots + '</span>') + '</div>' +
           (st.available > 0 ? '' : '<div class="mt-2 h-2.5 rounded-full bg-black/10"><div class="h-2.5 rounded-full" style="width:' + pct + '%;background:#d9531e"></div></div>') +
-          '<div class="text-sm opacity-80 mt-1">' + msg + '</div>' + (stampNames(st, 4) ? '<div class="text-sm font-bold mt-1">&#127873; Your FREE item: ' + stampNames(st, 4) + '</div>' : '');
+          '<div class="text-sm opacity-80 mt-1">' + msg + '</div>' + stampThumbs(st, 6);
       }
       if (!html) { el.classList.add('hidden'); return; }
       el.innerHTML = html; el.classList.remove('hidden');
@@ -1410,7 +1419,7 @@
         const now = st.available > 0 && !(kioskPromo && kioskPromo.stampLine) ? n : st.progress + (counts ? 1 : 0);
         sd.innerHTML = kioskPromo && kioskPromo.stampLine ? '&#127873; Enjoy your FREE item!'
           : (st.available > 0 || now >= n) ? '&#127869; FREE item unlocked for your next order!<div class="text-sm font-bold opacity-70 mt-1">Show your redeem code from the app' + (Number(st.redeem_min) > 0 ? ' on an order of ' + money(st.redeem_min) + '+' : '') + '</div>'
-          : '&#127869; Stamp card: ' + now + ' / ' + n + (counts ? '' : '<div class="text-sm font-bold opacity-70 mt-1">Orders of ' + money(st.min_order) + '+ earn a stamp</div>') + (counts ? '<div class="text-sm font-bold opacity-70 mt-1">Counts once your payment is done</div>' : '') + (stampNames(st, 3) ? '<div class="text-sm font-bold mt-1">&#127873; FREE item: ' + stampNames(st, 3) + '</div>' : '');
+          : '&#127869; Stamp card: ' + now + ' / ' + n + (counts ? '' : '<div class="text-sm font-bold opacity-70 mt-1">Orders of ' + money(st.min_order) + '+ earn a stamp</div>') + (counts ? '<div class="text-sm font-bold opacity-70 mt-1">Counts once your payment is done</div>' : '') + stampThumbs(st, 4);
         sd.classList.remove('hidden');
       } else sd.classList.add('hidden');
       // Big "rate us" QR on the done screen (the one on the receipt is easy to miss); the screen stays a little longer so it can be scanned
@@ -1996,7 +2005,32 @@
     }
 
     // ---------- Navigation ----------
+    // Stamp card banner (menu page + eat-in/pack page): the offer and the free-item photos. Progress needs a phone number, so it is shown at checkout.
+    let stampOffer = null;
+    function stampBannerHtml(big) {
+      const st = stampOffer; if (!st) return '';
+      const n = st.orders_needed, minO = Number(st.min_order) || 0, l = st.free_items || [], sz = big ? 72 : 40;
+      const thumbs = l.slice(0, big ? 5 : 4).map(i => '<div class="shrink-0 text-center" style="width:' + sz + 'px"><div class="rounded-lg bg-white overflow-hidden flex items-center justify-center" style="width:' + sz + 'px;height:' + sz + 'px">' +
+        (i.image ? '<img src="' + resolveImgPath(i.image) + '" class="w-full h-full object-cover" onerror="this.outerHTML=\'&#127869;\'">' : '<span class="text-xl">&#127869;</span>') + '</div>' +
+        (big ? '<div class="text-[11px] font-bold leading-tight mt-0.5">' + i.name.replace(/</g, '&lt;') + '</div>' : '') + '</div>').join('');
+      const more = l.length > (big ? 5 : 4) ? '<div class="shrink-0 self-center text-xs font-black opacity-70">+' + (l.length - (big ? 5 : 4)) + '</div>' : '';
+      const title = '&#127869; STAMP CARD: ' + n + ' ORDERS = 1 FREE ITEM';
+      const sub = (minO > 0 ? 'Every paid order of ' + money(minO) + '+ earns a stamp. ' : 'Every paid order earns a stamp. ') + 'Enter your phone number at checkout.';
+      return big
+        ? '<div class="rounded-2xl px-4 py-4 text-center" style="background:#ecfdf5;border:2px solid #a7f3d0"><div class="text-xl font-black">' + title + '</div><div class="text-sm font-bold opacity-80 mt-1">' + sub + '</div>' +
+          (thumbs ? '<div class="text-sm font-black mt-3">&#127873; Pick your free item from:</div><div class="flex gap-3 justify-center mt-2">' + thumbs + more + '</div>' : '') + '</div>'
+        : '<div class="rounded-xl px-3 py-2 flex items-center gap-3" style="background:#ecfdf5;border:1px solid #a7f3d0"><div class="flex-1 min-w-0"><div class="text-[13px] font-black leading-tight">' + title + '</div><div class="text-[11px] font-bold opacity-75 leading-tight mt-0.5">' + sub + '</div></div>' +
+          (thumbs ? '<div class="flex gap-1.5 shrink-0">' + thumbs + more + '</div>' : '') + '</div>';
+    }
+    function loadStampBanner() {
+      fetch('/api/loyalty-info').then(r => r.ok ? r.json() : null).then(d => {
+        stampOffer = d && d.stamp && d.stamp.enabled ? d.stamp : null;
+        [['stampBannerMenu', false], ['stampBannerMode', true]].forEach(([id, big]) => { const el = $(id); el.innerHTML = stampBannerHtml(big); el.classList.toggle('hidden', !stampOffer); });
+      }).catch(() => {});
+    }
+    window.addEventListener('load', loadStampBanner);
     function showModeSelection() {
+      loadStampBanner();
       // show the next screen first, then stop the welcome video so it stops competing for the decoder/GPU
       $('modeSelectionScreen').classList.remove('hidden');
       $('idleScreensaver').classList.add('hidden');
