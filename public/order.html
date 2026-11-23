@@ -1129,6 +1129,14 @@
     // ---- loyalty points on the website checkout (the server re-checks everything; this only mirrors its maths) ----
     let loyCk = null, usePts = false, stampCk = null, stampPick = 0, stampSt = null, stampGen = null; // stampSt = stamp status of the profile phone (public), stampCk = same but only when a free item can be redeemed now; stampGen = offer text for visitors without a phone
     window.addEventListener('load', () => { try { loadCkLoyalty(); } catch (e) {} }); // stamp banner on the menu page
+    // The app (iOS WebView) keeps this page alive in the background for days and never reloads it: after 20+ minutes away, load the latest version (the cart is saved on the device)
+    let hiddenAt = 0;
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) { hiddenAt = Date.now(); return; }
+      const idle = hiddenAt && Date.now() - hiddenAt > 20 * 60 * 1000; hiddenAt = 0;
+      const busy = ['checkoutModal', 'ordersPage'].some(id => { const el = document.getElementById(id); return el && !el.classList.contains('hidden'); });
+      if (idle && !busy) location.reload();
+    });
     function loadCkLoyalty() {
       const p = getProfile();
       if (!p || !p.phone) { stampSt = null; stampCk = null; stampPick = 0; fetch('/api/loyalty-info').then(r => r.ok ? r.json() : null).then(d => { stampGen = d && d.stamp && d.stamp.enabled ? d.stamp : null; updateCartUI(); }).catch(() => {}); }

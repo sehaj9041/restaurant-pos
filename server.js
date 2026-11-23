@@ -57,6 +57,7 @@ require('./staffAuth').register(app, { db, checkOwnerPin }); // staff login gate
 
 app.get('/', (req, res, next) => { if (/^(www\.)?vishalfoodiez\.in$/i.test(req.hostname) || req.query.site === '1') return res.sendFile(path.join(__dirname, 'public', 'site', 'index.html')); next(); });
 app.get('/', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate'); // the iOS app's WebView must never keep an old copy of the ordering page
   res.sendFile(path.join(__dirname, 'public', 'order.html'));
 });
 
@@ -181,7 +182,7 @@ app.get('/punch-manifest.json', async (req, res) => {
 });
 
 // Static directories setup for public and uploads
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), { setHeaders: (res, p) => { if (/\.html$/i.test(p)) res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate'); } }));
 // Hot images RAM mein (DB BYTEA har baar na padhna pade); ~60 MB se upar jaye toh sabse purani nikal do
 const uploadCache = new Map();
 let uploadCacheBytes = 0;
