@@ -1664,6 +1664,7 @@
                       <span class="font-bold text-slate-500 text-[11px]">#ORD-${order.id}</span>
                       <span class="bg-orange-100 text-orange-800 font-black px-2 py-0.5 rounded text-base">Token ${tokenLabel(order)}</span>
                       <span class="text-xs font-bold text-slate-600">${order.customer_name || 'Guest'} (${order.customer_phone || 'N/A'})</span>
+                      ${Number(order.order_no_30d) > 0 ? `<span class="bg-emerald-100 text-emerald-700 font-black px-1.5 py-0.5 rounded text-[10px]">${Number(order.order_no_30d) === 1 ? '🆕 1st order' : (order.order_no_30d + (order.order_no_30d == 2 ? 'nd' : order.order_no_30d == 3 ? 'rd' : 'th') + ' order')} • 30d</span>` : ''}
                     </div>
                   </div>
                   <div class="text-right">
@@ -3086,6 +3087,18 @@
       var mins = sec / 60;
       return { exp: exp, amber: amber, lateAt: lateAt, done: done, mins: mins, whole: Math.floor(mins), over: mins > exp };
     }
+    // Live order status chip: Preparing / Ready / Out for delivery / Delivered (from the kitchen status + rider on the active-orders feed)
+    function orderStatusBadge(o) {
+      var st = String(o.status || '').toUpperCase(), delivery = /delivery/i.test(o.order_type || ''), kitchenDone = !!o.kitchen_done || st === 'KOT_DONE' || st === 'KOT_READY' || st === 'DISPATCHED';
+      var txt, cls;
+      if (o.delivered_at) { txt = '✅ Delivered'; cls = 'bg-emerald-100 text-emerald-800'; }
+      else if (st === 'NEEDS_APPROVAL') { txt = '⏳ Approval pending'; cls = 'bg-violet-100 text-violet-800'; }
+      else if (!kitchenDone) { txt = '👨‍🍳 Preparing'; cls = 'bg-orange-100 text-orange-800'; }
+      else if (delivery) { if (o.rider_name) { txt = '🛵 Out for delivery • ' + String(o.rider_name).replace(/</g, '&lt;'); cls = 'bg-sky-100 text-sky-800'; } else { txt = '✅ Ready • rider assign karein'; cls = 'bg-amber-100 text-amber-900'; } }
+      else { txt = /take/i.test(o.order_type || '') ? '✅ Ready for pickup' : '✅ Ready'; cls = 'bg-emerald-100 text-emerald-800'; }
+      return '<div class="mt-1"><span class="inline-block text-[10px] font-black px-2 py-0.5 rounded-full ' + cls + '">' + txt + '</span></div>';
+    }
+
     function timerStripHTML(o, compact) {
       if (o.kitchen_sec === undefined || o.kitchen_sec === null) return '';
       var d = timerDisplay(), i = timerInfo(o), out = '';
@@ -3215,7 +3228,7 @@
           }
 
           return `
-            <div class="border border-orange-200/70 bg-[#fffdfa] rounded-xl p-3 text-xs shadow-2xs hover:border-orange-300 transition space-y-2">
+            <div data-open-order="${o.id}" class="cursor-pointer border border-orange-200/70 bg-[#fffdfa] rounded-xl p-3 text-xs shadow-2xs hover:border-orange-300 transition space-y-2">
               <div class="flex justify-between items-start">
                 <div>
                   <div class="flex items-center gap-1.5">
@@ -3239,6 +3252,7 @@
                   <div class="text-[9px] text-gray-400">${o.time || ''}</div>
                 </div>
               </div>
+              ${orderStatusBadge(o)}
               ${timerStripHTML(o)}
 
               <div class="flex flex-wrap gap-1.5 pt-1.5 border-t border-gray-100 text-[10px] font-bold">
@@ -3284,7 +3298,7 @@
         }
 
         return `
-          <div class="border border-orange-200/70 bg-[#fffdfa] rounded-xl p-3 text-xs shadow-2xs hover:border-orange-300 transition space-y-2">
+          <div data-open-order="${o.id}" class="cursor-pointer border border-orange-200/70 bg-[#fffdfa] rounded-xl p-3 text-xs shadow-2xs hover:border-orange-300 transition space-y-2">
             <div class="flex justify-between items-start">
               <div>
                 <div class="flex items-center gap-1.5">
@@ -3308,6 +3322,7 @@
                 <div class="text-[9px] text-gray-400">Live Order</div>
               </div>
             </div>
+            ${orderStatusBadge(o)}
             ${timerStripHTML(o)}
 
             <div class="flex flex-wrap gap-1.5 pt-1.5 border-t border-gray-100 text-[10px] font-bold">
@@ -3385,6 +3400,13 @@
       document.getElementById('posCustAddr').innerText = addr || '';
       row.classList.toggle('hidden', !addr);
     }
+
+    // Tap anywhere on a live order card (not on one of its buttons) = open that order's cart screen, same as "Add Item"
+    document.addEventListener('click', function(e) {
+      var card = e.target.closest && e.target.closest('[data-open-order]');
+      if (!card || e.target.closest('button, a, input, select, textarea, label, [onclick]')) return;
+      actionEditAddItems(Number(card.getAttribute('data-open-order')));
+    });
 
     function actionEditAddItems(orderId) {
       var ord = allActiveOrders.find(function(o) { return o.id === orderId; }) || dueOrdersList.find(function(o) { return o.id === orderId; });

@@ -904,7 +904,9 @@ app.get('/api/orders/today-stats', (req, res) => {
 // ================= NEEDS APPROVAL (PENDING ORDERS) APIS =================
 app.get('/api/orders/needs-approval', (req, res) => {
   const query = `
-    SELECT id, token_no, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, discount_reason, is_complimentary, gst, payment_mode, status, source, COALESCE(paid_amount, 0) as paid_amount, created_at, delivery_address, delivery_lat, delivery_lng
+    SELECT id, token_no, order_type, table_no, customer_name, customer_phone, total, subtotal, discount, discount_reason, is_complimentary, gst, payment_mode, status, source, COALESCE(paid_amount, 0) as paid_amount, created_at, delivery_address, delivery_lat, delivery_lng,
+           -- which order of this customer (same phone) in the last 30 days this is, like on the live order cards
+           (CASE WHEN COALESCE(customer_phone, '') <> '' THEN (SELECT COUNT(*) FROM orders o2 WHERE o2.customer_phone = orders.customer_phone AND o2.id <= orders.id AND o2.created_at >= orders.created_at - INTERVAL '30 days' AND UPPER(COALESCE(o2.status, '')) NOT IN ('VOID', 'CANCELLED')) ELSE 0 END) AS order_no_30d
     FROM orders 
     WHERE UPPER(status) = 'NEEDS_APPROVAL'
     ORDER BY id DESC
