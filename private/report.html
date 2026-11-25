@@ -226,6 +226,19 @@
   </div>
   </div>
 
+<div id="orderModal" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onclick="if(event.target===this)closeOrderModal()">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+      <div class="p-4 border-b flex justify-between items-center">
+        <h3 id="orderModalTitle" class="font-black text-gray-900"></h3>
+        <button onclick="closeOrderModal()" class="text-gray-400 hover:text-gray-900 font-black text-lg">&times;</button>
+      </div>
+      <div id="orderModalBody" class="p-4 text-xs"></div>
+      <div class="p-4 border-t flex justify-end">
+        <button id="orderModalPosBtn" class="bg-gray-900 text-white font-bold text-xs px-4 py-2 rounded-lg">Open in POS</button>
+      </div>
+    </div>
+  </div>
+
 <script src="/ui-dialogs.js"></script>
   <script>
     let currentReport = { summary: {}, topItems: [], orders: [], range: {} };
@@ -353,7 +366,7 @@
     }
 
     function renderOrdersLog(orders) {
-      document.getElementById('logCountBadge').innerText = `${orders.length} orders (Click any row to open in POS)`;
+      document.getElementById('logCountBadge').innerText = `${orders.length} orders (Click any row to view details)`;
       const tbody = document.getElementById('ordersLogBody');
       if (!orders.length) {
         tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-gray-400 font-bold">No orders found for this range</td></tr>';
@@ -371,7 +384,7 @@
         }
 
         return `
-          <tr onclick="selectHistoryOrder(${o.id})" class="hover:bg-amber-50/60 cursor-pointer transition" title="Click to load this order into POS">
+          <tr onclick="showOrderModal(${o.id})" class="hover:bg-amber-50/60 cursor-pointer transition" title="Click to view order details">
             <td class="p-3 font-mono font-bold text-gray-900">#${o.id}</td>
             <td class="p-3 text-[11px] text-gray-500">${new Date(o.created_at).toLocaleString('en-IN')}</td>
             <td class="p-3 font-semibold text-gray-700">${o.order_type} ${o.table_no ? '(' + o.table_no + ')' : ''}</td>
@@ -394,6 +407,26 @@
       localStorage.setItem('POS_EDIT_ORDER', JSON.stringify(selectedOrder));
       window.location.href = '/pos';
     }
+
+    function showOrderModal(orderId) {
+      const o = currentReport.orders.find(x => x.id === orderId);
+      if (!o) return;
+      const esc = v => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+      const row = (a, b, cls) => `<div class="flex justify-between py-0.5 ${cls || 'text-gray-600'}"><span>${a}</span><span>${b}</span></div>`;
+      document.getElementById('orderModalTitle').innerText = `Order #${o.id}${o.token_no ? ' · Token ' + o.token_no : ''}`;
+      const items = (o.items || []).map(i => row(`${esc(i.name)} × ${i.qty}`, '₹' + (i.price * i.qty), 'text-gray-800 font-semibold')).join('');
+      document.getElementById('orderModalBody').innerHTML =
+        `<div class="text-gray-500 mb-1">${new Date(o.created_at).toLocaleString('en-IN')} · ${esc(o.order_type)}${o.table_no ? ' (' + esc(o.table_no) + ')' : ''} · ${esc(o.status)}</div>` +
+        (o.customer_name ? `<div class="mb-2 font-bold text-gray-800">${esc(o.customer_name)} <span class="font-mono text-gray-400">${esc(o.customer_phone)}</span></div>` : '') +
+        `<div class="border-y my-2 py-2">${items || '<div class="text-gray-400">No items</div>'}</div>` +
+        row('Subtotal', '₹' + (o.subtotal || 0)) + row('Discount', '₹' + (o.discount || 0)) + row('GST', '₹' + (o.gst || 0)) +
+        row('Total', '₹' + o.total, 'text-gray-900 font-black text-sm') +
+        row('Payment', esc(o.payment_mode || '-'));
+      document.getElementById('orderModalPosBtn').onclick = () => selectHistoryOrder(orderId);
+      document.getElementById('orderModal').classList.remove('hidden');
+    }
+    function closeOrderModal() { document.getElementById('orderModal').classList.add('hidden'); }
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeOrderModal(); });
 
     function loadTodayExpenses() {
       fetch('/api/expenses/today').then(res => res.json()).then(rows => {
