@@ -556,6 +556,33 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 
+  // Stamp card: per customer stamps / free items used, plus when each free item was taken
+  app.get('/api/loyalty-admin/stamps-report', async (req, res) => {
+    try {
+      const S = await stampConfig();
+      const rows = await dbAllAsync(`SELECT RIGHT(customer_phone, 10) AS phone, customer_name, ${ledgerCols}, COALESCE(stamp_redeemed, 0) AS stamp_redeemed FROM orders
+        WHERE customer_phone ~ '[0-9]{10}' AND UPPER(COALESCE(status, '')) NOT IN ${DEAD_STATUS} ORDER BY created_at, id`, []);
+      const win = { bonus_enabled: true, bonus_start: S.start, bonus_end: S.end, bonus_days: S.days };
+      const by = new Map();
+      for (const r of rows) {
+        const c = by.get(r.phone) || by.set(r.phone, { phone: r.phone, name: '', stamps: 0, used: 0, last_used: null }).get(r.phone);
+        if (r.customer_name) c.name = r.customer_name;
+        if (numOr(r.stamp_redeemed) > 0) { c.used += Math.floor(numOr(r.stamp_redeemed)); c.last_used = r.created_at; continue; }
+        if (numOr(r.is_complimentary) || new Date(r.created_at).getTime() < S.since) continue;
+        if (!(numOr(r.paid_amount) >= numOr(r.total) && numOr(r.total) > 0 && numOr(r.total) >= S.min_order)) continue;
+        if (S.all_day ? (!S.days.length || S.days.includes(numOr(r.dow))) : inBonusWindow(win, numOr(r.hh), numOr(r.mm), numOr(r.dow))) c.stamps++;
+      }
+      const redeemed = await dbAllAsync(`SELECT o.id, RIGHT(o.customer_phone, 10) AS phone, o.customer_name, o.created_at,
+        (SELECT STRING_AGG(oi.name, ', ') FROM order_items oi WHERE oi.order_id = o.id AND oi.name LIKE '%(FREE)') AS item
+        FROM orders o WHERE COALESCE(o.stamp_redeemed, 0) > 0 AND UPPER(COALESCE(o.status, '')) NOT IN ${DEAD_STATUS} ORDER BY o.id DESC LIMIT 100`, []);
+      const customers = [...by.values()].filter(c => c.stamps > 0 || c.used > 0).map(c => {
+        const earned = Math.floor(c.stamps / S.orders_needed);
+        return { phone: c.phone, name: c.name, stamps: c.stamps, progress: c.stamps % S.orders_needed, earned, used: c.used, available: Math.max(0, earned - c.used), last_used: c.last_used };
+      }).sort((a, b) => b.stamps - a.stamps).slice(0, 200);
+      res.json({ enabled: S.enabled, orders_needed: S.orders_needed, customers, redeemed });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
   // ---- feedback ----
   async function feedbackSecret() {
     const cfg = await getSettingsConfig();

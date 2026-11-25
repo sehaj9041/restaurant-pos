@@ -126,6 +126,20 @@
           <tbody id="topRows"></tbody>
         </table>
       </div>
+      <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-x-auto">
+        <div class="p-3 border-b font-black text-gray-800">Stamp card customers <span id="stampSub" class="text-xs font-semibold text-gray-400"></span></div>
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 text-xs uppercase text-gray-500"><tr><th class="text-left p-3">Customer</th><th class="text-left p-3">Phone</th><th class="text-right p-3">Stamps</th><th class="text-right p-3">Free earned</th><th class="text-right p-3">Free liye</th><th class="text-right p-3">Baaki</th><th class="text-right p-3">Last offer</th></tr></thead>
+          <tbody id="stampRows"></tbody>
+        </table>
+      </div>
+      <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-x-auto">
+        <div class="p-3 border-b font-black text-gray-800">Free items diye gaye (latest 100)</div>
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 text-xs uppercase text-gray-500"><tr><th class="text-left p-3">Date</th><th class="text-left p-3">Customer</th><th class="text-left p-3">Phone</th><th class="text-left p-3">Free item</th><th class="text-right p-3">Order</th></tr></thead>
+          <tbody id="stampUsedRows"></tbody>
+        </table>
+      </div>
     </section>
 
     <!-- FEEDBACK -->
@@ -285,6 +299,16 @@
         $('topRows').innerHTML = rows.length ? rows.map(function(r) {
           return '<tr class="border-t"><td class="p-3 font-bold">' + esc(r.name || 'Guest') + '</td><td class="p-3 font-mono">' + esc(r.phone) + '</td><td class="p-3 text-right">' + r.orders + '</td><td class="p-3 text-right">₹' + Math.round(r.spent) + '</td><td class="p-3 text-right font-black text-amber-600">' + r.points + '</td><td class="p-3 text-right text-xs text-rose-600 font-bold">' + (r.expiring ? r.expiring.points + ' pts • ' + esc(r.expiring.on) : '') + '</td><td class="p-3 text-right"><button onclick="openStatement(\'' + esc(r.phone) + '\')" class="text-orange-600 font-black text-xs hover:underline">Statement</button></td></tr>';
         }).join('') : '<tr><td colspan="7" class="p-6 text-center text-gray-400">Abhi phone wale orders nahi hain</td></tr>';
+      }).catch(fail);
+      api('/api/loyalty-admin/stamps-report').then(function(d) {
+        var dt = function(x) { return x ? new Date(x).toLocaleString('en-IN') : '-'; };
+        $('stampSub').textContent = '(' + d.orders_needed + ' stamps = 1 free item)';
+        $('stampRows').innerHTML = d.customers.length ? d.customers.map(function(r) {
+          return '<tr class="border-t"><td class="p-3 font-bold">' + esc(r.name || 'Guest') + '</td><td class="p-3 font-mono">' + esc(r.phone) + '</td><td class="p-3 text-right font-black text-amber-600">' + r.progress + '/' + d.orders_needed + ' <span class="text-xs text-gray-400">(' + r.stamps + ' total)</span></td><td class="p-3 text-right">' + r.earned + '</td><td class="p-3 text-right">' + r.used + '</td><td class="p-3 text-right font-bold ' + (r.available ? 'text-emerald-600' : '') + '">' + r.available + '</td><td class="p-3 text-right text-xs text-gray-500">' + dt(r.last_used) + '</td></tr>';
+        }).join('') : '<tr><td colspan="7" class="p-6 text-center text-gray-400">Abhi kisi ke stamps nahi hain</td></tr>';
+        $('stampUsedRows').innerHTML = d.redeemed.length ? d.redeemed.map(function(r) {
+          return '<tr class="border-t"><td class="p-3 text-xs text-gray-500">' + dt(r.created_at) + '</td><td class="p-3 font-bold">' + esc(r.customer_name || 'Guest') + '</td><td class="p-3 font-mono">' + esc(r.phone) + '</td><td class="p-3">' + esc((r.item || '').replace(/ \(FREE\)/g, '')) + '</td><td class="p-3 text-right font-mono">#' + r.id + '</td></tr>';
+        }).join('') : '<tr><td colspan="5" class="p-6 text-center text-gray-400">Abhi kisi ne free item nahi liya</td></tr>';
       }).catch(fail);
     }
     function saveLoyalty() {
