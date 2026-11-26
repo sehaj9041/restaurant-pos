@@ -38,6 +38,7 @@
     .brand-badge.brand-side.has-logo { width: 100%; max-width: 100%; height: 6rem; }
     /* Category kholne par items upar se neeche row-by-row slide + fade hote hain */
     @keyframes itemDrop { from { opacity: 0; transform: translateY(-18px); } to { opacity: 1; transform: none; } }
+    .stamp-scroll::-webkit-scrollbar { width: 8px; } .stamp-scroll::-webkit-scrollbar-thumb { background: #d9531e; border-radius: 8px; } .stamp-scroll::-webkit-scrollbar-track { background: rgba(0,0,0,.08); border-radius: 8px; }
     #itemsGrid > .item-drop { opacity: 0; animation: itemDrop .38s cubic-bezier(.2,.7,.3,1) forwards; }
     @media (prefers-reduced-motion: reduce) { #itemsGrid > .item-drop { animation: none; opacity: 1; } }
     /* Customizer steps: agla step right se slide-in, Back par left se */
@@ -1269,11 +1270,18 @@
         '<div class="h-16 w-full flex items-center justify-center">' + (i.image ? '<img src="' + resolveImgPath(i.image) + '" class="max-h-full max-w-full object-contain" onerror="this.replaceWith(Object.assign(document.createElement(\'span\'),{className:\'text-4xl\',textContent:\'\\u{1F37D}\'}))">' : '<span class="text-4xl">&#127869;</span>') + '</div>' +
         '<h3 class="font-bold text-[11px] leading-tight mt-1.5 break-words">' + i.name.replace(/</g, '&lt;') + '</h3><span class="font-black text-[12px] text-emerald-600 mt-auto pt-1">FREE</span></' + (pick ? 'button' : 'div') + '>').join('');
     }
+    // "Scroll for more" arrow under the free-item grid: gone once the customer reaches the bottom
+    function stampScrollHint() {
+      const g = $('stampPickGrid'), h = $('stampScrollHint'); if (!g || !h) return;
+      h.classList.toggle('hidden', g.scrollTop + g.clientHeight >= g.scrollHeight - 4);
+    }
     function renderStampPicker() {
       const box = $('stampPicker'), st = kioskStamp;
       const items = st && st.available > 0 && Math.round(traySubtotal() * 1.05) >= (Number(st.redeem_min) || 0) ? (st.free_items || []) : [];
       box.classList.toggle('hidden', !items.length);
-      box.innerHTML = items.length ? '<p class="text-center text-sm font-black">&#127873; Pick your FREE item (tap again to remove)</p><div class="grid grid-cols-3 gap-2 mt-2 max-h-[300px] overflow-y-auto p-0.5">' + stampTilesHtml(items, true) + '</div>' : '';
+      box.innerHTML = items.length ? '<p class="text-center text-sm font-black">&#127873; Pick your FREE item (tap again to remove)</p><div id="stampPickGrid" onscroll="stampScrollHint()" class="stamp-scroll grid grid-cols-3 gap-2 mt-2 max-h-[290px] overflow-y-auto p-0.5">' + stampTilesHtml(items, true) + '</div>' +
+        (items.length > 6 ? '<div id="stampScrollHint" class="text-center text-xs font-black opacity-70 mt-1 animate-pulse">&#8595; Scroll for more FREE items (' + items.length + ' total) &#8595;</div>' : '') : '';
+      stampScrollHint();
     }
     // Customer has a free item waiting but this bill is under the minimum: show what they could get, and how much more to add
     let stampShortNext = null, stampOfferAt = -1;
