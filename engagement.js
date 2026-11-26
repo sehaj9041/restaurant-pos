@@ -141,13 +141,22 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
   }
 
   // The items the customer may pick as the free item (still on the menu and in stock). line_name is what goes on the bill.
+  // A free_items entry is a menu id (item without sizes: the first active size is used) or (variation index + 1) * 1e9 + menu id (one specific size/variation of that item).
+  // The entry's id is that same number, so a customer / the POS picks it exactly like a plain menu id; menu_id is the real menu id for the bill line.
   async function stampFreeItems(S) {
     if (!S.free_items.length) return [];
-    const rows = await dbAllAsync(`SELECT id, name, price, image, food_type, variations, is_exempt, is_visible, status FROM menu WHERE id IN (${S.free_items.map(() => '?').join(',')})`, S.free_items);
-    return S.free_items.map(id => rows.find(r => Number(r.id) === id)).filter(r => r && Number(r.is_visible) !== 0 && r.status !== 'Out of Stock' && r.status !== 'unavailable').map(r => {
-      let v = null; try { v = (JSON.parse(r.variations || '[]') || []).find(x => x && x.active !== false) || null; } catch (e) { v = null; }
-      return { id: Number(r.id), name: r.name, line_name: v ? `${r.name} (${v.name})` : r.name, price: v ? num(v.price) : num(r.price), image: r.image || '', food_type: r.food_type || '', is_exempt: Number(r.is_exempt) ? 1 : 0 };
-    });
+    const ids = [...new Set(S.free_items.map(k => k % 1e9))];
+    const rows = await dbAllAsync(`SELECT id, name, price, image, food_type, variations, is_exempt, is_visible, status FROM menu WHERE id IN (${ids.map(() => '?').join(',')})`, ids);
+    return S.free_items.map(key => {
+      const r = rows.find(x => Number(x.id) === key % 1e9);
+      if (!r || Number(r.is_visible) === 0 || r.status === 'Out of Stock' || r.status === 'unavailable') return null;
+      let vars = []; try { vars = JSON.parse(r.variations || '[]') || []; } catch (e) { vars = []; }
+      if (!Array.isArray(vars)) vars = [];
+      const vi = Math.floor(key / 1e9) - 1;
+      const v = vi >= 0 ? vars[vi] : vars.find(x => x && x.active !== false);
+      if (vi >= 0 && (!v || v.active === false)) return null;
+      return { id: key, menu_id: Number(r.id), name: vi >= 0 ? `${r.name} (${v.name})` : r.name, line_name: v ? `${r.name} (${v.name})` : r.name, price: v ? num(v.price) : num(r.price), image: r.image || '', food_type: r.food_type || '', is_exempt: Number(r.is_exempt) ? 1 : 0 };
+    }).filter(Boolean);
   }
 
   // What any visitor may be told about the stamp card (no phone needed)
@@ -155,7 +164,7 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
   async function stampPublic() { const a = await stampPublicOne(await stampConfig(1)), b = await stampPublicOne(await stampConfig(2)); if (!b.enabled) return a; return a.enabled ? Object.assign(a, { max_order: b.min_order, premium: b }) : b; }
 
   // Does this order earn a stamp on card S (paid in full, not complimentary, big enough, inside the card's days / time window, after the card was switched on)?
-  const stampOk = (r, S) => new Date(r.created_at).getTime() >= S.since && !numOr(r.is_complimentary) && numOr(r.paid_amount) >= numOr(r.total) && numOr(r.total) > 0 && numOr(r.total) >= S.min_order
+  const stampOk = (r, S) => new Date(r.created_at).getTime() >= S.since && !!r.source && !numOr(r.is_complimentary) && numOr(r.paid_amount) >= numOr(r.total) && numOr(r.total) > 0 && numOr(r.total) >= S.min_order
     && (S.all_day ? (!S.days.length || S.days.includes(numOr(r.dow))) : inBonusWindow({ bonus_enabled: true, bonus_start: S.start, bonus_end: S.end, bonus_days: S.days }, numOr(r.hh), numOr(r.mm), numOr(r.dow)));
 
   // Stamps come from the orders themselves (any source, phone needed): fully paid, not complimentary, not an order that already used a free item.

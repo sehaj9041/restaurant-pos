@@ -3762,16 +3762,6 @@
       document.getElementById('posOfferLoyalty').innerText = 'Loyalty points sirf kiosk, website ya table QR order par redeem hote hain';
       var stRow = document.getElementById('posOfferStampRow'), stSel = document.getElementById('posOfferStampItem');
       stRow.classList.add('hidden'); stSel.innerHTML = '';
-      var stPhone = (document.getElementById('posCustPhone').value || '').replace(/\D/g, '').slice(-10);
-      if (stPhone.length === 10) fetch('/api/stamps/' + stPhone).then(function(r) { return r.json(); }).then(function(st) {
-        if (!st.enabled) return;
-        stRow.classList.remove('hidden');
-        var can = st.available > 0 && (st.free_items || []).length;
-        stSel.disabled = !can;
-        stSel.innerHTML = '<option value="">' + (can ? '— Free item nahi lagana —' : 'Free item abhi nahi bana') + '</option>' + (can ? st.free_items.map(function(i) { return '<option value="' + i.id + '"' + (posPromo && posPromo.stamp_redeem === i.id ? ' selected' : '') + '>' + String(i.name).replace(/</g, '&lt;') + ' (₹' + i.price + ')</option>'; }).join('') : '');
-        document.getElementById('posOfferStampInfo').innerText = can ? ('Free item bana hua hai (' + st.available + ')' + (st.redeem_min ? ' — bill (free item ke alawa) ₹' + st.redeem_min + '+ ho' : '')) : ('Abhi ' + st.progress + '/' + st.orders_needed + ' orders' + (st.all_day ? '' : ' (' + st.start + '-' + st.end + ')'));
-        document.getElementById('posOfferPointsRow').classList.toggle('hidden', !stSel.value);
-      }).catch(function() {});
       document.getElementById('posOfferModal').classList.remove('hidden');
     }
     function closePosOfferModal() { closeVirtualKeyboards(); document.getElementById('posOfferModal').classList.add('hidden'); }
@@ -4632,48 +4622,8 @@
       if (e.target && (e.target.id === 'posCustPhone' || e.target.id === 'posCustName')) onCustFieldInput(e.target);
     });
 
-    // Stamp card progress under the phone number (public status by phone) + what this bill does
-    var posStampSt = null, posStampPhone = '';
-    function refreshPosStamp() {
-      var el = document.getElementById('posStampLine'); if (!el) return;
-      var ph = (document.getElementById('posCustPhone').value || '').replace(/\D/g, '').slice(-10);
-      if (ph.length !== 10) { posStampSt = null; posStampPhone = ''; el.innerHTML = ''; return; }
-      if (ph !== posStampPhone) {
-        posStampPhone = ph;
-        fetch('/api/stamps/' + ph).then(function(r) { return r.json(); }).then(function(d) { if (posStampPhone === ph) { posStampSt = d && d.enabled ? d : null; renderPosStamp(); } }).catch(function() {});
-        return;
-      }
-      renderPosStamp();
-    }
-    function posStampMsg(st, bill, prem) {
-      var n = st.orders_needed, minO = Number(st.min_order) || 0, minR = Number(st.redeem_min) || 0, msg, tone = 'text-emerald-700';
-      if (st.available > 0) {
-        if (!minR || bill >= minR) msg = (prem ? '👑 Premium: ' : '') + '🎁 FREE item ready — Coupon / Points button se lagao';
-        else { msg = (prem ? '👑 Premium: ' : '') + (bill > 0 ? '🎁 Free item pakka, ₹' + Math.ceil(minR - bill) + ' ka aur order karwao (min ₹' + minR + ', free item ke alawa)' : '🎁 Free item pakka — ₹' + minR + '+ ka bill banwao'); tone = 'text-amber-700'; }
-      } else {
-        var dots = '●'.repeat(st.progress) + '○'.repeat(Math.max(0, n - st.progress));
-        msg = (prem ? '👑 Premium ' : '🍽 Stamp ') + st.progress + '/' + n + ' ' + dots + (st.max_order && bill >= st.max_order ? ' • ye bill Premium card me count hoga' : (bill > 0 && bill >= minO ? ' • is bill se stamp milega' : (minO > 0 ? ' • stamp ke liye ₹' + minO + '+ ka bill' : '')));
-      }
-      return { msg: msg, tone: tone };
-    }
-    function renderPosStamp() {
-      var el = document.getElementById('posStampLine'); if (!el) return;
-      var st = posStampSt; if (!st) { el.innerHTML = ''; return; }
-      var bill = posCart.reduce(function(s, i) { return s + (i.price * i.qty); }, 0), minR = Number(st.redeem_min) || 0;
-      var lines = [posStampMsg(st.normal || st, bill, false)]; if (st.premium && st.premium.enabled) lines.push(posStampMsg(st.premium, bill, true));
-      var fl = st.free_items || [], showList = fl.length && !(st.available > 0 && (!minR || bill >= minR));
-      el.className = 'mt-1 text-[10px] font-black leading-snug'; el.textContent = '';
-      lines.forEach(function(l) { var d = document.createElement('div'); d.className = l.tone; d.textContent = l.msg; el.appendChild(d); });
-      if (showList) {
-        var wrap = document.createElement('div'); wrap.className = 'flex gap-1.5 mt-1 flex-wrap';
-        fl.slice(0, 6).forEach(function(i) {
-          var c = document.createElement('div'); c.className = 'w-12 text-center text-gray-700';
-          c.innerHTML = '<div class="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden flex items-center justify-center">' + (i.image ? '<img src="' + (/^(https?:)?\//.test(i.image) ? i.image : '/uploads/' + i.image) + '" class="w-full h-full object-cover">' : '🍽') + '</div><div class="text-[9px] font-bold leading-tight"></div>';
-          c.lastChild.textContent = i.name; wrap.appendChild(c);
-        });
-        el.appendChild(wrap);
-      }
-    }
+    // Counter (POS) orders neither earn stamps nor redeem free items, so there is no stamp progress line here
+    function refreshPosStamp() { var el = document.getElementById('posStampLine'); if (el) el.innerHTML = ''; }
 
     function lookupCustomerPhone() {
       refreshPosStamp();

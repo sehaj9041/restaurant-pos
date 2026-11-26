@@ -1982,8 +1982,9 @@ const createOrderHandler = async (req, res) => {
   let couponCode = null, pointsRedeemed = 0, stampRedeemed = 0, promoApplied = false;
   // the free stamp item is only ever added here, by the server, after the stamp is verified: lines a client marks stamp_free are dropped
   if (Array.isArray(items)) items = items.filter(i => !(i && i.stamp_free));
-  const addFreeLine = (it) => { items = items.concat([{ id: it.id, name: it.line_name + ' (FREE)', qty: 1, price: 0, notes: '', is_exempt: it.is_exempt, stamp_free: true }]); };
+  const addFreeLine = (it) => { items = items.concat([{ id: it.menu_id || it.id, name: it.line_name + ' (FREE)', qty: 1, price: 0, notes: '', is_exempt: it.is_exempt, stamp_free: true }]); };
   if (!isOnlineOrder && !req.tableQr && !is_kiosk && !req.autoAccept && Number(req.body.points_redeem) > 0) return res.status(400).json({ error: 'Points sirf kiosk, website ya table QR se redeem ho sakte hain' });
+  if (!isOnlineOrder && !req.tableQr && !is_kiosk && !req.autoAccept && req.body.stamp_redeem) return res.status(400).json({ error: 'Free item (stamp) sirf kiosk, website ya table QR se redeem ho sakta hai' });
   if (!isOnlineOrder && !req.tableQr && !req.body.is_complimentary && (req.body.coupon_code || Number(req.body.points_redeem) > 0 || req.body.stamp_redeem)) { // table QR is handled by the profile-token block below
     try {
       const promo = await engagement.computeDiscount({ subtotal: calculatedSubtotal, phone: customer_phone, coupon_code: req.body.coupon_code, points_redeem: req.body.points_redeem,
