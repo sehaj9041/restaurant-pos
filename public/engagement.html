@@ -149,7 +149,15 @@
         </table>
       </div>
       <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-x-auto">
-        <div class="p-3 border-b font-black text-gray-800">Stamp card customers <span id="stampSub" class="text-xs font-semibold text-gray-400"></span></div>
+        <div class="p-3 border-b flex flex-wrap items-center justify-between gap-2">
+          <span class="font-black text-gray-800">Stamp card customers <span id="stampSub" class="text-xs font-semibold text-gray-400"></span></span>
+          <span class="flex flex-wrap items-center gap-2 text-xs font-bold text-gray-600" title="Gift ya test ke liye is number par haath se stamps daalein. 0 karne se hat jaate hain.">
+            <input id="bPhone" type="tel" inputmode="numeric" maxlength="10" placeholder="Phone (10 digit)" class="border border-gray-300 rounded-lg px-2 py-1.5 w-36">
+            <select id="bCard" class="border border-gray-300 rounded-lg px-2 py-1.5"><option value="1">Normal</option><option value="2">Premium</option></select>
+            <input id="bN" type="number" min="0" max="100" placeholder="Extra stamps" class="border border-gray-300 rounded-lg px-2 py-1.5 w-28">
+            <button onclick="saveStampBonus()" class="bg-gray-800 text-white px-3 py-1.5 rounded-lg font-black">Extra stamps set karein</button>
+          </span>
+        </div>
         <table class="w-full text-sm">
           <thead class="bg-gray-50 text-xs uppercase text-gray-500"><tr><th class="text-left p-3">Customer</th><th class="text-left p-3">Phone</th><th class="text-right p-3">Normal card</th><th class="text-right p-3">Premium card</th><th class="text-right p-3">Last offer</th></tr></thead>
           <tbody id="stampRows"></tbody>
@@ -367,6 +375,10 @@
       $(c + 'Enabled').checked = d.enabled; $(c + 'N').value = d.orders_needed; $(c + 'All').checked = !!d.all_day; $(c + 'Start').value = d.start; $(c + 'End').value = d.end; stampAllDay(c);
       $(c + 'Min').value = d.min_order || (c === 'p' && !d.enabled ? 599 : ''); $(c + 'Redeem').value = d.redeem_min || (c === 'p' && !d.enabled ? 599 : ''); stampFree[c] = (d.free_items || []).slice(); renderStampMenu(c);
       document.querySelectorAll('.' + c + 'Day').forEach(function(x) { x.checked = (d.days || []).indexOf(Number(x.value)) >= 0; });
+    }
+    function saveStampBonus() {
+      api('/api/loyalty-admin/stamp-bonus', 'PUT', { phone: $('bPhone').value, card: $('bCard').value, stamps: $('bN').value })
+        .then(function() { (window.uiAlert || window.alert)('Saved'); loadLoyalty(); }).catch(fail);
     }
     function saveStamps(c) {
       var days = []; document.querySelectorAll('.' + c + 'Day').forEach(function(x) { if (x.checked) days.push(Number(x.value)); });

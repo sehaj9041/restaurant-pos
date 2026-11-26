@@ -1317,6 +1317,13 @@
         '<div class="w-[72px] text-center"><div class="w-[72px] h-[72px] rounded-xl bg-white/70 overflow-hidden flex items-center justify-center">' + (i.image ? '<img src="' + resolveImgPath(i.image) + '" class="w-full h-full object-cover" onerror="this.outerHTML=\'&#127869;\'">' : '<span class="text-2xl">&#127869;</span>') + '</div><div class="text-xs font-bold leading-tight mt-0.5">' + i.name.replace(/</g, '&lt;') + '</div></div>').join('') + '</div>' +
         (l.length > max ? '<div class="text-xs font-bold opacity-70 mt-1">+' + (l.length - max) + ' more</div>' : '');
     }
+    // Compact single row of small free-item photos (so two stamp cards still leave room for the payment buttons)
+    function stampFreeLine(st) {
+      const l = (st && st.free_items) || []; if (!l.length) return '';
+      const max = 5, more = l.length > max ? '<div class="shrink-0 self-center text-xs font-black opacity-70 pl-1">+' + (l.length - max) + '</div>' : '';
+      return '<div class="flex gap-1.5 mt-1.5 items-start">&#127873;' + l.slice(0, max).map(i =>
+        '<div class="w-[50px] shrink-0 text-center"><div class="w-[50px] h-[50px] rounded-lg bg-white/70 overflow-hidden flex items-center justify-center">' + (i.image ? '<img src="' + resolveImgPath(i.image) + '" class="w-full h-full object-cover" onerror="this.outerHTML=\'&#127869;\'">' : '<span class="text-xl">&#127869;</span>') + '</div><div class="text-[9px] font-bold leading-tight mt-0.5 truncate">' + i.name.replace(/</g, '&lt;') + '</div></div>').join('') + more + '</div>';
+    }
     // One stamp card's progress block for the checkout screen (prem = the premium card)
     function stampProgressHtml(st, bill, prem) {
       bill = Math.round((Number(bill) || 0) * 1.05); // stamp / free-item limits count the bill with GST too (items alone reaching the limit also qualifies)
@@ -1328,8 +1335,8 @@
       else if (bill >= minO) msg = st.progress + 1 >= n ? 'This order unlocks your FREE item!' : 'This order adds a stamp (' + (st.progress + 1) + ' / ' + n + '). ' + (n - st.progress - 1) + ' more for a FREE item.';
       else msg = 'Orders of ' + money(minO) + ' or more earn a stamp (this one is ' + money(bill) + '). ' + (n - st.progress) + ' more stamps for a FREE item.';
       return '<div class="text-base font-black">' + (st.available > 0 ? (prem ? '&#128081; Premium: you have a FREE item waiting!' : '&#127869; You have a FREE item waiting!') : name + ': ' + st.progress + ' / ' + n + ' <span class="tracking-widest" style="color:#d9531e">' + dots + '</span>') + '</div>' +
-        (st.available > 0 ? '' : '<div class="mt-2 h-2.5 rounded-full bg-black/10"><div class="h-2.5 rounded-full" style="width:' + pct + '%;background:#d9531e"></div></div>') +
-        '<div class="text-sm opacity-80 mt-1">' + msg + '</div>' + stampThumbs(st, 6);
+        (st.available > 0 ? '' : '<div class="mt-1.5 h-2 rounded-full bg-black/10"><div class="h-2 rounded-full" style="width:' + pct + '%;background:#d9531e"></div></div>') +
+        '<div class="text-sm opacity-80 mt-1">' + msg + '</div>' + stampFreeLine(st);
     }
     function renderPayProgress() {
       const el = $('payProgress'), d = kioskLoyalty, st = kioskStamp;
@@ -1428,7 +1435,7 @@
           const left = c.available - (used && (c.free_items || []).some(i => i.id === kioskPromo.stampLine.id) ? 1 : 0);
           const now = left > 0 ? n : c.progress + (counts ? 1 : 0), name = prem ? '&#128081; Premium stamp card' : '&#127869; Stamp card';
           return (left > 0 || now >= n) ? name + ': FREE item unlocked for your next order!<div class="text-sm font-bold opacity-70 mt-1">Show your redeem code from the app' + (Number(c.redeem_min) > 0 ? ' on an order of ' + money(c.redeem_min) + '+' : '') + '</div>'
-            : name + ': ' + now + ' / ' + n + (counts ? '' : '<div class="text-sm font-bold opacity-70 mt-1">Orders of ' + money(c.min_order) + '+ earn a stamp</div>') + (counts ? '<div class="text-sm font-bold opacity-70 mt-1">Counts once your payment is done</div>' : '') + stampThumbs(c, 4);
+            : name + ': ' + now + ' / ' + n + (counts ? '' : '<div class="text-sm font-bold opacity-70 mt-1">Orders of ' + money(c.min_order) + '+ earn a stamp</div>') + (counts ? '<div class="text-sm font-bold opacity-70 mt-1">Counts once your payment is done</div>' : '') + (st.premium && st.premium.enabled ? stampFreeLine(c) : stampThumbs(c, 4));
         };
         sd.innerHTML = (used ? '&#127873; Enjoy your FREE item!<div class="mt-3 pt-3 border-t border-black/10"></div>' : '') + one(st.normal || st, false) + (st.premium && st.premium.enabled ? '<div class="mt-3 pt-3 border-t border-black/10"></div>' + one(st.premium, true) : '');
         sd.classList.remove('hidden');

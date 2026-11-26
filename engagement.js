@@ -163,6 +163,9 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
   async function stampPublicOne(S) { if (!S.enabled) return { enabled: false }; return { enabled: true, orders_needed: S.orders_needed, min_order: S.min_order, redeem_min: S.redeem_min, all_day: S.all_day, start: S.start, end: S.end, free_items: (await stampFreeItems(S)).map(i => ({ id: i.id, name: i.name, price: i.price, image: i.image })) }; }
   async function stampPublic() { const a = await stampPublicOne(await stampConfig(1)), b = await stampPublicOne(await stampConfig(2)); if (!b.enabled) return a; return a.enabled ? Object.assign(a, { max_order: b.min_order, premium: b }) : b; }
 
+  // Stamps the owner added by hand for a phone (Loyalty tab: for gifts and for testing). cfg.stamp_bonus = { '<phone>': { '1': n, '2': n } }
+  async function stampBonus(phone, card) { const b = ((await getSettingsConfig()).stamp_bonus || {})[phone]; return Math.max(0, Math.floor(numOr(b && b[card]))); }
+
   // Does this order earn a stamp on card S (paid in full, not complimentary, big enough, inside the card's days / time window, after the card was switched on)?
   const stampOk = (r, S) => new Date(r.created_at).getTime() >= S.since && !!r.source && !numOr(r.is_complimentary) && numOr(r.paid_amount) >= numOr(r.total) && numOr(r.total) > 0 && Math.max(numOr(r.total), numOr(r.subtotal)) >= S.min_order // the limit may be reached with GST (total) or by the items alone (subtotal)
     && (S.all_day ? (!S.days.length || S.days.includes(numOr(r.dow))) : inBonusWindow({ bonus_enabled: true, bonus_start: S.start, bonus_end: S.end, bonus_days: S.days }, numOr(r.hh), numOr(r.mm), numOr(r.dow)));
@@ -181,6 +184,7 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
       if (P && P.enabled && stampOk(r, P)) continue;
       if (stampOk(r, S)) stamps++;
     }
+    stamps += await stampBonus(phone, card);
     const earned = Math.floor(stamps / S.orders_needed);
     return Object.assign(base, { stamps, progress: stamps % S.orders_needed, earned, used, available: Math.max(0, earned - used) });
   }
@@ -593,6 +597,20 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 
+  // Owner adds / removes hand-given stamps for one phone on one card (stamps = how many bonus stamps that phone has there; 0 removes them)
+  app.put('/api/loyalty-admin/stamp-bonus', async (req, res) => {
+    try {
+      const b = req.body || {}, phone = cleanPhone(b.phone), card = Number(b.card) === 2 ? '2' : '1', n = Math.floor(numOr(b.stamps, -1));
+      if (phone.length !== 10) return res.status(400).json({ error: '10 digit phone daalein' });
+      if (n < 0 || n > 100) return res.status(400).json({ error: 'Stamps 0 se 100 ke beech daalein' });
+      const all = Object.assign({}, (await getSettingsConfig()).stamp_bonus || {});
+      const mine = Object.assign({}, all[phone] || {}, { [card]: n });
+      if (!Number(mine['1']) && !Number(mine['2'])) delete all[phone]; else all[phone] = mine;
+      await saveSettingsConfig({ stamp_bonus: all });
+      res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
   // Stamp cards: per customer stamps / free items used on each card, plus when each free item was taken
   app.get('/api/loyalty-admin/stamps-report', async (req, res) => {
     try {
@@ -607,6 +625,11 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
         if (red > 0) { c.used[red === 2 ? 1 : 0]++; c.last_used = r.created_at; } // the order that took a free item still earns its own stamp
         if (Ss[1].enabled && stampOk(r, Ss[1])) c.stamps[1]++;
         else if ((Ss[0].enabled || Ss[0].since) && stampOk(r, Ss[0])) c.stamps[0]++;
+      }
+      const bonus = (await getSettingsConfig()).stamp_bonus || {};
+      for (const ph of Object.keys(bonus)) {
+        const c = by.get(ph) || by.set(ph, { phone: ph, name: '', stamps: [0, 0], used: [0, 0], last_used: null }).get(ph);
+        c.stamps[0] += Math.max(0, Math.floor(numOr(bonus[ph]['1']))); c.stamps[1] += Math.max(0, Math.floor(numOr(bonus[ph]['2'])));
       }
       const redeemed = await dbAllAsync(`SELECT o.id, o.stamp_redeemed AS card, RIGHT(o.customer_phone, 10) AS phone, o.customer_name, o.created_at,
         (SELECT STRING_AGG(oi.name, ', ') FROM order_items oi WHERE oi.order_id = o.id AND oi.name LIKE '%(FREE)') AS item
