@@ -771,15 +771,15 @@
       if (!st) { var g = await fetch('/api/loyalty-info').then(jsonOrThrow); if (g && g.stamp && g.stamp.enabled) st = g.stamp; }
       if (!st) return;
       stampBannerSt = st;
-      $('stampBanner').innerHTML = stampProgHtml(st, cartSub()); $('stampBanner').classList.remove('hidden');
+      $('stampBanner').innerHTML = stampProgHtml(st, cartSub(), true); $('stampBanner').classList.remove('hidden');
     } catch (e) {}
   }
-  function stampProgHtml(st, bill) {
+  function stampProgHtml(st, bill, menu) { // menu = the banner on the menu page: the free item is picked later, in the cart on Pay now
     if (!st) return '';
     var prem = st.premium && st.premium.enabled ? st.premium : null;
-    return stampProgOne(st.normal || st, bill) + (prem ? '<div class="mt-2"></div>' + stampProgOne(prem, bill).split('🍽 Stamp card').join('👑 Premium card') : '');
+    return stampProgOne(st.normal || st, bill, menu) + (prem ? '<div class="mt-2"></div>' + stampProgOne(prem, bill, menu).split('🍽 Stamp card').join('👑 Premium card') : '');
   }
-  function stampProgOne(st, bill) {
+  function stampProgOne(st, bill, menu) {
     bill = Math.round((Number(bill) || 0) * 1.05); // stamp / free-item limits count the bill with GST too (items alone reaching the limit also qualifies)
     if (!st) return '';
     var n = st.orders_needed, minO = Number(st.min_order) || 0, minR = Number(st.redeem_min) || 0;
@@ -788,7 +788,7 @@
     if (st.progress === undefined) return box('🍽 Stamp card: ' + n + ' orders = 1 FREE item', (minO > 0 ? '₹' + minO + ' ya zyada ke har paid order par 1 stamp. ' : 'Har paid order par 1 stamp. ') + 'Phone number daalein to apna progress dikhega.', 'emerald');
     var dots = '●'.repeat(st.progress) + '○'.repeat(Math.max(0, n - st.progress)), head = '🍽 Stamp card: ' + st.progress + '/' + n + ' <span class="tracking-widest text-emerald-600">' + dots + '</span>';
     if (st.available > 0) {
-      if (!minR || bill >= minR) return box(head, '🎁 Aapka FREE item ready hai! Pay now par list se chunein.', 'emerald');
+      if (!minR || bill >= minR) return box(head, (menu ? '🎁 Aapka FREE item ready hai! Cart me Pay now par apna item chunein.' : '🎁 Aapka FREE item ready hai! Pay now par list se chunein.'), 'emerald');
       return box(head, bill > 0 ? '⚠ Free item pakka hai! Bas ₹' + Math.ceil(minR - bill) + ' ka aur order karein (free item ke alawa kam se kam ₹' + minR + ' ka bill chahiye).' : '🎁 Free item pakka hai! ₹' + minR + ' ya zyada ka order karein to ek free item milega.', 'amber');
     }
     if (st.max_order && bill >= st.max_order) return box(head, '👑 Is bade bill se Premium card ka stamp milega (is card ka nahi).', 'emerald');

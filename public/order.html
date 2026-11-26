@@ -1180,12 +1180,12 @@
       return `<div class="mt-2 text-[10px] font-black text-emerald-900">🎁 Inme se ek FREE milega:</div><div class="mt-1 flex gap-2 pb-0.5" style="overflow-x:auto;scrollbar-width:none">${l.map(i => `<div class="shrink-0 w-16 text-center"><div class="w-16 h-16 rounded-xl bg-white border border-emerald-200 overflow-hidden flex items-center justify-center">${i.image ? `<img src="${esc(imgSrc(i.image))}" class="w-full h-full object-cover" onerror="this.outerHTML='<span class=\\'text-xl\\'>🍽</span>'">` : '<span class="text-xl">🍽</span>'}</div><div class="text-[10px] font-bold leading-tight mt-0.5 text-emerald-900">${esc(i.name)}</div></div>`).join('')}</div>`;
     }
     // Stamp progress for the checkout: where the customer stands, and what THIS bill does (earns a stamp / is too small for the free item)
-    function stampProgHtml(st, bill) {
+    function stampProgHtml(st, bill, menu) { // menu = the banner on the menu page: the free item is picked later, on the checkout page
       if (!st) return '';
       var prem = st.premium && st.premium.enabled ? st.premium : null;
-      return stampProgOne(st.normal || st, bill) + (prem ? '<div class="mt-2"></div>' + stampProgOne(prem, bill).split('🍽 Stamp card').join('👑 Premium card') : '');
+      return stampProgOne(st.normal || st, bill, menu) + (prem ? '<div class="mt-2"></div>' + stampProgOne(prem, bill, menu).split('🍽 Stamp card').join('👑 Premium card') : '');
     }
-    function stampProgOne(st, bill) {
+    function stampProgOne(st, bill, menu) {
       bill = Math.round((Number(bill) || 0) * 1.05); // stamp / free-item limits count the bill with GST too (items alone reaching the limit also qualifies)
       if (!st) return '';
       const n = st.orders_needed, minO = Number(st.min_order) || 0, minR = Number(st.redeem_min) || 0;
@@ -1194,7 +1194,7 @@
       if (st.progress === undefined) return box(`🍽 Stamp card: ${n} orders = 1 FREE item`, minO > 0 ? `₹${minO} ya zyada ke har paid order par 1 stamp. Apna number verify karke progress dekhein.` : 'Har paid order par 1 stamp. Apna number verify karke progress dekhein.', 'emerald');
       const dots = '●'.repeat(st.progress) + '○'.repeat(Math.max(0, n - st.progress)), head = `🍽 Stamp card: ${st.progress}/${n} <span class="tracking-widest text-emerald-600">${dots}</span>`;
       if (st.available > 0) {
-        if (!minR || bill >= minR) return box(head, '🎁 Aapka FREE item ready hai! Neeche list se chunein.', 'emerald');
+        if (!minR || bill >= minR) return box(head, (menu ? '🎁 Aapka FREE item ready hai! Checkout par apna item chunein.' : '🎁 Aapka FREE item ready hai! Neeche list se chunein.'), 'emerald');
         return box(head, bill > 0 ? `⚠ Free item pakka hai! Bas ₹${Math.ceil(minR - bill)} ka aur order karein (free item ke alawa kam se kam ₹${minR} ka bill chahiye).` : `🎁 Free item pakka hai! ₹${minR} ya zyada ka order karein to ek free item milega.`, 'amber');
       }
       if (st.max_order && bill >= st.max_order) return box(head, '👑 Is bade bill se Premium card ka stamp milega (is card ka nahi).', 'emerald');
@@ -1229,7 +1229,7 @@
       document.getElementById('cUsePts').checked = usePts;
       document.getElementById('cPtsText').textContent = `⭐ ${mp} points use karein (−₹${off}) • aapke paas ${loyCk ? loyCk.balance : 0}`;
       const sb = document.getElementById('stampBanner');
-      if (sb) { sb.innerHTML = stampProgHtml(stampSt || stampGen, cartSubtotal()); sb.classList.toggle('hidden', !(stampSt || stampGen)); }
+      if (sb) { sb.innerHTML = stampProgHtml(stampSt || stampGen, cartSubtotal(), true); sb.classList.toggle('hidden', !(stampSt || stampGen)); }
       document.getElementById('cStampProg').innerHTML = stampProgHtml(stampSt || stampGen, cartSubtotal());
       document.getElementById('cStampProg').classList.toggle('hidden', !(stampSt || stampGen) || !cart.length);
       const sItems = stampItems();
