@@ -4645,19 +4645,25 @@
       }
       renderPosStamp();
     }
+    function posStampMsg(st, bill, prem) {
+      var n = st.orders_needed, minO = Number(st.min_order) || 0, minR = Number(st.redeem_min) || 0, msg, tone = 'text-emerald-700';
+      if (st.available > 0) {
+        if (!minR || bill >= minR) msg = (prem ? '👑 Premium: ' : '') + '🎁 FREE item ready — Coupon / Points button se lagao';
+        else { msg = (prem ? '👑 Premium: ' : '') + (bill > 0 ? '🎁 Free item pakka, ₹' + Math.ceil(minR - bill) + ' ka aur order karwao (min ₹' + minR + ', free item ke alawa)' : '🎁 Free item pakka — ₹' + minR + '+ ka bill banwao'); tone = 'text-amber-700'; }
+      } else {
+        var dots = '●'.repeat(st.progress) + '○'.repeat(Math.max(0, n - st.progress));
+        msg = (prem ? '👑 Premium ' : '🍽 Stamp ') + st.progress + '/' + n + ' ' + dots + (st.max_order && bill >= st.max_order ? ' • ye bill Premium card me count hoga' : (bill > 0 && bill >= minO ? ' • is bill se stamp milega' : (minO > 0 ? ' • stamp ke liye ₹' + minO + '+ ka bill' : '')));
+      }
+      return { msg: msg, tone: tone };
+    }
     function renderPosStamp() {
       var el = document.getElementById('posStampLine'); if (!el) return;
       var st = posStampSt; if (!st) { el.innerHTML = ''; return; }
-      var bill = posCart.reduce(function(s, i) { return s + (i.price * i.qty); }, 0), n = st.orders_needed, minO = Number(st.min_order) || 0, minR = Number(st.redeem_min) || 0, msg, tone = 'text-emerald-700';
-      if (st.available > 0) {
-        if (!minR || bill >= minR) msg = '🎁 FREE item ready — Coupon / Points button se lagao';
-        else { msg = bill > 0 ? '🎁 Free item pakka, ₹' + Math.ceil(minR - bill) + ' ka aur order karwao (min ₹' + minR + ', free item ke alawa)' : '🎁 Free item pakka — ₹' + minR + '+ ka bill banwao'; tone = 'text-amber-700'; }
-      } else {
-        var dots = '●'.repeat(st.progress) + '○'.repeat(Math.max(0, n - st.progress));
-        msg = '🍽 Stamp ' + st.progress + '/' + n + ' ' + dots + (bill > 0 && bill >= minO ? ' • is bill se stamp milega' : (minO > 0 ? ' • stamp ke liye ₹' + minO + '+ ka bill' : ''));
-      }
+      var bill = posCart.reduce(function(s, i) { return s + (i.price * i.qty); }, 0), minR = Number(st.redeem_min) || 0;
+      var lines = [posStampMsg(st.normal || st, bill, false)]; if (st.premium && st.premium.enabled) lines.push(posStampMsg(st.premium, bill, true));
       var fl = st.free_items || [], showList = fl.length && !(st.available > 0 && (!minR || bill >= minR));
-      el.className = 'mt-1 text-[10px] font-black leading-snug ' + tone; el.textContent = msg;
+      el.className = 'mt-1 text-[10px] font-black leading-snug'; el.textContent = '';
+      lines.forEach(function(l) { var d = document.createElement('div'); d.className = l.tone; d.textContent = l.msg; el.appendChild(d); });
       if (showList) {
         var wrap = document.createElement('div'); wrap.className = 'flex gap-1.5 mt-1 flex-wrap';
         fl.slice(0, 6).forEach(function(i) {

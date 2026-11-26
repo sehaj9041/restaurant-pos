@@ -734,6 +734,11 @@
   }
   function stampProgHtml(st, bill) {
     if (!st) return '';
+    var prem = st.premium && st.premium.enabled ? st.premium : null;
+    return stampProgOne(st.normal || st, bill) + (prem ? '<div class="mt-2"></div>' + stampProgOne(prem, bill).split('🍽 Stamp card').join('👑 Premium card') : '');
+  }
+  function stampProgOne(st, bill) {
+    if (!st) return '';
     var n = st.orders_needed, minO = Number(st.min_order) || 0, minR = Number(st.redeem_min) || 0;
     var ready = st.available > 0 && (!minR || bill >= minR); // when the free item can be picked now, the picker shows the list
     var box = function (head, msg, tone) { return '<div class="rounded-xl bg-' + tone + '-50 border border-' + tone + '-200 px-3 py-2 text-left"><div class="text-xs font-black text-' + tone + '-900">' + head + '</div><div class="text-[11px] font-bold text-' + tone + '-800 mt-1">' + msg + '</div>' + (ready ? '' : stampFreeChips(st)) + '</div>'; };
@@ -743,11 +748,17 @@
       if (!minR || bill >= minR) return box(head, '🎁 Aapka FREE item ready hai! Pay now par list se chunein.', 'emerald');
       return box(head, bill > 0 ? '⚠ Free item pakka hai! Bas ₹' + Math.ceil(minR - bill) + ' ka aur order karein (free item ke alawa kam se kam ₹' + minR + ' ka bill chahiye).' : '🎁 Free item pakka hai! ₹' + minR + ' ya zyada ka order karein to ek free item milega.', 'amber');
     }
+    if (st.max_order && bill >= st.max_order) return box(head, '👑 Is bade bill se Premium card ka stamp milega (is card ka nahi).', 'emerald');
     if (bill > 0 && bill >= minO) return box(head, st.progress + 1 >= n ? '✅ Is order ke baad aapka FREE item unlock ho jayega!' : '✅ Is order se stamp milega (' + (st.progress + 1) + '/' + n + '). ' + (n - st.progress - 1) + ' aur → 1 FREE item.', 'emerald');
     return box(head, minO > 0 ? 'Stamp ke liye ₹' + minO + ' ya zyada ka order karein' + (bill > 0 ? ' (₹' + Math.ceil(minO - bill) + ' aur)' : '') + '. ' + (n - st.progress) + ' stamp aur → 1 FREE item.' : (n - st.progress) + ' order aur → 1 FREE item.', 'emerald');
   }
   // Stamp card (N orders = 1 free item)
   function stampCard(st) {
+    if (!st || !st.enabled) return '';
+    var prem = st.premium && st.premium.enabled ? st.premium : null;
+    return stampCardOne(st.normal || st) + (prem ? '<div class="mt-2"></div>' + stampCardOne(prem).split('🍽 Stamps:').join('👑 Premium stamps:').split('🍽 Aapke paas').join('👑 Premium: aapke paas') : '');
+  }
+  function stampCardOne(st) {
     if (!st || !st.enabled) return '';
     var n = st.orders_needed, left = n - st.progress, pct = Math.max(4, Math.round(st.progress * 100 / n));
     var t = function (hhmm) { var q = String(hhmm).split(':'), h = +q[0]; return (h % 12 || 12) + ':' + (q[1] || '00') + ' ' + (h < 12 ? 'AM' : 'PM'); };

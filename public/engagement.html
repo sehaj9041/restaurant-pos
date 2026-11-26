@@ -93,7 +93,7 @@
       </div>
       <div class="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm space-y-3 text-sm">
         <label class="flex items-center gap-2 font-black"><input id="sEnabled" type="checkbox"> 🍽 Stamp card chalu karein (N orders = 1 free item)</label>
-        <label class="flex items-center gap-2 font-black"><input id="sAll" type="checkbox" onchange="stampAllDay()"> 🕛 Poora din (24 ghante, koi time limit nahi)</label>
+        <label class="flex items-center gap-2 font-black"><input id="sAll" type="checkbox" onchange="stampAllDay('s')"> 🕛 Poora din (24 ghante, koi time limit nahi)</label>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
           <label>Kitne orders par 1 free item<input id="sN" type="number" min="1" max="50" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
           <label>Start time<input id="sStart" type="time" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
@@ -106,12 +106,34 @@
         </div>
         <div class="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3 space-y-2">
           <p class="font-black text-gray-800">🎁 Free item list <span class="text-[11px] text-gray-400 font-bold">customer 5 orders ke baad inme se ek chunega</span></p>
-          <input id="sSearch" type="text" oninput="renderStampMenu()" placeholder="Item search karein" class="w-full border rounded-lg px-3 py-2">
+          <input id="sSearch" type="text" oninput="renderStampMenu('s')" placeholder="Item search karein" class="w-full border rounded-lg px-3 py-2">
           <div id="sFreeSel" class="flex flex-wrap gap-1.5 text-xs"></div>
           <div id="sMenuList" class="max-h-60 overflow-auto divide-y border rounded-lg bg-white text-sm"></div>
         </div>
-        <button onclick="saveStamps()" class="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2 rounded-xl font-black">Save stamp settings</button>
+        <button onclick="saveStamps('s')" class="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2 rounded-xl font-black">Save stamp settings</button>
         <p class="text-[11px] text-gray-400">Stamp har us poori paid order par milta hai jo is time window me hui aur jisme customer ka phone number tha. Poora din chalana hai to "Poora din" tick karein (din khali chhodein = roz) (counter, kiosk, website, sab). Customer free item list me se apna item khud chunta hai (list me jo item sold out hai wo nahi dikhta). Counter par POS ke Coupon / Points button me se lagta hai. Stamp sirf save karne ke din se aage ginte hain.</p>
+      </div>
+      <div class="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm space-y-3 text-sm">
+        <label class="flex items-center gap-2 font-black"><input id="pEnabled" type="checkbox"> 👑 Premium stamp card chalu karein (bade bill wale customers ke liye alag card, upar wale card ke saath chalta hai)</label>
+        <label class="flex items-center gap-2 font-black"><input id="pAll" type="checkbox" onchange="stampAllDay('p')"> 🕛 Poora din (24 ghante, koi time limit nahi)</label>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <label>Kitne orders par 1 free item<input id="pN" type="number" min="1" max="50" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
+          <label>Start time<input id="pStart" type="time" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
+          <label>End time<input id="pEnd" type="time" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
+          <label>Stamp ke liye min bill ₹<input id="pMin" type="number" min="0" placeholder="0 = koi limit nahi" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
+          <label>Free item sirf us bill par jo (free item ke alawa) kam se kam ₹<input id="pRedeem" type="number" min="0" placeholder="0 = koi limit nahi" class="mt-1 w-full border rounded-lg px-2 py-2"></label>
+        </div>
+        <div class="flex flex-wrap items-center gap-3 text-xs font-bold text-gray-700"><span>Din (kuch na chunein = roz):</span>
+          <label><input type="checkbox" class="pDay" value="1"> Mon</label><label><input type="checkbox" class="pDay" value="2"> Tue</label><label><input type="checkbox" class="pDay" value="3"> Wed</label><label><input type="checkbox" class="pDay" value="4"> Thu</label><label><input type="checkbox" class="pDay" value="5"> Fri</label><label><input type="checkbox" class="pDay" value="6"> Sat</label><label><input type="checkbox" class="pDay" value="0"> Sun</label>
+        </div>
+        <div class="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3 space-y-2">
+          <p class="font-black text-gray-800">🎁 Free item list <span class="text-[11px] text-gray-400 font-bold">premium card poora hone par customer inme se ek chunega</span></p>
+          <input id="pSearch" type="text" oninput="renderStampMenu('p')" placeholder="Item search karein" class="w-full border rounded-lg px-3 py-2">
+          <div id="pFreeSel" class="flex flex-wrap gap-1.5 text-xs"></div>
+          <div id="pMenuList" class="max-h-60 overflow-auto divide-y border rounded-lg bg-white text-sm"></div>
+        </div>
+        <button onclick="saveStamps('p')" class="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2 rounded-xl font-black">Save premium stamp settings</button>
+        <p class="text-[11px] text-gray-400">Premium card ke stamp sirf us order par milte hain jiska bill "Stamp ke liye min bill" (jaise ₹599) ya usse zyada ho. Jo order premium card ke liye qualify kare wo sirf premium stamp deta hai, normal card ka nahi (premium band ho to normal card me hi ginta hai). Free item wala order (kisi bhi card ka) koi stamp nahi deta. Customer ke paas dono card ka free item ho to dono list ke items ek saath dikhte hain.</p>
       </div>
       <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-x-auto">
         <div class="p-3 border-b flex flex-wrap items-center justify-between gap-2">
@@ -129,14 +151,14 @@
       <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-x-auto">
         <div class="p-3 border-b font-black text-gray-800">Stamp card customers <span id="stampSub" class="text-xs font-semibold text-gray-400"></span></div>
         <table class="w-full text-sm">
-          <thead class="bg-gray-50 text-xs uppercase text-gray-500"><tr><th class="text-left p-3">Customer</th><th class="text-left p-3">Phone</th><th class="text-right p-3">Stamps</th><th class="text-right p-3">Free earned</th><th class="text-right p-3">Free liye</th><th class="text-right p-3">Baaki</th><th class="text-right p-3">Last offer</th></tr></thead>
+          <thead class="bg-gray-50 text-xs uppercase text-gray-500"><tr><th class="text-left p-3">Customer</th><th class="text-left p-3">Phone</th><th class="text-right p-3">Normal card</th><th class="text-right p-3">Premium card</th><th class="text-right p-3">Last offer</th></tr></thead>
           <tbody id="stampRows"></tbody>
         </table>
       </div>
       <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-x-auto">
         <div class="p-3 border-b font-black text-gray-800">Free items diye gaye (latest 100)</div>
         <table class="w-full text-sm">
-          <thead class="bg-gray-50 text-xs uppercase text-gray-500"><tr><th class="text-left p-3">Date</th><th class="text-left p-3">Customer</th><th class="text-left p-3">Phone</th><th class="text-left p-3">Free item</th><th class="text-right p-3">Order</th></tr></thead>
+          <thead class="bg-gray-50 text-xs uppercase text-gray-500"><tr><th class="text-left p-3">Date</th><th class="text-left p-3">Customer</th><th class="text-left p-3">Phone</th><th class="text-left p-3">Card</th><th class="text-left p-3">Free item</th><th class="text-right p-3">Order</th></tr></thead>
           <tbody id="stampUsedRows"></tbody>
         </table>
       </div>
@@ -291,24 +313,25 @@
         document.querySelectorAll('.lDay').forEach(function(x) { x.checked = (c.bonus_days || []).indexOf(Number(x.value)) >= 0; });
         loyaltyHint();
       }).catch(fail);
-      api('/api/loyalty-admin/stamps').then(function(c) {
-        $('sEnabled').checked = c.enabled; $('sN').value = c.orders_needed; $('sAll').checked = !!c.all_day; $('sStart').value = c.start; $('sEnd').value = c.end; stampAllDay(); $('sMin').value = c.min_order || ''; $('sRedeem').value = c.redeem_min || ''; stampFree = (c.free_items || []).slice(); renderStampMenu();
-        document.querySelectorAll('.sDay').forEach(function(x) { x.checked = (c.days || []).indexOf(Number(x.value)) >= 0; });
-      }).catch(fail);
+      api('/api/loyalty-admin/stamps').then(function(c) { fillStamps('s', c); }).catch(fail);
+      api('/api/loyalty-admin/stamps?card=2').then(function(c) { fillStamps('p', c); }).catch(fail);
       api('/api/loyalty-admin/top').then(function(rows) {
         $('topRows').innerHTML = rows.length ? rows.map(function(r) {
           return '<tr class="border-t"><td class="p-3 font-bold">' + esc(r.name || 'Guest') + '</td><td class="p-3 font-mono">' + esc(r.phone) + '</td><td class="p-3 text-right">' + r.orders + '</td><td class="p-3 text-right">₹' + Math.round(r.spent) + '</td><td class="p-3 text-right font-black text-amber-600">' + r.points + '</td><td class="p-3 text-right text-xs text-rose-600 font-bold">' + (r.expiring ? r.expiring.points + ' pts • ' + esc(r.expiring.on) : '') + '</td><td class="p-3 text-right"><button onclick="openStatement(\'' + esc(r.phone) + '\')" class="text-orange-600 font-black text-xs hover:underline">Statement</button></td></tr>';
         }).join('') : '<tr><td colspan="7" class="p-6 text-center text-gray-400">Abhi phone wale orders nahi hain</td></tr>';
       }).catch(fail);
       api('/api/loyalty-admin/stamps-report').then(function(d) {
-        var dt = function(x) { return x ? new Date(x).toLocaleString('en-IN') : '-'; };
-        $('stampSub').textContent = '(' + d.orders_needed + ' stamps = 1 free item)';
+        var dt = function(x) { return x ? new Date(x).toLocaleString('en-IN') : '-'; }, c1 = d.cards[0], c2 = d.cards[1];
+        $('stampSub').textContent = '(Normal: ' + c1.orders_needed + ' stamps' + (c1.min_order ? ', ₹' + c1.min_order + '+' : '') + (c2.enabled ? ' • Premium: ' + c2.orders_needed + ' stamps, ₹' + c2.min_order + '+' : '') + ')';
+        var cell = function(x, n) { return x.progress + '/' + n + ' <span class="text-xs text-gray-400">(' + x.stamps + ' total)</span>'; };
+        var free = function(x) { return x.earned + ' earn • ' + x.used + ' liye • <b class="' + (x.available ? 'text-emerald-600' : '') + '">' + x.available + ' baaki</b>'; };
         $('stampRows').innerHTML = d.customers.length ? d.customers.map(function(r) {
-          return '<tr class="border-t"><td class="p-3 font-bold">' + esc(r.name || 'Guest') + '</td><td class="p-3 font-mono">' + esc(r.phone) + '</td><td class="p-3 text-right font-black text-amber-600">' + r.progress + '/' + d.orders_needed + ' <span class="text-xs text-gray-400">(' + r.stamps + ' total)</span></td><td class="p-3 text-right">' + r.earned + '</td><td class="p-3 text-right">' + r.used + '</td><td class="p-3 text-right font-bold ' + (r.available ? 'text-emerald-600' : '') + '">' + r.available + '</td><td class="p-3 text-right text-xs text-gray-500">' + dt(r.last_used) + '</td></tr>';
-        }).join('') : '<tr><td colspan="7" class="p-6 text-center text-gray-400">Abhi kisi ke stamps nahi hain</td></tr>';
+          return '<tr class="border-t"><td class="p-3 font-bold">' + esc(r.name || 'Guest') + '</td><td class="p-3 font-mono">' + esc(r.phone) + '</td><td class="p-3 text-right font-black text-amber-600">' + cell(r.c1, c1.orders_needed) + '<div class="text-[11px] font-semibold text-gray-500">' + free(r.c1) + '</div></td>' +
+            '<td class="p-3 text-right font-black text-purple-600">' + (c2.enabled || r.c2.stamps || r.c2.used ? cell(r.c2, c2.orders_needed) + '<div class="text-[11px] font-semibold text-gray-500">' + free(r.c2) + '</div>' : '-') + '</td><td class="p-3 text-right text-xs text-gray-500">' + dt(r.last_used) + '</td></tr>';
+        }).join('') : '<tr><td colspan="5" class="p-6 text-center text-gray-400">Abhi kisi ke stamps nahi hain</td></tr>';
         $('stampUsedRows').innerHTML = d.redeemed.length ? d.redeemed.map(function(r) {
-          return '<tr class="border-t"><td class="p-3 text-xs text-gray-500">' + dt(r.created_at) + '</td><td class="p-3 font-bold">' + esc(r.customer_name || 'Guest') + '</td><td class="p-3 font-mono">' + esc(r.phone) + '</td><td class="p-3">' + esc((r.item || '').replace(/ \(FREE\)/g, '')) + '</td><td class="p-3 text-right font-mono">#' + r.id + '</td></tr>';
-        }).join('') : '<tr><td colspan="5" class="p-6 text-center text-gray-400">Abhi kisi ne free item nahi liya</td></tr>';
+          return '<tr class="border-t"><td class="p-3 text-xs text-gray-500">' + dt(r.created_at) + '</td><td class="p-3 font-bold">' + esc(r.customer_name || 'Guest') + '</td><td class="p-3 font-mono">' + esc(r.phone) + '</td><td class="p-3 text-xs font-black ' + (Number(r.card) === 2 ? 'text-purple-600">Premium' : 'text-amber-600">Normal') + '</td><td class="p-3">' + esc((r.item || '').replace(/ \(FREE\)/g, '')) + '</td><td class="p-3 text-right font-mono">#' + r.id + '</td></tr>';
+        }).join('') : '<tr><td colspan="6" class="p-6 text-center text-gray-400">Abhi kisi ne free item nahi liya</td></tr>';
       }).catch(fail);
     }
     function saveLoyalty() {
@@ -318,20 +341,25 @@
         .then(function() { (window.uiAlert || window.alert)('Saved'); loadLoyalty(); }).catch(fail);
     }
 
-    var stampMenu = [], stampFree = [];
-    function renderStampMenu() {
-      if (!stampMenu.length) { api('/api/menu?admin=1').then(function(m) { var seen = {}; stampMenu = (m || []).filter(function(i) { if (seen[i.id]) return false; seen[i.id] = 1; return true; }); renderStampMenu(); }).catch(fail); return; }
-      var q = ($('sSearch').value || '').trim().toLowerCase();
-      $('sFreeSel').innerHTML = stampFree.length ? stampFree.map(function(id) { var m = stampMenu.filter(function(x) { return x.id === id; })[0]; return '<span class="bg-emerald-600 text-white rounded-full px-2.5 py-1 font-bold cursor-pointer" onclick="toggleStampItem(' + id + ')">' + esc(m ? m.name : 'Item #' + id) + ' ✕</span>'; }).join('') : '<span class="text-gray-400">Abhi koi item nahi chuna</span>';
-      $('sMenuList').innerHTML = stampMenu.filter(function(m) { return !q || String(m.name).toLowerCase().indexOf(q) >= 0 || String(m.category || '').toLowerCase().indexOf(q) >= 0; }).slice(0, 200).map(function(m) {
-        return '<label class="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50"><input type="checkbox" onchange="toggleStampItem(' + m.id + ')"' + (stampFree.indexOf(m.id) >= 0 ? ' checked' : '') + '><span class="flex-1 font-bold">' + esc(m.name) + '</span><span class="text-xs text-gray-400">' + esc(m.category || '') + '</span><span class="text-xs font-black text-gray-600">₹' + esc(m.price) + '</span></label>';
+    var stampMenu = [], stampFree = { s: [], p: [] };
+    function renderStampMenu(c) {
+      if (!stampMenu.length) { api('/api/menu?admin=1').then(function(m) { var seen = {}; stampMenu = (m || []).filter(function(i) { if (seen[i.id]) return false; seen[i.id] = 1; return true; }); renderStampMenu('s'); renderStampMenu('p'); }).catch(fail); return; }
+      var q = ($(c + 'Search').value || '').trim().toLowerCase(), free = stampFree[c];
+      $(c + 'FreeSel').innerHTML = free.length ? free.map(function(id) { var m = stampMenu.filter(function(x) { return x.id === id; })[0]; return '<span class="bg-emerald-600 text-white rounded-full px-2.5 py-1 font-bold cursor-pointer" onclick="toggleStampItem(\'' + c + '\',' + id + ')">' + esc(m ? m.name : 'Item #' + id) + ' ✕</span>'; }).join('') : '<span class="text-gray-400">Abhi koi item nahi chuna</span>';
+      $(c + 'MenuList').innerHTML = stampMenu.filter(function(m) { return !q || String(m.name).toLowerCase().indexOf(q) >= 0 || String(m.category || '').toLowerCase().indexOf(q) >= 0; }).slice(0, 200).map(function(m) {
+        return '<label class="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50"><input type="checkbox" onchange="toggleStampItem(\'' + c + '\',' + m.id + ')"' + (free.indexOf(m.id) >= 0 ? ' checked' : '') + '><span class="flex-1 font-bold">' + esc(m.name) + '</span><span class="text-xs text-gray-400">' + esc(m.category || '') + '</span><span class="text-xs font-black text-gray-600">₹' + esc(m.price) + '</span></label>';
       }).join('') || '<p class="p-3 text-gray-400">Koi item nahi mila</p>';
     }
-    function toggleStampItem(id) { var i = stampFree.indexOf(id); if (i >= 0) stampFree.splice(i, 1); else stampFree.push(id); renderStampMenu(); }
-    function stampAllDay() { ['sStart', 'sEnd'].forEach(function(i) { $(i).disabled = $('sAll').checked; $(i).style.opacity = $('sAll').checked ? '0.4' : '1'; }); }
-    function saveStamps() {
-      var days = []; document.querySelectorAll('.sDay').forEach(function(x) { if (x.checked) days.push(Number(x.value)); });
-      api('/api/loyalty-admin/stamps', 'PUT', { enabled: $('sEnabled').checked, orders_needed: $('sN').value, all_day: $('sAll').checked, start: $('sStart').value, end: $('sEnd').value, min_order: $('sMin').value || 0, redeem_min: $('sRedeem').value || 0, free_items: stampFree, days: days })
+    function toggleStampItem(c, id) { var f = stampFree[c], i = f.indexOf(id); if (i >= 0) f.splice(i, 1); else f.push(id); renderStampMenu(c); }
+    function stampAllDay(c) { [c + 'Start', c + 'End'].forEach(function(i) { $(i).disabled = $(c + 'All').checked; $(i).style.opacity = $(c + 'All').checked ? '0.4' : '1'; }); }
+    function fillStamps(c, d) {
+      $(c + 'Enabled').checked = d.enabled; $(c + 'N').value = d.orders_needed; $(c + 'All').checked = !!d.all_day; $(c + 'Start').value = d.start; $(c + 'End').value = d.end; stampAllDay(c);
+      $(c + 'Min').value = d.min_order || (c === 'p' && !d.enabled ? 599 : ''); $(c + 'Redeem').value = d.redeem_min || (c === 'p' && !d.enabled ? 599 : ''); stampFree[c] = (d.free_items || []).slice(); renderStampMenu(c);
+      document.querySelectorAll('.' + c + 'Day').forEach(function(x) { x.checked = (d.days || []).indexOf(Number(x.value)) >= 0; });
+    }
+    function saveStamps(c) {
+      var days = []; document.querySelectorAll('.' + c + 'Day').forEach(function(x) { if (x.checked) days.push(Number(x.value)); });
+      api('/api/loyalty-admin/stamps', 'PUT', { card: c === 'p' ? 2 : 1, enabled: $(c + 'Enabled').checked, orders_needed: $(c + 'N').value, all_day: $(c + 'All').checked, start: $(c + 'Start').value, end: $(c + 'End').value, min_order: $(c + 'Min').value || 0, redeem_min: $(c + 'Redeem').value || 0, free_items: stampFree[c], days: days })
         .then(function() { (window.uiAlert || window.alert)('Saved'); loadLoyalty(); }).catch(fail);
     }
 
