@@ -177,6 +177,7 @@
 
       <!-- Item Cart Items List -->
       <div id="cartList" class="space-y-2 max-h-56 overflow-y-auto divide-y divide-gray-100 pr-1"></div>
+      <div id="cFreeAdded" class="hidden flex items-center gap-3 bg-emerald-50 border-2 border-emerald-300 rounded-xl px-3 py-2.5"></div>
 
       <!-- Customer Details Input -->
       <div class="space-y-2 pt-1">
@@ -1212,7 +1213,11 @@
     function togglePoints() { usePts = document.getElementById('cUsePts').checked; updateCartUI(); }
     // Stamp card reward: free items the customer may pick (bill must reach the owner's minimum); the server adds the free line and re-checks
     function stampItems() { return stampCk && Math.round(cartSubtotal() * 1.05) >= (Number(stampCk.redeem_min) || 0) ? (stampCk.free_items || []) : []; }
-    function pickStamp(id) { stampPick = stampPick === id ? 0 : id; updateCartUI(); }
+    function pickStamp(id) {
+      stampPick = stampPick === id ? 0 : id; updateCartUI();
+      const it = stampPick && (stampCk.free_items || []).find(x => x.id === stampPick);
+      if (it) toast('✅ ' + it.name + ' FREE add ho gaya');
+    }
     // Server order: discount comes off the subtotal (incl. delivery) and GST is charged on what is left of the taxable part
     function ckTotals() {
       const sub = cartSubtotal() + chargeNow(), pts = usePts ? maxPoints() : 0;
@@ -1234,6 +1239,9 @@
       document.getElementById('cStampProg').classList.toggle('hidden', !(stampSt || stampGen) || !cart.length);
       const sItems = stampItems();
       if (stampPick && !sItems.some(x => x.id === stampPick)) stampPick = 0;
+      const pk = sItems.find(x => x.id === stampPick), fa = document.getElementById('cFreeAdded'); // the picked free item, shown right under the cart items
+      fa.classList.toggle('hidden', !pk);
+      if (pk) fa.innerHTML = (pk.image ? `<img src="${esc(imgSrc(pk.image))}" class="w-12 h-12 rounded-lg object-contain bg-white shrink-0" onerror="this.style.display='none'">` : '<span class="text-3xl">🎁</span>') + `<div class="min-w-0"><div class="text-xs font-black text-emerald-800">✅ FREE item aapke order me add ho gaya</div><div class="text-sm font-black text-gray-900 leading-tight">${esc(pk.name)} <span class="text-emerald-600">— FREE</span></div></div>`;
       document.getElementById('cStampBox').classList.toggle('hidden', !stampCk);
       if (stampCk) {
         const sel = document.getElementById('cStampSel');
@@ -1336,6 +1344,7 @@
     // Cart is under the stamp card's minimum (any customer, with or without stamps): offer to add more to earn a stamp, or skip. Asked once per cart amount.
     function stampOfferGate() {
       const sub = cartSubtotal(); if (!cart.length || stampOfferAt === sub) return false;
+      if (stampCk && stampCk.available > 0) return false; // a free item is waiting (picked on the checkout page): no "add more" popup
       const t = stampOfferTarget(stampSt || stampGen, sub); if (!t) return false;
       stampOfferAt = sub;
       const c = t.c, n = c.orders_needed, has = c.progress !== undefined ? ` Abhi aapke ${c.progress}/${n} stamps hain.` : '';

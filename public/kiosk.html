@@ -291,6 +291,7 @@
       <div class="w-24 h-24 rounded-full bg-[#d9531e] text-white text-6xl font-black flex items-center justify-center pop">!</div>
       <h3 class="text-3xl font-black mt-6 leading-tight">Please select a<br>payment method.</h3>
       <p id="payTotalNote" class="text-lg font-black mt-3 hidden"></p>
+      <div id="payFreeAdded" class="hidden w-full max-w-[340px] mt-3 rounded-2xl px-4 py-3 text-left flex items-center gap-3" style="background:#ecfdf5;border:2px solid #34d399"></div>
       <div id="payProgress" class="hidden tile w-full max-w-[340px] mt-4 px-4 py-3 text-left"></div>
       <div class="w-full mt-10 space-y-4">
         <button onclick="submitKioskOrder('UPI_QR')" class="tile w-full py-5 text-xl flex items-center justify-center gap-3"><span class="text-3xl">📱</span> UPI</button>
@@ -1270,6 +1271,11 @@
         '<div class="h-16 w-full flex items-center justify-center">' + (i.image ? '<img src="' + resolveImgPath(i.image) + '" class="max-h-full max-w-full object-contain" onerror="this.replaceWith(Object.assign(document.createElement(\'span\'),{className:\'text-4xl\',textContent:\'\\u{1F37D}\'}))">' : '<span class="text-4xl">&#127869;</span>') + '</div>' +
         '<h3 class="font-bold text-[11px] leading-tight mt-1.5 break-words">' + i.name.replace(/</g, '&lt;') + '</h3><span class="font-black text-[12px] text-emerald-600 mt-auto pt-1">FREE</span></' + (pick ? 'button' : 'div') + '>').join('');
     }
+    // When the free-item popup opens, the grid scrolls down a little and back up once, so the customer sees it can scroll
+    function stampNudge() {
+      const g = $('stampPickGrid'); if (!g || g.scrollHeight <= g.clientHeight + 8) return;
+      setTimeout(() => { g.scrollTo({ top: 70, behavior: 'smooth' }); setTimeout(() => g.scrollTo({ top: 0, behavior: 'smooth' }), 700); }, 500);
+    }
     // "Scroll for more" arrow under the free-item grid: gone once the customer reaches the bottom
     function stampScrollHint() {
       const g = $('stampPickGrid'), h = $('stampScrollHint'); if (!g || !h) return;
@@ -1294,6 +1300,7 @@
     }
     function stampOfferGate(next) {
       const sub = traySubtotal(); if (!kioskTray.length || stampOfferAt === sub) return false;
+      if (kioskPromo && kioskPromo.stampLine) return false; // customer already picked a free item on this order: no "add more" popup
       const t = stampOfferTarget(kioskStamp || stampOffer, sub); if (!t) return false;
       stampOfferAt = sub;
       const c = t.c, n = c.orders_needed, has = c.progress !== undefined ? ' You have ' + c.progress + ' / ' + n + ' stamps.' : '';
@@ -1348,6 +1355,7 @@
           renderStampPicker();
           renderPointsFields();
           $('pointsModal').classList.remove('hidden');
+          stampNudge();
         };
         const tooSmall = !!(kioskStamp && kioskStamp.available > 0 && (kioskStamp.free_items || []).length && !hasStamp);
         if (tooSmall) return showStampShort(kioskStamp, proceed);
@@ -1433,6 +1441,11 @@
       if (!kioskTray.length) return;
       if (stampOfferGate(openPaymentChoice)) return;
       renderPayProgress();
+      // the free item the customer picked, shown clearly on the payment screen
+      const fa = $('payFreeAdded'), sl = kioskPromo && kioskPromo.stampLine, fi = sl && ((kioskStamp && kioskStamp.free_items) || []).find(i => i.id === sl.id);
+      fa.classList.toggle('hidden', !sl);
+      if (sl) fa.innerHTML = (fi && fi.image ? '<img src="' + resolveImgPath(fi.image) + '" class="w-16 h-16 rounded-xl object-contain bg-white shrink-0" onerror="this.remove()">' : '<span class="text-4xl">&#127873;</span>') +
+        '<div><div class="text-base font-black">&#9989; FREE item added to your order!</div><div class="text-sm font-bold mt-0.5">' + sl.name.replace(/</g, '&lt;') + '</div></div>';
       const note = $('payTotalNote');
       note.classList.toggle('hidden', !kioskPromo);
       if (kioskPromo) note.innerText = 'Total ' + money(trayPayable()) + (promoDiscount() > 0 ? '  (you saved ' + money(promoDiscount()) + ')' : '') + (kioskPromo.stampLine ? '  \u2022  FREE ' + kioskPromo.stampLine.name.replace(' (FREE)', '') + ' added' : '');

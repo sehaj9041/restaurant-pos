@@ -422,6 +422,7 @@
           '<div class="flex items-center gap-2"><button onclick="chg(' + i + ',-1)" class="w-8 h-8 rounded-lg border font-black">−</button><span class="w-5 text-center font-black text-sm">' + c.qty + '</span><button onclick="chg(' + i + ',1)" class="w-8 h-8 rounded-lg border font-black">+</button></div>' +
           '<div class="w-16 text-right font-black text-sm">' + rs(c.price * c.qty) + '</div></div>';
       }).join('') + '</div>' +
+      '<div id="freeAdded" class="hidden mb-3"></div>' +
       '<div class="space-y-2 mb-3"><input id="gName" placeholder="Your name *" maxlength="40" class="w-full border rounded-xl px-3 py-2.5 text-sm"><input id="gPhone" type="tel" inputmode="numeric" maxlength="10" placeholder="Mobile number (10 digit) *" class="w-full border rounded-xl px-3 py-2.5 text-sm"><div id="tqOtp" class="space-y-2"></div><input id="gNote" placeholder="Any note for the kitchen? (optional)" maxlength="150" class="w-full border rounded-xl px-3 py-2.5 text-sm"></div>' +
       '<div id="stampProg" class="mb-3"></div><div class="flex justify-between font-black text-base mb-1"><span>Subtotal</span><span>' + rs(cartSub()) + '</span></div>' +
       '<p class="text-[11px] text-gray-500 mb-3">GST (5%) final bill me judega. Payment ka option order ke baad milega.</p>' +
@@ -508,7 +509,11 @@
     if (!stampInfo || !p || !phone || phone !== p.phone || !cart.length) return [];
     return Math.round(cartSub() * 1.05) >= (Number(stampInfo.redeem_min) || 0) ? (stampInfo.free_items || []) : [];
   }
-  function pickStamp(id) { stampPick = stampPick === id ? 0 : id; renderPts(); }
+  function pickStamp(id) {
+    stampPick = stampPick === id ? 0 : id; renderPts();
+    var it = stampPick && (stampInfo.free_items || []).filter(function (x) { return x.id === stampPick; })[0];
+    if (it) toast('✅ ' + it.name + ' FREE add ho gaya');
+  }
   function renderPts() {
     var box = $('ptsBox'), off = $('ptsOff'); if (!box) return;
     var n = maxPts(); if (!n) usePts = false;
@@ -522,6 +527,12 @@
       }).join('') + '</div>' +
         '<div class="text-[11px] font-bold text-emerald-700 mt-1">' + (stampPick ? '✅ Ye item aapke order me FREE judega (dobara dabane se hat jayega)' : 'Apna free item chunein (ek item par tap karein)') + '</div>'
         : '<div class="text-[11px] font-bold text-emerald-700">Free item ' + (Number(stampInfo.redeem_min) > 0 ? rs(stampInfo.redeem_min) + ' ya zyada ke order par' : 'abhi') + ' milega (cart me aur item add karein)</div>') + '</div>';
+    var fa = $('freeAdded'), pk = sItems.filter(function (i) { return i.id === stampPick; })[0]; // the picked free item, shown right under the cart items
+    if (fa) {
+      fa.classList.toggle('hidden', !pk);
+      if (pk) fa.innerHTML = '<div class="flex items-center gap-3 bg-emerald-50 border-2 border-emerald-300 rounded-xl px-3 py-2.5">' + (pk.image ? '<img src="' + esc(imgSrc(pk.image)) + '" class="w-12 h-12 rounded-lg object-contain bg-white shrink-0" onerror="this.style.display=\'none\'">' : '<span class="text-3xl">🎁</span>') +
+        '<div class="min-w-0"><div class="text-xs font-black text-emerald-800">✅ FREE item aapke order me add ho gaya</div><div class="text-sm font-black text-gray-900 leading-tight">' + esc(pk.name) + ' <span class="text-emerald-600">— FREE</span></div></div></div>';
+    }
     if (off) off.innerHTML = (usePts ? '<span>Points discount (' + n + ' pts)</span><span>−' + rs(ptsOffer()) + '</span>' : '') + (stampPick ? '<span>Free item</span><span>FREE</span>' : '');
   }
   function chg(i, d) {
@@ -751,6 +762,7 @@
   // Cart is under the stamp card's minimum (any customer, with or without stamps): offer to add more to earn a stamp, or skip. Asked once per cart amount.
   function stampOfferGate() {
     var sub = cartSub(); if (!cart.length || stampOfferAt === sub) return false;
+    if ((stampInfo || stampMine) && (stampInfo || stampMine).available > 0) return false; // a free item is waiting (picked at Pay now): no "add more" popup
     var t = stampOfferTarget(stampInfo || stampBannerSt, sub); if (!t) return false;
     stampOfferAt = sub;
     var c = t.c, n = c.orders_needed, has = c.progress !== undefined ? ' Abhi aapke ' + c.progress + '/' + n + ' stamps hain.' : '';
