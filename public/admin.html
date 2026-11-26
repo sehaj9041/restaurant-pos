@@ -1693,6 +1693,8 @@
               </div>
               <span class="flex-1 text-xs font-black text-gray-800">${esc(g.name)}</span>
               <span class="text-[10px] font-bold ${Number(g.is_mandatory) ? 'text-red-600' : 'text-emerald-700'}">${Number(g.is_mandatory) ? 'MANDATORY' : 'OPTIONAL'} · max ${esc(g.max_selection)}</span>
+              <button type="button" onclick="copyGroupForItem(${idx})" title="Is group ki copy banao jo sirf is item par lage (prices/images alag rakhne ke liye)" class="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2 py-1 rounded">📋 Is item ke liye alag copy</button>
+              <button type="button" onclick="openGroupEditor(${gid})" class="text-[11px] font-bold text-gray-700 bg-gray-100 px-2 py-1 rounded">✏️ Edit</button>
               <button type="button" onclick="removeEditGroup(${idx})" class="text-[11px] font-bold text-red-500 bg-red-50 px-2 py-1 rounded">Remove</button>
             </div>
             <div class="divide-y">
@@ -1719,6 +1721,29 @@
         ? free.map(g => `<option value="${esc(g.id)}">${esc(g.name)}</option>`).join('')
         : '<option value="">Sab groups assigned hain</option>';
     }
+    // Copy a shared add-on group just for this item (own prices / images / options); the original group and other items stay as they are
+    async function copyGroupForItem(idx) {
+      const gid = currentEditGroupIds[idx], g = globalAddonGroups.find(x => Number(x.id) === gid); if (!g) return;
+      const id = document.getElementById('edit_id').value, itemName = document.getElementById('edit_name').value.trim() || 'Item', name = g.name + ' - ' + itemName;
+      try {
+        await api('/api/addon-groups', 'POST', { name, min_selection: g.min_selection, max_selection: g.max_selection, is_mandatory: Number(g.is_mandatory) ? 1 : 0,
+          items: g.source_category ? [] : (editGroupsDraft[gid] || parseJson(g.items, [])), source_category: g.source_category || '' });
+        const list = await api('/api/addon-groups?admin=1');
+        const made = (list || []).find(x => x.name === name && !globalAddonGroups.some(y => Number(y.id) === Number(x.id)));
+        if (!made) throw new Error('Copy ban nahi payi, dobara try karein');
+        globalAddonGroups.push(made);
+        editGroupsDraft[Number(made.id)] = parseJson(made.items, []).map(o => Object.assign({}, o));
+        currentEditGroupIds[idx] = Number(made.id);
+        let varsChanged = false; // sizes that used the old group get the copy too
+        currentEditVariations.forEach(v => { if (Array.isArray(v.addon_groups) && v.addon_groups.map(Number).includes(gid)) { v.addon_groups = v.addon_groups.map(x => Number(x) === gid ? Number(made.id) : x); varsChanged = true; } });
+        const body = { assigned_addon_groups: currentEditGroupIds };
+        if (varsChanged) body.variations = currentEditVariations.map(v => { const c = Object.assign({}, v); delete c.is_default; return c; });
+        await api('/api/menu/' + id, 'PUT', body);
+        renderEditAddonGroups(); if (varsChanged) renderEditVariations();
+        toast('Alag copy ban gayi: ' + name + '. Prices/images badalne ke liye "Edit" dabayein');
+      } catch (err) { toast(err.message, true); }
+    }
+    function openGroupEditor(gid) { closeEditModal(); switchTab('addons'); editGroup(gid); }
     function moveEditGroup(idx, dir) { moveInList(currentEditGroupIds, idx, dir); renderEditAddonGroups(); }
     function removeEditGroup(idx) { currentEditGroupIds.splice(idx, 1); renderEditAddonGroups(); }
     function addGroupToItem() {
