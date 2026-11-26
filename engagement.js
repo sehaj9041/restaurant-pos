@@ -186,7 +186,9 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
     }
     stamps += await stampBonus(phone, card);
     const earned = Math.floor(stamps / S.orders_needed);
-    return Object.assign(base, { stamps, progress: stamps % S.orders_needed, earned, used, available: Math.max(0, earned - used) });
+    const available = Math.max(0, earned - used), rest = stamps % S.orders_needed;
+    // a finished card whose free item is not taken yet shows full (5 / 5) instead of wrapping to 0 / 5
+    return Object.assign(base, { stamps, progress: rest === 0 && available > 0 ? S.orders_needed : rest, earned, used, available });
   }
 
   // What the ordering screens read: card 1's numbers, but available / free_items / redeem_min cover whichever cards have a free item waiting; card 2's own progress is in `premium`.
