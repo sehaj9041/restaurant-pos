@@ -392,6 +392,7 @@
   }
   function openCart() {
     if (!cart.length) return closeSheet();
+    if (stampShortGate() || stampOfferGate()) return;
     var list = suggestions();
     if (!list.length) return cartSheet();
     list.forEach(function (t) { suggestShown[t.id] = true; });
@@ -507,15 +508,19 @@
     if (!stampInfo || !p || !phone || phone !== p.phone || !cart.length) return [];
     return Math.round(cartSub() * 1.05) >= (Number(stampInfo.redeem_min) || 0) ? (stampInfo.free_items || []) : [];
   }
-  function pickStamp() { stampPick = Number($('stampSel').value) || 0; renderPts(); }
+  function pickStamp(id) { stampPick = stampPick === id ? 0 : id; renderPts(); }
   function renderPts() {
     var box = $('ptsBox'), off = $('ptsOff'); if (!box) return;
     var n = maxPts(); if (!n) usePts = false;
     var sItems = stampItems(); if (stampPick && !sItems.some(function (i) { return i.id === stampPick; })) stampPick = 0;
     box.innerHTML = n ? '<label class="flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 cursor-pointer"><input type="checkbox" id="usePts" onchange="togglePts()" class="w-4 h-4 accent-amber-500"' + (usePts ? ' checked' : '') + '><span class="text-xs font-black text-amber-900">⭐ ' + n + ' points use karein (−' + rs(ptsOffer()) + ', Pay now par lagega) • aapke paas ' + ptsInfo.balance + '</span></label>' : '';
     if (stampInfo) box.innerHTML += '<div class="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5' + (n ? ' mt-2' : '') + '"><div class="text-xs font-black text-emerald-900 mb-1.5">🍽 Stamp card: apna FREE item chunein (Pay now par lagega)</div>' +
-      (sItems.length ? '<select id="stampSel" onchange="pickStamp()" class="w-full border border-emerald-200 rounded-lg px-2 py-2 text-xs font-bold bg-white"><option value="">— Free item nahi lena —</option>' + sItems.map(function (i) { return '<option value="' + i.id + '"' + (stampPick === i.id ? ' selected' : '') + '>' + esc(i.name) + ' (' + rs(i.price) + ')</option>'; }).join('') + '</select>' +
-        '<div class="text-[11px] font-bold text-emerald-700 mt-1">' + (stampPick ? '✅ Ye item aapke order me FREE judega' : 'Upar se apna free item chunein') + '</div>'
+      (sItems.length ? '<div id="stampSel" class="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto p-0.5">' + sItems.map(function (i) {
+        var on = stampPick === i.id;
+        return '<button type="button" onclick="pickStamp(' + i.id + ')" class="relative rounded-xl border bg-white p-2 text-center ' + (on ? 'border-emerald-600 ring-2 ring-emerald-500' : 'border-gray-200') + '">' + (on ? '<span class="absolute top-1 right-1 text-sm">✅</span>' : '') +
+          '<div class="h-16 flex items-center justify-center">' + (i.image ? '<img src="' + esc(imgSrc(i.image)) + '" class="max-h-full max-w-full object-contain" onerror="this.style.display=\'none\'">' : '<span class="text-3xl">🍽</span>') + '</div><div class="font-bold text-[11px] leading-tight mt-1 text-gray-800">' + esc(i.name) + '</div><div class="font-black text-emerald-600 text-xs mt-0.5">FREE</div></button>';
+      }).join('') + '</div>' +
+        '<div class="text-[11px] font-bold text-emerald-700 mt-1">' + (stampPick ? '✅ Ye item aapke order me FREE judega (dobara dabane se hat jayega)' : 'Apna free item chunein (ek item par tap karein)') + '</div>'
         : '<div class="text-[11px] font-bold text-emerald-700">Free item ' + (Number(stampInfo.redeem_min) > 0 ? rs(stampInfo.redeem_min) + ' ya zyada ke order par' : 'abhi') + ' milega (cart me aur item add karein)</div>') + '</div>';
     if (off) off.innerHTML = (usePts ? '<span>Points discount (' + n + ' pts)</span><span>−' + rs(ptsOffer()) + '</span>' : '') + (stampPick ? '<span>Free item</span><span>FREE</span>' : '');
   }
@@ -722,13 +727,50 @@
     return '<div class="mt-2 text-[10px] font-black text-emerald-900">🎁 Inme se ek FREE milega:</div><div class="mt-1 flex gap-2 pb-0.5" style="overflow-x:auto;scrollbar-width:none">' + l.map(function (i) {
       return '<div class="shrink-0 w-16 text-center"><div class="w-16 h-16 rounded-xl bg-white border border-emerald-200 overflow-hidden flex items-center justify-center">' + (i.image ? '<img src="' + esc(imgSrc(i.image)) + '" class="w-full h-full object-cover" onerror="this.outerHTML=\'<span class=&quot;text-xl&quot;>🍽</span>\'">' : '<span class="text-xl">🍽</span>') + '</div><div class="text-[10px] font-bold leading-tight mt-0.5 text-emerald-900">' + esc(i.name) + '</div></div>'; }).join('') + '</div>';
   }
+  // Free item waiting but the cart is under the owner's minimum: before checkout, show the free items and how much more to add
+  var stampMine = null, stampBannerSt = null, stampShortAt = -1, stampOfferAt = -1; // stampMine = stamp status of the logged-in phone while a free item is waiting
+  function stampShortGate() {
+    var st = stampInfo || stampMine; if (!st || !(st.available > 0) || !cart.length) return false;
+    var minR = Number(st.redeem_min) || 0, sub = cartSub(), fl = st.free_items || [];
+    if (!(minR > 0 && Math.round(sub * 1.05) < minR) || !fl.length || stampShortAt === sub) return false;
+    stampOfferAt = sub; // no second popup for the same cart
+    var c = st.premium && st.premium.available > 0 ? st.premium : (st.normal || st), more = Math.max(1, Math.ceil(minR / 1.05 - sub));
+    openSheet('<div class="text-center"><div class="text-4xl">🎁</div><div class="font-black text-base mt-1">' + rs(more) + ' aur add karein, FREE item paayein!</div><div class="text-[12px] font-bold text-gray-600 mt-1">Aapne ' + c.orders_needed + ' stamps collect kar liye hain. ' + rs(more) + ' ka aur order karein to inme se koi ek item FREE le sakte hain.</div></div>' +
+      '<div class="grid grid-cols-3 gap-2 mt-3 max-h-[45vh] overflow-y-auto">' + fl.map(function (i) {
+        return '<div class="rounded-xl border border-gray-200 p-2 text-center"><div class="h-16 flex items-center justify-center">' + (i.image ? '<img src="' + esc(imgSrc(i.image)) + '" class="max-h-full max-w-full object-contain" onerror="this.style.display=\'none\'">' : '<span class="text-3xl">🍽</span>') + '</div><div class="font-bold text-[11px] leading-tight mt-1">' + esc(i.name) + '</div><div class="font-black text-emerald-600 text-xs mt-0.5">FREE</div></div>';
+      }).join('') + '</div>' +
+      '<div class="flex gap-2 mt-3"><button onclick="stampShortGo(false)" class="w-[38%] border border-gray-300 text-gray-700 font-bold py-2.5 rounded-xl text-sm">Skip</button><button onclick="stampShortGo(true)" class="flex-1 bg-emerald-600 text-white font-black py-2.5 rounded-xl text-sm">Order More</button></div>');
+    return true;
+  }
+  function stampOfferTarget(st, sub) {
+    if (!st) return null;
+    var tx = Math.round(sub * 1.05), n = st.normal || st, p = st.premium && st.premium.enabled ? st.premium : null;
+    var c = Number(n.min_order) > 0 && tx < Number(n.min_order) ? n : (p && Number(p.min_order) > 0 && tx < Number(p.min_order) ? p : null);
+    return c ? { c: c, prem: c === p, more: Math.max(1, Math.ceil(Number(c.min_order) / 1.05 - sub)) } : null;
+  }
+  // Cart is under the stamp card's minimum (any customer, with or without stamps): offer to add more to earn a stamp, or skip. Asked once per cart amount.
+  function stampOfferGate() {
+    var sub = cartSub(); if (!cart.length || stampOfferAt === sub) return false;
+    var t = stampOfferTarget(stampInfo || stampBannerSt, sub); if (!t) return false;
+    stampOfferAt = sub;
+    var c = t.c, n = c.orders_needed, has = c.progress !== undefined ? ' Abhi aapke ' + c.progress + '/' + n + ' stamps hain.' : '';
+    openSheet('<div class="text-center"><div class="text-4xl">🎁</div><div class="font-black text-base mt-1">' + rs(t.more) + ' aur add karein, ' + (t.prem ? 'PREMIUM ' : '') + 'stamp paayein!</div><div class="text-[12px] font-bold text-gray-600 mt-1">' + rs(c.min_order) + ' ya zyada ke order par 1 stamp milta hai. ' + n + ' stamps = 1 FREE item.' + has + '</div></div>' +
+      '<div class="grid grid-cols-3 gap-2 mt-3 max-h-[45vh] overflow-y-auto">' + (c.free_items || []).map(function (i) {
+        return '<div class="rounded-xl border border-gray-200 p-2 text-center"><div class="h-16 flex items-center justify-center">' + (i.image ? '<img src="' + esc(imgSrc(i.image)) + '" class="max-h-full max-w-full object-contain" onerror="this.style.display=\'none\'">' : '<span class="text-3xl">🍽</span>') + '</div><div class="font-bold text-[11px] leading-tight mt-1">' + esc(i.name) + '</div><div class="font-black text-emerald-600 text-xs mt-0.5">FREE</div></div>';
+      }).join('') + '</div>' +
+      '<div class="flex gap-2 mt-3"><button onclick="stampShortGo(false)" class="w-[38%] border border-gray-300 text-gray-700 font-bold py-2.5 rounded-xl text-sm">Skip</button><button onclick="stampShortGo(true)" class="flex-1 bg-emerald-600 text-white font-black py-2.5 rounded-xl text-sm">Order More</button></div>');
+    return true;
+  }
+  function stampShortGo(more) { var sub = cartSub(); closeSheet(); if (!more) { stampShortAt = sub; openCart(); } }
   // Stamp banner on the menu page: progress + free items (public status of this device's phone, or the plain offer)
   async function loadStampBanner() {
     try {
       var p = profile(), st = null;
       if (p && p.token) { var d = await fetch('/api/loyalty/my', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: p.phone, token: p.token }) }).then(jsonOrThrow); if (d && d.stamp && d.stamp.enabled) st = d.stamp; }
+      stampMine = st && st.available > 0 ? st : null;
       if (!st) { var g = await fetch('/api/loyalty-info').then(jsonOrThrow); if (g && g.stamp && g.stamp.enabled) st = g.stamp; }
       if (!st) return;
+      stampBannerSt = st;
       $('stampBanner').innerHTML = stampProgHtml(st, cartSub()); $('stampBanner').classList.remove('hidden');
     } catch (e) {}
   }

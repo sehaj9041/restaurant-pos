@@ -239,6 +239,18 @@
       </div>
     </div>
 
+    <!-- ============ FREE ITEM: bill too small ============ -->
+    <div id="stampShortModal" class="hidden screen z-[49] kiosk-bg flex flex-col items-center px-6 text-center">
+      <div class="text-5xl mt-8">&#127873;</div>
+      <h3 id="stampShortTitle" class="text-2xl font-black leading-tight mt-2"></h3>
+      <p id="stampShortInfo" class="text-base font-bold mt-2 max-w-[340px]"></p>
+      <div id="stampShortGrid" class="w-full max-w-[340px] mt-3 grid grid-cols-3 gap-2 content-start overflow-y-auto min-h-0 flex-1"></div>
+      <div class="w-full max-w-[340px] flex gap-3 py-4 shrink-0">
+        <button onclick="stampShortContinue(false)" class="btn-outline w-[40%] py-3.5 text-base">Skip</button>
+        <button onclick="stampShortContinue(true)" class="btn-yellow flex-1 py-3.5 text-base">Order More</button>
+      </div>
+    </div>
+
     <!-- ============ LOYALTY POINTS ============ -->
     <div id="pointsModal" class="hidden screen z-[49] kiosk-bg flex flex-col items-center justify-center px-8 text-center">
       <div class="text-6xl">&#11088;</div>
@@ -1250,12 +1262,54 @@
       }
       renderPointsFields();
     }
+    // Free items as menu-style tiles, 3 per row, each marked FREE (pick = tappable, picked one gets a ring)
+    function stampTilesHtml(items, pick) {
+      return items.map(i => '<' + (pick ? 'button onclick="pickStamp(' + i.id + ')"' : 'div') + ' class="tile p-2 flex flex-col items-center text-center relative ' + (pick && stampPick === i.id ? 'ring-4 ring-[#d9531e]' : '') + '">' +
+        (pick && stampPick === i.id ? '<span class="absolute top-1 right-1 z-10 text-base">&#9989;</span>' : '') +
+        '<div class="h-16 w-full flex items-center justify-center">' + (i.image ? '<img src="' + resolveImgPath(i.image) + '" class="max-h-full max-w-full object-contain" onerror="this.replaceWith(Object.assign(document.createElement(\'span\'),{className:\'text-4xl\',textContent:\'\\u{1F37D}\'}))">' : '<span class="text-4xl">&#127869;</span>') + '</div>' +
+        '<h3 class="font-bold text-[11px] leading-tight mt-1.5 break-words">' + i.name.replace(/</g, '&lt;') + '</h3><span class="font-black text-[12px] text-emerald-600 mt-auto pt-1">FREE</span></' + (pick ? 'button' : 'div') + '>').join('');
+    }
     function renderStampPicker() {
       const box = $('stampPicker'), st = kioskStamp;
       const items = st && st.available > 0 && Math.round(traySubtotal() * 1.05) >= (Number(st.redeem_min) || 0) ? (st.free_items || []) : [];
       box.classList.toggle('hidden', !items.length);
-      box.innerHTML = items.length ? '<p class="text-center text-sm font-black">&#127873; Pick your FREE item (tap again to remove)</p>' + items.map(i =>
-        '<button onclick="pickStamp(' + i.id + ')" class="tile w-full py-2.5 px-3 text-base font-black flex items-center justify-between ' + (stampPick === i.id ? 'ring-4 ring-[#d9531e]' : '') + '"><span class="flex items-center gap-3">' + (i.image ? '<img src="' + resolveImgPath(i.image) + '" class="w-12 h-12 rounded-lg object-cover" onerror="this.remove()">' : '') + '<span>' + (stampPick === i.id ? '&#9989; ' : '') + i.name.replace(/</g, '&lt;') + '</span></span><span class="opacity-60">' + money(i.price) + '</span></button>').join('') : '';
+      box.innerHTML = items.length ? '<p class="text-center text-sm font-black">&#127873; Pick your FREE item (tap again to remove)</p><div class="grid grid-cols-3 gap-2 mt-2 max-h-[300px] overflow-y-auto p-0.5">' + stampTilesHtml(items, true) + '</div>' : '';
+    }
+    // Customer has a free item waiting but this bill is under the minimum: show what they could get, and how much more to add
+    let stampShortNext = null, stampOfferAt = -1;
+    // Bill is under the stamp card's minimum (any customer, with or without stamps): offer to add more to earn a stamp, or skip. Asked once per bill amount.
+    function stampOfferTarget(st, sub) {
+      if (!st) return null;
+      var tx = Math.round(sub * 1.05), n = st.normal || st, p = st.premium && st.premium.enabled ? st.premium : null;
+      var c = Number(n.min_order) > 0 && tx < Number(n.min_order) ? n : (p && Number(p.min_order) > 0 && tx < Number(p.min_order) ? p : null);
+      return c ? { c: c, prem: c === p, more: Math.max(1, Math.ceil(Number(c.min_order) / 1.05 - sub)) } : null;
+    }
+    function stampOfferGate(next) {
+      const sub = traySubtotal(); if (!kioskTray.length || stampOfferAt === sub) return false;
+      const t = stampOfferTarget(kioskStamp || stampOffer, sub); if (!t) return false;
+      stampOfferAt = sub;
+      const c = t.c, n = c.orders_needed, has = c.progress !== undefined ? ' You have ' + c.progress + ' / ' + n + ' stamps.' : '';
+      $('stampShortTitle').innerHTML = 'Add ' + money(t.more) + ' more<br>to earn a ' + (t.prem ? 'PREMIUM ' : '') + 'STAMP!';
+      $('stampShortInfo').innerText = 'Orders of ' + money(c.min_order) + ' or more earn a stamp. Collect ' + n + ' stamps = 1 FREE item.' + has;
+      $('stampShortGrid').innerHTML = stampTilesHtml(c.free_items || [], false);
+      stampShortNext = next;
+      $('stampShortModal').classList.remove('hidden');
+      return true;
+    }
+    function showStampShort(st, next) {
+      const c = st.premium && st.premium.available > 0 ? st.premium : (st.normal || st), minR = Number(st.redeem_min) || 0;
+      const more = Math.max(1, Math.ceil(minR / 1.05 - traySubtotal()));
+      stampOfferAt = traySubtotal(); // no second popup for the same bill
+      $('stampShortTitle').innerHTML = 'Add ' + money(more) + ' more<br>to get a FREE item!';
+      $('stampShortInfo').innerText = 'You collected ' + c.orders_needed + ' stamps. Order ' + money(more) + ' more and pick any ONE of these items FREE.';
+      $('stampShortGrid').innerHTML = stampTilesHtml(st.free_items || [], false);
+      stampShortNext = next;
+      $('stampShortModal').classList.remove('hidden');
+    }
+    function stampShortContinue(orderMore) {
+      $('stampShortModal').classList.add('hidden');
+      const next = stampShortNext; stampShortNext = null;
+      if (!orderMore && next) next();
     }
     function pickStamp(id) { stampPick = stampPick === id ? 0 : id; $('pointsErr').innerText = ''; renderStampPicker(); renderPointsFields(); }
     function openPointsStep() {
@@ -1273,18 +1327,23 @@
           if (points >= Number(d.min_redeem) && points > 0) pointsOffer = { points, value: Math.round(points * Number(d.point_value) * 100) / 100, balance: Number(d.balance), min: Number(d.min_redeem), perPoint: Number(d.point_value) };
         }
         const hasStamp = !!(kioskStamp && kioskStamp.available > 0 && (kioskStamp.free_items || []).length && Math.round(traySubtotal() * 1.05) >= (Number(kioskStamp.redeem_min) || 0));
-        if (!pointsOffer && !hasStamp) return openPaymentChoice();
-        $('pointsAmountWrap').classList.toggle('hidden', !pointsOffer);
-        $('pointsTitle').innerHTML = pointsOffer && hasStamp ? 'Use your points<br>and free item?' : (pointsOffer ? 'Use your<br>loyalty points?' : 'Use your<br>FREE item?');
-        let info = '';
-        if (pointsOffer) { pointsAmount = String(pointsOffer.points); info += 'You have <b>' + pointsOffer.balance + ' points</b> (1 point = ' + money(pointsOffer.perPoint) + ').<br>You can use <b>' + pointsOffer.min + '&ndash;' + pointsOffer.points + ' points</b> on this order.'; }
-        if (hasStamp) info += (info ? '<br>' : '') + '&#127869; You earned a <b>free item</b> with your stamp card!';
-        $('pointsInfo').innerHTML = info;
-        pointsField = 'code'; pointsFresh = false;
-        $('pointsErr').innerText = '';
-        renderStampPicker();
-        renderPointsFields();
-        $('pointsModal').classList.remove('hidden');
+        const proceed = () => {
+          if (!pointsOffer && !hasStamp) return openPaymentChoice();
+          $('pointsAmountWrap').classList.toggle('hidden', !pointsOffer);
+          $('pointsTitle').innerHTML = pointsOffer && hasStamp ? 'Use your points<br>and free item?' : (pointsOffer ? 'Use your<br>loyalty points?' : 'Use your<br>FREE item?');
+          let info = '';
+          if (pointsOffer) { pointsAmount = String(pointsOffer.points); info += 'You have <b>' + pointsOffer.balance + ' points</b> (1 point = ' + money(pointsOffer.perPoint) + ').<br>You can use <b>' + pointsOffer.min + '&ndash;' + pointsOffer.points + ' points</b> on this order.'; }
+          if (hasStamp) info += (info ? '<br>' : '') + '&#127869; You earned a <b>free item</b> with your stamp card!';
+          $('pointsInfo').innerHTML = info;
+          pointsField = 'code'; pointsFresh = false;
+          $('pointsErr').innerText = '';
+          renderStampPicker();
+          renderPointsFields();
+          $('pointsModal').classList.remove('hidden');
+        };
+        const tooSmall = !!(kioskStamp && kioskStamp.available > 0 && (kioskStamp.free_items || []).length && !hasStamp);
+        if (tooSmall) return showStampShort(kioskStamp, proceed);
+        proceed();
       }).catch(() => openPaymentChoice());
     }
     function skipPoints() { kioskPromo = null; $('pointsModal').classList.add('hidden'); openPaymentChoice(); }
@@ -1364,6 +1423,7 @@
 
     function openPaymentChoice() {
       if (!kioskTray.length) return;
+      if (stampOfferGate(openPaymentChoice)) return;
       renderPayProgress();
       const note = $('payTotalNote');
       note.classList.toggle('hidden', !kioskPromo);

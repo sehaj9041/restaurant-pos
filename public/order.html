@@ -53,6 +53,18 @@
       </div>
       <button id="viewMenuBtn" onclick="viewMenuOnly()" class="hidden w-full bg-indigo-600 text-white font-black py-3.5 rounded-2xl text-sm shadow-sm">📖 View Menu</button>
       <button id="landingOrdersBtn" onclick="openOrders()" class="hidden w-full border border-gray-300 bg-white text-gray-700 font-black py-3 rounded-2xl text-sm">📦 My Orders &amp; Tracking</button>
+      <button id="landingLoginBtn" onclick="openLandingLogin()" class="hidden w-full border border-emerald-300 bg-emerald-50 text-emerald-800 font-black py-3 rounded-2xl text-sm">🔐 Login (stamps, points &amp; offers dekhein)</button>
+    </div>
+  </div>
+
+  <!-- ================= LANDING LOGIN (WhatsApp OTP) ================= -->
+  <div id="landingLoginModal" class="hidden fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4" onclick="if(event.target===this)closeLandingLogin()">
+    <div class="bg-white rounded-2xl p-5 max-w-sm w-full shadow-2xl space-y-3">
+      <div class="flex justify-between items-start"><div><h3 class="font-black text-gray-900 text-base">Login</h3><p class="text-[11px] font-semibold text-gray-500">Aapke WhatsApp par OTP aayega. Login ke baad stamps, points aur free item yahin dikhenge.</p></div><button onclick="closeLandingLogin()" class="text-gray-400 text-xl font-black px-2">✕</button></div>
+      <input id="llPhone" type="tel" inputmode="numeric" maxlength="10" placeholder="10 digit mobile number" class="w-full border border-gray-200 p-3 rounded-xl text-sm outline-none focus:border-indigo-500">
+      <button type="button" id="llSendBtn" onclick="llSendOtp()" class="w-full bg-emerald-600 text-white font-black py-2.5 rounded-xl text-xs">WhatsApp par OTP bhejein</button>
+      <div id="llOtpStep" class="hidden flex gap-2"><input id="llCode" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6 digit OTP" class="flex-1 border border-gray-200 p-2.5 rounded-xl text-sm outline-none focus:border-indigo-500">
+        <button type="button" onclick="llVerifyOtp()" class="bg-amber-500 text-white font-black px-4 rounded-xl text-xs">Verify</button></div>
     </div>
   </div>
 
@@ -197,7 +209,7 @@
       <div id="cStampProg" class="hidden"></div>
       <div id="cStampBox" class="hidden bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5 space-y-1.5">
         <div class="text-xs font-black text-emerald-900">🍽 Stamp card: apna FREE item chunein</div>
-        <select id="cStampSel" onchange="pickStamp()" class="w-full border border-emerald-200 rounded-lg px-2 py-2 text-xs font-bold bg-white"></select>
+        <div id="cStampSel" class="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto p-0.5"></div>
         <div id="cStampNote" class="text-[11px] font-bold text-emerald-700"></div>
       </div>
       <div class="pt-3 border-t flex justify-between items-center">
@@ -351,6 +363,17 @@
       <h3 class="font-black text-gray-900 text-center text-base shrink-0">Can we suggest?</h3>
       <div id="onlineSuggestContent" class="grid grid-cols-2 gap-2 overflow-y-auto min-h-0 text-xs"></div>
       <button onclick="closeOnlineSuggest()" class="shrink-0 w-full border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold py-2.5 rounded-xl text-sm">Not Today</button>
+    </div>
+  </div>
+
+  <div id="stampShortModal" class="hidden fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-5 max-w-sm w-full shadow-2xl space-y-3 max-h-[85vh] flex flex-col">
+      <div class="shrink-0 text-center"><div class="text-4xl">🎁</div><h3 id="stampShortTitle" class="font-black text-gray-900 text-base mt-1"></h3><p id="stampShortInfo" class="text-xs font-bold text-gray-600 mt-1"></p></div>
+      <div id="stampShortGrid" class="grid grid-cols-3 gap-2 overflow-y-auto min-h-0 text-xs"></div>
+      <div class="shrink-0 flex gap-2">
+        <button onclick="stampShortGo(false)" class="w-[38%] border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold py-2.5 rounded-xl text-sm">Skip</button>
+        <button onclick="stampShortGo(true)" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black py-2.5 rounded-xl text-sm">Order More</button>
+      </div>
     </div>
   </div>
 
@@ -579,6 +602,7 @@
       const p = getProfile();
       document.getElementById('profileBtn').classList.toggle('hidden', !p);
       document.getElementById('landingOrdersBtn').classList.toggle('hidden', !p);
+      document.getElementById('landingLoginBtn').classList.toggle('hidden', !!(p && p.token)); // login from the home page, before choosing Delivery / Takeaway
       const hello = document.getElementById('landingHello');
       hello.classList.toggle('hidden', !p);
       if (p) hello.innerText = `Namaste${p.name ? ', ' + p.name : ''} 👋`;
@@ -1188,7 +1212,7 @@
     function togglePoints() { usePts = document.getElementById('cUsePts').checked; updateCartUI(); }
     // Stamp card reward: free items the customer may pick (bill must reach the owner's minimum); the server adds the free line and re-checks
     function stampItems() { return stampCk && Math.round(cartSubtotal() * 1.05) >= (Number(stampCk.redeem_min) || 0) ? (stampCk.free_items || []) : []; }
-    function pickStamp() { stampPick = Number(document.getElementById('cStampSel').value) || 0; updateCartUI(); }
+    function pickStamp(id) { stampPick = stampPick === id ? 0 : id; updateCartUI(); }
     // Server order: discount comes off the subtotal (incl. delivery) and GST is charged on what is left of the taxable part
     function ckTotals() {
       const sub = cartSubtotal() + chargeNow(), pts = usePts ? maxPoints() : 0;
@@ -1214,8 +1238,8 @@
       if (stampCk) {
         const sel = document.getElementById('cStampSel');
         sel.classList.toggle('hidden', !sItems.length);
-        sel.innerHTML = '<option value="">— Free item nahi lena —</option>' + sItems.map(i => `<option value="${i.id}"${stampPick === i.id ? ' selected' : ''}>${esc(i.name)} (₹${i.price})</option>`).join('');
-        document.getElementById('cStampNote').textContent = !sItems.length ? `Free item ${Number(stampCk.redeem_min) > 0 ? '₹' + stampCk.redeem_min + ' ya zyada ke order par' : 'abhi'} milega (cart me aur item add karein)` : (stampPick ? '✅ Ye item aapke order me FREE judega' : 'Upar se apna free item chunein');
+        sel.innerHTML = sItems.map(i => `<button type="button" onclick="pickStamp(${i.id})" class="relative rounded-xl border bg-white p-2 text-center ${stampPick === i.id ? 'border-emerald-600 ring-2 ring-emerald-500' : 'border-gray-200'}">${stampPick === i.id ? '<span class="absolute top-1 right-1 text-sm">✅</span>' : ''}<div class="h-16 flex items-center justify-center">${i.image ? `<img src="${esc(imgSrc(i.image))}" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">` : '<span class="text-3xl">🍽</span>'}</div><div class="font-bold text-[11px] leading-tight mt-1 text-gray-800">${esc(i.name)}</div><div class="font-black text-emerald-600 text-xs mt-0.5">FREE</div></button>`).join('');
+        document.getElementById('cStampNote').textContent = !sItems.length ? `Free item ${Number(stampCk.redeem_min) > 0 ? '₹' + stampCk.redeem_min + ' ya zyada ke order par' : 'abhi'} milega (cart me aur item add karein)` : (stampPick ? '✅ Ye item aapke order me FREE judega (dobara dabane se hat jayega)' : 'Apna free item chunein (ek item par tap karein)');
       }
       ['c', 'a'].forEach(k => {
         document.getElementById(k + 'PtsRow').classList.toggle('hidden', !T.off);
@@ -1301,8 +1325,46 @@
         .filter(t => t && isShown(t) && !isSoldOut(t) && !inCart.has(t.id) && !onlineSuggestShown.has(t.id));
     }
 
+    // Free item waiting but the cart is under the owner's minimum: before checkout, show the free items and how much more to add
+    let stampShortAt = -1, stampOfferAt = -1;
+    function stampOfferTarget(st, sub) {
+      if (!st) return null;
+      var tx = Math.round(sub * 1.05), n = st.normal || st, p = st.premium && st.premium.enabled ? st.premium : null;
+      var c = Number(n.min_order) > 0 && tx < Number(n.min_order) ? n : (p && Number(p.min_order) > 0 && tx < Number(p.min_order) ? p : null);
+      return c ? { c: c, prem: c === p, more: Math.max(1, Math.ceil(Number(c.min_order) / 1.05 - sub)) } : null;
+    }
+    // Cart is under the stamp card's minimum (any customer, with or without stamps): offer to add more to earn a stamp, or skip. Asked once per cart amount.
+    function stampOfferGate() {
+      const sub = cartSubtotal(); if (!cart.length || stampOfferAt === sub) return false;
+      const t = stampOfferTarget(stampSt || stampGen, sub); if (!t) return false;
+      stampOfferAt = sub;
+      const c = t.c, n = c.orders_needed, has = c.progress !== undefined ? ` Abhi aapke ${c.progress}/${n} stamps hain.` : '';
+      document.getElementById('stampShortTitle').textContent = `₹${t.more} aur add karein, ${t.prem ? 'PREMIUM ' : ''}stamp paayein!`;
+      document.getElementById('stampShortInfo').textContent = `₹${c.min_order} ya zyada ke order par 1 stamp milta hai. ${n} stamps = 1 FREE item.${has}`;
+      document.getElementById('stampShortGrid').innerHTML = (c.free_items || []).map(i => `<div class="rounded-xl border border-gray-200 p-2 text-center"><div class="h-16 flex items-center justify-center">${i.image ? `<img src="${esc(imgSrc(i.image))}" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">` : '<span class="text-3xl">🍽</span>'}</div><div class="font-bold text-[11px] leading-tight mt-1">${esc(i.name)}</div><div class="font-black text-emerald-600 text-xs mt-0.5">FREE</div></div>`).join('');
+      document.getElementById('stampShortModal').classList.remove('hidden');
+      return true;
+    }
+    function stampShortGate() {
+      const st = stampCk; if (!st || !(st.available > 0) || !cart.length) return false;
+      const minR = Number(st.redeem_min) || 0, sub = cartSubtotal(), fl = st.free_items || [];
+      if (!(minR > 0 && Math.round(sub * 1.05) < minR) || !fl.length || stampShortAt === sub) return false;
+      stampOfferAt = sub; // no second popup for the same cart
+      const c = st.premium && st.premium.available > 0 ? st.premium : (st.normal || st), more = Math.max(1, Math.ceil(minR / 1.05 - sub));
+      document.getElementById('stampShortTitle').textContent = `₹${more} aur add karein, FREE item paayein!`;
+      document.getElementById('stampShortInfo').textContent = `Aapne ${c.orders_needed} stamps collect kar liye hain. ₹${more} ka aur order karein to inme se koi ek item FREE le sakte hain.`;
+      document.getElementById('stampShortGrid').innerHTML = fl.map(i => `<div class="rounded-xl border border-gray-200 p-2 text-center"><div class="h-16 flex items-center justify-center">${i.image ? `<img src="${esc(imgSrc(i.image))}" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">` : '<span class="text-3xl">🍽</span>'}</div><div class="font-bold text-[11px] leading-tight mt-1">${esc(i.name)}</div><div class="font-black text-emerald-600 text-xs mt-0.5">FREE</div></div>`).join('');
+      document.getElementById('stampShortModal').classList.remove('hidden');
+      return true;
+    }
+    function stampShortGo(more) {
+      document.getElementById('stampShortModal').classList.add('hidden');
+      if (!more) { stampShortAt = cartSubtotal(); openCheckout(); }
+    }
+
     function openCheckout() {
       if (!cart.length) return;
+      if (stampShortGate() || stampOfferGate()) return;
       const list = onlineSuggestions();
       if (!list.length) return openCheckoutPage();
       document.getElementById('onlineSuggestContent').innerHTML = list.map(t => {
@@ -1500,6 +1562,44 @@
       if (ok) { document.getElementById('cPhone').value = prof.phone; document.getElementById('ckVerifiedNum').textContent = '+91 ' + prof.phone; }
       else { resetCkOtp(); loyCk = null; usePts = false; }
     }
+    // ---- login from the landing page (same WhatsApp OTP as checkout; the profile is saved in this browser) ----
+    let llTimer = null;
+    function openLandingLogin() {
+      const p = getProfile();
+      document.getElementById('llPhone').value = p && p.phone ? p.phone : '';
+      document.getElementById('llCode').value = '';
+      document.getElementById('llOtpStep').classList.add('hidden');
+      const b = document.getElementById('llSendBtn'); clearInterval(llTimer); b.disabled = false; b.textContent = 'WhatsApp par OTP bhejein';
+      document.getElementById('landingLoginModal').classList.remove('hidden');
+    }
+    function closeLandingLogin() { document.getElementById('landingLoginModal').classList.add('hidden'); }
+    function llSendOtp() {
+      const phone = document.getElementById('llPhone').value.trim(), btn = document.getElementById('llSendBtn');
+      if (btn.disabled) return;
+      if (!/^[6-9]\d{9}$/.test(phone)) { toast('Sahi 10-digit mobile number daalein', true); return; }
+      btn.disabled = true; btn.textContent = 'Bhej rahe hain...';
+      fetch('/api/otp/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone }) })
+        .then(r => r.json().then(d => ({ ok: r.ok, d }))).then(x => {
+          if (!x.ok) { toast(x.d.error || 'OTP nahi gaya', true); btn.disabled = false; btn.textContent = 'WhatsApp par OTP bhejein'; return; }
+          document.getElementById('llOtpStep').classList.remove('hidden');
+          document.getElementById('llCode').focus();
+          let left = x.d.resend_in || 60; clearInterval(llTimer);
+          const tick = () => { btn.textContent = left > 0 ? 'OTP dobara bhejein (' + left + 's)' : 'OTP dobara bhejein'; btn.disabled = left > 0; };
+          tick(); llTimer = setInterval(() => { left--; tick(); if (left <= 0) clearInterval(llTimer); }, 1000);
+          toast('OTP WhatsApp par bhej diya');
+        }).catch(() => { toast('Network error', true); btn.disabled = false; btn.textContent = 'WhatsApp par OTP bhejein'; });
+    }
+    function llVerifyOtp() {
+      const phone = document.getElementById('llPhone').value.trim(), code = document.getElementById('llCode').value.trim();
+      if (code.length !== 6) { toast('6 digit OTP likhein', true); return; }
+      fetch('/api/otp/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, code }) })
+        .then(r => r.json().then(d => ({ ok: r.ok, d }))).then(x => {
+          if (!x.ok) { toast(x.d.error || 'Verify nahi hua', true); return; }
+          const old = getProfile();
+          saveProfile({ name: x.d.name || (old && old.phone === x.d.phone ? old.name : '') || '', phone: x.d.phone, token: x.d.token });
+          clearInterval(llTimer); closeLandingLogin(); refreshProfileUI(); loadCkLoyalty(); if (!document.getElementById('profilePage').classList.contains('hidden')) renderProfile(); toast('Login ho gaya ✓');
+        }).catch(() => toast('Network error', true));
+    }
     function ckSendOtp() {
       const phone = document.getElementById('cPhone').value.trim(), btn = document.getElementById('ckOtpBtn');
       if (btn.disabled) return;
@@ -1693,9 +1793,10 @@
       if (!p) {
         body.innerHTML = `<div class="bg-white border rounded-2xl p-6 text-center space-y-2">
           <div class="w-16 h-16 mx-auto rounded-full bg-gray-200 text-gray-500 flex items-center justify-center text-3xl">👤</div>
-          <div class="font-black text-gray-900">No profile yet</div>
-          <div class="text-xs text-gray-500 font-semibold">Aapka profile pehla order karte hi ban jayega.</div>
-          <button onclick="navTab('menu')" class="mt-2 bg-indigo-600 text-white font-black px-5 py-2.5 rounded-xl text-xs">Browse Menu</button></div>`;
+          <div class="font-black text-gray-900">Aap login nahi hain</div>
+          <div class="text-xs text-gray-500 font-semibold">Login karke apne stamps, points, free item aur orders dekhein. Naye customer ka profile pehla order karte hi ban jayega.</div>
+          <button onclick="openLandingLogin()" class="mt-2 bg-emerald-600 text-white font-black px-5 py-2.5 rounded-xl text-xs">🔐 Login (WhatsApp OTP)</button>
+          <button onclick="navTab('menu')" class="mt-2 ml-2 bg-indigo-600 text-white font-black px-5 py-2.5 rounded-xl text-xs">Browse Menu</button></div>`;
         return;
       }
       const n = localOrderIds().length;
