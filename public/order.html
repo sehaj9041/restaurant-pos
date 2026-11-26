@@ -1162,6 +1162,7 @@
       return stampProgOne(st.normal || st, bill) + (prem ? '<div class="mt-2"></div>' + stampProgOne(prem, bill).split('🍽 Stamp card').join('👑 Premium card') : '');
     }
     function stampProgOne(st, bill) {
+      bill = Math.round((Number(bill) || 0) * 1.05); // stamp / free-item limits count the bill with GST too (items alone reaching the limit also qualifies)
       if (!st) return '';
       const n = st.orders_needed, minO = Number(st.min_order) || 0, minR = Number(st.redeem_min) || 0;
       const ready = st.available > 0 && (!minR || bill >= minR); // when the free item can be picked now, the picker below shows the list
@@ -1186,7 +1187,7 @@
     }
     function togglePoints() { usePts = document.getElementById('cUsePts').checked; updateCartUI(); }
     // Stamp card reward: free items the customer may pick (bill must reach the owner's minimum); the server adds the free line and re-checks
-    function stampItems() { return stampCk && cartSubtotal() >= (Number(stampCk.redeem_min) || 0) ? (stampCk.free_items || []) : []; }
+    function stampItems() { return stampCk && Math.round(cartSubtotal() * 1.05) >= (Number(stampCk.redeem_min) || 0) ? (stampCk.free_items || []) : []; }
     function pickStamp() { stampPick = Number(document.getElementById('cStampSel').value) || 0; updateCartUI(); }
     // Server order: discount comes off the subtotal (incl. delivery) and GST is charged on what is left of the taxable part
     function ckTotals() {

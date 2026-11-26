@@ -164,10 +164,10 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
   async function stampPublic() { const a = await stampPublicOne(await stampConfig(1)), b = await stampPublicOne(await stampConfig(2)); if (!b.enabled) return a; return a.enabled ? Object.assign(a, { max_order: b.min_order, premium: b }) : b; }
 
   // Does this order earn a stamp on card S (paid in full, not complimentary, big enough, inside the card's days / time window, after the card was switched on)?
-  const stampOk = (r, S) => new Date(r.created_at).getTime() >= S.since && !!r.source && !numOr(r.is_complimentary) && numOr(r.paid_amount) >= numOr(r.total) && numOr(r.total) > 0 && numOr(r.total) >= S.min_order
+  const stampOk = (r, S) => new Date(r.created_at).getTime() >= S.since && !!r.source && !numOr(r.is_complimentary) && numOr(r.paid_amount) >= numOr(r.total) && numOr(r.total) > 0 && Math.max(numOr(r.total), numOr(r.subtotal)) >= S.min_order // the limit may be reached with GST (total) or by the items alone (subtotal)
     && (S.all_day ? (!S.days.length || S.days.includes(numOr(r.dow))) : inBonusWindow({ bonus_enabled: true, bonus_start: S.start, bonus_end: S.end, bonus_days: S.days }, numOr(r.hh), numOr(r.mm), numOr(r.dow)));
 
-  // Stamps come from the orders themselves (any source, phone needed): fully paid, not complimentary, not an order that already used a free item.
+  // Stamps come from the orders themselves (any source, phone needed): fully paid, not complimentary (an order that took a free item still earns its own stamp).
   async function stampStatus(phone, S, excludeId = 0, card = 1) {
     phone = cleanPhone(phone);
     const base = { enabled: S.enabled, orders_needed: S.orders_needed, start: S.start, end: S.end, all_day: S.all_day, days: S.days, min_order: S.min_order, redeem_min: S.redeem_min, free_items: [], stamps: 0, progress: 0, earned: 0, used: 0, available: 0 };
@@ -178,7 +178,6 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
     let stamps = 0, used = 0;
     for (const r of rows) {
       if (Math.floor(numOr(r.stamp_redeemed)) === card) used += 1; // orders.stamp_redeemed holds the card number (1 regular, 2 premium) of the free item the order took
-      if (numOr(r.stamp_redeemed) > 0) continue;
       if (P && P.enabled && stampOk(r, P)) continue;
       if (stampOk(r, S)) stamps++;
     }
@@ -204,7 +203,7 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
     return out;
   }
 
-  const ledgerCols = `id, total, paid_amount, is_complimentary, points_redeemed, source, created_at,
+  const ledgerCols = `id, total, subtotal, paid_amount, is_complimentary, points_redeemed, source, created_at,
     EXTRACT(HOUR FROM created_at)::int AS hh, EXTRACT(MINUTE FROM created_at)::int AS mm, EXTRACT(DOW FROM created_at)::int AS dow`;
 
   async function loyaltyBalance(phone, L, excludeId = 0) {
@@ -327,7 +326,7 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
         const st = await stampStatus(phone, S, ex, card);
         if (st.available < 1) { firstErr = firstErr || `Free item abhi nahi bana: ${st.progress}/${S.orders_needed} orders hue hain`; continue; }
         if (!(food > 0)) return { error: 'Free item ke saath kam se kam ek aur item order karein' };
-        if (S.redeem_min > 0 && food < S.redeem_min) { firstErr = firstErr || `Free item ke liye bill (free item ke alawa) kam se kam ₹${S.redeem_min} ka hona chahiye. Abhi ₹${Math.round(food)} hai`; continue; }
+        if (S.redeem_min > 0 && Math.round(food * 1.05) < S.redeem_min) { firstErr = firstErr || `Free item ke liye bill (free item ke alawa) kam se kam ₹${S.redeem_min} ka hona chahiye. Abhi ₹${Math.round(food)} hai`; continue; }
         stampItem = it; stampRedeemed = card; // stored in orders.stamp_redeemed: which card's free item this order took
         break;
       }
@@ -605,7 +604,7 @@ function register(app, { dbAllAsync, getSettingsConfig, saveSettingsConfig, disc
         const c = by.get(r.phone) || by.set(r.phone, { phone: r.phone, name: '', stamps: [0, 0], used: [0, 0], last_used: null }).get(r.phone);
         if (r.customer_name) c.name = r.customer_name;
         const red = Math.floor(numOr(r.stamp_redeemed));
-        if (red > 0) { c.used[red === 2 ? 1 : 0]++; c.last_used = r.created_at; continue; }
+        if (red > 0) { c.used[red === 2 ? 1 : 0]++; c.last_used = r.created_at; } // the order that took a free item still earns its own stamp
         if (Ss[1].enabled && stampOk(r, Ss[1])) c.stamps[1]++;
         else if ((Ss[0].enabled || Ss[0].since) && stampOk(r, Ss[0])) c.stamps[0]++;
       }

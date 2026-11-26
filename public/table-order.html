@@ -505,7 +505,7 @@
   function stampItems() {
     var p = profile(), phone = $('gPhone') ? $('gPhone').value.replace(/\D/g, '') : (pg ? pg.phone : '');
     if (!stampInfo || !p || !phone || phone !== p.phone || !cart.length) return [];
-    return cartSub() >= (Number(stampInfo.redeem_min) || 0) ? (stampInfo.free_items || []) : [];
+    return Math.round(cartSub() * 1.05) >= (Number(stampInfo.redeem_min) || 0) ? (stampInfo.free_items || []) : [];
   }
   function pickStamp() { stampPick = Number($('stampSel').value) || 0; renderPts(); }
   function renderPts() {
@@ -738,6 +738,7 @@
     return stampProgOne(st.normal || st, bill) + (prem ? '<div class="mt-2"></div>' + stampProgOne(prem, bill).split('🍽 Stamp card').join('👑 Premium card') : '');
   }
   function stampProgOne(st, bill) {
+    bill = Math.round((Number(bill) || 0) * 1.05); // stamp / free-item limits count the bill with GST too (items alone reaching the limit also qualifies)
     if (!st) return '';
     var n = st.orders_needed, minO = Number(st.min_order) || 0, minR = Number(st.redeem_min) || 0;
     var ready = st.available > 0 && (!minR || bill >= minR); // when the free item can be picked now, the picker shows the list
