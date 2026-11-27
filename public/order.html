@@ -1275,7 +1275,7 @@
       document.getElementById('cUsePts').checked = usePts;
       document.getElementById('cPtsText').textContent = `⭐ ${mp} points use karein (−₹${off}) • aapke paas ${loyCk ? loyCk.balance : 0}`;
       const sb = document.getElementById('stampBanner');
-      if (sb) { sb.innerHTML = stampBannerOpen ? stampProgHtml(stampSt || stampGen, cartSubtotal(), true) + '<button onclick="toggleStampBanner(false)" class="w-full text-center text-[11px] font-black text-emerald-700 pt-1">Hide ▲</button>' : stampChipHtml(stampSt || stampGen); sb.classList.toggle('hidden', !(stampSt || stampGen)); }
+      if (sb) { sb.innerHTML = stampProgHtml(stampSt || stampGen, cartSubtotal(), true); sb.classList.toggle('hidden', !(stampSt || stampGen)); }
       document.getElementById('cStampProg').innerHTML = stampProgHtml(stampSt || stampGen, cartSubtotal());
       document.getElementById('cStampProg').classList.toggle('hidden', !(stampSt || stampGen) || !cart.length);
       const sItems = stampItems();
@@ -1376,16 +1376,6 @@
         .filter(t => t && isShown(t) && !isSoldOut(t) && !inCart.has(t.id) && !onlineSuggestShown.has(t.id));
     }
 
-    // Menu page stamp banner: a single line (progress of both cards), the full boxes open on tap
-    let stampBannerOpen = false;
-    function toggleStampBanner(on) { stampBannerOpen = !!on; updateCartUI(); }
-    function stampChipHtml(st) {
-      if (!st) return '';
-      const n = st.normal || st, p = st.premium && st.premium.enabled ? st.premium : null;
-      const part = (c, ic) => c.progress === undefined ? '' : (c.available > 0 ? `${ic} 🎁 FREE item ready` : `${ic} ${c.progress}/${c.orders_needed}`);
-      const txt = [part(n, '🍽'), p ? part(p, '👑') : ''].filter(Boolean).join('  •  ') || `🍽 Stamp card: ${n.orders_needed} orders = 1 FREE item`;
-      return `<button onclick="toggleStampBanner(true)" class="w-full flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-xs font-black text-emerald-900"><span class="text-left">${txt}</span><span class="text-emerald-600 shrink-0">Details ›</span></button>`;
-    }
     // Free item waiting but the cart is under the owner's minimum: before checkout, show the free items and how much more to add
     let stampShortAt = -1, stampOfferAt = -1;
     function stampOfferTarget(st, sub) {

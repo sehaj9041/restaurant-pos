@@ -795,17 +795,6 @@
   }
   function stampShortGo(more) { var sub = cartSub(); closeSheet(); if (!more) { stampShortAt = sub; openCart(); } }
   // Stamp banner on the menu page: progress + free items (public status of this device's phone, or the plain offer)
-  // Menu page stamp banner: a single line (progress of both cards), the full boxes open on tap
-  var stampBannerOpen = false;
-  function toggleStampBanner(on) { stampBannerOpen = !!on; renderStampBanner(); }
-  function renderStampBanner() {
-    var st = stampBannerSt, el = $('stampBanner'); if (!st || !el) return;
-    if (stampBannerOpen) { el.innerHTML = stampProgHtml(st, cartSub(), true) + '<button onclick="toggleStampBanner(false)" class="w-full text-center text-[11px] font-black text-emerald-700 pt-1">Hide ▲</button>'; return; }
-    var n = st.normal || st, p = st.premium && st.premium.enabled ? st.premium : null;
-    var part = function (c, ic) { return c.progress === undefined ? '' : (c.available > 0 ? ic + ' 🎁 FREE item ready' : ic + ' ' + c.progress + '/' + c.orders_needed); };
-    var txt = [part(n, '🍽'), p ? part(p, '👑') : ''].filter(Boolean).join('  •  ') || '🍽 Stamp card: ' + n.orders_needed + ' orders = 1 FREE item';
-    el.innerHTML = '<button onclick="toggleStampBanner(true)" class="w-full flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-xs font-black text-emerald-900"><span class="text-left">' + txt + '</span><span class="text-emerald-600 shrink-0">Details ›</span></button>';
-  }
   // One thin strip for guests who are not logged in on this device
   function renderLoginStrip() {
     var el = $('loginStrip'), p = profile(); if (!el) return;
@@ -821,7 +810,7 @@
       if (!st) { var g = await fetch('/api/loyalty-info').then(jsonOrThrow); if (g && g.stamp && g.stamp.enabled) st = g.stamp; }
       if (!st) return;
       stampBannerSt = st;
-      renderStampBanner(); $('stampBanner').classList.remove('hidden'); renderLoginStrip();
+      $('stampBanner').innerHTML = stampProgHtml(st, cartSub(), true); $('stampBanner').classList.remove('hidden'); renderLoginStrip();
     } catch (e) {}
   }
   function stampProgHtml(st, bill, menu) { // menu = the banner on the menu page: the free item is picked later, in the cart on Pay now
