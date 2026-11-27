@@ -1362,6 +1362,7 @@
     }
     function removeLine(idx) { cart.splice(idx, 1); afterCartEdit(); }
     function afterCartEdit() {
+      if (!cart.length) stampOfferAt = -1; // empty cart = a new order
       updateCartUI();
       renderMenu();
       if (!cart.length) return closeCheckout();
@@ -1395,7 +1396,7 @@
     }
     // Cart is under the stamp card's minimum (any customer, with or without stamps): offer to add more to earn a stamp, or skip. Asked once per cart amount.
     function stampOfferGate() {
-      const sub = cartSubtotal(); if (!cart.length || stampOfferAt === sub) return false;
+      const sub = cartSubtotal(); if (!cart.length || stampOfferAt !== -1) return false; // one stamp popup per order
       if (stampCk && stampCk.available > 0) return false; // a free item is waiting (picked on the checkout page): no "add more" popup
       const t = stampOfferTarget(stampSt || stampGen, sub); if (!t) return false;
       stampOfferAt = sub;
@@ -1758,7 +1759,7 @@
         if (addrObj) saveAddress(addrObj);
         const total = T.total;
         usePts = false; loyCk = null;
-        cart = [];
+        cart = []; stampOfferAt = -1; stampShortAt = -1; // order placed: the next order may show the stamp popup again
         saveCart();
         closeCheckout();
         document.getElementById('addressPage').classList.add('hidden');

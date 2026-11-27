@@ -1152,6 +1152,7 @@
 
     function updateTrayUI() {
       $('trayCountBadge').innerText = trayCount();
+      if (!kioskTray.length) stampOfferAt = -1; // empty bag = a new order
       $('trayCountLabel').innerText = trayCount() ? trayCount() + (trayCount() === 1 ? ' item' : ' items') : 'No items yet';
       $('trayTotalDisplay').innerText = money(trayTotal());
       $('reviewSubTotal').innerText = money(traySubtotal());
@@ -1342,7 +1343,7 @@
       return c ? { c: c, prem: c === p, more: Math.max(1, Math.ceil(Number(c.min_order) / 1.05 - sub)) } : null;
     }
     function stampOfferGate(next) {
-      const sub = traySubtotal(); if (!kioskTray.length || stampOfferAt === sub) return false;
+      const sub = traySubtotal(); if (!kioskTray.length || stampOfferAt !== -1) return false; // one stamp popup per order
       if (kioskPromo && kioskPromo.stampLine) return false; // customer already picked a free item on this order: no "add more" popup
       const t = stampOfferTarget(kioskStamp || stampOffer, sub); if (!t) return false;
       stampOfferAt = sub;
@@ -2209,7 +2210,7 @@
       selectedMenuItem = null;
       selectedVariation = null;
       selectedGroupAddons = {};
-      pendingUpgrade = null; custReplaceCartId = null;
+      pendingUpgrade = null; custReplaceCartId = null; stampOfferAt = -1;
       suggestDismissed = new Set();
       updateTrayUI();
       ['tokenSuccessModal', 'trayReviewModal', 'phoneModal', 'pointsModal', 'paymentModal', 'upiQrModal', 'customizerModal', 'modeSelectionScreen', 'addedModal', 'upsellModal', 'mealChoiceModal', 'thinkingModal']

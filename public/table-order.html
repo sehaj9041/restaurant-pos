@@ -98,7 +98,7 @@
     clearTimeout(toast.t); toast.t = setTimeout(function () { t.classList.add('hidden'); }, 2600);
   }
   function fatal(msg) { $('app').classList.add('hidden'); $('fatal').classList.remove('hidden'); $('fatalMsg').textContent = msg; }
-  function saveCart() { try { sessionStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch (e) {} }
+  function saveCart() { if (!cart.length) { stampOfferAt = -1; stampShortAt = -1; } try { sessionStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch (e) {} }
 
   // ---------- load ----------
   async function init() {
@@ -781,7 +781,7 @@
   }
   // Cart is under the stamp card's minimum (any customer, with or without stamps): offer to add more to earn a stamp, or skip. Asked once per cart amount.
   function stampOfferGate() {
-    var sub = cartSub(); if (!cart.length || stampOfferAt === sub) return false;
+    var sub = cartSub(); if (!cart.length || stampOfferAt !== -1) return false; // one stamp popup per order
     if ((stampInfo || stampMine) && (stampInfo || stampMine).available > 0) return false; // a free item is waiting (picked at Pay now): no "add more" popup
     var t = stampOfferTarget(stampInfo || stampBannerSt, sub); if (!t) return false;
     stampOfferAt = sub;
