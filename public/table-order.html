@@ -289,7 +289,7 @@
     if (burgerIdx >= 0) { shown[burgerIdx] = true; burgerNote = chosenOpts(groups[burgerIdx]).map(function (a) { return a.name; }).join(', '); }
     tiles.push({ img: imgSrc(base.image || base.image_url), name: base.name, note: burgerNote, label: 'Burger', step: burgerIdx });
     groups.forEach(function (g, i) {
-      if (i === burgerIdx || /customi[sz]e/i.test(g.name || '')) return;
+      if (i === burgerIdx || /customi[sz]e/i.test(g.name || '') || Number(g.max_selection) > 1) return;
       var opts = chosenOpts(g), withImg = opts.filter(function (a) { return a.image; });
       if (!withImg.length) return;
       shown[i] = true;
@@ -368,6 +368,8 @@
     var same = cart.filter(function (c) { return c.key === key; })[0];
     if (same) same.qty += qty; else {
       var line = { key: key, id: item.id, name: name, price: price, qty: qty, variant: variant ? variant.name : '', addons: addons };
+      var aRows = pick.groups.map(function (g) { var ch = chosenOpts(g); return { label: g.name, value: ch.map(function (a) { return a.name + (Number(a.price) ? ' (+' + rs(a.price) + ')' : ''); }).join(', '), images: ch.filter(function (a) { return a.image; }).map(function (a) { return a.image; }) }; }).filter(function (r) { return r.images.length; });
+      if (aRows.length && !pick.hide) line.addonRows = aRows; // add-on photos for the cart
       if (pick.hide) { var md = mealData(); line.baseName = item.name; line.tiles = md.tiles; line.mealRows = md.rows.filter(function (r) { return r.value !== 'None'; }); }   // meal: cart shows the same tiles/rows as the review
       cart.push(line);
     }
@@ -417,6 +419,7 @@
       cart.map(function (c, i) {
         return '<div class="flex items-center gap-2 border-b pb-2"><div class="flex-1 min-w-0"><div class="text-sm font-bold leading-tight">' + esc(c.tiles && c.baseName ? c.baseName : c.name) + '</div>' +
           (c.tiles ? '<div class="my-1.5">' + mealTilesHtml(c.tiles, false) + '</div>' : '') +
+          (c.addonRows || []).map(function (r) { return '<div class="mt-1 p-1.5 rounded-lg border bg-gray-50 flex items-center gap-2"><span class="flex -space-x-2 shrink-0">' + r.images.slice(0, 3).map(function (im) { return '<img src="' + esc(imgSrc(im)) + '" class="w-9 h-9 rounded-lg object-cover border-2 border-white" onerror="this.style.display=\'none\'">'; }).join('') + '</span><span class="min-w-0"><span class="block text-[9px] font-bold uppercase text-gray-500">' + esc(r.label) + '</span><span class="block text-[11px] font-bold leading-tight">' + esc(r.value) + '</span></span></div>'; }).join('') +
           (c.mealRows || []).map(function (r) { return '<div class="mt-1 p-1.5 rounded-lg border bg-gray-50"><div class="text-[9px] font-bold uppercase text-gray-500">' + esc(r.label) + '</div><div class="text-[11px] font-bold text-gray-800 leading-tight">' + esc(r.value) + '</div></div>'; }).join('') +
           '<div class="text-xs text-gray-500">' + rs(c.price) + ' each</div></div>' +
           '<div class="flex items-center gap-2"><button onclick="chg(' + i + ',-1)" class="w-8 h-8 rounded-lg border font-black">−</button><span class="w-5 text-center font-black text-sm">' + c.qty + '</span><button onclick="chg(' + i + ',1)" class="w-8 h-8 rounded-lg border font-black">+</button></div>' +

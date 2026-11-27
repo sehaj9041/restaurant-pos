@@ -1004,7 +1004,7 @@
       if (burgerIdx >= 0) { shown[burgerIdx] = true; burgerNote = w.sel[burgerIdx].map(function(a) { return a.name; }).join(', '); }
       tiles.push({ img: wizImg(base && (base.image || base.image_url)), name: base ? base.name : 'Burger', note: burgerNote, label: 'Burger', step: burgerIdx });
       groups.forEach(function(g, i) {
-        if (i === burgerIdx || /customi[sz]e/i.test(g.name || '')) return;
+        if (i === burgerIdx || /customi[sz]e/i.test(g.name || '') || Number(g.max_selection) > 1) return;
         var chosen = w.sel[i], withImg = chosen.filter(function(a) { return a.image; });
         if (!withImg.length) return;
         shown[i] = true;
@@ -1134,6 +1134,9 @@
         addons: selectedAddons,
         variant: currentModalSelectedItem.variantName || ''
       };
+      // add-on photos for the cart (client-only, not sent with the order)
+      const aRows = currentModalItemGroups.map((g, gIdx) => { const ch = addonWiz.sel[gIdx] || []; return { label: g.name, value: ch.map(a => a.name + (Number(a.price) ? ` (+₹${a.price})` : '')).join(', '), images: ch.filter(a => a.image).map(a => a.image) }; }).filter(r => r.images.length);
+      if (aRows.length && !addonWiz.hidePrice) line.addonRows = aRows;
       if (addonWiz.hidePrice) {   // meal: keep the review tiles/rows so the cart shows them too
         const md = wizMealData(menu.find(i => i.id === currentModalSelectedItem.id) || currentModalSelectedItem, currentModalItemGroups);
         line.baseName = currentModalSelectedItem.name;
@@ -1293,6 +1296,7 @@
           <div class="min-w-0 flex-1">
             <div class="font-bold text-gray-800">${esc(i.tiles && i.baseName ? i.baseName : i.name)}</div>
             ${i.tiles ? `<div class="my-1.5">${wizTilesHtml(i.tiles, false)}</div>` : ''}
+            ${(i.addonRows || []).map(r => `<div class="mt-1 p-1.5 rounded-lg border bg-gray-50 flex items-center gap-2"><span class="flex -space-x-2 shrink-0">${r.images.slice(0, 3).map(im => `<img src="${esc(imgSrc(im))}" class="w-9 h-9 rounded-lg object-cover border-2 border-white" onerror="this.style.display='none'">`).join('')}</span><span class="min-w-0"><span class="block text-[9px] font-bold uppercase text-gray-500">${esc(r.label)}</span><span class="block font-bold text-gray-800 text-[11px] leading-tight">${esc(r.value)}</span></span></div>`).join('')}
             ${(i.mealRows || []).map(r => `<div class="mt-1 p-1.5 rounded-lg border bg-gray-50"><div class="text-[9px] font-bold uppercase text-gray-500">${esc(r.label)}</div><div class="font-bold text-gray-800 text-[11px] leading-tight">${esc(r.value)}</div></div>`).join('')}
             <div class="text-gray-400">₹${i.price} each</div>
           </div>
@@ -1673,7 +1677,7 @@
       const T = ckTotals(), sub = T.sub, gst = T.gst;
       // delivery address/location are stored on the order itself (shown on POS + bill, not on the kitchen screen)
       const note = isDelivery ? '' : (loc ? `Note: ${loc}` : '');
-      const items = cart.map((c, i) => { const { tiles, mealRows, baseName, ...line } = c; return { ...line, notes: i === 0 ? note : '' }; });
+      const items = cart.map((c, i) => { const { tiles, mealRows, addonRows, baseName, ...line } = c; return { ...line, notes: i === 0 ? note : '' }; });
       const itemCount = cart.reduce((n, c) => n + c.qty, 0);
 
       const orderBody = {

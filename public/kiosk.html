@@ -8,7 +8,9 @@
   <script src="/ui-dialogs.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    :root { --yellow: #FFBC0D; --yellow-dark: #E5A800; --ink: #292929; --red: #DB0007; --line: #d6d6d6; }
+    /* Colour roles: yellow = main buttons, accent (orange) = progress / selection / highlights, green = FREE / success only, red = errors / remove only */
+    :root { --yellow: #FFBC0D; --yellow-dark: #E5A800; --ink: #292929; --red: #DB0007; --line: #d6d6d6; --accent: var(--accent); }
+    button, .tile, [onclick] { touch-action: manipulation; }
     .kiosk-aspect-frame {
       aspect-ratio: 9 / 16;
       height: 100vh;
@@ -25,8 +27,13 @@
     .btn-outline:active { transform: scale(.98); background: #f0f0f0; }
     .tile { background: #fff; border: 1px solid var(--line); box-shadow: 0 1px 3px rgba(0,0,0,.12); transition: transform .1s; }
     .tile:active { transform: scale(.97); }
-    .tile.selected { border: 2px solid var(--yellow); box-shadow: 0 0 0 2px rgba(255,188,13,.35); }
-    .screen { position: absolute; inset: 0; }
+    .tile.selected { border: 2px solid var(--accent); box-shadow: 0 0 0 2px rgba(217,83,30,.3); }
+    .screen { position: absolute; inset: 0; animation: screenIn .24s ease-out; }
+    @keyframes screenIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+    @keyframes bump { 0% { transform: scale(1); } 40% { transform: scale(1.3); } 100% { transform: scale(1); } }
+    .bump { animation: bump .45s ease-out; }
+    @media (prefers-reduced-motion: reduce) { .screen, .bump { animation: none; } }
+    .add-fab { width: 2.5rem; height: 2.5rem; border-radius: 9999px; background: var(--yellow); color: var(--ink); font-weight: 800; font-size: 1.6rem; line-height: 1; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,.2); flex-shrink: 0; }
     .pop { animation: pop .35s cubic-bezier(.22,1,.36,1); }
     @keyframes pop { from { transform: scale(.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
     /* Zyada add-ons wale step: photo/logo chhupa kar header chhota, taaki sab ek screen me dikhe */
@@ -38,7 +45,7 @@
     .brand-badge.brand-side.has-logo { width: 100%; max-width: 100%; height: 6rem; }
     /* Category kholne par items upar se neeche row-by-row slide + fade hote hain */
     @keyframes itemDrop { from { opacity: 0; transform: translateY(-18px); } to { opacity: 1; transform: none; } }
-    .stamp-scroll::-webkit-scrollbar { width: 8px; } .stamp-scroll::-webkit-scrollbar-thumb { background: #d9531e; border-radius: 8px; } .stamp-scroll::-webkit-scrollbar-track { background: rgba(0,0,0,.08); border-radius: 8px; }
+    .stamp-scroll::-webkit-scrollbar { width: 8px; } .stamp-scroll::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 8px; } .stamp-scroll::-webkit-scrollbar-track { background: rgba(0,0,0,.08); border-radius: 8px; }
     #itemsGrid > .item-drop { opacity: 0; animation: itemDrop .38s cubic-bezier(.2,.7,.3,1) forwards; }
     @media (prefers-reduced-motion: reduce) { #itemsGrid > .item-drop { animation: none; opacity: 1; } }
     /* Customizer steps: agla step right se slide-in, Back par left se */
@@ -63,7 +70,7 @@
           </div>
         </div>
         <button onclick="startOver()" class="tile flex items-center gap-2 px-2 py-3 mb-3 text-left">
-          <span class="text-xl">🏠</span><span class="text-[13px]">Home</span>
+          <span class="text-xl">🏠</span><span class="text-[15px]">Home</span>
         </button>
         <div id="categorySidebar" class="bg-white border border-[var(--line)] shadow-sm flex flex-col"></div>
       </aside>
@@ -71,7 +78,7 @@
       <!-- Items -->
       <section class="flex-1 min-w-0 flex flex-col px-4 pt-6">
         <h2 id="activeCategoryHeading" class="text-4xl font-black tracking-tight leading-none truncate">Menu</h2>
-        <p class="text-[13px] text-neutral-600 mt-3 mb-3">Browse between categories on the left</p>
+        <p class="text-[15px] text-neutral-600 mt-3 mb-3">Browse between categories on the left</p>
         <div id="stampBannerMenu" class="hidden mb-3"></div>
         <div id="itemsGrid" class="flex-1 overflow-y-auto grid grid-cols-3 gap-2.5 content-start pb-4"></div>
       </section>
@@ -83,13 +90,13 @@
         <div class="flex items-center gap-3">
           <div class="relative" id="cartIconBox">
             <svg width="34" height="38" viewBox="0 0 34 38" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M11 12c0-8 12-8 12 0" stroke="#92400e" stroke-width="2.5" stroke-linecap="round" fill="none"/><path d="M5 12h24l2.5 21a2 2 0 0 1-2 2.2h-25a2 2 0 0 1-2-2.2z" fill="#d6a15c"/><path d="M5 12h24l.7 6H4.3z" fill="#e4b676"/></svg>
-            <span id="trayCountBadge" class="absolute -top-1 -right-2 bg-[var(--red)] text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">0</span>
+            <span id="trayCountBadge" class="absolute -top-1 -right-2 bg-[var(--red)] text-white text-[12px] font-bold w-5 h-5 rounded-full flex items-center justify-center">0</span>
           </div>
-          <span id="trayTotalDisplay" class="text-2xl font-black">₹0.00</span>
+          <span class="flex flex-col"><span id="trayTotalDisplay" class="text-3xl font-black leading-tight">₹0.00</span><span id="trayCountLabel" class="text-[14px] font-bold text-neutral-500 leading-none">No items yet</span></span>
         </div>
         <div class="flex items-center gap-2">
-          <button onclick="startOver()" class="btn-outline px-4 py-2 text-[12px]">Start Over</button>
-          <button id="viewOrderBtn" onclick="openTrayReviewModal()" class="btn-yellow px-8 py-3.5 text-[15px]" disabled>View My Order</button>
+          <button onclick="startOver()" class="btn-outline px-5 py-3.5 text-[15px]">Start Over</button>
+          <button id="viewOrderBtn" onclick="openTrayReviewModal()" class="btn-yellow px-8 py-4 text-[18px]" disabled>View My Order</button>
         </div>
       </div>
     </footer>
@@ -157,7 +164,7 @@
       </div>
       <div id="stampBannerMode" class="hidden w-full mt-8"></div>
       <div class="mt-auto w-full pb-6 flex gap-3">
-        <button onclick="startOver()" class="btn-outline flex-1 py-2.5 text-[13px]">Start Over</button>
+        <button onclick="startOver()" class="btn-outline flex-1 py-2.5 text-[15px]">Start Over</button>
       </div>
     </div>
 
@@ -167,8 +174,9 @@
         <div class="cust-logo brand-badge w-10 h-10 rounded-full bg-[var(--yellow)] flex items-center justify-center font-black text-lg mb-5">V</div>
         <h3 id="custItemTitle" class="text-4xl font-black leading-tight">Burger</h3>
         <div id="modalItemRunningTotal" class="text-4xl font-black leading-tight mt-1">₹0.00</div>
-        <p id="custItemCategory" class="text-[12px] font-bold text-neutral-500 uppercase tracking-widest mt-2"></p>
-        <p id="custStepInfo" class="text-[12px] font-bold text-[var(--red)] uppercase tracking-widest mt-1"></p>
+        <p id="custItemCategory" class="text-[14px] font-bold text-neutral-500 uppercase tracking-widest mt-2"></p>
+        <p id="custStepInfo" class="text-[14px] font-bold text-[color:var(--accent)] uppercase tracking-widest mt-1"></p>
+        <div id="custProgress" class="flex gap-1.5 mt-3"></div>
       </div>
 
       <div class="flex-1 overflow-y-auto px-6 py-4 min-h-0">
@@ -288,7 +296,7 @@
 
     <!-- ============ PAYMENT ============ -->
     <div id="paymentModal" class="hidden screen z-50 kiosk-bg flex flex-col items-center justify-center px-8 text-center">
-      <div class="w-24 h-24 rounded-full bg-[#d9531e] text-white text-6xl font-black flex items-center justify-center pop">!</div>
+      <div class="w-24 h-24 rounded-full bg-[var(--accent)] text-white text-6xl font-black flex items-center justify-center pop">!</div>
       <h3 class="text-3xl font-black mt-6 leading-tight">Please select a<br>payment method.</h3>
       <p id="payTotalNote" class="text-lg font-black mt-3 hidden"></p>
       <div id="payFreeAdded" class="hidden w-full max-w-[340px] mt-3 rounded-2xl px-4 py-3 text-left flex items-center gap-3" style="background:#ecfdf5;border:2px solid #34d399"></div>
@@ -351,7 +359,7 @@
 
     <!-- ============ STILL THINKING ============ -->
     <div id="thinkingModal" class="hidden screen z-[70] kiosk-bg flex flex-col items-center justify-center px-8 text-center">
-      <div class="w-24 h-24 rounded-full bg-[#d9531e] text-white text-6xl font-black flex items-center justify-center">!</div>
+      <div class="w-24 h-24 rounded-full bg-[var(--accent)] text-white text-6xl font-black flex items-center justify-center">!</div>
       <h3 class="text-4xl font-black mt-6">Still thinking?</h3>
       <p class="text-sm text-neutral-600 mt-3">Tap below to continue.<br>Otherwise, we'll start over again in <span id="thinkingCountdown">20</span>s.</p>
       <button onclick="dismissThinking()" class="btn-yellow w-full max-w-[420px] py-5 text-xl mt-10">Continue</button>
@@ -363,16 +371,16 @@
       <h2 id="kioskPlacedTitle" class="text-4xl font-black mt-6">Order Placed!</h2>
       <p id="kioskPlacedSub" class="text-sm text-neutral-600 mt-2">Please take your order token &amp; receipt</p>
       <div id="kioskTokenTile" class="tile w-full max-w-[300px] py-6 mt-8">
-        <span class="text-[11px] font-bold text-neutral-500 uppercase tracking-widest">Order Token</span>
-        <div id="kioskTokenDisplay" class="text-7xl font-black my-2">#0</div>
-        <p id="kioskModeNote" class="text-[12px] font-bold text-neutral-600 uppercase tracking-wider">Dine In</p>
+        <span class="text-[13px] font-bold text-neutral-500 uppercase tracking-widest">Order Token</span>
+        <div id="kioskTokenDisplay" class="text-[96px] leading-none font-black my-3">#0</div>
+        <p id="kioskModeNote" class="text-[14px] font-bold text-neutral-600 uppercase tracking-wider">Dine In</p>
       </div>
       <p id="kioskPlacedFoot" class="text-sm text-neutral-500 mt-6">Kitchen is preparing your fresh meal...</p>
       <div id="kioskStampDone" class="hidden tile w-full max-w-[300px] mt-5 py-3 px-4 text-center text-base font-black"></div>
       <div id="kioskRateBox" class="hidden tile w-full max-w-[300px] mt-5 py-4 flex flex-col items-center">
         <span class="text-base font-black">⭐ Enjoyed it? Rate us!</span>
         <img id="kioskRateQr" alt="Rate us" class="w-40 h-40 mt-2 bg-white rounded-lg">
-        <span class="text-[12px] font-bold text-neutral-600 mt-1">Scan with your phone camera</span>
+        <span class="text-[14px] font-bold text-neutral-600 mt-1">Scan with your phone camera</span>
       </div>
     </div>
 
@@ -394,15 +402,15 @@
           <h2 class="text-lg font-black">🖨 Printer Setup</h2>
           <button onclick="closePrinterSetup()" class="text-2xl font-black px-2">×</button>
         </div>
-        <label class="text-xs font-bold text-neutral-500">Print method</label>
+        <label class="text-sm font-bold text-neutral-500">Print method</label>
         <select id="ps_method" class="w-full border p-2.5 rounded-xl text-sm mb-1">
           <option value="off">Off (no bill print)</option>
           <option value="browser">Android Print Service (print dialog)</option>
           <option value="usb">Kiosk APK - USB printer (silent)</option>
           <option value="rawbt">RawBT app (small popup)</option>
         </select>
-        <p id="ps_help" class="text-[11px] text-neutral-500 mb-3"></p>
-        <label class="text-xs font-bold text-neutral-500">Paper width</label>
+        <p id="ps_help" class="text-[13px] text-neutral-500 mb-3"></p>
+        <label class="text-sm font-bold text-neutral-500">Paper width</label>
         <select id="ps_width" class="w-full border p-2.5 rounded-xl text-sm mb-3">
           <option value="32">58 mm (32 chars)</option>
           <option value="42">80 mm (42 chars)</option>
@@ -410,15 +418,15 @@
         </select>
         <label class="flex items-center gap-2 text-sm font-bold mb-3"><input id="ps_logo" type="checkbox" class="w-4 h-4"> Print logo on bill (from Settings &gt; Receipt &amp; Print)</label>
         <label class="flex items-center gap-2 text-sm font-bold mb-3"><input id="ps_fast" type="checkbox" class="w-4 h-4"> Fast mode (text bill, no image - use if printing is slow)</label>
-        <label class="text-xs font-bold text-neutral-500">Bill width (dots, image bill) - khali chhodo = auto (80mm: 496, 58mm: 360). Right side kate to kam karo (jaise 460), zyada khali aaye to badhao (max 568)</label>
+        <label class="text-sm font-bold text-neutral-500">Bill width (dots, image bill) - khali chhodo = auto (80mm: 496, 58mm: 360). Right side kate to kam karo (jaise 460), zyada khali aaye to badhao (max 568)</label>
         <input id="ps_billw" type="number" min="240" max="568" placeholder="auto" class="w-full border p-2.5 rounded-xl text-sm mb-3">
-        <label class="text-xs font-bold text-neutral-500">Feed before cut (lines, 0-20) - kam karo agar niche khali paper zyada aaye, badhao agar bill kate</label>
+        <label class="text-sm font-bold text-neutral-500">Feed before cut (lines, 0-20) - kam karo agar niche khali paper zyada aaye, badhao agar bill kate</label>
         <input id="ps_feed" type="number" min="0" max="20" class="w-full border p-2.5 rounded-xl text-sm mb-3">
-        <label class="text-xs font-bold text-neutral-500">Copies</label>
+        <label class="text-sm font-bold text-neutral-500">Copies</label>
         <input id="ps_copies" type="number" min="1" max="3" class="w-full border p-2.5 rounded-xl text-sm mb-4">
-        <button id="ps_appBtn" onclick="window.AndroidPrinter && AndroidPrinter.changeUrl()" class="hidden btn-outline w-full py-2 rounded-xl text-xs font-bold mb-3">Change server link (APK)</button>
-        <p id="ps_status" class="text-[11px] font-bold mb-1"></p>
-        <p id="ps_logoStatus" class="text-[11px] font-bold mb-3"></p>
+        <button id="ps_appBtn" onclick="window.AndroidPrinter && AndroidPrinter.changeUrl()" class="hidden btn-outline w-full py-2 rounded-xl text-sm font-bold mb-3">Change server link (APK)</button>
+        <p id="ps_status" class="text-[13px] font-bold mb-1"></p>
+        <p id="ps_logoStatus" class="text-[13px] font-bold mb-3"></p>
         <div class="flex gap-2">
           <button onclick="testKioskPrint()" class="btn-outline flex-1 py-2.5 rounded-xl text-sm font-bold">Test print</button>
           <button onclick="savePrinterSetup()" class="btn-yellow flex-1 py-2.5 rounded-xl text-sm">Save</button>
@@ -558,7 +566,7 @@
           <button onclick="selectCategory(${idx})" class="flex items-center gap-2 px-2 py-3.5 text-left border-b border-neutral-100 last:border-0 ${isActive ? 'bg-neutral-50' : ''}">
             ${categoryImages[cat] ? `<img src="${esc(resolveImgPath(categoryImages[cat]))}" class="w-8 h-8 rounded-md object-cover shrink-0" alt="">` : `<span class="text-2xl w-8 shrink-0 text-center">${getCategoryIcon(cat)}</span>`}
             <span class="min-w-0">
-              <span class="block text-[13px] leading-tight break-words ${isActive ? 'font-black' : ''}">${esc(cat)}</span>
+              <span class="block text-[15px] leading-tight break-words ${isActive ? 'font-black' : ''}">${esc(cat)}</span>
               ${isActive ? '<span class="block h-[3px] w-8 bg-[var(--yellow)] mt-1"></span>' : ''}
             </span>
           </button>`;
@@ -599,12 +607,15 @@
         const na = itemUnavailable(item);
         return `
           <button ${na ? 'disabled' : `onclick="startKioskItem(${item.id})"`} class="tile p-2.5 flex flex-col text-left relative ${na ? 'cursor-not-allowed' : ''}">
-            ${na ? '<span class="absolute top-2 left-2 z-10 bg-rose-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full">Not Available</span>' : ''}
+            ${na ? '<span class="absolute top-2 left-2 z-10 bg-rose-600 text-white text-[12px] font-black px-2 py-0.5 rounded-full">Not Available</span>' : ''}
             <div class="h-28 flex items-center justify-center ${na ? 'opacity-40 grayscale' : ''}">
               ${img ? `<img decoding="async" src="${esc(img)}" class="max-h-full max-w-full object-contain" onerror="this.onerror=null; this.replaceWith(Object.assign(document.createElement('span'),{className:'text-6xl',textContent:'🍔'}));">` : '<span class="text-6xl">🍔</span>'}
             </div>
-            <h3 class="font-bold text-[12px] leading-tight mt-2 break-words ${na ? 'opacity-50' : ''}">${vegIcon(item.food_type)}${esc(item.name)}</h3>
-            <span class="font-bold text-[12px] mt-auto pt-1 ${na ? 'opacity-50' : ''}">${priceTag}</span>
+            <h3 class="font-bold text-[15px] leading-tight mt-2 break-words line-clamp-2 ${na ? 'opacity-50' : ''}">${vegIcon(item.food_type)}${esc(item.name)}</h3>
+            <div class="flex items-center justify-between gap-1 mt-auto pt-2">
+              <span class="font-black text-[15px] ${na ? 'opacity-50' : ''}">${priceTag}</span>
+              ${na ? '' : '<span class="add-fab" aria-hidden="true">+</span>'}
+            </div>
           </button>`;
       }).join('') || '<p class="col-span-3 text-neutral-500 text-sm">No items in this category.</p>';
     }
@@ -631,12 +642,12 @@
         const img = itemImgOf(t);
         return `
           <button onclick="pickMealChoice(${t.id})" class="tile p-2.5 flex flex-col text-left">
-            <span class="text-[11px] font-black uppercase tracking-widest text-[var(--red)]">${badge}</span>
+            <span class="text-[13px] font-black uppercase tracking-widest text-[var(--red)]">${badge}</span>
             <div class="h-28 w-28 mx-auto flex items-center justify-center">
               ${img ? `<img decoding="async" src="${esc(img)}" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">` : '<span class="text-5xl">🍽️</span>'}
             </div>
-            <h3 class="font-bold text-[13px] leading-tight mt-2 line-clamp-2 min-h-[2.1em]">${esc(t.name)}</h3>
-            ${hidePrice ? '' : `<span class="font-bold text-[13px] mt-1">${price}</span>`}
+            <h3 class="font-bold text-[15px] leading-tight mt-2 line-clamp-2 min-h-[2.1em]">${esc(t.name)}</h3>
+            ${hidePrice ? '' : `<span class="font-bold text-[15px] mt-1">${price}</span>`}
           </button>`;
       };
       $('mealChoiceTitle').innerText = item.name;
@@ -767,6 +778,7 @@
       $('custImgContainer').innerHTML = review && custHidePrice ? mealHeroTiles() : (review ? custHeroHtml : ''); // size/add-on steps: photo hidden
       if (review) renderCustReview();
       $('custStepInfo').innerText = custSteps.length > 1 ? (review ? 'Review your order' : `Step ${custStepIdx + 1} of ${custSteps.length - 1}`) : '';
+      $('custProgress').innerHTML = custSteps.length > 1 ? custSteps.map((_, i) => '<span class="h-1.5 flex-1 rounded-full" style="background:' + (i <= custStepIdx ? 'var(--accent)' : '#e5e5e5') + '"></span>').join('') : '';
       refreshCustNextLabel();
       $('custBackBtn').innerText = custStepIdx === 0 || (review && custSteps.length === 1) ? 'Cancel Item' : 'Back';
       $('custQtyRow').classList.toggle('hidden', !review);
@@ -812,7 +824,7 @@
       custSteps.forEach((st, i) => {
         if (st.type !== 'group' || i === burgerIdx) return;
         const { g, chosen } = gStep(st, i);
-        if (g && /customi[sz]e/i.test(g.name)) return; // customise/bun groups ki photo yahan nahi; wo list me rehte hain
+        if (g && (/customi[sz]e/i.test(g.name) || Number(g.max_selection) > 1)) return; // customise (named so, or a multi-pick group) ki photo yahan nahi; wo list me rehte hain
         const withImg = chosen.filter(a => a.image);
         if (!withImg.length) return;
         tileSteps.add(i);
@@ -824,13 +836,13 @@
     // edit=true: review page tiles with Edit buttons; edit=false: compact read-only tiles for the "Your Order" list
     function mealTilesHtml(tiles, edit) {
       const sz = edit ? 'h-28 w-28' : 'h-16 w-16';
-      return `<div class="flex gap-2 w-full ${edit ? 'justify-center' : ''} items-stretch">${tiles.map(t => `
+      return `<div class="flex flex-wrap gap-2 w-full ${edit ? 'justify-center' : ''} items-stretch">${tiles.map(t => `
         <div class="tile p-2 flex flex-col items-center text-center flex-none w-[calc(33.333%-0.34rem)] min-w-0">
-          <span class="text-[10px] font-bold uppercase tracking-widest text-neutral-500 truncate w-full">${esc(t.label)}</span>
+          <span class="text-[12px] font-bold uppercase tracking-widest text-neutral-500 truncate w-full">${esc(t.label)}</span>
           <div class="${sz} mx-auto flex items-center justify-center">${t.img ? `<img src="${esc(t.img)}" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">` : '<span class="text-4xl">🍽️</span>'}</div>
-          <span class="text-[12px] font-bold leading-tight mt-1 line-clamp-2 min-h-[2.2em]">${esc(t.name)}</span>
-          ${t.note ? `<span class="text-[10px] text-neutral-500 leading-tight line-clamp-2">+ ${esc(t.note)}</span>` : ''}
-          ${edit && t.step >= 0 ? `<button onclick="custEdit(${t.step})" class="btn-outline px-3 py-1.5 text-xs mt-2 w-full">Edit</button>` : ''}
+          <span class="text-[14px] font-bold leading-tight mt-1 line-clamp-2 min-h-[2.2em]">${esc(t.name)}</span>
+          ${t.note ? `<span class="text-[12px] text-neutral-500 leading-tight line-clamp-2">+ ${esc(t.note)}</span>` : ''}
+          ${edit && t.step >= 0 ? `<button onclick="custEdit(${t.step})" class="btn-outline px-3 py-1.5 text-sm mt-2 w-full">Edit</button>` : ''}
         </div>`).join('')}</div>`;
     }
     let tileSteps = new Set();
@@ -859,7 +871,7 @@
             <div class="tile p-3 flex items-center justify-between gap-3">
               ${r.images.length ? `<span class="flex -space-x-2 shrink-0">${r.images.slice(0, 3).map(im => `<img src="${esc(resolveImgPath(im))}" class="w-14 h-14 rounded-lg object-cover border-2 border-white">`).join('')}</span>` : ''}
               <span class="min-w-0 flex-1">
-                <span class="block text-[11px] font-bold uppercase tracking-widest text-neutral-500">${esc(r.label)}</span>
+                <span class="block text-[13px] font-bold uppercase tracking-widest text-neutral-500">${esc(r.label)}</span>
                 <span class="block text-[14px] font-bold leading-tight">${esc(r.value)}</span>
               </span>
               <button onclick="custEdit(${r.i})" class="btn-outline px-4 py-2 text-sm shrink-0">Edit</button>
@@ -925,7 +937,7 @@
         <div>
           <div class="flex justify-between items-baseline mb-3">
             <span class="text-xl font-black">${esc(g.name)}</span>
-            <span class="text-[11px] font-bold ${g.is_mandatory ? 'text-[var(--red)]' : 'text-neutral-500'}">
+            <span class="text-[13px] font-bold ${g.is_mandatory ? 'text-[var(--red)]' : 'text-neutral-500'}">
               ${g.is_mandatory ? 'Required (Min ' + g.min_selection + ')' : 'Optional'}
             </span>
           </div>
@@ -938,8 +950,8 @@
                 <div class="h-28 w-28 mx-auto flex items-center justify-center">
                   ${addon.image ? `<img src="${esc(resolveImgPath(addon.image))}" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">` : '<span class="text-4xl">🍽️</span>'}
                 </div>
-                <span class="block text-[12px] font-bold leading-tight mt-1.5 line-clamp-2 min-h-[2.1em]">${esc(addon.name)}</span>
-                <span class="block text-[12px] text-neutral-600 mt-0.5">+${money(addon.price)}</span>
+                <span class="block text-[14px] font-bold leading-tight mt-1.5 line-clamp-2 min-h-[2.1em]">${esc(addon.name)}</span>
+                <span class="block text-[14px] text-neutral-600 mt-0.5">+${money(addon.price)}</span>
               </label>`;
             }).join('')}
           </div>
@@ -1002,7 +1014,9 @@
       updateCustomizerTotal();
     }
 
+    let custReplaceCartId = null; // cartId of the tray line being edited
     function closeCustomizerModal() {
+      if (custReplaceCartId !== null) { custReplaceCartId = null; $('trayReviewModal').classList.remove('hidden'); } // back to Your Order after an edit (or cancel)
       $('customizerModal').classList.add('hidden');
       selectedMenuItem = null;
       selectedVariation = null;
@@ -1033,6 +1047,9 @@
       const finalPrice = unitPrice();
       const displayName = selectedMenuItem.name + (selectedVariation ? ` (${selectedVariation.name})` : '') + (addonNames.length ? ` (${addonNames.join(', ')})` : '');
 
+      const wasEdit = custReplaceCartId !== null; // an item re-opened from the Your Order page: its old line is replaced, at the same place
+      let replaceAt = -1;
+      if (wasEdit) { replaceAt = kioskTray.findIndex(l => l.cartId === custReplaceCartId); if (replaceAt >= 0) kioskTray.splice(replaceAt, 1); }
       let line = kioskTray.find(i => i.menu_id === selectedMenuItem.id && i.name === displayName && i.notes === noteText);
       if (line) line.qty += custQty;
       else {
@@ -1045,11 +1062,13 @@
           image: itemImgOf(selectedMenuItem),
           baseName: selectedMenuItem.name,
           tiles: custHidePrice ? mealTileData() : null,
-          rows: custHidePrice ? custReviewRows().filter(r => r.value !== 'None') : null,   // burger customise etc. (read-only on the Your Order page)   // meal: same burger/drink/fries tiles as the review page
+          sel: { varName: selectedVariation ? selectedVariation.name : '', groups: JSON.parse(JSON.stringify(selectedGroupAddons)) },   // lets the Your Order page re-open this item for editing
+          rows: custReviewRows().filter(r => r.value !== 'None' && (custHidePrice || r.label !== 'Size')),   // add-on rows with photos (read-only on the Your Order page); the size is already in the item name   // meal: same burger/drink/fries tiles as the review page
           is_exempt: Number(selectedMenuItem.is_exempt) ? 1 : 0,
           qty: custQty
         };
         kioskTray.push(line);
+        if (replaceAt >= 0) { kioskTray.pop(); kioskTray.splice(replaceAt, 0, line); }
       }
 
       // "Make it a meal" upgrade: the original line is replaced by the one just added
@@ -1063,7 +1082,7 @@
 
       closeCustomizerModal();
       updateTrayUI();
-      showAddedConfirmation();
+      if (!wasEdit) showAddedConfirmation();
     }
 
     // ---------- Suggestions ("Can we suggest?") - cart kholne par ek baar poori tray ke liye ----------
@@ -1090,8 +1109,8 @@
             <div class="h-28 w-28 mx-auto flex items-center justify-center">
               ${img ? `<img decoding="async" src="${esc(img)}" class="max-h-full max-w-full object-contain" onerror="this.style.display='none'">` : '<span class="text-5xl">🍽️</span>'}
             </div>
-            <h3 class="font-bold text-[13px] leading-tight mt-2 line-clamp-2 min-h-[2.1em]">${esc(t.name)}</h3>
-            <span class="font-bold text-[13px] mt-1">${price}</span>
+            <h3 class="font-bold text-[15px] leading-tight mt-2 line-clamp-2 min-h-[2.1em]">${esc(t.name)}</h3>
+            <span class="font-bold text-[15px] mt-1">${price}</span>
           </button>`;
       }).join('')}</div>`;
       list.forEach(t => suggestDismissed.add(t.id)); // ek baar dikha diya, dobara nahi poochenge
@@ -1101,6 +1120,7 @@
 
     function showAddedConfirmation() {
       $('addedTotal').innerText = money(trayTotal());
+      const ci = $('cartIconBox'); ci.classList.remove('bump'); void ci.offsetWidth; ci.classList.add('bump'); // cart icon bounces when an item is added
       $('addedModal').classList.remove('hidden');
       setTimeout(() => $('addedModal').classList.add('hidden'), 1400);
     }
@@ -1132,6 +1152,7 @@
 
     function updateTrayUI() {
       $('trayCountBadge').innerText = trayCount();
+      $('trayCountLabel').innerText = trayCount() ? trayCount() + (trayCount() === 1 ? ' item' : ' items') : 'No items yet';
       $('trayTotalDisplay').innerText = money(trayTotal());
       $('reviewSubTotal').innerText = money(traySubtotal());
       $('reviewCgst').innerText = money(trayGst() / 2);
@@ -1158,26 +1179,48 @@
               <h4 class="font-black text-[15px] leading-tight">${esc(item.tiles && item.baseName ? item.baseName : item.name)}</h4>
               <span class="font-black text-[15px] whitespace-nowrap">${money(item.price * item.qty)}</span>
             </div>
-            ${item.notes ? `<p class="text-[11px] text-neutral-600 mt-1">${esc(item.notes)}</p>` : ''}
+            ${item.notes ? `<p class="text-[13px] text-neutral-600 mt-1">${esc(item.notes)}</p>` : ''}
             ${item.tiles ? `<div class="mt-2">${mealTilesHtml(item.tiles, false)}</div>` : ''}
             ${(item.rows || []).map(r => `
               <div class="tile p-2 mt-2 flex items-center gap-3">
                 ${r.images.length ? `<span class="flex -space-x-2 shrink-0">${r.images.slice(0, 3).map(im => `<img src="${esc(resolveImgPath(im))}" class="w-10 h-10 rounded-lg object-cover border-2 border-white">`).join('')}</span>` : ''}
                 <span class="min-w-0 flex-1">
-                  <span class="block text-[10px] font-bold uppercase tracking-widest text-neutral-500">${esc(r.label)}</span>
-                  <span class="block text-[12px] font-bold leading-tight">${esc(r.value)}</span>
+                  <span class="block text-[12px] font-bold uppercase tracking-widest text-neutral-500">${esc(r.label)}</span>
+                  <span class="block text-[14px] font-bold leading-tight">${esc(r.value)}</span>
                 </span>
               </div>`).join('')}
             <div class="flex items-center justify-between mt-3">
-              <div class="flex items-stretch border border-[#9a9a9a] bg-white h-10">
-                <button onclick="changeTrayQty(${idx}, -1)" class="w-10 text-xl active:bg-neutral-100">−</button>
-                <span class="w-10 flex items-center justify-center border-x border-[#9a9a9a] text-sm">${item.qty}</span>
-                <button onclick="changeTrayQty(${idx}, 1)" class="w-10 text-xl active:bg-neutral-100">+</button>
+              <div class="flex items-stretch border border-[#9a9a9a] bg-white h-12">
+                <button onclick="changeTrayQty(${idx}, -1)" class="w-12 text-2xl active:bg-neutral-100">−</button>
+                <span class="w-12 flex items-center justify-center border-x border-[#9a9a9a] text-base font-bold">${item.qty}</span>
+                <button onclick="changeTrayQty(${idx}, 1)" class="w-12 text-2xl active:bg-neutral-100">+</button>
               </div>
-              <button onclick="removeTrayItem(${idx})" class="btn-outline px-4 h-10 text-[13px]">Remove</button>
+              <span class="flex gap-2">
+                ${item.sel && ((item.rows || []).length || item.tiles || item.sel.varName) ? `<button onclick="editTrayItem(${idx})" class="btn-outline px-5 h-12 text-[15px]">Edit</button>` : ''}
+                <button onclick="removeTrayItem(${idx})" class="btn-outline px-5 h-12 text-[15px]">Remove</button>
+              </span>
             </div>
           </div>
         </div>`).join('');
+    }
+
+    // Re-open an item from Your Order with its size / add-ons already chosen, on the review page (each choice has its own Edit there)
+    function editTrayItem(idx) {
+      const line = kioskTray[idx]; if (!line || !line.sel) return;
+      if (!(allKioskItems.find(i => i.id === line.menu_id) || menuItems.find(i => i.id === line.menu_id))) return;
+      closeTrayReviewModal();
+      openCustomizer(line.menu_id, !!line.tiles);
+      custReplaceCartId = line.cartId;
+      const vi = line.sel.varName ? custVariations.findIndex(v => v.name === line.sel.varName) : -1;
+      if (vi >= 0) {
+        selectedVariation = { ...custVariations[vi], price: Number(custVariations[vi].price) };
+        document.querySelectorAll('[data-var-tile]').forEach((t, i) => t.classList.toggle('selected', i === vi));
+      }
+      selectedGroupAddons = JSON.parse(JSON.stringify(line.sel.groups || {}));
+      custQty = line.qty; $('custQty').innerText = custQty;
+      buildCustSteps();
+      custStepIdx = custSteps.length - 1; custEditing = false; custDir = 1;
+      renderCustStep(); updateCustomizerTotal();
     }
 
     function changeTrayQty(idx, delta) {
@@ -1245,7 +1288,7 @@
     function renderPointsFields() {
       $('pointsAmountDisplay').innerHTML = pointsAmount || '&nbsp;';
       $('pointsCodeDisplay').innerHTML = pointsCode || '&nbsp;';
-      ['amount', 'code'].forEach(f => $(f === 'amount' ? 'pointsAmountDisplay' : 'pointsCodeDisplay').style.outline = pointsField === f ? '3px solid #d9531e' : 'none');
+      ['amount', 'code'].forEach(f => $(f === 'amount' ? 'pointsAmountDisplay' : 'pointsCodeDisplay').style.outline = pointsField === f ? '3px solid var(--accent)' : 'none');
       const err = pointsAmountError(), n = pointsWanted();
       $('pointsSaving').innerText = err ? err : (pointsOffer ? 'Saves ' + money(Math.round(n * pointsOffer.perPoint * 100) / 100) : '');
       $('pointsSaving').style.color = err ? '#dc2626' : '';
@@ -1266,10 +1309,10 @@
     }
     // Free items as menu-style tiles, 3 per row, each marked FREE (pick = tappable, picked one gets a ring)
     function stampTilesHtml(items, pick) {
-      return items.map(i => '<' + (pick ? 'button onclick="pickStamp(' + i.id + ')"' : 'div') + ' class="tile p-2 flex flex-col items-center text-center relative ' + (pick && stampPick === i.id ? 'ring-4 ring-[#d9531e]' : '') + '">' +
+      return items.map(i => '<' + (pick ? 'button onclick="pickStamp(' + i.id + ')"' : 'div') + ' class="tile p-2 flex flex-col items-center text-center relative ' + (pick && stampPick === i.id ? 'ring-4 ring-[color:var(--accent)]' : '') + '">' +
         (pick && stampPick === i.id ? '<span class="absolute top-1 right-1 z-10 text-base">&#9989;</span>' : '') +
         '<div class="h-16 w-full flex items-center justify-center">' + (i.image ? '<img src="' + resolveImgPath(i.image) + '" class="max-h-full max-w-full object-contain" onerror="this.replaceWith(Object.assign(document.createElement(\'span\'),{className:\'text-4xl\',textContent:\'\\u{1F37D}\'}))">' : '<span class="text-4xl">&#127869;</span>') + '</div>' +
-        '<h3 class="font-bold text-[11px] leading-tight mt-1.5 break-words">' + i.name.replace(/</g, '&lt;') + '</h3><span class="font-black text-[12px] text-emerald-600 mt-auto pt-1">FREE</span></' + (pick ? 'button' : 'div') + '>').join('');
+        '<h3 class="font-bold text-[13px] leading-tight mt-1.5 break-words">' + i.name.replace(/</g, '&lt;') + '</h3><span class="font-black text-[14px] text-emerald-600 mt-auto pt-1">FREE</span></' + (pick ? 'button' : 'div') + '>').join('');
     }
     // When the free-item popup opens, the grid scrolls down a little and back up once, so the customer sees it can scroll
     function stampNudge() {
@@ -1286,7 +1329,7 @@
       const items = st && st.available > 0 && Math.round(traySubtotal() * 1.05) >= (Number(st.redeem_min) || 0) ? (st.free_items || []) : [];
       box.classList.toggle('hidden', !items.length);
       box.innerHTML = items.length ? '<p class="text-center text-sm font-black">&#127873; Pick your FREE item (tap again to remove)</p><div id="stampPickGrid" onscroll="stampScrollHint()" class="stamp-scroll grid grid-cols-3 gap-2 mt-2 max-h-[290px] overflow-y-auto p-0.5">' + stampTilesHtml(items, true) + '</div>' +
-        (items.length > 6 ? '<div id="stampScrollHint" class="text-center text-xs font-black opacity-70 mt-1 animate-pulse">&#8595; Scroll for more FREE items (' + items.length + ' total) &#8595;</div>' : '') : '';
+        (items.length > 6 ? '<div id="stampScrollHint" class="text-center text-sm font-black opacity-70 mt-1 animate-pulse">&#8595; Scroll for more FREE items (' + items.length + ' total) &#8595;</div>' : '') : '';
       stampScrollHint();
     }
     // Customer has a free item waiting but this bill is under the minimum: show what they could get, and how much more to add
@@ -1389,15 +1432,15 @@
     function stampThumbs(st, max) {
       const l = (st && st.free_items) || []; if (!l.length) return '';
       return '<div class="text-sm font-black mt-2">&#127873; Your FREE item can be:</div><div class="flex gap-2 justify-center flex-wrap mt-1">' + l.slice(0, max).map(i =>
-        '<div class="w-[72px] text-center"><div class="w-[72px] h-[72px] rounded-xl bg-white/70 overflow-hidden flex items-center justify-center">' + (i.image ? '<img src="' + resolveImgPath(i.image) + '" class="w-full h-full object-cover" onerror="this.outerHTML=\'&#127869;\'">' : '<span class="text-2xl">&#127869;</span>') + '</div><div class="text-xs font-bold leading-tight mt-0.5">' + i.name.replace(/</g, '&lt;') + '</div></div>').join('') + '</div>' +
-        (l.length > max ? '<div class="text-xs font-bold opacity-70 mt-1">+' + (l.length - max) + ' more</div>' : '');
+        '<div class="w-[72px] text-center"><div class="w-[72px] h-[72px] rounded-xl bg-white/70 overflow-hidden flex items-center justify-center">' + (i.image ? '<img src="' + resolveImgPath(i.image) + '" class="w-full h-full object-cover" onerror="this.outerHTML=\'&#127869;\'">' : '<span class="text-2xl">&#127869;</span>') + '</div><div class="text-sm font-bold leading-tight mt-0.5">' + i.name.replace(/</g, '&lt;') + '</div></div>').join('') + '</div>' +
+        (l.length > max ? '<div class="text-sm font-bold opacity-70 mt-1">+' + (l.length - max) + ' more</div>' : '');
     }
     // Compact single row of small free-item photos (so two stamp cards still leave room for the payment buttons)
     function stampFreeLine(st) {
       const l = (st && st.free_items) || []; if (!l.length) return '';
-      const max = 5, more = l.length > max ? '<div class="shrink-0 self-center text-xs font-black opacity-70 pl-1">+' + (l.length - max) + '</div>' : '';
+      const max = 5, more = l.length > max ? '<div class="shrink-0 self-center text-sm font-black opacity-70 pl-1">+' + (l.length - max) + '</div>' : '';
       return '<div class="flex gap-1.5 mt-1.5 items-start">&#127873;' + l.slice(0, max).map(i =>
-        '<div class="w-[50px] shrink-0 text-center"><div class="w-[50px] h-[50px] rounded-lg bg-white/70 overflow-hidden flex items-center justify-center">' + (i.image ? '<img src="' + resolveImgPath(i.image) + '" class="w-full h-full object-cover" onerror="this.outerHTML=\'&#127869;\'">' : '<span class="text-xl">&#127869;</span>') + '</div><div class="text-[9px] font-bold leading-tight mt-0.5 truncate">' + i.name.replace(/</g, '&lt;') + '</div></div>').join('') + more + '</div>';
+        '<div class="w-[50px] shrink-0 text-center"><div class="w-[50px] h-[50px] rounded-lg bg-white/70 overflow-hidden flex items-center justify-center">' + (i.image ? '<img src="' + resolveImgPath(i.image) + '" class="w-full h-full object-cover" onerror="this.outerHTML=\'&#127869;\'">' : '<span class="text-xl">&#127869;</span>') + '</div><div class="text-[11px] font-bold leading-tight mt-0.5 truncate">' + i.name.replace(/</g, '&lt;') + '</div></div>').join('') + more + '</div>';
     }
     // One stamp card's progress block for the checkout screen (prem = the premium card)
     function stampProgressHtml(st, bill, prem) {
@@ -1409,8 +1452,8 @@
       else if (bigger) msg = 'This bigger order earns a stamp on the Premium card instead.';
       else if (bill >= minO) msg = st.progress + 1 >= n ? 'This order unlocks your FREE item!' : 'This order adds a stamp (' + (st.progress + 1) + ' / ' + n + '). ' + (n - st.progress - 1) + ' more for a FREE item.';
       else msg = 'Orders of ' + money(minO) + ' or more earn a stamp (this one is ' + money(bill) + '). ' + (n - st.progress) + ' more stamps for a FREE item.';
-      return '<div class="text-base font-black">' + (st.available > 0 ? (prem ? '&#128081; Premium: you have a FREE item waiting!' : '&#127869; You have a FREE item waiting!') : name + ': ' + st.progress + ' / ' + n + ' <span class="tracking-widest" style="color:#d9531e">' + dots + '</span>') + '</div>' +
-        (st.available > 0 ? '' : '<div class="mt-1.5 h-2 rounded-full bg-black/10"><div class="h-2 rounded-full" style="width:' + pct + '%;background:#d9531e"></div></div>') +
+      return '<div class="text-base font-black">' + (st.available > 0 ? (prem ? '&#128081; Premium: you have a FREE item waiting!' : '&#127869; You have a FREE item waiting!') : name + ': ' + st.progress + ' / ' + n + ' <span class="tracking-widest" style="color:var(--accent)">' + dots + '</span>') + '</div>' +
+        (st.available > 0 ? '' : '<div class="mt-1.5 h-2 rounded-full bg-black/10"><div class="h-2 rounded-full" style="width:' + pct + '%;background:var(--accent)"></div></div>') +
         '<div class="text-sm opacity-80 mt-1">' + msg + '</div>' + stampFreeLine(st);
     }
     function renderPayProgress() {
@@ -1424,7 +1467,7 @@
         } else {
           const need = min - bal, spend = earn > 0 ? Math.ceil(need / earn * 100 / 10) * 10 : 0, pct = Math.max(4, Math.round(bal * 100 / min));
           html = '<div class="text-base font-black">&#127919; Just ' + need + (need === 1 ? ' point' : ' points') + ' more for ' + reward + ' off!</div>' +
-            '<div class="mt-2 h-2.5 rounded-full bg-black/10"><div class="h-2.5 rounded-full" style="width:' + pct + '%;background:#d9531e"></div></div>' +
+            '<div class="mt-2 h-2.5 rounded-full bg-black/10"><div class="h-2.5 rounded-full" style="width:' + pct + '%;background:var(--accent)"></div></div>' +
             '<div class="flex justify-between text-sm opacity-80 mt-1"><span>' + bal + ' / ' + min + ' points</span>' + (spend ? '<span>about ' + money(spend) + ' more in orders</span>' : '') + '</div>';
         }
       }
@@ -1454,6 +1497,7 @@
     function closePaymentModal() { $('paymentModal').classList.add('hidden'); }
 
     // ---------- Order submit ----------
+    let kioskSubmitting = false;
     function submitKioskOrder(payMethod) {
       closePaymentModal();
       pendingPaymentMode = payMethod;
@@ -1480,6 +1524,8 @@
       // UPI: the order is created by the server only after Paytm confirms the payment.
       if (payMethod === 'UPI_QR') return startUpiPayment(orderBody, { ...snapshot, payment_mode: 'UPI' });
 
+      if (kioskSubmitting) return; // a second tap must not create a second order
+      kioskSubmitting = true;
       fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1490,10 +1536,11 @@
         if (!data || !data.success) throw Object.assign(new Error((data && data.error) || ''), { fromServer: true });
         showKioskToken(data, snapshot, kioskOrderType + ' • Pending Approval', payMethod === 'PAY_COUNTER');
       })
+      .finally(() => { kioskSubmitting = false; })
       .catch(err => {
         // a rejected order (e.g. the points code expired) must not look like a placed one
         if (err && err.fromServer && err.message) { alert(err.message); if (kioskPromo) { kioskPromo = null; return openPointsStep(); } }
-        else alert('Order could not be placed. Please try again or ask staff for help.');
+        else alert('Sorry, we could not place your order. Please try again, or ask our staff at the counter for help.');
         openPaymentChoice();
       });
     }
@@ -2114,14 +2161,14 @@
       const n = st.orders_needed, minO = Number(st.min_order) || 0, l = st.free_items || [], sz = big ? 72 : 40;
       const thumbs = l.slice(0, big ? 5 : 4).map(i => '<div class="shrink-0 text-center" style="width:' + sz + 'px"><div class="rounded-lg bg-white overflow-hidden flex items-center justify-center" style="width:' + sz + 'px;height:' + sz + 'px">' +
         (i.image ? '<img src="' + resolveImgPath(i.image) + '" class="w-full h-full object-cover" onerror="this.outerHTML=\'&#127869;\'">' : '<span class="text-xl">&#127869;</span>') + '</div>' +
-        (big ? '<div class="text-[11px] font-bold leading-tight mt-0.5">' + i.name.replace(/</g, '&lt;') + '</div>' : '') + '</div>').join('');
-      const more = l.length > (big ? 5 : 4) ? '<div class="shrink-0 self-center text-xs font-black opacity-70">+' + (l.length - (big ? 5 : 4)) + '</div>' : '';
+        (big ? '<div class="text-[13px] font-bold leading-tight mt-0.5">' + i.name.replace(/</g, '&lt;') + '</div>' : '') + '</div>').join('');
+      const more = l.length > (big ? 5 : 4) ? '<div class="shrink-0 self-center text-sm font-black opacity-70">+' + (l.length - (big ? 5 : 4)) + '</div>' : '';
       const title = (prem ? '&#128081; PREMIUM STAMP CARD: ' : '&#127869; STAMP CARD: ') + n + ' ORDERS = 1 FREE ITEM';
       const sub = (minO > 0 ? 'Every paid order of ' + money(minO) + '+ earns ' + (prem ? 'a premium stamp. ' : (st.max_order ? 'a stamp (' + money(st.max_order) + '+ orders go to the Premium card). ' : 'a stamp. ')) : 'Every paid order earns a stamp. ') + 'Enter your phone number at checkout.';
       return big
         ? '<div class="rounded-2xl px-4 py-4 text-center" style="background:#ecfdf5;border:2px solid #a7f3d0"><div class="text-xl font-black">' + title + '</div><div class="text-sm font-bold opacity-80 mt-1">' + sub + '</div>' +
           (thumbs ? '<div class="text-sm font-black mt-3">&#127873; Pick your free item from:</div><div class="flex gap-3 justify-center mt-2">' + thumbs + more + '</div>' : '') + '</div>'
-        : '<div class="rounded-xl px-3 py-2 flex items-center gap-3" style="background:#ecfdf5;border:1px solid #a7f3d0"><div class="flex-1 min-w-0"><div class="text-[13px] font-black leading-tight">' + title + '</div><div class="text-[11px] font-bold opacity-75 leading-tight mt-0.5">' + sub + '</div></div>' +
+        : '<div class="rounded-xl px-3 py-2 flex items-center gap-3" style="background:#ecfdf5;border:1px solid #a7f3d0"><div class="flex-1 min-w-0"><div class="text-[15px] font-black leading-tight">' + title + '</div><div class="text-[13px] font-bold opacity-75 leading-tight mt-0.5">' + sub + '</div></div>' +
           (thumbs ? '<div class="flex gap-1.5 shrink-0">' + thumbs + more + '</div>' : '') + '</div>';
     }
     function loadStampBanner() {
@@ -2162,7 +2209,7 @@
       selectedMenuItem = null;
       selectedVariation = null;
       selectedGroupAddons = {};
-      pendingUpgrade = null;
+      pendingUpgrade = null; custReplaceCartId = null;
       suggestDismissed = new Set();
       updateTrayUI();
       ['tokenSuccessModal', 'trayReviewModal', 'phoneModal', 'pointsModal', 'paymentModal', 'upiQrModal', 'customizerModal', 'modeSelectionScreen', 'addedModal', 'upsellModal', 'mealChoiceModal', 'thinkingModal']

@@ -4035,6 +4035,7 @@
               <span class="flex-1 min-w-0 font-bold text-gray-800 break-words leading-tight">${escCartText(item.name)}</span>
               <span class="font-black text-gray-900 shrink-0">₹${item.price * item.qty}</span>
             </div>
+            ${(item.addonImgs || []).length ? `<div class="flex gap-1 mt-1 flex-wrap">${item.addonImgs.map(a => `<img src="${escCartText(/^(https?:)?\//.test(a.image) ? a.image : '/uploads/' + a.image)}" title="${escCartText(a.name)}" class="w-8 h-8 rounded object-cover border" onerror="this.style.display='none'">`).join('')}</div>` : ''}
             <div class="flex items-center gap-1 mt-0.5">
               <div class="flex items-center border rounded bg-gray-50 shrink-0">
                 <button onclick="changeItemQty(${idx}, -1)" class="px-2 font-bold hover:bg-gray-200">-</button>
@@ -5126,7 +5127,7 @@
           groups.forEach(function(g, i) {
             if (i === burgerIdx) return;
             var chosen = w.sel[i], withImg = chosen.filter(function(a) { return a.image; });
-            if (withImg.length && !/customi[sz]e/i.test(g.name)) { tiles.push(tileHtml(g.name, wizImg(withImg[0].image), chosen.map(function(a) { return a.name; }).join(', '), '', 'wizEdit(' + i + ')')); return; }
+            if (withImg.length && !/customi[sz]e/i.test(g.name) && !(Number(g.max_selection) > 1)) { tiles.push(tileHtml(g.name, wizImg(withImg[0].image), chosen.map(function(a) { return a.name; }).join(', '), '', 'wizEdit(' + i + ')')); return; }
             rows.push(rowHtml(g.name, '', chosenTxt(chosen, true), '<button onclick="wizEdit(' + i + ')" class="shrink-0 border px-3 py-1 rounded-lg font-bold text-[11px] hover:bg-white">Edit</button>'));
           });
         } else {
@@ -5215,7 +5216,7 @@
     function confirmPOSAddonSelection() {
       if (!currentModalSelectedItem) return;
 
-      let selectedAddons = [];
+      let selectedAddons = [], addonImgs = []; // addonImgs: add-on photos shown in the cart rows (display only)
       let extraPrice = 0;
 
       for (let gIdx = 0; gIdx < currentModalItemGroups.length; gIdx++) {
@@ -5225,7 +5226,7 @@
           addonWiz.editing = false; addonWiz.step = gIdx; renderAddonWiz();
           return alert(`"${g.name}" group mein kam se kam ${wizMin(g)} option select karna anivarya hai!`);
         }
-        chosen.forEach(a => { selectedAddons.push({ name: a.name, price: a.price }); extraPrice += a.price; });
+        chosen.forEach(a => { selectedAddons.push({ name: a.name, price: a.price }); extraPrice += a.price; if (a.image) addonImgs.push({ name: a.name, image: a.image }); });
       }
 
       const finalPrice = Number(currentModalSelectedItem.price) + extraPrice;
@@ -5239,6 +5240,7 @@
         price: finalPrice,
         qty: addonWiz.qty || 1,
         addons: selectedAddons,
+        addonImgs: addonImgs,
         is_exempt: Number(currentModalSelectedItem.is_exempt) ? 1 : 0
       };
       posCart.push(newLine);
