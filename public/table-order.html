@@ -174,7 +174,9 @@
     var vars = variationsOf(i), sold = isSoldOut(i), im = i.image || i.image_url, n = qtyInCart(i.id);
     var price = vars.length ? 'From ' + rs(Math.min.apply(null, vars.map(function (v) { return Number(v.price) || 0; }))) : rs(i.price);
     var ls = cart.map(function (c, k) { return { c: c, k: k }; }).filter(function (x) { return x.c.id === i.id; });
-    var pi = ls.length === 1 && !ls[0].c.variant && !(ls[0].c.addons || []).length && !ls[0].c.tiles ? ls[0].k : -1; // plain item, one line: show - qty +
+    // an item that has sizes, add-ons or a meal option always asks again on ADD; only truly plain items get the - qty + stepper
+    var needsChoice = vars.length > 0 || parse(i.assigned_addon_groups, []).length > 0 || upsells.some(function (u) { return u.upsell_type === 'upgrade' && u.item_name === i.name && u.suggested_item; });
+    var pi = !needsChoice && ls.length === 1 && !ls[0].c.variant && !(ls[0].c.addons || []).length && !ls[0].c.tiles ? ls[0].k : -1;
     var stepper = pi >= 0 ? '<div class="flex items-center bg-indigo-600 text-white rounded-lg overflow-hidden"><button onclick="menuQty(' + pi + ',-1)" aria-label="Decrease" class="px-3.5 py-1.5 font-black text-base">−</button><span class="px-1.5 font-black text-sm min-w-[1.5rem] text-center">' + cart[pi].qty + '</span><button onclick="menuQty(' + pi + ',1)" aria-label="Increase" class="px-3.5 py-1.5 font-black text-base">+</button></div>' : '';
     return '<div class="bg-white rounded-2xl border border-gray-200 p-3 flex gap-3 ' + (sold ? 'opacity-50' : '') + '">' +
       '<div class="w-20 h-20 shrink-0 rounded-xl bg-gray-100 overflow-hidden flex items-center justify-center">' + (im ? '<img src="' + esc(imgSrc(im)) + '" loading="lazy" class="w-full h-full object-cover" onerror="this.style.display=\'none\'">' : '<span class="text-2xl">🍽️</span>') + '</div>' +

@@ -765,7 +765,11 @@
     function itemCard(item) {
       const inCart = cart.filter(i => i.id === item.id).reduce((s, c) => s + c.qty, 0);
       const lines = cart.map((c, i) => ({ c, i })).filter(x => x.c.id === item.id);
-      const plainIdx = lines.length === 1 && !lines[0].c.variant && !(lines[0].c.addons || []).length && !lines[0].c.tiles ? lines[0].i : -1; // plain item, one line: show - qty +
+      // an item that has sizes, add-ons or a meal option always asks again on + ADD; only truly plain items get the - qty + stepper
+      let needsChoice = false;
+      try { needsChoice = JSON.parse(item.variations || '[]').length > 0 || JSON.parse(item.assigned_addon_groups || '[]').length > 0; } catch (e) {}
+      if (!needsChoice) needsChoice = onlineUpsells.some(u => u.upsell_type === 'upgrade' && u.item_name === item.name && u.suggested_item);
+      const plainIdx = !needsChoice && lines.length === 1 && !lines[0].c.variant && !(lines[0].c.addons || []).length && !lines[0].c.tiles ? lines[0].i : -1;
       const soldOut = isSoldOut(item);
       const src = imgSrc(item.image || item.image_url);
       let hasVars = false, startPrice = item.price;
