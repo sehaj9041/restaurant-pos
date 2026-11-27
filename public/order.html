@@ -80,7 +80,7 @@
         </div>
       </div>
       <div class="flex items-center gap-2">
-        <button id="appDownloadBtn" onclick="downloadApp()" class="hidden bg-gray-900 text-white px-3 py-1.5 rounded-full text-[11px] font-black">📲 Get App</button>
+        <button id="appDownloadBtn" onclick="downloadApp()" class="hidden bg-gray-100 text-gray-700 px-2.5 py-1 rounded-full text-[11px] font-black">📲 App</button>
         <button id="profileBtn" onclick="openOrders()" class="hidden bg-indigo-600 text-white px-3 py-1.5 rounded-full text-[11px] font-black">👤 My Orders</button>
       </div>
     </header>
@@ -95,9 +95,15 @@
 
     <!-- Menu Listing (grouped by category) -->
     <main class="p-3 flex-1">
+      <div id="loginStrip" class="hidden mb-3"></div>
       <div id="stampBanner" class="hidden mb-3"></div>
       <div id="menuGrid" class="space-y-6">
-        <div class="text-center py-12 text-gray-400 text-xs font-semibold">Loading menu items...</div>
+        <div class="space-y-3 animate-pulse" aria-label="Loading menu">
+          <div class="h-5 w-32 bg-gray-200 rounded"></div>
+          <div class="bg-white p-3.5 rounded-2xl border border-gray-100 flex items-center gap-3"><div class="w-16 h-16 rounded-xl bg-gray-200 shrink-0"></div><div class="flex-1 space-y-2"><div class="h-3.5 bg-gray-200 rounded w-3/4"></div><div class="h-3.5 bg-gray-200 rounded w-1/4"></div></div><div class="h-8 w-16 bg-gray-200 rounded-xl"></div></div>
+          <div class="bg-white p-3.5 rounded-2xl border border-gray-100 flex items-center gap-3"><div class="w-16 h-16 rounded-xl bg-gray-200 shrink-0"></div><div class="flex-1 space-y-2"><div class="h-3.5 bg-gray-200 rounded w-2/3"></div><div class="h-3.5 bg-gray-200 rounded w-1/4"></div></div><div class="h-8 w-16 bg-gray-200 rounded-xl"></div></div>
+          <div class="bg-white p-3.5 rounded-2xl border border-gray-100 flex items-center gap-3"><div class="w-16 h-16 rounded-xl bg-gray-200 shrink-0"></div><div class="flex-1 space-y-2"><div class="h-3.5 bg-gray-200 rounded w-4/5"></div><div class="h-3.5 bg-gray-200 rounded w-1/4"></div></div><div class="h-8 w-16 bg-gray-200 rounded-xl"></div></div>
+        </div>
       </div>
     </main>
 
@@ -599,9 +605,18 @@
     function saveProfile(p) { try { localStorage.setItem('vf_profile', JSON.stringify(p)); } catch (e) {} }
     function localOrderIds() { try { const a = JSON.parse(localStorage.getItem('vf_order_ids') || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
     function rememberOrderId(id) { try { localStorage.setItem('vf_order_ids', JSON.stringify([id, ...localOrderIds().filter(x => x !== id)].slice(0, 30))); } catch (e) {} }
+    // Menu page: one thin strip for customers who are not logged in ("Login karein, stamps aur free items dekhein")
+    function renderLoginStrip() {
+      const el = document.getElementById('loginStrip'); if (!el) return;
+      const p = getProfile(), dismissed = sessionStorage.getItem('vf_login_strip') === '1';
+      const show = !(p && p.token) && !dismissed && !!stampGen;
+      el.classList.toggle('hidden', !show);
+      if (show) el.innerHTML = `<div class="flex items-center gap-2 bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-2"><span class="flex-1 text-xs font-bold text-indigo-900">🔐 Login karein, apne stamps aur free items dekhein</span><button onclick="openLandingLogin()" class="bg-indigo-600 text-white font-black text-xs px-3 py-1.5 rounded-lg">Login</button><button onclick="sessionStorage.setItem('vf_login_strip','1');renderLoginStrip()" aria-label="Hide" class="text-gray-400 font-black px-1">✕</button></div>`;
+    }
     function refreshProfileUI() {
       const p = getProfile();
-      document.getElementById('profileBtn').classList.toggle('hidden', !p);
+      document.getElementById('profileBtn').classList.add('hidden'); // My Orders is in the bottom bar
+      try { renderLoginStrip(); } catch (e) {} // stampGen may not be declared yet on the very first call
       document.getElementById('landingOrdersBtn').classList.toggle('hidden', !p);
       document.getElementById('landingLoginBtn').classList.toggle('hidden', !!(p && p.token)); // login from the home page, before choosing Delivery / Takeaway
       const hello = document.getElementById('landingHello');
@@ -701,9 +716,21 @@
       if (on) bar.scrollLeft = on.offsetLeft - bar.clientWidth / 2 + on.clientWidth / 2;
     }
 
+    // The highlighted category chip follows the section that is on screen
+    let catSpyLock = 0, catSpyTimer = null;
+    window.addEventListener('scroll', () => {
+      if (Date.now() < catSpyLock || catSpyTimer) return;
+      catSpyTimer = setTimeout(() => {
+        catSpyTimer = null;
+        let cur = -1;
+        categoryList.forEach((c, i) => { const el = document.getElementById('cat-' + i); if (el && el.getBoundingClientRect().top <= 210) cur = i; });
+        if (cur >= 0 && categoryList[cur] !== activeCategory) { activeCategory = categoryList[cur]; renderCategories(); }
+      }, 120);
+    }, { passive: true });
     function scrollToCat(idx) {
       const el = document.getElementById('cat-' + idx);
       if (!el) return;
+      catSpyLock = Date.now() + 900;
       activeCategory = categoryList[idx];
       renderCategories();
       el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -737,6 +764,8 @@
 
     function itemCard(item) {
       const inCart = cart.filter(i => i.id === item.id).reduce((s, c) => s + c.qty, 0);
+      const lines = cart.map((c, i) => ({ c, i })).filter(x => x.c.id === item.id);
+      const plainIdx = lines.length === 1 && !lines[0].c.variant && !(lines[0].c.addons || []).length && !lines[0].c.tiles ? lines[0].i : -1; // plain item, one line: show - qty +
       const soldOut = isSoldOut(item);
       const src = imgSrc(item.image || item.image_url);
       let hasVars = false, startPrice = item.price;
@@ -754,8 +783,13 @@
             </div>
           </div>
           <div class="shrink-0 flex flex-col items-end gap-1">
-            ${inCart > 0 && !viewOnly ? `<span class="font-black text-[10px] text-indigo-800 bg-indigo-100 rounded-full px-2 py-0.5">${inCart} in cart</span>` : ''}
-            ${viewOnly ? '' : soldOut ? `<span class="text-rose-600 font-black text-[11px] bg-rose-50 border border-rose-200 rounded-lg px-2 py-1 whitespace-nowrap">Not Available</span>` : `
+            ${inCart > 0 && !viewOnly && plainIdx < 0 ? `<span class="font-black text-[10px] text-indigo-800 bg-indigo-100 rounded-full px-2 py-0.5">${inCart} in cart</span>` : ''}
+            ${viewOnly ? '' : soldOut ? `<span class="text-rose-600 font-black text-[11px] bg-rose-50 border border-rose-200 rounded-lg px-2 py-1 whitespace-nowrap">Not Available</span>` : plainIdx >= 0 ? `
+              <div class="flex items-center bg-indigo-600 text-white rounded-xl overflow-hidden shadow-xs">
+                <button onclick="changeQty(${plainIdx}, -1)" aria-label="Decrease" class="px-3.5 py-2 font-black text-base active:bg-indigo-800">−</button>
+                <span class="px-1.5 font-black text-sm min-w-[1.5rem] text-center">${cart[plainIdx].qty}</span>
+                <button onclick="changeQty(${plainIdx}, 1)" aria-label="Increase" class="px-3.5 py-2 font-black text-base active:bg-indigo-800">+</button>
+              </div>` : `
               <button onclick="addItemCheckAddons(${Number(item.id)})" class="bg-indigo-50 hover:bg-indigo-100 active:scale-95 border border-indigo-200 text-indigo-700 font-black text-xs px-4 py-1.5 rounded-xl transition">
                 + ADD
               </button>`}
@@ -1168,7 +1202,7 @@
     function loadCkLoyalty() {
       const p = getProfile();
       // visitors without a verified number only get the plain offer (/api/loyalty-info is public); the stamp progress of a phone is only given to the verified owner of that phone
-      const generic = () => { stampSt = null; stampCk = null; stampPick = 0; fetch('/api/loyalty-info').then(r => r.ok ? r.json() : null).then(d => { stampGen = d && d.stamp && d.stamp.enabled ? d.stamp : null; updateCartUI(); }).catch(() => {}); };
+      const generic = () => { stampSt = null; stampCk = null; stampPick = 0; fetch('/api/loyalty-info').then(r => r.ok ? r.json() : null).then(d => { stampGen = d && d.stamp && d.stamp.enabled ? d.stamp : null; updateCartUI(); renderLoginStrip(); }).catch(() => {}); };
       if (!p || !p.token) { loyCk = null; usePts = false; generic(); return updateCartUI(); }
       fetch('/api/loyalty/my', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: p.phone, token: p.token }) })
         .then(r => r.ok ? r.json() : null).then(d => {
@@ -1237,7 +1271,7 @@
       document.getElementById('cUsePts').checked = usePts;
       document.getElementById('cPtsText').textContent = `⭐ ${mp} points use karein (−₹${off}) • aapke paas ${loyCk ? loyCk.balance : 0}`;
       const sb = document.getElementById('stampBanner');
-      if (sb) { sb.innerHTML = stampProgHtml(stampSt || stampGen, cartSubtotal(), true); sb.classList.toggle('hidden', !(stampSt || stampGen)); }
+      if (sb) { sb.innerHTML = stampBannerOpen ? stampProgHtml(stampSt || stampGen, cartSubtotal(), true) + '<button onclick="toggleStampBanner(false)" class="w-full text-center text-[11px] font-black text-emerald-700 pt-1">Hide ▲</button>' : stampChipHtml(stampSt || stampGen); sb.classList.toggle('hidden', !(stampSt || stampGen)); }
       document.getElementById('cStampProg').innerHTML = stampProgHtml(stampSt || stampGen, cartSubtotal());
       document.getElementById('cStampProg').classList.toggle('hidden', !(stampSt || stampGen) || !cart.length);
       const sItems = stampItems();
@@ -1337,6 +1371,16 @@
         .filter(t => t && isShown(t) && !isSoldOut(t) && !inCart.has(t.id) && !onlineSuggestShown.has(t.id));
     }
 
+    // Menu page stamp banner: a single line (progress of both cards), the full boxes open on tap
+    let stampBannerOpen = false;
+    function toggleStampBanner(on) { stampBannerOpen = !!on; updateCartUI(); }
+    function stampChipHtml(st) {
+      if (!st) return '';
+      const n = st.normal || st, p = st.premium && st.premium.enabled ? st.premium : null;
+      const part = (c, ic) => c.progress === undefined ? '' : (c.available > 0 ? `${ic} 🎁 FREE item ready` : `${ic} ${c.progress}/${c.orders_needed}`);
+      const txt = [part(n, '🍽'), p ? part(p, '👑') : ''].filter(Boolean).join('  •  ') || `🍽 Stamp card: ${n.orders_needed} orders = 1 FREE item`;
+      return `<button onclick="toggleStampBanner(true)" class="w-full flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-xs font-black text-emerald-900"><span class="text-left">${txt}</span><span class="text-emerald-600 shrink-0">Details ›</span></button>`;
+    }
     // Free item waiting but the cart is under the owner's minimum: before checkout, show the free items and how much more to add
     let stampShortAt = -1, stampOfferAt = -1;
     function stampOfferTarget(st, sub) {

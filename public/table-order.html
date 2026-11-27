@@ -36,6 +36,7 @@
       <div id="chips" class="chips flex gap-2 overflow-x-auto px-4 pb-2.5"></div>
     </header>
 
+    <div id="loginStrip" class="hidden mx-4 mt-3"></div>
     <div id="stampBanner" class="hidden mx-4 mt-3"></div>
     <div id="offerBanner" class="hidden mx-4 mt-3 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs font-bold text-amber-900 space-y-0.5"></div>
     <div id="statusBox" class="px-4 pt-3 space-y-2"></div>
@@ -146,9 +147,20 @@
       return '<button onclick="goCat(' + idx + ')" class="shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold ' + (c === activeCat ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700') + '">' + esc(c) + '</button>';
     }).join('');
   }
-  function goCat(idx) { var el = $('cat-' + idx); if (el) { activeCat = cats()[idx]; renderChips(); window.scrollTo({ top: el.offsetTop - 150, behavior: 'smooth' }); } }
+  var catSpyLock = 0, catSpyTimer = null;
+  window.addEventListener('scroll', function () { // the highlighted chip follows the section on screen
+    if (Date.now() < catSpyLock || catSpyTimer) return;
+    catSpyTimer = setTimeout(function () {
+      catSpyTimer = null;
+      var list = cats(), cur = -1;
+      list.forEach(function (c, i) { var el = $('cat-' + i); if (el && el.getBoundingClientRect().top <= 190) cur = i; });
+      if (cur >= 0 && list[cur] !== activeCat) { activeCat = list[cur]; renderChips(); var on = $('chips').children[cur]; if (on) $('chips').scrollLeft = on.offsetLeft - $('chips').clientWidth / 2 + on.clientWidth / 2; }
+    }, 120);
+  }, { passive: true });
+  function goCat(idx) { var el = $('cat-' + idx); if (el) { catSpyLock = Date.now() + 900; activeCat = cats()[idx]; renderChips(); window.scrollTo({ top: el.offsetTop - 150, behavior: 'smooth' }); } }
   function onSearch(v) { search = v.trim().toLowerCase(); renderChips(); renderMenu(); }
 
+  function menuQty(k, d) { if (!cart[k]) return; cart[k].qty += d; if (cart[k].qty < 1) cart.splice(k, 1); saveCart(); updateCartBar(); renderMenu(); }
   function qtyInCart(id) { return cart.filter(function (c) { return c.id === id; }).reduce(function (s, c) { return s + c.qty; }, 0); }
   function renderMenu() {
     var list = visibleItems(), cs = cats();
@@ -161,12 +173,15 @@
   function card(i) {
     var vars = variationsOf(i), sold = isSoldOut(i), im = i.image || i.image_url, n = qtyInCart(i.id);
     var price = vars.length ? 'From ' + rs(Math.min.apply(null, vars.map(function (v) { return Number(v.price) || 0; }))) : rs(i.price);
+    var ls = cart.map(function (c, k) { return { c: c, k: k }; }).filter(function (x) { return x.c.id === i.id; });
+    var pi = ls.length === 1 && !ls[0].c.variant && !(ls[0].c.addons || []).length && !ls[0].c.tiles ? ls[0].k : -1; // plain item, one line: show - qty +
+    var stepper = pi >= 0 ? '<div class="flex items-center bg-indigo-600 text-white rounded-lg overflow-hidden"><button onclick="menuQty(' + pi + ',-1)" aria-label="Decrease" class="px-3.5 py-1.5 font-black text-base">−</button><span class="px-1.5 font-black text-sm min-w-[1.5rem] text-center">' + cart[pi].qty + '</span><button onclick="menuQty(' + pi + ',1)" aria-label="Increase" class="px-3.5 py-1.5 font-black text-base">+</button></div>' : '';
     return '<div class="bg-white rounded-2xl border border-gray-200 p-3 flex gap-3 ' + (sold ? 'opacity-50' : '') + '">' +
       '<div class="w-20 h-20 shrink-0 rounded-xl bg-gray-100 overflow-hidden flex items-center justify-center">' + (im ? '<img src="' + esc(imgSrc(im)) + '" loading="lazy" class="w-full h-full object-cover" onerror="this.style.display=\'none\'">' : '<span class="text-2xl">🍽️</span>') + '</div>' +
       '<div class="flex-1 min-w-0 flex flex-col justify-between"><div><div class="font-bold text-sm leading-tight">' + vegIcon(i.food_type) + esc(i.name) + '</div>' +
       (i.description ? '<div class="text-[11px] text-gray-500 mt-0.5 line-clamp-2">' + esc(i.description) + '</div>' : '') + '</div>' +
       '<div class="flex items-center justify-between mt-1"><span class="font-black text-sm text-emerald-700">' + price + '</span>' +
-      (sold ? '<span class="text-[11px] font-black text-rose-600">Sold out</span>' : '<button onclick="addItem(' + i.id + ')" class="bg-indigo-50 border border-indigo-200 text-indigo-700 font-black text-xs px-4 py-1.5 rounded-lg">' + (n ? 'Add +' + n : 'ADD') + '</button>') + '</div></div></div>';
+      (sold ? '<span class="text-[11px] font-black text-rose-600">Sold out</span>' : stepper || '<button onclick="addItem(' + i.id + ')" class="bg-indigo-50 border border-indigo-200 text-indigo-700 font-black text-xs px-4 py-1.5 rounded-lg">' + (n ? 'Add +' + n : 'ADD') + '</button>') + '</div></div></div>';
   }
 
   // ---------- add flow: meal choice -> size -> add-on steps -> review ----------
@@ -778,6 +793,24 @@
   }
   function stampShortGo(more) { var sub = cartSub(); closeSheet(); if (!more) { stampShortAt = sub; openCart(); } }
   // Stamp banner on the menu page: progress + free items (public status of this device's phone, or the plain offer)
+  // Menu page stamp banner: a single line (progress of both cards), the full boxes open on tap
+  var stampBannerOpen = false;
+  function toggleStampBanner(on) { stampBannerOpen = !!on; renderStampBanner(); }
+  function renderStampBanner() {
+    var st = stampBannerSt, el = $('stampBanner'); if (!st || !el) return;
+    if (stampBannerOpen) { el.innerHTML = stampProgHtml(st, cartSub(), true) + '<button onclick="toggleStampBanner(false)" class="w-full text-center text-[11px] font-black text-emerald-700 pt-1">Hide ▲</button>'; return; }
+    var n = st.normal || st, p = st.premium && st.premium.enabled ? st.premium : null;
+    var part = function (c, ic) { return c.progress === undefined ? '' : (c.available > 0 ? ic + ' 🎁 FREE item ready' : ic + ' ' + c.progress + '/' + c.orders_needed); };
+    var txt = [part(n, '🍽'), p ? part(p, '👑') : ''].filter(Boolean).join('  •  ') || '🍽 Stamp card: ' + n.orders_needed + ' orders = 1 FREE item';
+    el.innerHTML = '<button onclick="toggleStampBanner(true)" class="w-full flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-xs font-black text-emerald-900"><span class="text-left">' + txt + '</span><span class="text-emerald-600 shrink-0">Details ›</span></button>';
+  }
+  // One thin strip for guests who are not logged in on this device
+  function renderLoginStrip() {
+    var el = $('loginStrip'), p = profile(); if (!el) return;
+    var show = !(p && p.token) && !!stampBannerSt && sessionStorage.getItem('vf_tq_login_strip') !== '1';
+    el.classList.toggle('hidden', !show);
+    if (show) el.innerHTML = '<div class="flex items-center gap-2 bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-2"><span class="flex-1 text-xs font-bold text-indigo-900">🔐 Login karein, apne stamps aur free items dekhein</span><button onclick="pointsSheet()" class="bg-indigo-600 text-white font-black text-xs px-3 py-1.5 rounded-lg">Login</button><button onclick="sessionStorage.setItem(\'vf_tq_login_strip\',\'1\');renderLoginStrip()" aria-label="Hide" class="text-gray-400 font-black px-1">✕</button></div>';
+  }
   async function loadStampBanner() {
     try {
       var p = profile(), st = null;
@@ -786,7 +819,7 @@
       if (!st) { var g = await fetch('/api/loyalty-info').then(jsonOrThrow); if (g && g.stamp && g.stamp.enabled) st = g.stamp; }
       if (!st) return;
       stampBannerSt = st;
-      $('stampBanner').innerHTML = stampProgHtml(st, cartSub(), true); $('stampBanner').classList.remove('hidden');
+      renderStampBanner(); $('stampBanner').classList.remove('hidden'); renderLoginStrip();
     } catch (e) {}
   }
   function stampProgHtml(st, bill, menu) { // menu = the banner on the menu page: the free item is picked later, in the cart on Pay now
