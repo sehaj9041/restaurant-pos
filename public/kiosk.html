@@ -253,7 +253,8 @@
       <div class="text-5xl">&#127873;</div>
       <h3 id="stampShortTitle" class="text-2xl font-black leading-tight mt-2"></h3>
       <p id="stampShortInfo" class="text-base font-bold mt-2 max-w-[340px]"></p>
-      <div id="stampShortGrid" class="w-full max-w-[340px] mt-3 grid grid-cols-3 gap-2 content-start overflow-y-auto min-h-0"></div>
+      <div id="stampShortGrid" onscroll="stampShortHint()" class="stamp-scroll w-full max-w-[340px] mt-3 grid grid-cols-3 gap-2 content-start overflow-y-auto min-h-0 max-h-[300px] p-0.5"></div>
+      <div id="stampShortHint" class="hidden text-center text-sm font-black opacity-70 mt-1 animate-pulse">&#8595; Scroll for more FREE items &#8595;</div>
       <div class="w-full max-w-[340px] flex gap-3 py-4 shrink-0">
         <button onclick="stampShortContinue(false)" class="btn-outline w-[40%] py-3.5 text-base">Skip</button>
         <button onclick="stampShortContinue(true)" class="btn-yellow flex-1 py-3.5 text-base">Order More</button>
@@ -1353,6 +1354,7 @@
       $('stampShortGrid').innerHTML = stampTilesHtml(c.free_items || [], false);
       stampShortNext = next;
       $('stampShortModal').classList.remove('hidden');
+      stampShortSetup();
       return true;
     }
     function showStampShort(st, next) {
@@ -1364,6 +1366,16 @@
       $('stampShortGrid').innerHTML = stampTilesHtml(st.free_items || [], false);
       stampShortNext = next;
       $('stampShortModal').classList.remove('hidden');
+      stampShortSetup();
+    }
+    // the popup's free-item grid is short and scrolls, so the Skip / Order More buttons stay right under it
+    function stampShortHint() {
+      const g = $('stampShortGrid'), h = $('stampShortHint');
+      h.classList.toggle('hidden', g.scrollHeight <= g.clientHeight + 8 || g.scrollTop + g.clientHeight >= g.scrollHeight - 4);
+    }
+    function stampShortSetup() {
+      const g = $('stampShortGrid'); g.scrollTop = 0; stampShortHint();
+      if (g.scrollHeight > g.clientHeight + 8) setTimeout(() => { g.scrollTo({ top: 70, behavior: 'smooth' }); setTimeout(() => g.scrollTo({ top: 0, behavior: 'smooth' }), 700); }, 500);
     }
     function stampShortContinue(orderMore) {
       $('stampShortModal').classList.add('hidden');
